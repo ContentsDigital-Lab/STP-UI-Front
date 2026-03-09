@@ -26,7 +26,6 @@ export function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
 
     const navigation = [
         { name: t.dashboard, href: "/", icon: LayoutDashboard },
-        { name: t.orders, href: "/orders", icon: ShoppingCart },
         { name: t.production, href: "/production", icon: Factory },
         { name: t.inventory, href: "/inventory", icon: Package },
         { name: t.settings, href: "/settings", icon: Settings },

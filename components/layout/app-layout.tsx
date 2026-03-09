@@ -4,15 +4,19 @@ import React, { useState, useEffect } from "react";
 import { Sidebar } from "./sidebar";
 import { Header } from "./header";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/i18n/language-context";
+import { useAuth } from "@/lib/auth/auth-context";
+import { Loader2 } from "lucide-react";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
     const [collapsed, setCollapsed] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [mounted, setMounted] = useState(false);
     const pathname = usePathname();
+    const router = useRouter();
     const { t } = useLanguage();
+    const { isAuthenticated, isLoading } = useAuth();
 
     const getPageTitle = () => {
         if (pathname.startsWith("/orders")) return t.orders;
@@ -27,6 +31,31 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         setMobileMenuOpen(false);
         setMounted(true);
     }, [pathname]);
+
+    // Handle Route Protection
+    useEffect(() => {
+        if (!isLoading) {
+            if (!isAuthenticated && pathname !== "/login") {
+                router.push("/login");
+            } else if (isAuthenticated && pathname === "/login") {
+                router.push("/");
+            }
+        }
+    }, [isAuthenticated, isLoading, pathname, router]);
+
+    if (!mounted || isLoading) {
+        return (
+            <div className="flex h-screen w-full items-center justify-center bg-background">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        );
+    }
+
+    const isLoginPage = pathname === "/login";
+
+    if (isLoginPage) {
+        return <div className="min-h-screen bg-background">{children}</div>;
+    }
 
     return (
         <div

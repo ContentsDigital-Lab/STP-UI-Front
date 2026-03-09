@@ -3,7 +3,10 @@
 import * as React from "react";
 import { Menu, Moon, Sun, Globe } from "lucide-react";
 import { useTheme } from "next-themes";
+import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/i18n/language-context";
+import { useAuth } from "@/lib/auth/auth-context";
+import { authApi } from "@/lib/api/auth";
 import { Button } from "@/components/ui/button";
 import {
     DropdownMenu,
@@ -22,8 +25,10 @@ interface HeaderProps {
 }
 
 export function Header({ onMenuClick, title }: HeaderProps) {
-    const { theme, setTheme } = useTheme(); // Added theme to destructuring
+    const { theme, setTheme } = useTheme();
     const { lang, setLang, t } = useLanguage();
+    const { user, logout } = useAuth();
+    const router = useRouter();
 
     // Avoid hydration mismatch
     const [mounted, setMounted] = React.useState(false);
@@ -33,6 +38,17 @@ export function Header({ onMenuClick, title }: HeaderProps) {
 
     const toggleTheme = () => {
         setTheme(theme === "dark" ? "light" : "dark");
+    };
+
+    const handleLogout = async () => {
+        try {
+            await authApi.logout();
+        } catch (error) {
+            console.error("Logout API failed", error);
+        } finally {
+            logout(); // always clear local session
+            router.push("/login"); // redirect to login page
+        }
     };
 
     return (
@@ -84,20 +100,30 @@ export function Header({ onMenuClick, title }: HeaderProps) {
                             <span className="sr-only">Open user menu</span>
                             <Avatar className="h-8 w-8">
                                 <AvatarImage src="" alt="@shadcn" />
-                                <AvatarFallback className="bg-primary/20 text-primary">SP</AvatarFallback>
+                                <AvatarFallback className="bg-primary/20 text-primary">
+                                    {user?.name?.substring(0, 2).toUpperCase() || "SP"}
+                                </AvatarFallback>
                             </Avatar>
                             <span className="hidden lg:flex lg:items-center">
                                 <span className="ml-4 text-sm font-semibold leading-6 text-foreground" aria-hidden="true">
-                                    Admin User
+                                    {user ? user.name : "Admin User"}
                                 </span>
                             </span>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                             <DropdownMenuGroup>
-                                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                                <DropdownMenuLabel>
+                                    <div className="flex flex-col space-y-1">
+                                        <p className="text-sm font-medium leading-none">{user?.name}</p>
+                                        <p className="text-xs leading-none text-muted-foreground">{user?.username}</p>
+                                        <div className="mt-1 pt-1 opacity-70">Role: <span className="capitalize">{user?.role}</span></div>
+                                    </div>
+                                </DropdownMenuLabel>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem>{t.settings}</DropdownMenuItem>
-                                <DropdownMenuItem>Sign out</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => router.push("/settings")}>{t.settings}</DropdownMenuItem>
+                                <DropdownMenuItem onClick={handleLogout} className="text-red-500 cursor-pointer focus:text-red-500 focus:bg-red-50 dark:focus:bg-red-950">
+                                    Sign out
+                                </DropdownMenuItem>
                             </DropdownMenuGroup>
                         </DropdownMenuContent>
                     </DropdownMenu>
