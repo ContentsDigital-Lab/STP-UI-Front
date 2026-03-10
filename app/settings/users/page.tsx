@@ -30,8 +30,9 @@ import {
     DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Edit, Loader2, Search, ShieldAlert } from "lucide-react";
+import { Edit, Trash2, Loader2, Search, Plus, AlertTriangle } from "lucide-react";
 
 export default function UsersManagementPage() {
     const { user, isLoading: isAuthLoading } = useAuth();
@@ -47,6 +48,23 @@ export default function UsersManagementPage() {
     const [selectedWorker, setSelectedWorker] = useState<Worker | null>(null);
     const [editRole, setEditRole] = useState<"admin" | "manager" | "worker">("worker");
     const [isSaving, setIsSaving] = useState(false);
+
+    // Delete modal state
+    const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [deletingWorker, setDeletingWorker] = useState<Worker | null>(null);
+
+    // Create modal state
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [isCreating, setIsCreating] = useState(false);
+    const [createError, setCreateError] = useState("");
+    const [createForm, setCreateForm] = useState({
+        name: "",
+        username: "",
+        password: "",
+        position: "",
+        role: "worker" as "admin" | "manager" | "worker",
+    });
 
     useEffect(() => {
         if (!isAuthLoading) {
@@ -96,6 +114,48 @@ export default function UsersManagementPage() {
         }
     };
 
+    const handleCreateUser = async () => {
+        if (!createForm.name || !createForm.username || !createForm.password || !createForm.position) return;
+        setIsCreating(true);
+        setCreateError("");
+        try {
+            const response = await workersApi.create(createForm);
+            if (response.success && response.data) {
+                setWorkers([response.data, ...workers]);
+                setIsCreateModalOpen(false);
+                setCreateForm({ name: "", username: "", password: "", position: "", role: "worker" });
+            }
+        } catch (error: any) {
+            setCreateError(error.message || "Failed to create user");
+        } finally {
+            setIsCreating(false);
+        }
+    };
+
+    const handleDeleteClick = (worker: Worker) => {
+        setDeletingWorker(worker);
+        setIsDeleteOpen(true);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!deletingWorker) return;
+        setIsDeleting(true);
+        try {
+            const response = await workersApi.delete(deletingWorker._id);
+            if (response.success) {
+                setWorkers(workers.filter(w => w._id !== deletingWorker._id));
+                setIsDeleteOpen(false);
+                setDeletingWorker(null);
+            }
+        } catch (error) {
+            console.error("Failed to delete user:", error);
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    const isSelf = (workerId: string) => user?._id === workerId;
+
     const filteredWorkers = workers.filter((worker) => {
         const matchesSearch =
             worker.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -131,6 +191,13 @@ export default function UsersManagementPage() {
                     <h1 className="text-3xl font-bold tracking-tight text-foreground">User Management</h1>
                     <p className="text-muted-foreground">Manage user accounts and roles.</p>
                 </div>
+                <Button
+                    onClick={() => setIsCreateModalOpen(true)}
+                    className="gap-2 bg-[#1B4B9A] hover:bg-[#1B4B9A]/90 text-white"
+                >
+                    <Plus className="h-4 w-4" />
+                    New User
+                </Button>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-between items-center bg-card p-4 rounded-lg shadow-sm border border-border/50">
@@ -188,16 +255,28 @@ export default function UsersManagementPage() {
                                         </Badge>
                                     </TableCell>
                                     <TableCell className="text-right">
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => handleEditClick(worker)}
-                                            disabled={user.role === "manager" && worker.role === "admin"}
-                                            title={user.role === "manager" && worker.role === "admin" ? "Managers cannot edit admins" : "Edit user role"}
-                                        >
-                                            <Edit className="h-4 w-4 mr-2" />
-                                            Edit
-                                        </Button>
+                                        <div className="flex justify-end gap-1">
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => handleEditClick(worker)}
+                                                disabled={user.role === "manager" && worker.role === "admin"}
+                                                title={user.role === "manager" && worker.role === "admin" ? "Managers cannot edit admins" : "Edit user role"}
+                                            >
+                                                <Edit className="h-4 w-4 mr-2" />
+                                                Edit
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => handleDeleteClick(worker)}
+                                                disabled={isSelf(worker._id) || (user.role === "manager" && worker.role === "admin")}
+                                                title={isSelf(worker._id) ? "You cannot delete yourself" : "Delete user"}
+                                                className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950 disabled:text-muted-foreground disabled:hover:bg-transparent"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </div>
                                     </TableCell>
                                 </TableRow>
                             ))
@@ -250,6 +329,143 @@ export default function UsersManagementPage() {
                         >
                             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Save changes
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isCreateModalOpen} onOpenChange={(open) => { setIsCreateModalOpen(open); if (!open) setCreateError(""); }}>
+                <DialogContent className="sm:max-w-[480px]">
+                    <DialogHeader>
+                        <DialogTitle>New User</DialogTitle>
+                        <DialogDescription>
+                            Create a new user account for the system.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="create-name">Full Name *</Label>
+                            <Input
+                                id="create-name"
+                                placeholder="e.g. John Doe"
+                                value={createForm.name}
+                                onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="create-username">Username *</Label>
+                                <Input
+                                    id="create-username"
+                                    placeholder="e.g. johndoe"
+                                    value={createForm.username}
+                                    onChange={(e) => setCreateForm({ ...createForm, username: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="create-password">Password *</Label>
+                                <Input
+                                    id="create-password"
+                                    type="password"
+                                    placeholder="Min. 6 characters"
+                                    minLength={6}
+                                    value={createForm.password}
+                                    onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
+                                />
+                                {createForm.password.length > 0 && createForm.password.length < 6 && (
+                                    <p className="text-xs text-muted-foreground">
+                                        {6 - createForm.password.length} more character{6 - createForm.password.length !== 1 ? "s" : ""} needed
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="create-position">Position *</Label>
+                                <Input
+                                    id="create-position"
+                                    placeholder="e.g. Operator"
+                                    value={createForm.position}
+                                    onChange={(e) => setCreateForm({ ...createForm, position: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="create-role">Role</Label>
+                                <Select
+                                    value={createForm.role}
+                                    onValueChange={(val) => {
+                                        if (val) setCreateForm({ ...createForm, role: val as "admin" | "manager" | "worker" });
+                                    }}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select a role" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {user?.role === "admin" && <SelectItem value="admin">Admin</SelectItem>}
+                                        <SelectItem value="manager">Manager</SelectItem>
+                                        <SelectItem value="worker">Worker</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+
+                        {createError && (
+                            <div className="text-sm font-medium text-destructive dark:text-red-400">
+                                {createError}
+                            </div>
+                        )}
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsCreateModalOpen(false)} disabled={isCreating}>
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleCreateUser}
+                            disabled={isCreating || !createForm.name || !createForm.username || createForm.password.length < 6 || !createForm.position}
+                            className="bg-[#1B4B9A] hover:bg-[#1B4B9A]/90 text-white"
+                        >
+                            {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Create User
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+                <DialogContent className="sm:max-w-[400px]">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-red-600">
+                            <AlertTriangle className="h-5 w-5" />
+                            Delete User
+                        </DialogTitle>
+                        <DialogDescription>
+                            This action cannot be undone. This will permanently delete the user account.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                        <div className="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-950/50">
+                            <p className="text-sm text-red-800 dark:text-red-300">
+                                You are about to delete <span className="font-semibold">{deletingWorker?.name}</span> ({deletingWorker?.username}).
+                            </p>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setIsDeleteOpen(false)}
+                            disabled={isDeleting}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleConfirmDelete}
+                            disabled={isDeleting}
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                        >
+                            {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Delete
                         </Button>
                     </DialogFooter>
                 </DialogContent>
