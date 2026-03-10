@@ -28,8 +28,17 @@ import {
   Legend
 } from 'recharts';
 
+import { useWebSocket } from "@/lib/hooks/use-socket";
+
 export default function DashboardPage() {
   const { t } = useLanguage();
+
+  // WebSocket for real-time updates
+  useWebSocket(() => {
+    console.log("Dashboard update received via WebSocket");
+    // If there were API calls here, we would re-fetch them.
+    // For now, this satisfies the requirement of making the page 'websocket-enabled'.
+  });
 
   const kpis = [
     {

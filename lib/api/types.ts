@@ -38,6 +38,19 @@ export interface Inventory {
     updatedAt: string;
 }
 
+export interface MaterialLog {
+    _id: string;
+    material: string | Material;
+    action: "Import" | "Withdraw" | "Update" | "Delete";
+    quantity: number;
+    previousQuantity: number;
+    newQuantity: number;
+    warehouseLocation: string;
+    worker: string | Worker;
+    note?: string;
+    createdAt: string;
+}
+
 export interface LoginData {
     token: string;
     worker: Worker;
