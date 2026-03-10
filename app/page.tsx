@@ -1,257 +1,267 @@
 "use client";
 
-import { useLanguage } from "@/lib/i18n/language-context";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import React from "react";
 import {
-  ShoppingCart,
-  Clock,
-  CheckCircle2,
   TrendingUp,
-  Plus,
-  FileText,
-  Factory,
-  Package
+  AlertTriangle,
+  Boxes,
+  History,
+  CheckCircle2,
+  Clock,
+  TrendingDown,
+  Activity,
+  Package,
+  ArrowRight
 } from "lucide-react";
+import { useLanguage } from "@/lib/i18n/language-context";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
 import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  BarChart,
-  Bar,
-  Legend
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis
 } from 'recharts';
-
 import { useWebSocket } from "@/lib/hooks/use-socket";
 
 export default function DashboardPage() {
   const { t } = useLanguage();
 
-  // WebSocket for real-time updates
-  useWebSocket(() => {
-    console.log("Dashboard update received via WebSocket");
-    // If there were API calls here, we would re-fetch them.
-    // For now, this satisfies the requirement of making the page 'websocket-enabled'.
+  // WebSocket for real-time updates (v8 Socket.io + Rooms)
+  const dashboardEvents = [
+    'order:updated',
+    'inventory:updated',
+    'log:updated',
+    'request:updated',
+    'withdrawal:updated',
+    'claim:updated'
+  ];
+
+  useWebSocket('dashboard', dashboardEvents, (event: string) => {
+    console.log(`[Dashboard] Received ${event}, update signal received`);
+    // Ideally, specific fragments of the dashboard would refresh here.
   });
 
   const kpis = [
     {
-      title: t.totalOrders,
-      value: "145",
-      icon: ShoppingCart,
-      trend: "+12.5%",
-      trendUp: true,
+      title: t.dashboard.total_stock,
+      value: "14,250",
+      change: "+12.5%",
+      isPositive: true,
+      icon: Boxes,
+      color: "blue",
+      description: "Across all 4 warehouses"
     },
     {
-      title: t.inProgress,
-      value: "32",
+      title: t.dashboard.low_stock_alerts,
+      value: "12",
+      change: "-2",
+      isPositive: true,
+      icon: AlertTriangle,
+      color: "amber",
+      description: "Needs immediate attention"
+    },
+    {
+      title: t.dashboard.pending_requests,
+      value: "28",
+      change: "+5",
+      isPositive: false,
       icon: Clock,
-      trend: "+4.1%",
-      trendUp: true,
+      color: "indigo",
+      description: "Awaiting supervisor approval"
     },
     {
-      title: t.completed,
-      value: "108",
+      title: t.dashboard.completed_today,
+      value: "145",
+      change: "+18%",
+      isPositive: true,
       icon: CheckCircle2,
-      trend: "+18.2%",
-      trendUp: true,
-    },
-    {
-      title: t.revenue,
-      value: "฿840k",
-      icon: TrendingUp,
-      trend: "+8.4%",
-      trendUp: true,
-    },
+      color: "emerald",
+      description: "Orders processed in 24h"
+    }
   ];
 
-  const recentActivities = [
-    { id: "ORD-001", status: "In Progress", date: "2026-03-09 10:30", customer: "TechCorp Inc.", total: "฿45,000" },
-    { id: "ORD-002", status: "Completed", date: "2026-03-08 15:45", customer: "Modern Builders", total: "฿12,500" },
-    { id: "ORD-003", status: "Pending", date: "2026-03-08 09:15", customer: "Glass & Co", total: "฿8,900" },
-    { id: "ORD-004", status: "In Progress", date: "2026-03-07 14:20", customer: "Interior Designs LLC", total: "฿23,400" },
+  const recentActivity = [
+    { id: 1, type: 'import', material: 'Clear Glass 5mm', qty: '+50', time: '10 mins ago', user: 'Somchai P.' },
+    { id: 2, type: 'withdrawal', material: 'Tempered 10mm', qty: '-12', time: '25 mins ago', user: 'Wichai R.' },
+    { id: 3, type: 'alert', material: 'Laminated 8mm', qty: 'Low Stock', time: '1 hour ago', user: 'System' },
+    { id: 4, type: 'import', material: 'Mirror 3mm', qty: '+100', time: '2 hours ago', user: 'Anan S.' },
   ];
 
   const chartData = [
-    { name: 'Jan', revenue: 4000, orders: 24 },
-    { name: 'Feb', revenue: 3000, orders: 18 },
-    { name: 'Mar', revenue: 2000, orders: 12 },
-    { name: 'Apr', revenue: 2780, orders: 19 },
-    { name: 'May', revenue: 1890, orders: 11 },
-    { name: 'Jun', revenue: 2390, orders: 15 },
-    { name: 'Jul', revenue: 3490, orders: 21 },
+    { name: 'Mon', stock: 4000, out: 2400 },
+    { name: 'Tue', stock: 3000, out: 1398 },
+    { name: 'Wed', stock: 2000, out: 9800 },
+    { name: 'Thu', stock: 2780, out: 3908 },
+    { name: 'Fri', stock: 1890, out: 4800 },
+    { name: 'Sat', stock: 2390, out: 3800 },
+    { name: 'Sun', stock: 3490, out: 4300 },
   ];
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+    <div className="flex flex-col gap-8 max-w-[1600px] mx-auto w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-8 overflow-x-hidden">
+      {/* Welcome Section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">{t.dashboard}</h1>
-          <p className="text-muted-foreground">{t.welcomeMessage}</p>
+          <h1 className="text-3xl md:text-4xl font-black tracking-tight text-slate-900 dark:text-white">
+            {t.dashboard.welcome}
+          </h1>
+          <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">
+            System Operational • All stations reporting healthy
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" className="gap-2">
-            <FileText className="h-4 w-4" />
-            Report
-          </Button>
-          <Button className="gap-2 bg-primary hover:bg-primary/90">
-            <Plus className="h-4 w-4" />
-            New Order
+        <div className="flex items-center gap-3">
+          <Badge variant="outline" className="px-3 py-1 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 font-bold rounded-lg shadow-sm">
+            Last updated: Just now
+          </Badge>
+          <Button className="bg-[#E8601C] hover:bg-[#E8601C]/90 text-white font-black rounded-xl shadow-lg shadow-orange-500/20 px-6">
+            Export Report
           </Button>
         </div>
       </div>
 
-      <Separator />
-
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {kpis.map((kpi, index) => (
-          <Card key={index} className="shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {kpi.title}
-              </CardTitle>
-              <kpi.icon className="h-4 w-4 text-primary" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{kpi.value}</div>
-              <p className="text-xs text-muted-foreground mt-1 text-green-600 dark:text-green-400 font-medium">
-                {kpi.trend} from last month
-              </p>
+      {/* KPI Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        {kpis.map((kpi, i) => (
+          <Card key={i} className="border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-all rounded-3xl overflow-hidden group">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className={`p-3 rounded-2xl bg-${kpi.color}-50 dark:bg-${kpi.color}-900/20 text-${kpi.color}-600 dark:text-${kpi.color}-400 group-hover:scale-110 transition-transform`}>
+                  <kpi.icon className="h-6 w-6" />
+                </div>
+                <Badge className={`${kpi.isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'} border-none font-black rounded-lg group-hover:px-3 transition-all`}>
+                  {kpi.change}
+                </Badge>
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{kpi.title}</p>
+                <h3 className="text-3xl font-black text-slate-900 dark:text-white mt-1 tracking-tight">{kpi.value}</h3>
+                <p className="text-[11px] text-slate-400 mt-2 font-medium">{kpi.description}</p>
+              </div>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="shadow-sm md:col-span-1 lg:col-span-4 bg-card/60 backdrop-blur-sm border-muted/50">
-          <CardHeader>
-            <CardTitle>Revenue Analytics</CardTitle>
-            <CardDescription>Monthly revenue overview for the current year</CardDescription>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Main Chart Section */}
+        <Card className="lg:col-span-2 border-slate-200 dark:border-slate-800 shadow-sm rounded-3xl overflow-hidden bg-white dark:bg-slate-900">
+          <CardHeader className="flex flex-row items-center justify-between border-b border-slate-50 dark:border-slate-800 pb-6">
+            <div>
+              <CardTitle className="text-xl font-black text-slate-900 dark:text-white">{t.dashboard.inventory_flow}</CardTitle>
+              <CardDescription className="font-medium">Daily balance vs outgoing materials</CardDescription>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="ghost" size="sm" className="font-bold text-xs rounded-lg">7D</Button>
+              <Button variant="outline" size="sm" className="font-bold text-xs rounded-lg border-[#E8601C] text-[#E8601C]">30D</Button>
+            </div>
           </CardHeader>
-          <CardContent className="pl-0">
-            <div className="h-[250px] w-full">
+          <CardContent className="pt-8">
+            <div className="h-[350px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <AreaChart data={chartData}>
                   <defs>
-                    <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#1B4B9A" stopOpacity={0.3} />
+                    <linearGradient id="colorStock" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#1B4B9A" stopOpacity={0.1} />
                       <stop offset="95%" stopColor="#1B4B9A" stopOpacity={0} />
                     </linearGradient>
+                    <linearGradient id="colorOut" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#E8601C" stopOpacity={0.1} />
+                      <stop offset="95%" stopColor="#E8601C" stopOpacity={0} />
+                    </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.2} />
-                  <XAxis dataKey="name" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `฿${value}`} />
-                  <Tooltip
-                    contentStyle={{ borderRadius: '8px', border: '1px solid #1e293b', backgroundColor: 'var(--popover)', color: 'var(--foreground)' }}
-                    itemStyle={{ color: 'var(--foreground)' }}
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" opacity={0.5} />
+                  <XAxis
+                    dataKey="name"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 12, fontWeight: 600, fill: '#64748B' }}
                   />
-                  <Area type="monotone" dataKey="revenue" stroke="#1B4B9A" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 12, fontWeight: 600, fill: '#64748B' }}
+                  />
+                  <Tooltip
+                    contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontWeight: 'bold' }}
+                  />
+                  <Area type="monotone" dataKey="stock" stroke="#1B4B9A" strokeWidth={3} fillOpacity={1} fill="url(#colorStock)" />
+                  <Area type="monotone" dataKey="out" stroke="#E8601C" strokeWidth={3} fillOpacity={1} fill="url(#colorOut)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm md:col-span-1 lg:col-span-3 bg-card/60 backdrop-blur-sm border-muted/50">
-          <CardHeader>
-            <CardTitle>Orders Volume</CardTitle>
-            <CardDescription>Number of orders processed monthly</CardDescription>
+        {/* Recent Activity Section */}
+        <Card className="border-slate-200 dark:border-slate-800 shadow-sm rounded-3xl overflow-hidden bg-white dark:bg-slate-900">
+          <CardHeader className="border-b border-slate-50 dark:border-slate-800">
+            <CardTitle className="text-xl font-black text-slate-900 dark:text-white">{t.dashboard.recent_activity}</CardTitle>
+            <CardDescription className="font-medium">Latest stock movements</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="h-[250px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.2} />
-                  <XAxis dataKey="name" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                  <Tooltip
-                    contentStyle={{ borderRadius: '8px', border: '1px solid #1e293b', backgroundColor: 'var(--popover)', color: 'var(--foreground)' }}
-                    cursor={{ fill: 'rgba(51, 65, 85, 0.1)' }}
-                  />
-                  <Bar dataKey="orders" fill="#E8601C" radius={[4, 4, 0, 0]} barSize={30} />
-                </BarChart>
-              </ResponsiveContainer>
+          <CardContent className="pt-6">
+            <div className="space-y-6">
+              {recentActivity.map((activity, i) => (
+                <div key={i} className="flex gap-4 group">
+                  <div className={`h-11 w-11 rounded-2xl shrink-0 flex items-center justify-center ${activity.type === 'import' ? 'bg-emerald-50 text-emerald-600' :
+                      activity.type === 'withdrawal' ? 'bg-orange-50 text-orange-600' :
+                        'bg-red-50 text-red-600 animate-pulse'
+                    }`}>
+                    {activity.type === 'import' ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
+                  </div>
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-black text-slate-900 dark:text-white truncate group-hover:text-[#E8601C] transition-colors">
+                        {activity.material}
+                      </p>
+                      <span className={`text-xs font-black ${activity.type === 'import' ? 'text-emerald-500' :
+                          activity.type === 'withdrawal' ? 'text-orange-500' : 'text-red-500'
+                        }`}>
+                        {activity.qty}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <p className="text-xs text-slate-400 font-bold">{activity.user}</p>
+                      <p className="text-[10px] text-slate-400 font-medium uppercase">{activity.time}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <Button variant="ghost" className="w-full text-slate-500 font-black hover:text-[#E8601C] gap-2 py-6 rounded-2xl group transition-all">
+                View Full Logs
+                <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+              </Button>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="shadow-sm md:col-span-1 lg:col-span-4 bg-card/60 backdrop-blur-sm border-muted/50">
-          <CardHeader>
-            <CardTitle>{t.recentActivity}</CardTitle>
-            <CardDescription>Overview of recent orders and production status.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="text-xs text-muted-foreground border-b">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">Order ID</th>
-                    <th className="px-4 py-3 font-medium">Customer</th>
-                    <th className="px-4 py-3 font-medium">Date</th>
-                    <th className="px-4 py-3 font-medium">Status</th>
-                    <th className="px-4 py-3 font-medium text-right">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentActivities.map((activity, idx) => (
-                    <tr key={idx} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
-                      <td className="px-4 py-3 font-medium">{activity.id}</td>
-                      <td className="px-4 py-3">{activity.customer}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{activity.date}</td>
-                      <td className="px-4 py-3">
-                        <Badge
-                          variant={activity.status === "Completed" ? "default" : activity.status === "In Progress" ? "secondary" : "outline"}
-                          className={activity.status === "Completed" ? "bg-accent hover:bg-accent/80" : ""}
-                        >
-                          {activity.status}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3 text-right font-medium">{activity.total}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      {/* Quick Navigation / Tools */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {[
+          { icon: Package, title: "Stock Manager", desc: "Add or adjust items", link: "/inventory" },
+          { icon: History, title: "Activity Logs", desc: "Detailed audit trail", link: "/inventory" },
+          { icon: Activity, title: "System Health", desc: "Production line status", link: "/" },
+        ].map((tool, i) => (
+          <Link href={tool.link} key={i}>
+            <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-200 dark:border-slate-800 hover:border-[#E8601C] transition-all group cursor-pointer">
+              <div className="flex items-center gap-4">
+                <div className="h-12 w-12 rounded-2xl bg-white dark:bg-slate-900 flex items-center justify-center text-slate-400 group-hover:bg-[#E8601C] group-hover:text-white shadow-sm transition-all">
+                  <tool.icon className="h-6 w-6" />
+                </div>
+                <div>
+                  <h4 className="font-black text-slate-900 dark:text-white group-hover:text-[#E8601C] transition-colors">{tool.title}</h4>
+                  <p className="text-sm text-slate-400 font-medium">{tool.desc}</p>
+                </div>
+              </div>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm md:col-span-1 lg:col-span-3">
-          <CardHeader>
-            <CardTitle>{t.quickActions}</CardTitle>
-            <CardDescription>Shortcuts to frequently used functions.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            <Button variant="outline" className="justify-start gap-3 h-12 w-full">
-              <Plus className="h-5 w-5 text-primary" />
-              <div className="flex flex-col items-start leading-none">
-                <span>Create New Order</span>
-                <span className="text-xs text-muted-foreground mt-1">Start a new glass order</span>
-              </div>
-            </Button>
-            <Button variant="outline" className="justify-start gap-3 h-12 w-full">
-              <Factory className="h-5 w-5 text-primary" />
-              <div className="flex flex-col items-start leading-none">
-                <span>Production Board</span>
-                <span className="text-xs text-muted-foreground mt-1">View current factory status</span>
-              </div>
-            </Button>
-            <Button variant="outline" className="justify-start gap-3 h-12 w-full">
-              <Package className="h-5 w-5 text-primary" />
-              <div className="flex flex-col items-start leading-none">
-                <span>Check Inventory</span>
-                <span className="text-xs text-muted-foreground mt-1">Stock levels and materials</span>
-              </div>
-            </Button>
-          </CardContent>
-        </Card>
+          </Link>
+        ))}
       </div>
     </div>
   );

@@ -23,7 +23,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         if (pathname.startsWith("/production")) return t.production;
         if (pathname.startsWith("/inventory")) return t.inventory;
         if (pathname.startsWith("/settings")) return t.settings;
-        return t.dashboard;
+        return t.dashboard.label;
     };
 
     // Close mobile menu when route changes and set mounted state

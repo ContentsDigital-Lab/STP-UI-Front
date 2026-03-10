@@ -1,7 +1,16 @@
 import { Dictionary } from "./th";
 
 export const en: Dictionary = {
-    dashboard: "Dashboard",
+    dashboard: {
+        label: "Dashboard",
+        welcome: "Welcome",
+        total_stock: "Total Stock",
+        low_stock_alerts: "Low Stock Alerts",
+        pending_requests: "Pending Requests",
+        completed_today: "Completed Today",
+        inventory_flow: "Inventory Flow",
+        recent_activity: "Recent Activity",
+    },
     orders: "Orders",
     production: "Production",
     inventory: "Glass Inventory",

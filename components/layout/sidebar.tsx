@@ -25,7 +25,7 @@ export function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
     const { t } = useLanguage();
 
     const navigation = [
-        { name: t.dashboard, href: "/", icon: LayoutDashboard },
+        { name: t.dashboard.label, href: "/", icon: LayoutDashboard },
         { name: t.production, href: "/production", icon: Factory },
         { name: t.inventory, href: "/inventory", icon: Package },
         { name: t.settings, href: "/settings", icon: Settings },

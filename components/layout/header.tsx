@@ -60,7 +60,7 @@ export function Header({ onMenuClick, title }: HeaderProps) {
 
             <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
                 <div className="flex flex-1 items-center">
-                    <h1 className="text-xl font-semibold font-sans text-foreground">{title || t.dashboard}</h1>
+                    <h1 className="text-xl font-semibold font-sans text-foreground">{title || t.dashboard.label}</h1>
                 </div>
                 <div className="flex items-center gap-x-4 lg:gap-x-6">
                     <Button

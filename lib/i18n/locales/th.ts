@@ -1,5 +1,14 @@
 export const th = {
-    dashboard: "แดชบอร์ด",
+    dashboard: {
+        label: "แดชบอร์ด",
+        welcome: "ยินดีต้อนรับ",
+        total_stock: "สต็อกทั้งหมด",
+        low_stock_alerts: "การแจ้งเตือนสต็อกต่ำ",
+        pending_requests: "คำขอที่รอนุมัติ",
+        completed_today: "ทำรายการวันนี้",
+        inventory_flow: "กระแสการหมุนเวียนวัสดุ",
+        recent_activity: "กิจกรรมล่าสุด",
+    },
     orders: "รายการสั่งซื้อ",
     production: "ฝ่ายผลิต",
     inventory: "คลังกระจก",

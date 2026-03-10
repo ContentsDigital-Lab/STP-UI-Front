@@ -1,10 +1,32 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { inventoriesApi } from "@/lib/api/inventories";
-import { materialsApi } from "@/lib/api/materials";
-import { Inventory, Material } from "@/lib/api/types";
+import {
+    Plus,
+    Search,
+    Filter,
+    ArrowUpRight,
+    TrendingUp,
+    AlertTriangle,
+    Boxes,
+    Package,
+    Warehouse,
+    ChevronLeft,
+    ChevronRight,
+    MoreHorizontal,
+    Edit3,
+    History,
+    CheckCircle2,
+    Clock,
+    Shield,
+    X,
+    Settings2,
+    Trash2
+} from "lucide-react";
+import { useLanguage } from "@/lib/i18n/language-context";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
     Table,
     TableBody,
@@ -14,65 +36,33 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-    DialogFooter,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
-    SelectValue
+    SelectValue,
 } from "@/components/ui/select";
 import {
-    Pagination,
-    PaginationContent,
-    PaginationItem,
-    PaginationLink,
-    PaginationNext,
-    PaginationPrevious,
-} from "@/components/ui/pagination";
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+    DialogDescription,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-    Loader2,
-    Search,
-    Plus,
-    Package,
-    Settings2,
-    FilterX,
-    AlertTriangle,
-    Boxes,
-    TrendingUp,
-    ChevronRight,
-    History,
-    Info,
-    Edit3,
-    Minus,
-    ArrowUpRight,
-    ArrowDownRight,
-    CheckCircle2
-} from "lucide-react";
 import {
     Sheet,
     SheetContent,
-    SheetDescription,
     SheetHeader,
-    SheetTitle,
 } from "@/components/ui/sheet";
-import { Badge } from "@/components/ui/badge";
-
-import { useLanguage } from "@/lib/i18n/language-context";
+import { inventoriesApi } from "@/lib/api/inventories";
+import { materialsApi } from "@/lib/api/materials";
 import { materialLogsApi } from "@/lib/api/material-logs";
-import { MaterialLog } from "@/lib/api/types";
+import { Inventory, Material, MaterialLog } from "@/lib/api/types";
 import { useWebSocket } from "@/lib/hooks/use-socket";
-import { Trash2 } from "lucide-react";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -80,11 +70,9 @@ export default function InventoryPage() {
     const { t, lang } = useLanguage();
     const it = t.inventory_dashboard;
 
+    const [isLoading, setIsLoading] = useState(true);
     const [inventories, setInventories] = useState<Inventory[]>([]);
     const [materials, setMaterials] = useState<Material[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-
-    // Master-Detail State
     const [selectedInventory, setSelectedInventory] = useState<Inventory | null>(null);
     const [isDetailOpen, setIsDetailOpen] = useState(false);
     const [materialLogs, setMaterialLogs] = useState<MaterialLog[]>([]);
@@ -137,8 +125,10 @@ export default function InventoryPage() {
         location: ""
     });
 
-    // WebSocket for real-time updates
-    useWebSocket(() => {
+    // WebSocket for real-time updates (v8 Socket.io + Rooms)
+    const inventoryEvents = ['inventory:updated', 'material:updated'];
+    useWebSocket('inventory', inventoryEvents, (event: string) => {
+        console.log(`[Inventory] Received ${event}, refreshing data...`);
         fetchData(false); // Silent refresh on message
     });
 
@@ -271,8 +261,6 @@ export default function InventoryPage() {
 
     // Filter Options
     const locations = useMemo(() => Array.from(new Set(inventories.map(inv => inv.location))), [inventories]);
-    const thicknesses = useMemo(() => Array.from(new Set(materials.map(m => m.specDetails?.thickness).filter(Boolean))), [materials]);
-    const colors = useMemo(() => Array.from(new Set(materials.map(m => m.specDetails?.color).filter(Boolean))), [materials]);
     const glassTypes = useMemo(() => Array.from(new Set(materials.map(m => m.specDetails?.glassType).filter(Boolean))), [materials]);
 
     const filteredInventories = useMemo(() => {
@@ -295,7 +283,7 @@ export default function InventoryPage() {
 
             return matchesSearch && matchesType && matchesLocation && matchesThickness && matchesColor && matchesGlassType && matchesStockAlert;
         });
-    }, [inventories, materials, searchQuery, stockTypeFilter, locationFilter, thicknessFilter, colorFilter, glassTypeFilter, showLowStockOnly]);
+    }, [inventories, materials, searchQuery, stockTypeFilter, locationFilter, thicknessFilter, colorFilter, glassTypeFilter, showLowStockOnly, getMaterialInfo]);
 
     const totalPages = Math.ceil(filteredInventories.length / ITEMS_PER_PAGE);
     const paginatedInventories = filteredInventories.slice(
@@ -449,476 +437,446 @@ export default function InventoryPage() {
                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none">Healthy Flow</span>
                         </div>
                         <div className="relative z-10">
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-tight">{it.mostStocked}</p>
-                            <h3 className="text-lg font-black text-white mt-1 leading-tight line-clamp-1">
-                                {globalStats.topMaterials[0] ? (typeof globalStats.topMaterials[0].material === 'string' ? materials.find(m => m._id === globalStats.topMaterials[0].material)?.name : globalStats.topMaterials[0].material.name) : "No Data"}
-                            </h3>
-                            <p className="text-[10px] text-slate-500 mt-2 flex items-center gap-1 font-bold">
-                                <ArrowUpRight className="h-3 w-3" />
-                                Updated just now
-                            </p>
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{it.mostStocked}</p>
+                            <h4 className="text-lg font-black text-white truncate group-hover:text-[#E8601C] transition-colors">
+                                {globalStats.topMaterials[0]
+                                    ? (getMaterialInfo(globalStats.topMaterials[0].material)?.name || "N/A")
+                                    : "---"}
+                            </h4>
+                            <div className="flex items-center gap-3 mt-2">
+                                <div className="flex -space-x-2">
+                                    {[...Array(3)].map((_, i) => (
+                                        <div key={i} className="h-6 w-6 rounded-full border-2 border-slate-900 bg-slate-800 flex items-center justify-center text-[8px] font-bold text-slate-500">
+                                            {i + 1}
+                                        </div>
+                                    ))}
+                                </div>
+                                <span className="text-[10px] font-bold text-emerald-400">+12% this week</span>
+                            </div>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Revamped Search & Filter Section - Filter Chips Style */}
-            <div className="bg-slate-50/50 dark:bg-slate-900/50 p-6 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 transition-all">
-                <div className="flex flex-col lg:flex-row lg:items-end gap-6">
-                    {/* Smart Search */}
-                    <div className="flex-1 space-y-2">
-                        <Label className="text-[11px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">
-                            {it.filterLabel} / {it.searchPlaceholder.split(' (')[0]}
+            {/* Filter & Search Bar */}
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
+                <div className="flex flex-col lg:flex-row items-end gap-6 overflow-x-auto pb-2 scrollbar-hide">
+                    {/* Search Field */}
+                    <div className="w-full lg:max-w-md space-y-2 shrink-0">
+                        <Label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
+                            <Search className="h-3 w-3" />
+                            Quick Search
                         </Label>
-                        <div className="relative">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <div className="relative group">
                             <Input
                                 placeholder={it.searchPlaceholder}
-                                className="pl-11 h-12 text-sm border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-[#1B4B9A]/20 bg-white dark:bg-slate-950 shadow-sm rounded-2xl transition-all"
                                 value={searchQuery}
                                 onChange={(e) => {
                                     setSearchQuery(e.target.value);
                                     setCurrentPage(1);
                                 }}
+                                className="pl-4 pr-10 h-12 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 focus:ring-[#E8601C] focus:border-[#E8601C] rounded-2xl transition-all font-medium text-sm"
                             />
+                            {searchQuery && (
+                                <button
+                                    onClick={() => setSearchQuery("")}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                                >
+                                    <X className="h-4 w-4" />
+                                </button>
+                            )}
                         </div>
                     </div>
 
-                    {/* Filter Dropdowns - Grouped with Labels */}
-                    <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-end gap-4 sm:gap-6">
-                        <div className="space-y-2 flex-1 sm:flex-none sm:min-w-[130px]">
-                            <Label className="text-[11px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">{it.type}</Label>
-                            <Select value={stockTypeFilter} onValueChange={(val) => { if (val) setStockTypeFilter(val); setCurrentPage(1); }}>
-                                <SelectTrigger className="h-12 text-xs border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 rounded-2xl shadow-sm font-bold">
-                                    <SelectValue placeholder={it.type} />
+                    <div className="flex items-center gap-4 shrink-0">
+                        {/* Area Filter */}
+                        <div className="w-[180px] space-y-2">
+                            <Label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
+                                <Warehouse className="h-3 w-3" />
+                                {it.area}
+                            </Label>
+                            <Select value={locationFilter} onValueChange={(val) => { setLocationFilter(val || "all"); setCurrentPage(1); }}>
+                                <SelectTrigger className="h-12 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm focus:ring-[#E8601C]">
+                                    <SelectValue placeholder="All Areas" />
                                 </SelectTrigger>
-                                <SelectContent className="rounded-2xl dark:bg-slate-900 border-slate-200 dark:border-slate-800">
-                                    <SelectItem value="all">{lang === 'th' ? 'ทุกประเภท' : 'All Types'}</SelectItem>
-                                    <SelectItem value="Raw">Raw</SelectItem>
-                                    <SelectItem value="Reuse">Reuse</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="space-y-2 flex-1 sm:flex-none sm:min-w-[150px]">
-                            <Label className="text-[11px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">{it.area}</Label>
-                            <Select value={locationFilter} onValueChange={(val) => { if (val) setLocationFilter(val); setCurrentPage(1); }}>
-                                <SelectTrigger className="h-12 text-xs border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 rounded-2xl shadow-sm font-bold">
-                                    <SelectValue placeholder={it.area} />
-                                </SelectTrigger>
-                                <SelectContent className="rounded-2xl dark:bg-slate-900 border-slate-200 dark:border-slate-800">
-                                    <SelectItem value="all">{lang === 'th' ? 'ทุกพื้นที่' : 'All Locations'}</SelectItem>
+                                <SelectContent className="rounded-2xl border-slate-200 dark:border-slate-800">
+                                    <SelectItem value="all" className="font-bold">All Areas</SelectItem>
                                     {locations.map(loc => (
-                                        <SelectItem key={loc} value={loc}>{loc}</SelectItem>
+                                        <SelectItem key={loc} value={loc} className="font-bold">{loc}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
                         </div>
 
-                        <div className="space-y-2 col-span-2 sm:col-auto sm:min-w-[140px]">
-                            <Label className="text-[11px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 ml-1">{it.glassType}</Label>
-                            <Select value={glassTypeFilter} onValueChange={(val) => { if (val) setGlassTypeFilter(val); setCurrentPage(1); }}>
-                                <SelectTrigger className="h-12 text-xs border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 rounded-2xl shadow-sm font-bold">
-                                    <SelectValue placeholder={it.glassType} />
+                        {/* Glass Type Filter */}
+                        <div className="w-[180px] space-y-2">
+                            <Label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
+                                <Package className="h-3 w-3" />
+                                {it.glassType}
+                            </Label>
+                            <Select value={glassTypeFilter} onValueChange={(val) => { setGlassTypeFilter(val || "all"); setCurrentPage(1); }}>
+                                <SelectTrigger className="h-12 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm focus:ring-[#E8601C]">
+                                    <SelectValue placeholder="All Types" />
                                 </SelectTrigger>
-                                <SelectContent className="rounded-2xl dark:bg-slate-900 border-slate-200 dark:border-slate-800">
-                                    <SelectItem value="all">{lang === 'th' ? 'ทุกประเภทกระจก' : 'Any Glass'}</SelectItem>
-                                    {glassTypes.map(gt => (
-                                        <SelectItem key={gt} value={gt}>{gt}</SelectItem>
+                                <SelectContent className="rounded-2xl border-slate-200 dark:border-slate-800">
+                                    <SelectItem value="all" className="font-bold">All Types</SelectItem>
+                                    {glassTypes.map(type => (
+                                        <SelectItem key={type} value={type} className="font-bold">{type}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
                         </div>
 
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={resetFilters}
-                            className="h-12 w-12 sm:w-auto sm:px-4 text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors gap-2 font-bold rounded-2xl self-end shrink-0"
-                            title={it.clearFilters}
-                        >
-                            <FilterX className="h-5 w-5 sm:h-4 sm:w-4" />
-                            <span className="hidden sm:inline text-xs">{it.clearFilters}</span>
-                        </Button>
+                        {/* More Filters / Reset */}
+                        <div className="flex items-center gap-2 pt-6">
+                            {(searchQuery || locationFilter !== "all" || glassTypeFilter !== "all" || showLowStockOnly) && (
+                                <Button
+                                    variant="ghost"
+                                    onClick={resetFilters}
+                                    className="h-12 rounded-2xl text-slate-500 hover:text-[#E8601C] font-bold px-4"
+                                >
+                                    {it.clearFilters}
+                                </Button>
+                            )}
+                        </div>
                     </div>
                 </div>
-
-                {/* Filter Chips Layer (Active status) */}
-                {(stockTypeFilter !== "all" || locationFilter !== "all" || glassTypeFilter !== "all" || showLowStockOnly) && (
-                    <div className="flex flex-wrap gap-2 mt-6 pt-6 border-t border-slate-200/40 dark:border-slate-800/40">
-                        {stockTypeFilter !== "all" && (
-                            <Badge variant="secondary" className="bg-[#1B4B9A]/10 text-[#1B4B9A] dark:text-blue-400 border-none px-4 py-1.5 rounded-full text-[11px] font-bold flex gap-2 items-center">
-                                {it.type}: {stockTypeFilter}
-                                <span className="cursor-pointer hover:text-slate-900 dark:hover:text-white" onClick={() => setStockTypeFilter("all")}>×</span>
-                            </Badge>
-                        )}
-                        {locationFilter !== "all" && (
-                            <Badge variant="secondary" className="bg-[#1B4B9A]/10 text-[#1B4B9A] dark:text-blue-400 border-none px-4 py-1.5 rounded-full text-[11px] font-bold flex gap-2 items-center">
-                                {it.area}: {locationFilter}
-                                <span className="cursor-pointer hover:text-slate-900 dark:hover:text-white" onClick={() => setLocationFilter("all")}>×</span>
-                            </Badge>
-                        )}
-                        {showLowStockOnly && (
-                            <Badge variant="secondary" className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border-none px-4 py-1.5 rounded-full text-[11px] font-black flex gap-2 items-center animate-in fade-in slide-in-from-left-2 transition-all">
-                                <AlertTriangle className="h-3.5 w-3.5" />
-                                {it.table.lowStock}
-                                <span className="cursor-pointer hover:text-slate-900 dark:hover:text-white" onClick={() => setShowLowStockOnly(false)}>×</span>
-                            </Badge>
-                        )}
-                    </div>
-                )}
             </div>
 
-            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden min-h-[500px]">
+            {/* Main Table Content */}
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden">
                 <div className="overflow-x-auto">
                     <Table>
                         <TableHeader>
-                            <TableRow className="bg-slate-50/50 dark:bg-slate-800/50 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                                <TableHead className="py-5 pl-8 text-slate-500 dark:text-slate-400 font-black uppercase text-[10px] tracking-widest">{it.table.identity}</TableHead>
-                                <TableHead className="py-5 text-slate-500 dark:text-slate-400 font-black uppercase text-[10px] tracking-widest">{it.table.area}</TableHead>
-                                <TableHead className="py-5 text-slate-500 dark:text-slate-400 font-black uppercase text-[10px] tracking-widest">{it.table.health}</TableHead>
-                                <TableHead className="py-5 text-slate-500 dark:text-slate-400 font-black uppercase text-[10px] tracking-widest">{it.table.type}</TableHead>
-                                <TableHead className="py-5 pr-8 text-right text-slate-500 dark:text-slate-400 font-black uppercase text-[10px] tracking-widest">{it.table.quantity}</TableHead>
+                            <TableRow className="border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
+                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 px-6 text-slate-500 dark:text-slate-400">{it.table.identity}</TableHead>
+                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400">{it.table.area}</TableHead>
+                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400">{it.table.health}</TableHead>
+                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400">{it.table.type}</TableHead>
+                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-center text-slate-500 dark:text-slate-400">{it.table.quantity}</TableHead>
+                                <TableHead className="text-right py-5 pr-6"></TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {isLoading ? (
                                 <TableSkeleton />
-                            ) : paginatedInventories.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={5} className="h-64 text-center">
-                                        <div className="flex flex-col items-center justify-center space-y-4 opacity-40">
-                                            <Package className="h-16 w-16 text-slate-300 dark:text-slate-700" />
-                                            <div className="text-base font-bold text-slate-500 dark:text-slate-400 tracking-tight">No inventory records found matching your filters.</div>
-                                            <Button variant="link" onClick={resetFilters} className="text-[#1B4B9A] dark:text-blue-400 font-bold hover:no-underline">Clear all filters</Button>
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
-                            ) : (
+                            ) : paginatedInventories.length > 0 ? (
                                 paginatedInventories.map((inv) => {
-                                    const material = getMaterialInfo(inv.material);
-                                    const isLowStock = material && inv.quantity <= material.reorderPoint;
-                                    const stockPercentage = material ? Math.min((inv.quantity / (material.reorderPoint * 3)) * 100, 100) : 0;
-
-                                    let statusColor = "bg-emerald-500";
-                                    let statusBg = "bg-emerald-50 dark:bg-emerald-900/20";
-                                    let statusText = "text-emerald-700 dark:text-emerald-400";
-                                    let statusLabel = it.table.healthy;
-
-                                    if (isLowStock) {
-                                        statusColor = "bg-red-500";
-                                        statusBg = "bg-red-50 dark:bg-red-900/20";
-                                        statusText = "text-red-700 dark:text-red-400";
-                                        statusLabel = it.table.lowStock;
-                                    } else if (material && inv.quantity <= material.reorderPoint * 1.5) {
-                                        statusColor = "bg-amber-500";
-                                        statusBg = "bg-amber-50 dark:bg-amber-900/20";
-                                        statusText = "text-amber-700 dark:text-amber-400";
-                                        statusLabel = it.table.warning;
-                                    }
+                                    const mat = getMaterialInfo(inv.material);
+                                    const isLow = mat && inv.quantity <= mat.reorderPoint;
+                                    const statusText = isLow ? it.table.lowStock : it.table.healthy;
 
                                     return (
                                         <TableRow
                                             key={inv._id}
-                                            className={`group cursor-pointer border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-all ${selectedInventory?._id === inv._id ? 'bg-[#1B4B9A]/5 dark:bg-[#1B4B9A]/20' : ''
-                                                }`}
+                                            className="group hover:bg-slate-50 dark:hover:bg-slate-800/50 border-slate-100 dark:border-slate-800 transition-colors cursor-pointer"
                                             onClick={() => openDetails(inv)}
                                         >
-                                            <TableCell className="py-5 pl-8">
-                                                <div className="flex items-center gap-4">
-                                                    <div className={`h-11 w-11 rounded-2xl flex items-center justify-center shadow-sm border border-slate-100 dark:border-slate-800 group-hover:scale-110 transition-transform ${inv.stockType === 'Raw' ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400'}`}>
-                                                        <Package className="h-5 w-5" />
-                                                    </div>
-                                                    <div className="flex flex-col min-w-0">
-                                                        <span className="font-black text-slate-900 dark:text-white group-hover:text-[#1B4B9A] dark:group-hover:text-blue-400 transition-colors truncate max-w-[200px]">
-                                                            {material ? material.name : it.table.unknown}
-                                                        </span>
-                                                        <span className="text-[11px] text-slate-400 dark:text-slate-500 font-bold truncate max-w-[250px] uppercase tracking-tight">
-                                                            {material?.specDetails ? `${material.specDetails.thickness || '-'} / ${material.specDetails.color || '-'} / ${material.specDetails.glassType || '-'}` : "-"}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="flex items-center gap-1.5">
-                                                    <Badge variant="outline" className="bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold text-[10px] px-2.5 py-1 rounded-xl shadow-sm">
-                                                        {inv.location}
-                                                    </Badge>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="flex flex-col gap-2 w-full max-w-[140px]">
-                                                    <div className="flex items-center justify-between">
-                                                        <span className={`text-[10px] font-black uppercase tracking-widest ${statusText}`}>
-                                                            {statusLabel}
-                                                        </span>
-                                                        <span className="text-[10px] font-black text-slate-400 dark:text-slate-500">{Math.round(stockPercentage)}%</span>
-                                                    </div>
-                                                    <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden shadow-inner flex">
-                                                        <div
-                                                            className={`h-full ${statusColor} rounded-full transition-all duration-700 ease-out shadow-[0_0_12px_rgba(0,0,0,0.15)]`}
-                                                            style={{ width: `${stockPercentage}%` }}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Badge className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border-none shadow-sm ${inv.stockType === 'Raw'
-                                                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
-                                                    : 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
-                                                    }`}>
-                                                    {inv.stockType}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell className="py-5 pr-8">
-                                                <div className="flex flex-col items-end gap-1.5">
-                                                    <div className="flex items-center gap-4">
-                                                        <span className={`font-mono text-xl font-black tracking-tighter ${isLowStock ? 'text-red-600 dark:text-red-500' : 'text-slate-900 dark:text-white'}`}>
-                                                            {inv.quantity.toLocaleString()}
-                                                        </span>
-                                                    </div>
-                                                    <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-                                                        {material?.unit || 'units'}
-                                                        <ChevronRight className="h-3.5 w-3.5 group-hover:translate-x-1.5 transition-transform text-[#1B4B9A] dark:text-blue-400" />
+                                            <TableCell className="py-5 px-6">
+                                                <div className="flex flex-col">
+                                                    <span className="font-black text-slate-900 dark:text-white group-hover:text-[#E8601C] transition-colors">
+                                                        {mat?.name || it.table.unknown}
+                                                    </span>
+                                                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase flex items-center mt-1">
+                                                        {mat?.specDetails?.thickness && <span className="mr-2">{mat.specDetails.thickness}</span>}
+                                                        {mat?.specDetails?.color && <span>{mat.specDetails.color}</span>}
                                                     </span>
                                                 </div>
+                                            </TableCell>
+                                            <TableCell className="py-5">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-700"></div>
+                                                    <span className="font-bold text-slate-600 dark:text-slate-300 text-sm italic">{inv.location}</span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="py-5">
+                                                <Badge
+                                                    variant="secondary"
+                                                    className={`rounded-lg px-2 py-0.5 font-bold uppercase text-[10px] tracking-wider ${isLow
+                                                        ? "bg-red-50 dark:bg-red-900/20 text-red-600 border-red-100 dark:border-red-900/50"
+                                                        : "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 border-emerald-100 dark:border-emerald-900/50"
+                                                        }`}
+                                                >
+                                                    {statusText}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="py-5">
+                                                <span className={`text-[11px] font-black tracking-widest uppercase px-2 py-1 rounded-md ${inv.stockType === "Raw"
+                                                    ? "bg-blue-50 dark:bg-blue-900/30 text-[#1B4B9A] dark:text-blue-400"
+                                                    : "bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
+                                                    }`}>
+                                                    {inv.stockType}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell className="py-5 text-center">
+                                                <span className="text-xl font-black text-slate-900 dark:text-white group-hover:scale-110 inline-block transition-transform tabular-nums">
+                                                    {inv.quantity.toLocaleString()}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell className="py-5 pr-6 text-right" onClick={(e) => e.stopPropagation()}>
+                                                <button
+                                                    onClick={() => openDetails(inv)}
+                                                    className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-xl transition-all text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                                                >
+                                                    <MoreHorizontal className="h-5 w-5" />
+                                                </button>
                                             </TableCell>
                                         </TableRow>
                                     );
                                 })
+                            ) : (
+                                <TableRow>
+                                    <TableCell colSpan={6} className="py-20 text-center">
+                                        <div className="flex flex-col items-center gap-3">
+                                            <div className="h-16 w-16 rounded-3xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-300 dark:text-slate-700">
+                                                <Boxes className="h-8 w-8" />
+                                            </div>
+                                            <p className="text-slate-500 dark:text-slate-400 font-bold tracking-tight">ไม่พบข้อมูลที่ต้องการ</p>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
                             )}
                         </TableBody>
                     </Table>
                 </div>
-            </div>
 
-            {/* Pagination Layer */}
-            {!isLoading && totalPages > 1 && (
-                <div className="flex justify-center py-6">
-                    <Pagination>
-                        <PaginationContent className="gap-2">
-                            <PaginationItem>
-                                <PaginationPrevious
-                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                    className={currentPage === 1
-                                        ? "pointer-events-none opacity-30"
-                                        : "cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all font-bold"
-                                    }
-                                />
-                            </PaginationItem>
-                            {[...Array(totalPages)].map((_, i) => (
-                                <PaginationItem key={i}>
-                                    <PaginationLink
-                                        isActive={currentPage === i + 1}
+                {/* Pagination */}
+                {totalPages > 1 && (
+                    <div className="p-6 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                            Showing page {currentPage} of {totalPages}
+                        </span>
+                        <div className="flex gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={currentPage === 1}
+                                onClick={() => setCurrentPage(prev => prev - 1)}
+                                className="h-9 px-3 rounded-xl border-slate-200 dark:border-slate-800 font-bold"
+                            >
+                                <ChevronLeft className="h-4 w-4" />
+                            </Button>
+                            <div className="flex gap-1">
+                                {[...Array(totalPages)].map((_, i) => (
+                                    <button
+                                        key={i}
                                         onClick={() => setCurrentPage(i + 1)}
-                                        className={`cursor-pointer rounded-xl font-bold transition-all ${currentPage === i + 1
-                                            ? "bg-[#1B4B9A] text-white shadow-lg shadow-blue-500/20 border-none hover:bg-[#1B4B9A]/90"
-                                            : "hover:bg-slate-100 dark:hover:bg-slate-800"
+                                        className={`h-9 w-9 rounded-xl flex items-center justify-center text-xs font-black transition-all ${currentPage === i + 1
+                                            ? "bg-[#E8601C] text-white shadow-lg shadow-orange-500/20"
+                                            : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500"
                                             }`}
                                     >
                                         {i + 1}
-                                    </PaginationLink>
-                                </PaginationItem>
-                            ))}
-                            <PaginationItem>
-                                <PaginationNext
-                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                    className={currentPage === totalPages
-                                        ? "pointer-events-none opacity-30"
-                                        : "cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all font-bold"
-                                    }
-                                />
-                            </PaginationItem>
-                        </PaginationContent>
-                    </Pagination>
-                </div>
-            )}
+                                    </button>
+                                ))}
+                            </div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={currentPage === totalPages}
+                                onClick={() => setCurrentPage(prev => prev + 1)}
+                                className="h-9 px-3 rounded-xl border-slate-200 dark:border-slate-800 font-bold"
+                            >
+                                <ChevronRight className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    </div>
+                )}
+            </div>
 
-            {/* v4 Side Panel Detail (Sheet) */}
+            {/* Item Detail Side Panel */}
             <Sheet open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-                <SheetContent className="w-full sm:max-w-lg border-l border-slate-200 dark:border-slate-800 shadow-2xl dark:bg-slate-950 p-0">
-                    {selectedInventory && (() => {
-                        const mat = getMaterialInfo(selectedInventory.material);
-                        return (
-                            <div className="flex flex-col h-full">
-                                <SheetHeader className="p-8 pb-8 border-b border-slate-100 dark:border-slate-900 bg-slate-50/50 dark:bg-slate-900/50">
-                                    <div className="flex items-center gap-4 mb-6">
-                                        <div className="h-16 w-16 rounded-3xl bg-[#1B4B9A] dark:bg-blue-600 flex items-center justify-center text-white shadow-xl shadow-blue-500/20">
-                                            <Package className="h-8 w-8" />
-                                        </div>
-                                        <div className="text-left space-y-1">
-                                            <SheetTitle className="text-2xl font-black tracking-tight text-slate-900 dark:text-white leading-tight">{mat?.name || it.table.unknown}</SheetTitle>
-                                            <SheetDescription className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                                                <Info className="h-3.5 w-3.5 text-blue-500" />
-                                                ID: {selectedInventory._id.slice(-8)} • {selectedInventory.stockType}
-                                            </SheetDescription>
+                <SheetContent className="sm:max-w-md border-l border-slate-200 dark:border-slate-800 p-0 overflow-y-auto bg-slate-50 dark:bg-slate-950">
+                    {selectedInventory && (
+                        <div className="flex flex-col h-full">
+                            {/* Panel Header */}
+                            <div className="p-8 pb-10 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/5 blur-3xl rounded-full -mr-16 -mt-16"></div>
+
+                                <div className="space-y-4 relative z-10">
+                                    <div className="flex items-center gap-2">
+                                        <Badge variant="outline" className="rounded-md px-2 py-0 text-[9px] font-black uppercase tracking-tighter border-slate-200 dark:border-slate-700 text-slate-400">
+                                            #{selectedInventory._id.slice(-6).toUpperCase()}
+                                        </Badge>
+                                        <span className={`h-2 w-2 rounded-full ${getMaterialInfo(selectedInventory.material)?.reorderPoint && selectedInventory.quantity <= getMaterialInfo(selectedInventory.material)!.reorderPoint ? "bg-red-500" : "bg-emerald-500"}`}></span>
+                                    </div>
+                                    <div>
+                                        <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
+                                            {getMaterialInfo(selectedInventory.material)?.name || "N/A"}
+                                        </h2>
+                                        <div className="flex items-center gap-2 mt-2">
+                                            <Warehouse className="h-4 w-4 text-slate-400" />
+                                            <span className="text-sm font-bold text-slate-500 italic">{selectedInventory.location}</span>
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                                            <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">{it.detail.currentStock}</p>
-                                            <p className="text-3xl font-black text-slate-900 dark:text-white font-mono tracking-tighter">{selectedInventory.quantity.toLocaleString()}</p>
-                                            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 mt-0.5">{mat?.unit || 'Units'}</p>
-                                        </div>
-                                        <div className={`p-4 rounded-2xl border shadow-sm transition-colors ${selectedInventory.quantity <= (mat?.reorderPoint || 0)
-                                            ? 'bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-900/40'
-                                            : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-900/40'
+                                    {/* Stock Badge - Background Styled */}
+                                    <div className={`p-6 rounded-3xl mt-6 flex flex-col items-center justify-center border shadow-sm ${getMaterialInfo(selectedInventory.material)?.reorderPoint && selectedInventory.quantity <= getMaterialInfo(selectedInventory.material)!.reorderPoint
+                                        ? "bg-red-50 dark:bg-red-950/20 border-red-100 dark:border-red-900/50"
+                                        : "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/50"
+                                        }`}>
+                                        <span className={`text-[10px] font-black uppercase tracking-widest mb-1 ${getMaterialInfo(selectedInventory.material)?.reorderPoint && selectedInventory.quantity <= getMaterialInfo(selectedInventory.material)!.reorderPoint ? "text-red-500" : "text-emerald-600"
                                             }`}>
-                                            <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1.5">{it.detail.status}</p>
-                                            <p className={`text-sm font-black uppercase tracking-widest ${selectedInventory.quantity <= (mat?.reorderPoint || 0)
-                                                ? 'text-red-600 dark:text-red-400'
-                                                : 'text-emerald-600 dark:text-emerald-400'
-                                                }`}>
-                                                {selectedInventory.quantity <= (mat?.reorderPoint || 0) ? it.detail.actionRequired : 'Optimal Flow'}
-                                            </p>
+                                            {it.detail.currentStock}
+                                        </span>
+                                        <div className={`text-5xl font-black tracking-tighter tabular-nums ${getMaterialInfo(selectedInventory.material)?.reorderPoint && selectedInventory.quantity <= getMaterialInfo(selectedInventory.material)!.reorderPoint ? "text-red-600" : "text-emerald-700 dark:text-emerald-400"
+                                            }`}>
+                                            {selectedInventory.quantity.toLocaleString()}
+                                        </div>
+                                        <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase">Quantity Balance</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="p-8 space-y-10">
+                                {/* Technical Details */}
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-2">
+                                        <Shield className="h-4 w-4 text-[#E8601C]" />
+                                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">{it.detail.technical}</h3>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Stock Type</p>
+                                            <p className="text-sm font-black text-slate-900 dark:text-white uppercase">{selectedInventory.stockType}</p>
+                                        </div>
+                                        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Thickness</p>
+                                            <p className="text-sm font-black text-slate-900 dark:text-white">{getMaterialInfo(selectedInventory.material)?.specDetails?.thickness || "-"}</p>
                                         </div>
                                     </div>
-                                </SheetHeader>
+                                </div>
 
-                                {/* Detail Tabs/Content */}
-                                <div className="flex-1 overflow-y-auto p-8 space-y-10 custom-scrollbar">
-                                    {/* Specifications Widget */}
-                                    <section>
-                                        <h4 className="text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-[0.2em] mb-6 flex items-center gap-3">
-                                            <div className="h-1.5 w-6 bg-blue-500 rounded-full"></div>
-                                            {it.detail.technical}
-                                        </h4>
-                                        <div className="grid grid-cols-1 gap-y-2">
-                                            {[
-                                                { label: it.glassType, value: mat?.specDetails?.glassType },
-                                                { label: lang === 'th' ? 'ความหนา (มม.)' : 'Thickness (mm)', value: mat?.specDetails?.thickness },
-                                                { label: lang === 'th' ? 'โทนสี' : 'Color Palette', value: mat?.specDetails?.color },
-                                                { label: it.area, value: selectedInventory.location },
-                                                { label: lang === 'th' ? 'จุดเตือนภัย' : 'Alert Threshold', value: `${mat?.reorderPoint || 0} ${mat?.unit}`, critical: true }
-                                            ].map((item, idx) => (
-                                                <div key={idx} className="flex justify-between items-center py-4 border-b border-slate-50 dark:border-slate-900 last:border-0 hover:bg-slate-50/50 dark:hover:bg-slate-900/50 px-2 rounded-xl transition-colors">
-                                                    <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tight">{item.label}</span>
-                                                    <span className={`text-sm font-black ${item.critical ? 'text-red-500 flex items-center gap-1.5' : 'text-slate-700 dark:text-slate-200'}`}>
-                                                        {item.critical && <AlertTriangle className="h-4 w-4" />}
-                                                        {item.value || '-'}
-                                                    </span>
-                                                </div>
-                                            ))}
+                                {/* Flow Logs */}
+                                <div className="space-y-6">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <History className="h-4 w-4 text-[#E8601C]" />
+                                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">{it.detail.logs}</h3>
                                         </div>
-                                    </section>
+                                        <Badge variant="secondary" className="bg-slate-100 dark:bg-slate-800 text-slate-400 border-none font-bold uppercase text-[9px] px-2">
+                                            {it.detail.last30}
+                                        </Badge>
+                                    </div>
 
-                                    {/* History Log Widget */}
-                                    <section>
-                                        <div className="flex items-center justify-between mb-8">
-                                            <h4 className="text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-[0.2em] flex items-center gap-3">
-                                                <div className="h-1.5 w-6 bg-orange-500 rounded-full"></div>
-                                                {it.detail.logs}
-                                            </h4>
-                                            <Badge variant="outline" className="text-[9px] font-black text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-800 rounded-lg">{it.detail.last30}</Badge>
-                                        </div>
-                                        <div className="space-y-6 relative ml-2">
-                                            {/* Timeline Line */}
-                                            <div className="absolute left-[13px] top-4 bottom-4 w-px bg-slate-100 dark:bg-slate-800"></div>
+                                    <div className="space-y-4">
+                                        {isLoadingLogs ? (
+                                            <div className="space-y-3">
+                                                {[...Array(3)].map((_, i) => (
+                                                    <Skeleton key={i} className="h-16 w-full rounded-2xl" />
+                                                ))}
+                                            </div>
+                                        ) : materialLogs.length > 0 ? (
+                                            materialLogs.map((log) => (
+                                                <div key={log._id} className="flex gap-4 relative group">
+                                                    {/* Vertical Flow Line */}
+                                                    <div className="absolute left-[39px] top-6 bottom-[-20px] w-0.5 bg-slate-200 dark:bg-slate-800 hidden group-last:hidden"></div>
 
-                                            {isLoadingLogs ? (
-                                                <div className="pl-10 py-4"><Loader2 className="h-5 w-5 animate-spin text-slate-300" /></div>
-                                            ) : materialLogs.length === 0 ? (
-                                                <div className="relative flex items-start gap-5 opacity-40 select-none">
-                                                    <div className="mt-1.5 h-7 w-7 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center border-4 border-white dark:border-slate-950 shadow-sm z-10">
-                                                        <History className="h-3 w-3 text-slate-400 dark:text-slate-600" />
+                                                    <div className={`h-20 w-20 rounded-2xl shrink-0 flex flex-col items-center justify-center border shadow-sm ${log.action === 'Import'
+                                                        ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/40 text-emerald-600"
+                                                        : "bg-orange-50 dark:bg-orange-950/20 border-orange-100 dark:border-orange-900/40 text-orange-600"
+                                                        }`}>
+                                                        <span className="text-[10px] font-black uppercase leading-none mb-1">
+                                                            {log.action === 'Import' ? '+' : '-'}
+                                                        </span>
+                                                        <span className="text-lg font-black tracking-tighter leading-none">
+                                                            {log.quantity.toLocaleString()}
+                                                        </span>
                                                     </div>
-                                                    <div className="flex-1 p-3">
-                                                        <p className="text-xs font-bold text-slate-500 dark:text-slate-600 leading-none">{it.detail.noLogs || 'No history found'}</p>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                materialLogs.map((log) => (
-                                                    <div key={log._id} className="relative flex items-start gap-5 group/log">
-                                                        <div className={`mt-1.5 h-7 w-7 rounded-full flex items-center justify-center border-4 border-white dark:border-slate-950 shadow-sm z-10 group-hover/log:scale-110 transition-transform ${log.action === 'Import' ? 'bg-emerald-100' :
-                                                                log.action === 'Withdraw' ? 'bg-orange-100' :
-                                                                    'bg-blue-100'
-                                                            }`}>
-                                                            {log.action === 'Import' ? <Plus className="h-3 w-3 text-emerald-600" /> :
-                                                                log.action === 'Withdraw' ? <ArrowUpRight className="h-3 w-3 text-orange-600" /> :
-                                                                    <History className="h-3 w-3 text-blue-600" />}
-                                                        </div>
-                                                        <div className="flex-1 bg-white dark:bg-slate-900/50 p-3 rounded-2xl border border-slate-50 dark:border-slate-900 shadow-sm">
-                                                            <p className="text-xs font-black text-slate-800 dark:text-slate-200 leading-none">{log.action}</p>
-                                                            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 mt-2">{new Date(log.createdAt).toLocaleString(lang === 'th' ? 'th-TH' : 'en-US')}</p>
-                                                            <div className="mt-3 flex items-center gap-2">
-                                                                <span className={`text-[10px] font-black px-2 py-1 rounded-lg uppercase tracking-widest ${log.action === 'Withdraw' ? 'text-orange-600 bg-orange-50' : 'text-emerald-600 bg-emerald-50'
-                                                                    }`}>
-                                                                    {log.action === 'Withdraw' ? '-' : '+'}{log.quantity} {mat?.unit || 'Units'}
+
+                                                    <div className="flex flex-col justify-center gap-1">
+                                                        <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                                            {log.action === 'Import' ? 'นำเข้าวัสดุ' : 'เบิกออกวัสดุ'}
+                                                        </p>
+                                                        <div className="flex flex-col gap-0.5">
+                                                            <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                                                                <Clock className="h-3 w-3" />
+                                                                <span className="text-[10px] font-bold uppercase">
+                                                                    {new Date(log.createdAt).toLocaleString(lang === 'th' ? 'th-TH' : 'en-US', {
+                                                                        day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+                                                                    })}
                                                                 </span>
-                                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">@{log.warehouseLocation}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-1.5 text-slate-400">
+                                                                <Warehouse className="h-3 w-3" />
+                                                                <span className="text-[10px] font-bold italic">{log.warehouseLocation}</span>
                                                             </div>
                                                         </div>
                                                     </div>
-                                                ))
-                                            )}
-                                        </div>
-                                    </section>
-                                </div>
-
-                                {/* Actions Footer */}
-                                <div className="p-8 border-t border-slate-100 dark:border-slate-900 bg-white dark:bg-slate-950 mt-auto flex gap-3">
-                                    <Button
-                                        onClick={() => openEditDialog(selectedInventory)}
-                                        variant="outline"
-                                        className="flex-1 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 font-black text-[11px] uppercase tracking-wider gap-2 h-14 rounded-2xl shadow-sm"
-                                    >
-                                        <Edit3 className="h-4 w-4 text-[#1B4B9A]" />
-                                        {it.detail.update}
-                                    </Button>
-                                    <Button
-                                        onClick={() => handleDelete(selectedInventory._id)}
-                                        variant="outline"
-                                        className="w-14 border-slate-200 dark:border-slate-800 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 transition-all h-14 rounded-2xl shadow-sm p-0 flex items-center justify-center"
-                                    >
-                                        <Trash2 className="h-5 w-5" />
-                                    </Button>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className="py-12 bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center text-center px-6">
+                                                <History className="h-8 w-8 text-slate-200 dark:text-slate-800 mb-3" />
+                                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{it.detail.noLogs}</p>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
-                        );
-                    })()}
+
+                            {/* Panel Footer */}
+                            <div className="mt-auto p-8 pt-0 grid grid-cols-2 gap-3">
+                                <Button
+                                    onClick={() => handleDelete(selectedInventory._id)}
+                                    variant="outline"
+                                    className="rounded-2xl h-14 border-red-200 dark:border-red-900 text-red-600 hover:bg-red-50 dark:hover:bg-red-950 font-black tracking-tight"
+                                >
+                                    <Trash2 className="h-5 w-5" />
+                                </Button>
+                                <Button
+                                    onClick={() => openEditDialog(selectedInventory)}
+                                    className="rounded-2xl h-14 bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-[#E8601C] dark:hover:bg-[#E8601C] hover:text-white transition-all font-black tracking-tight"
+                                >
+                                    <Edit3 className="mr-2 h-5 w-5" />
+                                    {it.detail.update}
+                                </Button>
+                            </div>
+                        </div>
+                    )}
                 </SheetContent>
             </Sheet>
 
-            <Dialog open={isImportOpen} onOpenChange={(open) => { if (!open) resetImportForm(); setIsImportOpen(open); }}>
-                <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden dark:bg-slate-950 border-slate-200 dark:border-slate-800 rounded-3xl">
-                    <DialogHeader className="p-8 pb-6 bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-900">
-                        <DialogTitle className="text-2xl font-black tracking-tight text-slate-900 dark:text-white uppercase">
-                            {isEditing ? (lang === 'th' ? 'แก้ไขข้อมูล' : 'Edit Details') : it.importStock}
+            {/* Import/Edit Dialog */}
+            <Dialog open={isImportOpen} onOpenChange={(open) => {
+                setIsImportOpen(open);
+                if (!open) resetImportForm();
+            }}>
+                <DialogContent className="sm:max-w-[500px] border-slate-200 dark:border-slate-800 rounded-3xl p-8 bg-white dark:bg-slate-950 max-h-[90vh] overflow-y-auto">
+                    <DialogHeader className="mb-6">
+                        <DialogTitle className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                            {isEditing ? it.detail.update : it.importStock}
                         </DialogTitle>
-                        <DialogDescription className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1">
-                            {isEditing
-                                ? (lang === 'th' ? 'ปรับปรุงข้อมูลคลังสินค้า' : 'Update existing inventory record.')
-                                : (lang === 'th' ? 'เพิ่มวัสดุใหม่ลงในพื้นที่จัดเก็บ' : 'Add new materials to the inventory locations.')}
+                        <DialogDescription className="text-slate-500 font-medium">
+                            {isEditing ? "ปรับปรุงข้อมูลวัสดุในคลัง" : "เพิ่มวัสดุใหม่เข้าสู่ระบบจัดการสต็อก"}
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="p-8 space-y-6">
-                        <div className="space-y-2.5">
-                            <Label htmlFor="material" className="text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 ml-1">
-                                {lang === 'th' ? 'รายการวัสดุ' : 'Material Item'} *
+
+                    <div className="space-y-8">
+                        {/* Material Selection */}
+                        <div className="space-y-3">
+                            <Label className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                                <Package className="h-3 w-3" />
+                                เลือกวัสดุ (Material Identity)
                             </Label>
                             <Select
                                 value={importData.material}
-                                onValueChange={(val) => {
-                                    if (val) setImportData({ ...importData, material: val })
-                                }}
+                                onValueChange={(val) => setImportData({ ...importData, material: val || "" })}
                             >
-                                <SelectTrigger className="h-12 w-full border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-[#E8601C]/20 bg-white dark:bg-slate-950 rounded-2xl font-bold transition-all">
-                                    <SelectValue placeholder={lang === 'th' ? 'เลือกวัสดุ...' : 'Select material...'}>
-                                        {importData.material && materials.find(m => m._id === importData.material)?.name}
-                                    </SelectValue>
+                                <SelectTrigger className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-black text-slate-900 dark:text-white px-5 focus:ring-[#E8601C] focus:border-[#E8601C]">
+                                    <SelectValue placeholder="Select a material..." />
                                 </SelectTrigger>
-                                <SelectContent className="max-h-[300px] rounded-2xl dark:bg-slate-900 border-slate-200 dark:border-slate-800">
-                                    {materials.map(m => (
+                                <SelectContent className="rounded-2xl border-slate-200 dark:border-slate-800 p-2">
+                                    {materials.map(mat => (
                                         <SelectItem
-                                            key={m._id}
-                                            value={m._id}
-                                            className="cursor-pointer py-3 border-b border-slate-50 dark:border-slate-800/50 last:border-0 focus:bg-[#E8601C] focus:text-white rounded-none first:rounded-t-xl last:rounded-b-xl transition-colors group"
+                                            key={mat._id}
+                                            value={mat._id}
+                                            className="rounded-xl py-3 font-bold focus:bg-[#E8601C] focus:text-white"
                                         >
-                                            <div className="flex flex-col gap-1">
-                                                <span className="font-black text-sm text-slate-900 dark:text-white leading-tight group-focus:text-white transition-colors">{m.name}</span>
-                                                <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase leading-none tracking-tight group-focus:text-orange-100/70 transition-colors">
-                                                    {m.specDetails?.thickness} / {m.specDetails?.color} / {m.specDetails?.glassType}
+                                            <div className="flex flex-col">
+                                                <span>{mat.name}</span>
+                                                <span className="text-[10px] opacity-70">
+                                                    {mat.specDetails?.thickness} {mat.specDetails?.color}
                                                 </span>
                                             </div>
                                         </SelectItem>
@@ -927,82 +885,93 @@ export default function InventoryPage() {
                             </Select>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-6">
-                            <div className="space-y-2.5">
-                                <Label htmlFor="stockType" className="text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 ml-1">{it.type}</Label>
-                                <Select
-                                    value={importData.stockType}
-                                    onValueChange={(val) => {
-                                        if (val === "Raw" || val === "Reuse") {
-                                            setImportData({ ...importData, stockType: val })
-                                        }
-                                    }}
-                                >
-                                    <SelectTrigger className="h-12 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 rounded-2xl font-bold">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent className="rounded-2xl dark:bg-slate-900 border-slate-200 dark:border-slate-800">
-                                        <SelectItem value="Raw">Raw</SelectItem>
-                                        <SelectItem value="Reuse">Reuse</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="space-y-2.5">
-                                <Label htmlFor="quantity" className="text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 ml-1">{it.table.quantity} *</Label>
+                        {/* Location Suggestion System */}
+                        <div className="space-y-4">
+                            <div className="space-y-3">
+                                <Label className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                                    <Warehouse className="h-3 w-3" />
+                                    สถานที่จัดเก็บ (Warehouse Location)
+                                </Label>
                                 <Input
-                                    id="quantity"
-                                    type="number"
-                                    min="1"
-                                    className="h-12 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 rounded-2xl font-black text-base"
-                                    value={importData.quantity}
-                                    onChange={(e) => setImportData({ ...importData, quantity: parseInt(e.target.value) || 0 })}
+                                    placeholder="เช่น A01-01, B2..."
+                                    value={importData.location}
+                                    onChange={(e) => setImportData({ ...importData, location: e.target.value })}
+                                    className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-black text-slate-900 dark:text-white px-5 uppercase focus:ring-[#E8601C] focus:border-[#E8601C]"
                                 />
                             </div>
-                        </div>
 
-                        <div className="space-y-4">
-                            <div className="space-y-2.5">
-                                <Label htmlFor="location" className="text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 ml-1">{lang === 'th' ? 'ตำแหน่งคลังสินค้า' : 'Warehouse Location'} *</Label>
-                                <div className="flex flex-wrap gap-2 mb-3">
+                            {/* Recommendation Badges */}
+                            <div className="space-y-2">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">ข้อเสนอแนะล่าสุด</p>
+                                <div className="flex flex-wrap gap-2">
                                     {locations.slice(0, 5).map(loc => (
                                         <button
                                             key={loc}
                                             onClick={() => setImportData({ ...importData, location: loc })}
-                                            className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border ${importData.location === loc
-                                                    ? 'bg-[#E8601C] border-[#E8601C] text-white shadow-lg shadow-orange-500/20 scale-105'
-                                                    : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 hover:border-[#E8601C]/50'
+                                            className={`px-3 py-1.5 rounded-xl border text-[11px] font-black transition-all ${importData.location === loc
+                                                ? "bg-[#E8601C] border-[#E8601C] text-white shadow-md"
+                                                : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 hover:border-[#E8601C] hover:text-[#E8601C]"
                                                 }`}
                                         >
                                             {loc}
                                         </button>
                                     ))}
+                                    {locations.length === 0 && (
+                                        <span className="text-[10px] text-slate-400 italic">ยังไม่มีประวัติสถานที่...</span>
+                                    )}
                                 </div>
-                                <Input
-                                    id="location"
-                                    className="h-12 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 rounded-2xl font-bold placeholder:font-medium transition-all focus:ring-2 focus:ring-[#E8601C]/20"
-                                    placeholder="e.g. A1, Shelf 3, Rack B"
-                                    value={importData.location}
-                                    onChange={(e) => setImportData({ ...importData, location: e.target.value })}
-                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-6">
+                            {/* Stock Type */}
+                            <div className="space-y-3">
+                                <Label className="text-xs font-black text-slate-500 uppercase tracking-widest">ประเภทสต็อก</Label>
+                                <Select
+                                    value={importData.stockType}
+                                    onValueChange={(val) => setImportData({ ...importData, stockType: (val as "Raw" | "Reuse") || "Raw" })}
+                                >
+                                    <SelectTrigger className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-black px-5 focus:ring-[#E8601C]">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent className="rounded-2xl border-slate-200 dark:border-slate-800">
+                                        <SelectItem value="Raw" className="font-bold">RAW MATERIAL</SelectItem>
+                                        <SelectItem value="Reuse" className="font-bold">REUSABLE</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            {/* Quantity */}
+                            <div className="space-y-3">
+                                <Label className="text-xs font-black text-slate-500 uppercase tracking-widest">จำนวนสินค้า (QTY)</Label>
+                                <div className="relative">
+                                    <Input
+                                        type="number"
+                                        value={importData.quantity}
+                                        onChange={(e) => setImportData({ ...importData, quantity: parseInt(e.target.value) || 0 })}
+                                        className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-black text-slate-900 dark:text-white px-5 focus:ring-[#E8601C]"
+                                    />
+                                    <Package className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <DialogFooter className="p-8 pt-0 bg-white dark:bg-slate-950 border-t-0 flex-row gap-4 sm:justify-end">
+
+                    <DialogFooter className="mt-10 pt-6 border-t border-slate-100 dark:border-slate-800">
                         <Button
                             variant="ghost"
                             onClick={() => setIsImportOpen(false)}
-                            disabled={isSubmitting}
-                            className="h-12 px-6 font-black text-xs uppercase tracking-widest text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                            className="rounded-2xl h-14 font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white px-8"
                         >
-                            {lang === 'th' ? 'ยกเลิก' : 'Cancel'}
+                            ยกเลิก
                         </Button>
                         <Button
                             onClick={handleImport}
-                            disabled={isSubmitting || !importData.material || !importData.location || importData.quantity <= 0}
-                            className="bg-[#1B4B9A] hover:bg-[#1B4B9A]/90 text-white h-12 px-8 font-black text-xs uppercase tracking-[0.1em] rounded-2xl shadow-xl shadow-blue-500/20"
+                            disabled={isSubmitting || !importData.material || !importData.location}
+                            className={`rounded-2xl h-14 min-w-[160px] font-black tracking-tight text-white transition-all shadow-xl ${isSubmitting ? "bg-slate-400" : "bg-slate-900 dark:bg-white dark:text-slate-900 hover:bg-[#E8601C] dark:hover:bg-[#E8601C] dark:hover:text-white"
+                                }`}
                         >
-                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            {isEditing ? (lang === 'th' ? 'บันทึกการเปลี่ยนแปลง' : 'Save Changes') : it.importStock}
+                            {isSubmitting ? "Processing..." : (isEditing ? "บันทึกการแก้ไข" : "ยืนยันนำเข้าสต็อก")}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
