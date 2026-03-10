@@ -26,7 +26,18 @@ export async function fetchApi<T>(
     const data = await response.json();
 
     if (!response.ok) {
-        throw new Error(data.message || "An error occurred while fetching data.");
+        let errorMessage = data.message || "An error occurred while fetching data.";
+
+        if (data.errors) {
+            const details = Array.isArray(data.errors)
+                ? data.errors.map((e: any) => e.message || e).join(", ")
+                : typeof data.errors === "object"
+                    ? Object.values(data.errors).flat().join(", ")
+                    : String(data.errors);
+            errorMessage += `: ${details}`;
+        }
+
+        throw new Error(errorMessage);
     }
 
     return data;

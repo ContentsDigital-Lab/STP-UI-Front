@@ -51,6 +51,17 @@ export interface MaterialLog {
     createdAt: string;
 }
 
+export interface Customer {
+    _id: string;
+    name: string;
+    address: string;
+    phone: string;
+    discount: number;
+    notes: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
 export interface LoginData {
     token: string;
     worker: Worker;
