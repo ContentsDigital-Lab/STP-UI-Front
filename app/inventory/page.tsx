@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import Link from "next/link";
 import {
     Plus,
@@ -22,7 +22,9 @@ import {
     Shield,
     X,
     Settings2,
-    Trash2
+    Trash2,
+    MapPin,
+    ChevronDown
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { Button } from "@/components/ui/button";
@@ -86,6 +88,70 @@ export default function InventoryPage() {
     const [thicknessFilter, setThicknessFilter] = useState<string>("all");
     const [colorFilter, setColorFilter] = useState<string>("all");
     const [glassTypeFilter, setGlassTypeFilter] = useState<string>("all");
+
+    // Location autocomplete
+    const [locationDropdownOpen, setLocationDropdownOpen] = useState(false);
+    const locationInputRef = useRef<HTMLInputElement>(null);
+    const locationDropdownRef = useRef<HTMLDivElement>(null);
+
+    // Location usage frequency (persisted in localStorage)
+    const [locationUsage, setLocationUsage] = useState<Record<string, number>>({});
+
+    // Location colors (persisted in localStorage)
+    const [locationColors, setLocationColors] = useState<Record<string, string>>({});
+
+    const generateLocationColor = useCallback((existingColors: Record<string, string>) => {
+        const count = Object.keys(existingColors).length;
+        // Golden angle distribution for maximum hue spread
+        const hue = (count * 137.508) % 360;
+        // Vary saturation and lightness for distinction
+        const saturation = 65 + (count * 17 % 26); // 65-90%
+        const lightness = 45 + (count * 23 % 21);  // 45-65%
+        return `hsl(${Math.round(hue)}, ${saturation}%, ${lightness}%)`;
+    }, []);
+
+    const getLocationColor = useCallback((loc: string) => {
+        if (locationColors[loc]) return locationColors[loc];
+        const color = generateLocationColor(locationColors);
+        const updated = { ...locationColors, [loc]: color };
+        setLocationColors(updated);
+        localStorage.setItem('locationColorMap', JSON.stringify(updated));
+        return color;
+    }, [locationColors, generateLocationColor]);
+
+    useEffect(() => {
+        try {
+            const stored = localStorage.getItem('locationUsageFrequency');
+            if (stored) setLocationUsage(JSON.parse(stored));
+            const storedColors = localStorage.getItem('locationColorMap');
+            if (storedColors) setLocationColors(JSON.parse(storedColors));
+        } catch { /* ignore */ }
+    }, []);
+
+    const trackLocationUsage = useCallback((loc: string) => {
+        setLocationUsage(prev => {
+            const updated = { ...prev, [loc]: (prev[loc] || 0) + 1 };
+            localStorage.setItem('locationUsageFrequency', JSON.stringify(updated));
+            return updated;
+        });
+    }, []);
+
+    // Close location dropdown on outside click
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (
+                locationDropdownRef.current &&
+                !locationDropdownRef.current.contains(e.target as Node) &&
+                locationInputRef.current &&
+                !locationInputRef.current.contains(e.target as Node)
+            ) {
+                setLocationDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
 
     // Dashboard Stats (Global - ignores current filter for cards)
     const globalStats = useMemo(() => {
@@ -263,6 +329,15 @@ export default function InventoryPage() {
     const locations = useMemo(() => Array.from(new Set(inventories.map(inv => inv.location))), [inventories]);
     const glassTypes = useMemo(() => Array.from(new Set(materials.map(m => m.specDetails?.glassType).filter(Boolean))), [materials]);
 
+    // Sorted and filtered location suggestions
+    const filteredLocationSuggestions = useMemo(() => {
+        const query = importData.location.toLowerCase();
+        const filtered = locations.filter(loc =>
+            !query || loc.toLowerCase().includes(query)
+        );
+        return filtered.sort((a, b) => (locationUsage[b] || 0) - (locationUsage[a] || 0));
+    }, [locations, importData.location, locationUsage]);
+
     const filteredInventories = useMemo(() => {
         return inventories.filter(inv => {
             const mat = getMaterialInfo(inv.material);
@@ -382,16 +457,16 @@ export default function InventoryPage() {
                             setCurrentPage(1);
                         }}
                         className={`text-left p-6 rounded-3xl border transition-all flex flex-col justify-between hover:scale-[1.02] active:scale-[0.98] min-h-[140px] shadow-sm ${showLowStockOnly
-                            ? 'bg-red-600 border-red-600 shadow-lg shadow-red-500/20 text-white'
+                            ? 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800 shadow-lg shadow-red-200/30 text-red-800 dark:text-red-300'
                             : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-red-200 dark:hover:border-red-900 group'
                             }`}
                     >
                         <div className="flex items-center justify-between mb-4">
-                            <div className={`h-12 w-12 rounded-2xl flex items-center justify-center transition-colors ${showLowStockOnly ? 'bg-red-500 text-white' : 'bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400'
+                            <div className={`h-12 w-12 rounded-2xl flex items-center justify-center transition-colors ${showLowStockOnly ? 'bg-red-200 dark:bg-red-900 text-red-700 dark:text-red-300' : 'bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400'
                                 }`}>
                                 <AlertTriangle className="h-6 w-6" />
                             </div>
-                            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${showLowStockOnly ? 'bg-red-500 text-white' : 'bg-red-100/50 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${showLowStockOnly ? 'bg-red-200 dark:bg-red-900 text-red-700 dark:text-red-300' : 'bg-red-100/50 dark:bg-red-900/30 text-red-600 dark:text-red-400'
                                 }`}>
                                 <span className="relative flex h-2 w-2">
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
@@ -401,7 +476,7 @@ export default function InventoryPage() {
                             </div>
                         </div>
                         <div>
-                            <p className={`text-sm font-bold ${showLowStockOnly ? 'text-white/80' : 'text-slate-500 dark:text-slate-400'}`}>{it.lowStock}</p>
+                            <p className={`text-sm font-bold ${showLowStockOnly ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-400'}`}>{it.lowStock}</p>
                             <h3 className="text-3xl font-black tracking-tight mt-1">
                                 {globalStats.lowStockCount}
                             </h3>
@@ -451,9 +526,9 @@ export default function InventoryPage() {
 
             {/* Filter & Search Bar */}
             <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
-                <div className="flex flex-col lg:flex-row items-end gap-6 overflow-x-auto pb-2 scrollbar-hide">
+                <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr_1fr_auto] items-end gap-6 pb-2">
                     {/* Search Field */}
-                    <div className="w-full lg:max-w-md space-y-2 shrink-0">
+                    <div className="space-y-2">
                         <Label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
                             <Search className="h-3 w-3" />
                             Quick Search
@@ -466,7 +541,7 @@ export default function InventoryPage() {
                                     setSearchQuery(e.target.value);
                                     setCurrentPage(1);
                                 }}
-                                className="pl-4 pr-10 h-12 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 focus:ring-[#E8601C] focus:border-[#E8601C] rounded-2xl transition-all font-medium text-sm"
+                                className="pl-4 pr-10 h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 focus:ring-[#E8601C] focus:border-[#E8601C] rounded-2xl transition-all font-medium text-sm"
                             />
                             {searchQuery && (
                                 <button
@@ -479,57 +554,55 @@ export default function InventoryPage() {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-4 shrink-0">
-                        {/* Area Filter */}
-                        <div className="w-[180px] space-y-2">
-                            <Label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
-                                <Warehouse className="h-3 w-3" />
-                                {it.area}
-                            </Label>
-                            <Select value={locationFilter} onValueChange={(val) => { setLocationFilter(val || "all"); setCurrentPage(1); }}>
-                                <SelectTrigger className="h-12 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm focus:ring-[#E8601C]">
-                                    <SelectValue placeholder="All Areas" />
-                                </SelectTrigger>
-                                <SelectContent className="rounded-2xl border-slate-200 dark:border-slate-800">
-                                    <SelectItem value="all" className="font-bold">All Areas</SelectItem>
-                                    {locations.map(loc => (
-                                        <SelectItem key={loc} value={loc} className="font-bold">{loc}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
+                    {/* Area Filter */}
+                    <div className="space-y-2">
+                        <Label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
+                            <Warehouse className="h-3 w-3" />
+                            {it.area}
+                        </Label>
+                        <Select value={locationFilter} onValueChange={(val) => { setLocationFilter(val || "all"); setCurrentPage(1); }}>
+                            <SelectTrigger className="h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm focus:ring-[#E8601C]">
+                                <SelectValue placeholder="All Areas" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-2xl border-slate-200 dark:border-slate-800">
+                                <SelectItem value="all" className="font-bold">All Areas</SelectItem>
+                                {locations.map(loc => (
+                                    <SelectItem key={loc} value={loc} className="font-bold">{loc}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
 
-                        {/* Glass Type Filter */}
-                        <div className="w-[180px] space-y-2">
-                            <Label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
-                                <Package className="h-3 w-3" />
-                                {it.glassType}
-                            </Label>
-                            <Select value={glassTypeFilter} onValueChange={(val) => { setGlassTypeFilter(val || "all"); setCurrentPage(1); }}>
-                                <SelectTrigger className="h-12 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm focus:ring-[#E8601C]">
-                                    <SelectValue placeholder="All Types" />
-                                </SelectTrigger>
-                                <SelectContent className="rounded-2xl border-slate-200 dark:border-slate-800">
-                                    <SelectItem value="all" className="font-bold">All Types</SelectItem>
-                                    {glassTypes.map(type => (
-                                        <SelectItem key={type} value={type} className="font-bold">{type}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
+                    {/* Glass Type Filter */}
+                    <div className="space-y-2">
+                        <Label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
+                            <Package className="h-3 w-3" />
+                            {it.glassType}
+                        </Label>
+                        <Select value={glassTypeFilter} onValueChange={(val) => { setGlassTypeFilter(val || "all"); setCurrentPage(1); }}>
+                            <SelectTrigger className="h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm focus:ring-[#E8601C]">
+                                <SelectValue placeholder="All Types" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-2xl border-slate-200 dark:border-slate-800">
+                                <SelectItem value="all" className="font-bold">All Types</SelectItem>
+                                {glassTypes.map(type => (
+                                    <SelectItem key={type} value={type} className="font-bold">{type}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
 
-                        {/* More Filters / Reset */}
-                        <div className="flex items-center gap-2 pt-6">
-                            {(searchQuery || locationFilter !== "all" || glassTypeFilter !== "all" || showLowStockOnly) && (
-                                <Button
-                                    variant="ghost"
-                                    onClick={resetFilters}
-                                    className="h-12 rounded-2xl text-slate-500 hover:text-[#E8601C] font-bold px-4"
-                                >
-                                    {it.clearFilters}
-                                </Button>
-                            )}
-                        </div>
+                    {/* Reset */}
+                    <div className="flex items-center pb-0.5">
+                        {(searchQuery || locationFilter !== "all" || glassTypeFilter !== "all" || showLowStockOnly) && (
+                            <Button
+                                variant="ghost"
+                                onClick={resetFilters}
+                                className="h-12 rounded-2xl text-slate-500 hover:text-[#E8601C] font-bold px-4"
+                            >
+                                {it.clearFilters}
+                            </Button>
+                        )}
                     </div>
                 </div>
             </div>
@@ -555,12 +628,19 @@ export default function InventoryPage() {
                                 paginatedInventories.map((inv) => {
                                     const mat = getMaterialInfo(inv.material);
                                     const isLow = mat && inv.quantity <= mat.reorderPoint;
+                                    const isNearLow = mat && !isLow && inv.quantity <= mat.reorderPoint * 1.5;
                                     const statusText = isLow ? it.table.lowStock : it.table.healthy;
+
+                                    const rowBg = isLow
+                                        ? 'bg-red-50/70 dark:bg-red-950/20 hover:bg-red-100/80 dark:hover:bg-red-950/30'
+                                        : isNearLow
+                                            ? 'bg-amber-50/70 dark:bg-amber-950/20 hover:bg-amber-100/80 dark:hover:bg-amber-950/30'
+                                            : 'hover:bg-slate-50 dark:hover:bg-slate-800/50';
 
                                     return (
                                         <TableRow
                                             key={inv._id}
-                                            className="group hover:bg-slate-50 dark:hover:bg-slate-800/50 border-slate-100 dark:border-slate-800 transition-colors cursor-pointer"
+                                            className={`group border-slate-100 dark:border-slate-800 transition-colors cursor-pointer ${rowBg}`}
                                             onClick={() => openDetails(inv)}
                                         >
                                             <TableCell className="py-5 px-6">
@@ -576,7 +656,7 @@ export default function InventoryPage() {
                                             </TableCell>
                                             <TableCell className="py-5">
                                                 <div className="flex items-center gap-2">
-                                                    <div className="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-700"></div>
+                                                    <div className="h-2.5 w-2.5 rounded-full shadow-sm" style={{ backgroundColor: getLocationColor(inv.location) }}></div>
                                                     <span className="font-bold text-slate-600 dark:text-slate-300 text-sm italic">{inv.location}</span>
                                                 </div>
                                             </TableCell>
@@ -831,43 +911,54 @@ export default function InventoryPage() {
             {/* Import/Edit Dialog */}
             <Dialog open={isImportOpen} onOpenChange={(open) => {
                 setIsImportOpen(open);
-                if (!open) resetImportForm();
+                if (!open) {
+                    resetImportForm();
+                    setLocationDropdownOpen(false);
+                }
             }}>
-                <DialogContent className="sm:max-w-[500px] border-slate-200 dark:border-slate-800 rounded-3xl p-8 bg-white dark:bg-slate-950 max-h-[90vh] overflow-y-auto">
-                    <DialogHeader className="mb-6">
-                        <DialogTitle className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-                            {isEditing ? it.detail.update : it.importStock}
-                        </DialogTitle>
-                        <DialogDescription className="text-slate-500 font-medium">
-                            {isEditing ? "ปรับปรุงข้อมูลวัสดุในคลัง" : "เพิ่มวัสดุใหม่เข้าสู่ระบบจัดการสต็อก"}
-                        </DialogDescription>
-                    </DialogHeader>
+                <DialogContent className="sm:max-w-[520px] border-slate-200 dark:border-slate-800 rounded-3xl p-0 bg-white dark:bg-slate-950 max-h-[90vh] overflow-y-auto">
+                    {/* Header */}
+                    <div className="px-8 pt-8 pb-6 border-b border-slate-100 dark:border-slate-800">
+                        <DialogHeader>
+                            <DialogTitle className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                                {isEditing ? it.detail.update : it.importStock}
+                            </DialogTitle>
+                            <DialogDescription className="text-slate-500 font-medium text-sm mt-1">
+                                {isEditing ? "ปรับปรุงข้อมูลวัสดุในคลัง" : "เพิ่มวัสดุใหม่เข้าสู่ระบบจัดการสต็อก"}
+                            </DialogDescription>
+                        </DialogHeader>
+                    </div>
 
-                    <div className="space-y-8">
+                    {/* Form Body */}
+                    <div className="px-8 py-6 space-y-6">
                         {/* Material Selection */}
-                        <div className="space-y-3">
-                            <Label className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                        <div className="space-y-2">
+                            <Label className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
                                 <Package className="h-3 w-3" />
-                                เลือกวัสดุ (Material Identity)
+                                เลือกวัสดุ
                             </Label>
                             <Select
                                 value={importData.material}
                                 onValueChange={(val) => setImportData({ ...importData, material: val || "" })}
                             >
-                                <SelectTrigger className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-black text-slate-900 dark:text-white px-5 focus:ring-[#E8601C] focus:border-[#E8601C]">
-                                    <SelectValue placeholder="Select a material..." />
+                                <SelectTrigger className="h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-900 dark:text-white px-4 focus:ring-[#E8601C] focus:border-[#E8601C] text-sm">
+                                    <SelectValue placeholder="เลือกวัสดุที่ต้องการ...">
+                                        {importData.material
+                                            ? materials.find(m => m._id === importData.material)?.name || importData.material
+                                            : "เลือกวัสดุที่ต้องการ..."}
+                                    </SelectValue>
                                 </SelectTrigger>
-                                <SelectContent className="rounded-2xl border-slate-200 dark:border-slate-800 p-2">
+                                <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800 p-1">
                                     {materials.map(mat => (
                                         <SelectItem
                                             key={mat._id}
                                             value={mat._id}
-                                            className="rounded-xl py-3 font-bold focus:bg-[#E8601C] focus:text-white"
+                                            className="rounded-lg py-2.5 font-bold focus:bg-[#E8601C] focus:text-white text-sm"
                                         >
                                             <div className="flex flex-col">
                                                 <span>{mat.name}</span>
-                                                <span className="text-[10px] opacity-70">
-                                                    {mat.specDetails?.thickness} {mat.specDetails?.color}
+                                                <span className="text-[10px] opacity-60">
+                                                    {mat.specDetails?.thickness} · {mat.specDetails?.color}
                                                 </span>
                                             </div>
                                         </SelectItem>
@@ -876,95 +967,123 @@ export default function InventoryPage() {
                             </Select>
                         </div>
 
-                        {/* Location Suggestion System */}
-                        <div className="space-y-4">
-                            <div className="space-y-3">
-                                <Label className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                                    <Warehouse className="h-3 w-3" />
-                                    สถานที่จัดเก็บ (Warehouse Location)
-                                </Label>
+                        {/* Location - Google-style Autocomplete */}
+                        <div className="space-y-2 relative">
+                            <Label className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                                <Warehouse className="h-3 w-3" />
+                                สถานที่จัดเก็บ
+                            </Label>
+                            <div className="relative">
                                 <Input
-                                    placeholder="เช่น A01-01, B2..."
+                                    ref={locationInputRef}
+                                    placeholder="พิมพ์ค้นหา เช่น A01-01, B2..."
                                     value={importData.location}
-                                    onChange={(e) => setImportData({ ...importData, location: e.target.value })}
-                                    className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-black text-slate-900 dark:text-white px-5 uppercase focus:ring-[#E8601C] focus:border-[#E8601C]"
+                                    onChange={(e) => {
+                                        setImportData({ ...importData, location: e.target.value });
+                                        setLocationDropdownOpen(true);
+                                    }}
+                                    onFocus={() => setLocationDropdownOpen(true)}
+                                    className="h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-900 dark:text-white pl-4 pr-10 uppercase focus:ring-[#E8601C] focus:border-[#E8601C] text-sm"
+                                    autoComplete="off"
                                 />
+                                <button
+                                    type="button"
+                                    onClick={() => setLocationDropdownOpen(!locationDropdownOpen)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                                >
+                                    <ChevronDown className={`h-4 w-4 transition-transform ${locationDropdownOpen ? 'rotate-180' : ''}`} />
+                                </button>
                             </div>
 
-                            {/* Recommendation Badges */}
-                            <div className="space-y-2">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">ข้อเสนอแนะล่าสุด</p>
-                                <div className="flex flex-wrap gap-2">
-                                    {locations.slice(0, 5).map(loc => (
+                            {/* Dropdown */}
+                            {locationDropdownOpen && filteredLocationSuggestions.length > 0 && (
+                                <div
+                                    ref={locationDropdownRef}
+                                    className="absolute z-50 left-0 right-0 top-[calc(100%+4px)] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-[200px] overflow-y-auto py-1"
+                                >
+                                    {filteredLocationSuggestions.map((loc, idx) => (
                                         <button
                                             key={loc}
-                                            onClick={() => setImportData({ ...importData, location: loc })}
-                                            className={`px-3 py-1.5 rounded-xl border text-[11px] font-black transition-all ${importData.location === loc
-                                                ? "bg-[#E8601C] border-[#E8601C] text-white shadow-md"
-                                                : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 hover:border-[#E8601C] hover:text-[#E8601C]"
-                                                }`}
+                                            type="button"
+                                            onClick={() => {
+                                                setImportData({ ...importData, location: loc });
+                                                setLocationDropdownOpen(false);
+                                            }}
+                                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm ${
+                                                importData.location === loc ? 'bg-orange-50 dark:bg-orange-950/20' : ''
+                                            }`}
                                         >
-                                            {loc}
+                                            <div className="h-2.5 w-2.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: getLocationColor(loc) }} />
+                                            <span className={`font-bold uppercase ${importData.location === loc ? 'text-[#E8601C]' : 'text-slate-700 dark:text-slate-300'}`}>
+                                                {loc}
+                                            </span>
+                                            {(locationUsage[loc] || 0) > 0 && (
+                                                <span className="ml-auto text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                                                    ใช้ {locationUsage[loc]} ครั้ง
+                                                </span>
+                                            )}
                                         </button>
                                     ))}
-                                    {locations.length === 0 && (
-                                        <span className="text-[10px] text-slate-400 italic">ยังไม่มีประวัติสถานที่...</span>
-                                    )}
                                 </div>
-                            </div>
+                            )}
                         </div>
 
-                        <div className="grid grid-cols-2 gap-6">
-                            {/* Stock Type */}
-                            <div className="space-y-3">
-                                <Label className="text-xs font-black text-slate-500 uppercase tracking-widest">ประเภทสต็อก</Label>
+                        {/* Stock Type & Quantity - Side by Side */}
+                        <div className={`grid gap-4 ${isEditing ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                            <div className="space-y-2">
+                                <Label className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">ประเภทสต็อก</Label>
                                 <Select
                                     value={importData.stockType}
                                     onValueChange={(val) => setImportData({ ...importData, stockType: (val as "Raw" | "Reuse") || "Raw" })}
                                 >
-                                    <SelectTrigger className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-black px-5 focus:ring-[#E8601C]">
+                                    <SelectTrigger className="h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 rounded-xl font-bold px-4 focus:ring-[#E8601C] text-sm">
                                         <SelectValue />
                                     </SelectTrigger>
-                                    <SelectContent className="rounded-2xl border-slate-200 dark:border-slate-800">
-                                        <SelectItem value="Raw" className="font-bold">RAW MATERIAL</SelectItem>
-                                        <SelectItem value="Reuse" className="font-bold">REUSABLE</SelectItem>
+                                    <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
+                                        <SelectItem value="Raw" className="font-bold">Raw Material</SelectItem>
+                                        <SelectItem value="Reuse" className="font-bold">Reusable</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
 
-                            {/* Quantity */}
-                            <div className="space-y-3">
-                                <Label className="text-xs font-black text-slate-500 uppercase tracking-widest">จำนวนสินค้า (QTY)</Label>
-                                <div className="relative">
-                                    <Input
-                                        type="number"
-                                        value={importData.quantity}
-                                        onChange={(e) => setImportData({ ...importData, quantity: parseInt(e.target.value) || 0 })}
-                                        className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-black text-slate-900 dark:text-white px-5 focus:ring-[#E8601C]"
-                                    />
-                                    <Package className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            {!isEditing && (
+                                <div className="space-y-2">
+                                    <Label className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">จำนวน (QTY)</Label>
+                                    <div className="relative">
+                                        <Input
+                                            type="number"
+                                            value={importData.quantity}
+                                            onChange={(e) => setImportData({ ...importData, quantity: parseInt(e.target.value) || 0 })}
+                                            className="h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-900 dark:text-white pl-4 pr-10 focus:ring-[#E8601C] text-sm"
+                                        />
+                                        <Package className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
                     </div>
 
-                    <DialogFooter className="mt-10 pt-6 border-t border-slate-100 dark:border-slate-800">
+                    {/* Footer */}
+                    <div className="px-8 py-6 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-3">
                         <Button
                             variant="ghost"
                             onClick={() => setIsImportOpen(false)}
-                            className="rounded-2xl h-14 font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white px-8"
+                            className="rounded-xl h-11 font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white px-6 text-sm"
                         >
                             ยกเลิก
                         </Button>
                         <Button
-                            onClick={handleImport}
+                            onClick={() => {
+                                if (importData.location && !isEditing) trackLocationUsage(importData.location);
+                                handleImport();
+                            }}
                             disabled={isSubmitting || !importData.material || !importData.location}
-                            className={`rounded-2xl h-14 min-w-[160px] font-black tracking-tight text-white transition-all shadow-xl ${isSubmitting ? "bg-slate-400" : "bg-slate-900 dark:bg-white dark:text-slate-900 hover:bg-[#E8601C] dark:hover:bg-[#E8601C] dark:hover:text-white"
+                            className={`rounded-xl h-11 min-w-[140px] font-black tracking-tight text-white transition-all shadow-lg text-sm ${isSubmitting ? "bg-slate-400" : "bg-slate-900 dark:bg-white dark:text-slate-900 hover:bg-[#E8601C] dark:hover:bg-[#E8601C] dark:hover:text-white"
                                 }`}
                         >
                             {isSubmitting ? "Processing..." : (isEditing ? "บันทึกการแก้ไข" : "ยืนยันนำเข้าสต็อก")}
                         </Button>
-                    </DialogFooter>
+                    </div>
                 </DialogContent>
             </Dialog>
         </div>

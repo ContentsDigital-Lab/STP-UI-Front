@@ -38,7 +38,7 @@ import {
     PaginationPrevious,
 } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, Search, Plus, Edit, Trash2, FilterX, ChevronLeft, Package } from "lucide-react";
+import { Loader2, Search, Plus, Edit, Trash2, FilterX, ChevronLeft, Package, X } from "lucide-react";
 import Link from "next/link";
 
 const ITEMS_PER_PAGE = 10;
@@ -68,7 +68,9 @@ export default function MaterialsManagementPage() {
         reorderPoint: 10,
         thickness: "",
         color: "",
-        glassType: ""
+        glassType: "",
+        width: "",
+        height: ""
     });
 
     useEffect(() => {
@@ -98,7 +100,9 @@ export default function MaterialsManagementPage() {
                 reorderPoint: material.reorderPoint || 0,
                 thickness: material.specDetails?.thickness || "",
                 color: material.specDetails?.color || "",
-                glassType: material.specDetails?.glassType || ""
+                glassType: material.specDetails?.glassType || "",
+                width: material.specDetails?.width || "",
+                height: material.specDetails?.height || ""
             });
         } else {
             setEditingMaterial(null);
@@ -108,7 +112,9 @@ export default function MaterialsManagementPage() {
                 reorderPoint: 10,
                 thickness: "",
                 color: "",
-                glassType: ""
+                glassType: "",
+                width: "",
+                height: ""
             });
         }
         setIsModalOpen(true);
@@ -125,7 +131,9 @@ export default function MaterialsManagementPage() {
             specDetails: {
                 thickness: formData.thickness,
                 color: formData.color,
-                glassType: formData.glassType
+                glassType: formData.glassType,
+                width: formData.width,
+                height: formData.height
             }
         };
 
@@ -167,11 +175,18 @@ export default function MaterialsManagementPage() {
     const colors = useMemo(() => Array.from(new Set(materials.map(m => m.specDetails?.color).filter(Boolean))), [materials]);
     const glassTypes = useMemo(() => Array.from(new Set(materials.map(m => m.specDetails?.glassType).filter(Boolean))), [materials]);
 
+    // Smart search — matches across all fields
     const filteredMaterials = useMemo(() => {
         return materials.filter(m => {
             const searchLower = searchQuery.toLowerCase();
-            const matchesSearch = m.name.toLowerCase().includes(searchLower) ||
-                (m.specDetails?.glassType || "").toLowerCase().includes(searchLower);
+            const matchesSearch = !searchQuery ||
+                m.name.toLowerCase().includes(searchLower) ||
+                (m.specDetails?.glassType || "").toLowerCase().includes(searchLower) ||
+                (m.specDetails?.thickness || "").toLowerCase().includes(searchLower) ||
+                (m.specDetails?.color || "").toLowerCase().includes(searchLower) ||
+                (m.specDetails?.width || "").toLowerCase().includes(searchLower) ||
+                (m.specDetails?.height || "").toLowerCase().includes(searchLower) ||
+                (m.unit || "").toLowerCase().includes(searchLower);
 
             const matchesThickness = thicknessFilter === "all" || m.specDetails?.thickness === thicknessFilter;
             const matchesColor = colorFilter === "all" || m.specDetails?.color === colorFilter;
@@ -195,12 +210,15 @@ export default function MaterialsManagementPage() {
         setCurrentPage(1);
     };
 
+    const hasActiveFilters = searchQuery || thicknessFilter !== "all" || colorFilter !== "all" || glassTypeFilter !== "all";
+
     const TableSkeleton = () => (
         <>
             {[...Array(5)].map((_, i) => (
                 <TableRow key={i}>
                     <TableCell><Skeleton className="h-5 w-[200px]" /></TableCell>
                     <TableCell><Skeleton className="h-10 w-[150px]" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-[80px]" /></TableCell>
                     <TableCell><Skeleton className="h-6 w-[40px]" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-[60px]" /></TableCell>
                     <TableCell><Skeleton className="h-8 w-[100px]" /></TableCell>
@@ -222,91 +240,122 @@ export default function MaterialsManagementPage() {
                 </div>
             </div>
 
-            <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm mb-2">
-                <div className="flex flex-wrap items-center gap-3">
-                    <div className="relative w-full md:w-64">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                        <Input
-                            placeholder="Search materials..."
-                            className="pl-9 h-9 text-sm border-slate-200 focus:ring-1 focus:ring-slate-400 bg-slate-50/50"
-                            value={searchQuery}
-                            onChange={(e) => {
-                                setSearchQuery(e.target.value);
-                                setCurrentPage(1);
-                            }}
-                        />
+            {/* Filter & Search Bar */}
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr_1fr_1fr_auto] items-end gap-4">
+                    {/* Search */}
+                    <div className="space-y-1.5">
+                        <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-1.5">
+                            <Search className="h-3 w-3" />
+                            ค้นหา
+                        </Label>
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            <Input
+                                placeholder="ค้นหาชื่อ, ประเภท, ความหนา, สี, ขนาด..."
+                                className="pl-9 pr-9 h-10 text-sm border-slate-200 focus:ring-1 focus:ring-[#1B4B9A] bg-slate-50/50 rounded-xl"
+                                value={searchQuery}
+                                onChange={(e) => {
+                                    setSearchQuery(e.target.value);
+                                    setCurrentPage(1);
+                                }}
+                            />
+                            {searchQuery && (
+                                <button
+                                    onClick={() => setSearchQuery("")}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                                >
+                                    <X className="h-3.5 w-3.5" />
+                                </button>
+                            )}
+                        </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
+                    {/* Glass Type Filter */}
+                    <div className="space-y-1.5">
+                        <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest ml-1">ประเภทกระจก</Label>
                         <Select value={glassTypeFilter} onValueChange={(val) => { if (val) setGlassTypeFilter(val); setCurrentPage(1); }}>
-                            <SelectTrigger className="w-[130px] h-9 text-xs border-slate-200 bg-white">
-                                <SelectValue placeholder="Glass Type" />
+                            <SelectTrigger className="h-10 w-full text-sm border-slate-200 bg-white rounded-xl">
+                                <SelectValue placeholder="ทั้งหมด" />
                             </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all" className="focus:bg-slate-100 focus:text-slate-900">Any Glass</SelectItem>
+                            <SelectContent className="rounded-xl">
+                                <SelectItem value="all" className="focus:bg-slate-100 focus:text-slate-900">ทั้งหมด</SelectItem>
                                 {glassTypes.map(gt => (
-                                    <SelectItem key={gt} value={gt} className="focus:bg-slate-100 focus:text-slate-900">{gt}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-
-                        <Select value={thicknessFilter} onValueChange={(val) => { if (val) setThicknessFilter(val); setCurrentPage(1); }}>
-                            <SelectTrigger className="w-[110px] h-9 text-xs border-slate-200 bg-white">
-                                <SelectValue placeholder="Thick" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all" className="focus:bg-slate-100 focus:text-slate-900">Any Thick</SelectItem>
-                                {thicknesses.map(t => (
-                                    <SelectItem key={t} value={t} className="focus:bg-slate-100 focus:text-slate-900">{t}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-
-                        <Select value={colorFilter} onValueChange={(val) => { if (val) setColorFilter(val); setCurrentPage(1); }}>
-                            <SelectTrigger className="w-[110px] h-9 text-xs border-slate-200 bg-white">
-                                <SelectValue placeholder="Color" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all" className="focus:bg-slate-100 focus:text-slate-900">Any Color</SelectItem>
-                                {colors.map(c => (
-                                    <SelectItem key={c} value={c} className="focus:bg-slate-100 focus:text-slate-900">{c}</SelectItem>
+                                    <SelectItem key={gt} value={gt!} className="focus:bg-slate-100 focus:text-slate-900">{gt}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
                     </div>
 
-                    <div className="flex items-center gap-2 ml-auto">
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={resetFilters}
-                            className="h-9 px-2 text-xs text-slate-400 hover:text-slate-600"
-                        >
-                            <FilterX className="h-3.5 w-3.5 mr-1" />
-                            Reset
-                        </Button>
+                    {/* Thickness Filter */}
+                    <div className="space-y-1.5">
+                        <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest ml-1">ความหนา</Label>
+                        <Select value={thicknessFilter} onValueChange={(val) => { if (val) setThicknessFilter(val); setCurrentPage(1); }}>
+                            <SelectTrigger className="h-10 w-full text-sm border-slate-200 bg-white rounded-xl">
+                                <SelectValue placeholder="ทั้งหมด" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl">
+                                <SelectItem value="all" className="focus:bg-slate-100 focus:text-slate-900">ทั้งหมด</SelectItem>
+                                {thicknesses.map(t => (
+                                    <SelectItem key={t} value={t!} className="focus:bg-slate-100 focus:text-slate-900">{t}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    {/* Color Filter */}
+                    <div className="space-y-1.5">
+                        <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest ml-1">สีกระจก</Label>
+                        <Select value={colorFilter} onValueChange={(val) => { if (val) setColorFilter(val); setCurrentPage(1); }}>
+                            <SelectTrigger className="h-10 w-full text-sm border-slate-200 bg-white rounded-xl">
+                                <SelectValue placeholder="ทั้งหมด" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl">
+                                <SelectItem value="all" className="focus:bg-slate-100 focus:text-slate-900">ทั้งหมด</SelectItem>
+                                {colors.map(c => (
+                                    <SelectItem key={c} value={c!} className="focus:bg-slate-100 focus:text-slate-900">{c}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-2">
+                        {hasActiveFilters && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={resetFilters}
+                                className="h-10 px-3 text-xs text-slate-400 hover:text-slate-600 rounded-xl"
+                            >
+                                <FilterX className="h-3.5 w-3.5 mr-1" />
+                                รีเซ็ต
+                            </Button>
+                        )}
                         <Button
                             onClick={() => handleOpenModal()}
-                            className="h-9 gap-2 bg-[#1B4B9A] hover:bg-[#1B4B9A]/90 text-white text-xs px-4"
+                            className="h-10 gap-2 bg-[#1B4B9A] hover:bg-[#1B4B9A]/90 text-white text-xs px-4 rounded-xl"
                         >
                             <Plus className="h-3.5 w-3.5" />
-                            New Material
+                            เพิ่มวัสดุ
                         </Button>
                     </div>
                 </div>
             </div>
 
-            <div className="rounded-md border bg-card shadow-sm overflow-hidden">
+            {/* Table */}
+            <div className="rounded-2xl border bg-card shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                     <Table>
                         <TableHeader>
                             <TableRow className="bg-slate-50/50">
-                                <TableHead className="text-[12px] font-semibold text-slate-600">Material Name</TableHead>
-                                <TableHead className="text-[12px] font-semibold text-slate-600">Specs (Thickness/Color/Type)</TableHead>
-                                <TableHead className="text-[12px] font-semibold text-slate-600">Alert Limit</TableHead>
-                                <TableHead className="text-[12px] font-semibold text-slate-600">Unit</TableHead>
-                                <TableHead className="text-[12px] font-semibold text-slate-600">Date Added</TableHead>
-                                <TableHead className="text-right text-[12px] font-semibold text-slate-600">Actions</TableHead>
+                                <TableHead className="text-[12px] font-semibold text-slate-600">ชื่อวัสดุ</TableHead>
+                                <TableHead className="text-[12px] font-semibold text-slate-600">สเปค (ประเภท/หนา/สี)</TableHead>
+                                <TableHead className="text-[12px] font-semibold text-slate-600">ขนาด (W×H)</TableHead>
+                                <TableHead className="text-[12px] font-semibold text-slate-600">จุดแจ้งเตือน</TableHead>
+                                <TableHead className="text-[12px] font-semibold text-slate-600">หน่วย</TableHead>
+                                <TableHead className="text-[12px] font-semibold text-slate-600">วันที่เพิ่ม</TableHead>
+                                <TableHead className="text-right text-[12px] font-semibold text-slate-600">จัดการ</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -314,63 +363,76 @@ export default function MaterialsManagementPage() {
                                 <TableSkeleton />
                             ) : paginatedMaterials.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
+                                    <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
                                         <Package className="h-8 w-8 mx-auto mb-2 opacity-20" />
-                                        No materials found.
+                                        ไม่พบวัสดุ
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                paginatedMaterials.map((material) => (
-                                    <TableRow key={material._id} className="hover:bg-slate-50 transition-colors">
-                                        <TableCell className="font-medium text-[14px] text-slate-900">{material.name}</TableCell>
-                                        <TableCell>
-                                            <div className="flex flex-col text-[13px] space-y-0.5 text-slate-500">
-                                                {material.specDetails?.glassType && <span><span className="font-medium text-slate-700">Type:</span> {material.specDetails.glassType}</span>}
-                                                {material.specDetails?.thickness && <span><span className="font-medium text-slate-700">Thick:</span> {material.specDetails.thickness}</span>}
-                                                {material.specDetails?.color && <span><span className="font-medium text-slate-700">Color:</span> {material.specDetails.color}</span>}
-                                                {!material.specDetails?.glassType && !material.specDetails?.thickness && !material.specDetails?.color && "-"}
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>
-                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-100">
-                                                {material.reorderPoint}
-                                            </span>
-                                        </TableCell>
-                                        <TableCell className="text-[13px] text-slate-600">{material.unit}</TableCell>
-                                        <TableCell>
-                                            <div className="flex flex-col text-[11px] text-slate-400">
-                                                <span>{new Date(material.createdAt).toLocaleDateString()}</span>
-                                                <span>{new Date(material.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <div className="flex justify-end gap-1">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() => handleOpenModal(material)}
-                                                    className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                                >
-                                                    <Edit className="h-3.5 w-3.5" />
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() => handleDelete(material._id, material.name)}
-                                                    className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                                >
-                                                    <Trash2 className="h-3.5 w-3.5" />
-                                                </Button>
-                                            </div>
-                                        </TableCell>
-                                    </TableRow>
-                                ))
+                                paginatedMaterials.map((material) => {
+                                    const hasSize = material.specDetails?.width || material.specDetails?.height;
+                                    return (
+                                        <TableRow key={material._id} className="hover:bg-slate-50 transition-colors">
+                                            <TableCell className="font-medium text-[14px] text-slate-900">{material.name}</TableCell>
+                                            <TableCell>
+                                                <div className="flex flex-col text-[13px] space-y-0.5 text-slate-500">
+                                                    {material.specDetails?.glassType && <span><span className="font-medium text-slate-700">ประเภท:</span> {material.specDetails.glassType}</span>}
+                                                    {material.specDetails?.thickness && <span><span className="font-medium text-slate-700">หนา:</span> {material.specDetails.thickness}</span>}
+                                                    {material.specDetails?.color && <span><span className="font-medium text-slate-700">สี:</span> {material.specDetails.color}</span>}
+                                                    {!material.specDetails?.glassType && !material.specDetails?.thickness && !material.specDetails?.color && "-"}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                {hasSize ? (
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                                                        {material.specDetails?.width || "-"} × {material.specDetails?.height || "-"}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-slate-300">-</span>
+                                                )}
+                                            </TableCell>
+                                            <TableCell>
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-100">
+                                                    {material.reorderPoint}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell className="text-[13px] text-slate-600">{material.unit}</TableCell>
+                                            <TableCell>
+                                                <div className="flex flex-col text-[11px] text-slate-400">
+                                                    <span>{new Date(material.createdAt).toLocaleDateString()}</span>
+                                                    <span>{new Date(material.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <div className="flex justify-end gap-1">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() => handleOpenModal(material)}
+                                                        className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                                    >
+                                                        <Edit className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() => handleDelete(material._id, material.name)}
+                                                        className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                    >
+                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })
                             )}
                         </TableBody>
                     </Table>
                 </div>
             </div>
 
+            {/* Pagination */}
             {!isLoading && totalPages > 1 && (
                 <div className="mt-4">
                     <Pagination>
@@ -403,21 +465,22 @@ export default function MaterialsManagementPage() {
                 </div>
             )}
 
+            {/* Create/Edit Dialog */}
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                <DialogContent className="sm:max-w-[480px]">
+                <DialogContent className="sm:max-w-[520px] rounded-2xl">
                     <DialogHeader>
-                        <DialogTitle className="text-lg">{editingMaterial ? "Edit Material" : "Create New Material"}</DialogTitle>
+                        <DialogTitle className="text-lg">{editingMaterial ? "แก้ไขวัสดุ" : "เพิ่มวัสดุใหม่"}</DialogTitle>
                         <DialogDescription className="text-sm">
-                            Configure the material details, specifications, and alert thresholds.
+                            กำหนดรายละเอียดวัสดุ, สเปค, และเกณฑ์แจ้งเตือน
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
                         <div className="space-y-1.5">
-                            <Label htmlFor="name" className="text-[13px] font-medium text-slate-700">Material Name *</Label>
+                            <Label htmlFor="name" className="text-[13px] font-medium text-slate-700">ชื่อวัสดุ *</Label>
                             <Input
                                 id="name"
-                                placeholder="e.g. Clear Tempered Glass"
-                                className="h-10 border-slate-200"
+                                placeholder="เช่น กระจกนิรภัย ใส"
+                                className="h-10 border-slate-200 rounded-xl"
                                 value={formData.name}
                                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                             />
@@ -425,22 +488,22 @@ export default function MaterialsManagementPage() {
 
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1.5">
-                                <Label htmlFor="unit" className="text-[13px] font-medium text-slate-700">Unit Measure</Label>
+                                <Label htmlFor="unit" className="text-[13px] font-medium text-slate-700">หน่วยวัด</Label>
                                 <Input
                                     id="unit"
-                                    placeholder="e.g. piece, sqft"
-                                    className="h-10 border-slate-200"
+                                    placeholder="เช่น ชิ้น, แผ่น"
+                                    className="h-10 border-slate-200 rounded-xl"
                                     value={formData.unit}
                                     onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
                                 />
                             </div>
                             <div className="space-y-1.5">
-                                <Label htmlFor="reorderPoint" className="text-[13px] font-medium text-slate-700">Alert Threshold</Label>
+                                <Label htmlFor="reorderPoint" className="text-[13px] font-medium text-slate-700">จุดแจ้งเตือน</Label>
                                 <Input
                                     id="reorderPoint"
                                     type="number"
                                     min="0"
-                                    className="h-10 border-slate-200"
+                                    className="h-10 border-slate-200 rounded-xl"
                                     value={formData.reorderPoint}
                                     onChange={(e) => setFormData({ ...formData, reorderPoint: parseInt(e.target.value) || 0 })}
                                 />
@@ -448,51 +511,78 @@ export default function MaterialsManagementPage() {
                         </div>
 
                         <div className="pt-2 mt-2 border-t border-slate-100">
-                            <h4 className="text-[13px] font-semibold text-slate-900 mb-3 uppercase tracking-wider">Specifications</h4>
+                            <h4 className="text-[13px] font-semibold text-slate-900 mb-3 uppercase tracking-wider">สเปค</h4>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1.5">
-                                    <Label htmlFor="thickness" className="text-[13px] font-medium text-slate-700">Thickness</Label>
+                                    <Label htmlFor="thickness" className="text-[13px] font-medium text-slate-700">ความหนา</Label>
                                     <Input
                                         id="thickness"
-                                        placeholder="e.g. 5mm, 10mm"
-                                        className="h-10 border-slate-200"
+                                        placeholder="เช่น 5mm, 10mm"
+                                        className="h-10 border-slate-200 rounded-xl"
                                         value={formData.thickness}
                                         onChange={(e) => setFormData({ ...formData, thickness: e.target.value })}
                                     />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <Label htmlFor="color" className="text-[13px] font-medium text-slate-700">Color</Label>
+                                    <Label htmlFor="color" className="text-[13px] font-medium text-slate-700">สี</Label>
                                     <Input
                                         id="color"
-                                        placeholder="e.g. Clear, Green"
-                                        className="h-10 border-slate-200"
+                                        placeholder="เช่น ใส, เขียว"
+                                        className="h-10 border-slate-200 rounded-xl"
                                         value={formData.color}
                                         onChange={(e) => setFormData({ ...formData, color: e.target.value })}
                                     />
                                 </div>
                                 <div className="space-y-1.5 col-span-2">
-                                    <Label htmlFor="glassType" className="text-[13px] font-medium text-slate-700">Glass Type</Label>
+                                    <Label htmlFor="glassType" className="text-[13px] font-medium text-slate-700">ประเภทกระจก</Label>
                                     <Input
                                         id="glassType"
-                                        placeholder="e.g. Tempered, Laminated"
-                                        className="h-10 border-slate-200"
+                                        placeholder="เช่น นิรภัย, ลามิเนต"
+                                        className="h-10 border-slate-200 rounded-xl"
                                         value={formData.glassType}
                                         onChange={(e) => setFormData({ ...formData, glassType: e.target.value })}
                                     />
                                 </div>
                             </div>
                         </div>
+
+                        {/* Dimensions */}
+                        <div className="pt-2 mt-2 border-t border-slate-100">
+                            <h4 className="text-[13px] font-semibold text-slate-900 mb-3 uppercase tracking-wider">ขนาด</h4>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="width" className="text-[13px] font-medium text-slate-700">ความกว้าง (Width)</Label>
+                                    <Input
+                                        id="width"
+                                        placeholder="เช่น 900mm, 1200mm"
+                                        className="h-10 border-slate-200 rounded-xl"
+                                        value={formData.width}
+                                        onChange={(e) => setFormData({ ...formData, width: e.target.value })}
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="height" className="text-[13px] font-medium text-slate-700">ความสูง (Height)</Label>
+                                    <Input
+                                        id="height"
+                                        placeholder="เช่น 600mm, 1000mm"
+                                        className="h-10 border-slate-200 rounded-xl"
+                                        value={formData.height}
+                                        onChange={(e) => setFormData({ ...formData, height: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsModalOpen(false)} disabled={isSubmitting} className="h-9">
-                            Cancel
+                        <Button variant="outline" onClick={() => setIsModalOpen(false)} disabled={isSubmitting} className="h-9 rounded-xl">
+                            ยกเลิก
                         </Button>
                         <Button
                             onClick={handleSave}
                             disabled={isSubmitting || !formData.name}
-                            className="bg-[#1B4B9A] hover:bg-[#1B4B9A]/90 text-white min-w-[120px] h-9"
+                            className="bg-[#1B4B9A] hover:bg-[#1B4B9A]/90 text-white min-w-[120px] h-9 rounded-xl"
                         >
-                            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Material"}
+                            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "บันทึก"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

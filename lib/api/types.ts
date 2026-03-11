@@ -23,6 +23,8 @@ export interface Material {
         thickness?: string;
         color?: string;
         glassType?: string;
+        width?: string;
+        height?: string;
     };
     createdAt: string;
     updatedAt: string;

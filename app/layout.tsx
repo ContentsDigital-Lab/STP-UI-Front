@@ -20,9 +20,6 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Standard Plus",
   description: "Standard Plus Glass Management System",
-  icons: {
-    icon: "/favicon.png",
-  },
 };
 
 export default function RootLayout({
