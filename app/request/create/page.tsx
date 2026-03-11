@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -16,6 +16,10 @@ import {
     User,
     Trash2,
     GripVertical,
+    ChevronsUpDown,
+    Check,
+    Plus,
+    Search,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { Button } from "@/components/ui/button";
@@ -50,6 +54,19 @@ export default function CreateBillPage() {
     const [glassHeight, setGlassHeight] = useState(600);
     const [holes, setHoles] = useState<HoleData[]>([]);
 
+    // Combobox state
+    const [customerOpen, setCustomerOpen] = useState(false);
+    const [customerSearch, setCustomerSearch] = useState("");
+    const [glassTypeOpen, setGlassTypeOpen] = useState(false);
+    const [glassTypeSearch, setGlassTypeSearch] = useState("");
+    const [glassTypes, setGlassTypes] = useState(['Clear', 'Tinted', 'Tempered', 'Laminated', 'Low-E', 'Reflective', 'Frosted', 'Patterned']);
+    const [thicknessOpen, setThicknessOpen] = useState(false);
+    const [thicknessSearch, setThicknessSearch] = useState("");
+    const [thicknesses, setThicknesses] = useState(['3mm', '5mm', '6mm', '8mm', '10mm', '12mm', '15mm', '19mm']);
+    const customerRef = useRef<HTMLDivElement>(null);
+    const glassTypeRef = useRef<HTMLDivElement>(null);
+    const thicknessRef = useRef<HTMLDivElement>(null);
+
     // Order form state
     const [formData, setFormData] = useState({
         customer: "",
@@ -78,6 +95,71 @@ export default function CreateBillPage() {
         };
         load();
     }, []);
+
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (customerRef.current && !customerRef.current.contains(e.target as Node)) setCustomerOpen(false);
+            if (glassTypeRef.current && !glassTypeRef.current.contains(e.target as Node)) setGlassTypeOpen(false);
+            if (thicknessRef.current && !thicknessRef.current.contains(e.target as Node)) setThicknessOpen(false);
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    const filteredCustomers = customers.filter(c =>
+        c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
+        c.phone?.toLowerCase().includes(customerSearch.toLowerCase())
+    );
+
+    const filteredGlassTypes = glassTypes.filter(t =>
+        t.toLowerCase().includes(glassTypeSearch.toLowerCase())
+    );
+
+    const handleCreateCustomer = async (name: string) => {
+        try {
+            const res = await customersApi.create({ name });
+            if (res.success && res.data) {
+                setCustomers(prev => [...prev, res.data!]);
+                setFormData(prev => ({ ...prev, customer: res.data!._id }));
+                setCustomerSearch("");
+                setCustomerOpen(false);
+                toast.success(lang === 'th' ? `เพิ่มลูกค้า "${name}" สำเร็จ` : `Customer "${name}" created`);
+            }
+        } catch {
+            toast.error(lang === 'th' ? 'ไม่สามารถเพิ่มลูกค้าได้' : 'Failed to create customer');
+        }
+    };
+
+    const handleAddGlassType = (type: string) => {
+        setGlassTypes(prev => [...prev, type]);
+        setFormData(prev => ({ ...prev, glassType: type }));
+        setGlassTypeSearch("");
+        setGlassTypeOpen(false);
+        toast.success(lang === 'th' ? `เพิ่มประเภท "${type}" สำเร็จ` : `Glass type "${type}" added`);
+    };
+
+    const filteredThicknesses = thicknesses.filter(t =>
+        t.toLowerCase().includes(thicknessSearch.toLowerCase()) ||
+        t.replace('mm', '').includes(thicknessSearch)
+    );
+
+    const handleAddThickness = (raw: string) => {
+        const num = parseInt(raw);
+        if (isNaN(num) || num <= 0) {
+            toast.error(lang === 'th' ? 'กรุณาใส่ตัวเลขที่ถูกต้อง' : 'Please enter a valid positive number');
+            return;
+        }
+        const value = `${num}mm`;
+        if (thicknesses.includes(value)) {
+            toast.warning(lang === 'th' ? `${value} มีอยู่แล้ว` : `${value} already exists`);
+            return;
+        }
+        setThicknesses(prev => [...prev, value].sort((a, b) => parseInt(a) - parseInt(b)));
+        setFormData(prev => ({ ...prev, thickness: value }));
+        setThicknessSearch("");
+        setThicknessOpen(false);
+        toast.success(lang === 'th' ? `เพิ่มความหนา ${value} สำเร็จ` : `Thickness ${value} added`);
+    };
 
     const handleHolesChange = useCallback((newHoles: HoleData[]) => {
         setHoles(newHoles);
@@ -380,30 +462,77 @@ export default function CreateBillPage() {
                                     {lang === 'th' ? 'ลูกค้า' : 'Customer'}
                                 </h3>
                             </div>
-                            <Select
-                                value={formData.customer}
-                                onValueChange={(val) => setFormData({ ...formData, customer: val || "" })}
-                            >
-                                <SelectTrigger className="h-12 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm focus:ring-[#E8601C]">
-                                    <SelectValue placeholder={lang === 'th' ? 'เลือกลูกค้า...' : 'Select customer...'}>
-                                        {(value: string | null) => {
-                                            if (!value) return <span className="text-muted-foreground">{lang === 'th' ? 'เลือกลูกค้า...' : 'Select customer...'}</span>;
-                                            const c = customers.find(x => x._id === value);
-                                            return c?.name || value;
-                                        }}
-                                    </SelectValue>
-                                </SelectTrigger>
-                                <SelectContent className="rounded-2xl">
-                                    {customers.map(c => (
-                                        <SelectItem key={c._id} value={c._id} className="font-bold rounded-xl" label={c.name}>
-                                            <div className="flex flex-col">
-                                                <span>{c.name}</span>
-                                                {c.phone && <span className="text-[10px] opacity-60">{c.phone}</span>}
-                                            </div>
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <div ref={customerRef} className="relative">
+                                <button
+                                    type="button"
+                                    onClick={() => { setCustomerOpen(!customerOpen); setCustomerSearch(""); setGlassTypeOpen(false); setThicknessOpen(false); }}
+                                    className="flex items-center justify-between w-full h-12 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm px-4 hover:border-[#E8601C]/50 transition-colors"
+                                >
+                                    <span className={formData.customer ? "text-slate-900 dark:text-white" : "text-muted-foreground"}>
+                                        {formData.customer
+                                            ? customers.find(c => c._id === formData.customer)?.name || formData.customer
+                                            : (lang === 'th' ? 'ค้นหาหรือเพิ่มลูกค้า...' : 'Search or add customer...')
+                                        }
+                                    </span>
+                                    <ChevronsUpDown className="h-4 w-4 text-slate-400 shrink-0" />
+                                </button>
+                                {customerOpen && (
+                                    <div className="absolute z-50 w-full mt-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl overflow-hidden">
+                                        <div className="flex items-center gap-2 px-3 py-2.5 border-b border-slate-100 dark:border-slate-800">
+                                            <Search className="h-4 w-4 text-slate-400 shrink-0" />
+                                            <input
+                                                autoFocus
+                                                placeholder={lang === 'th' ? 'พิมพ์ชื่อลูกค้า...' : 'Type customer name...'}
+                                                value={customerSearch}
+                                                onChange={(e) => setCustomerSearch(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' && customerSearch.trim() && filteredCustomers.length === 0) {
+                                                        handleCreateCustomer(customerSearch.trim());
+                                                    }
+                                                }}
+                                                className="w-full bg-transparent text-sm font-medium outline-none placeholder:text-slate-400"
+                                            />
+                                        </div>
+                                        <div className="max-h-[220px] overflow-y-auto p-1.5">
+                                            {filteredCustomers.length > 0 ? (
+                                                filteredCustomers.map(c => (
+                                                    <button
+                                                        key={c._id}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setFormData(prev => ({ ...prev, customer: c._id }));
+                                                            setCustomerOpen(false);
+                                                            setCustomerSearch("");
+                                                        }}
+                                                        className={`flex items-center justify-between w-full px-3 py-2.5 rounded-xl text-left text-sm font-bold transition-colors ${
+                                                            formData.customer === c._id
+                                                                ? 'bg-[#E8601C]/10 text-[#E8601C]'
+                                                                : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
+                                                        }`}
+                                                    >
+                                                        <div className="flex flex-col">
+                                                            <span>{c.name}</span>
+                                                            {c.phone && <span className="text-[10px] opacity-60 font-medium">{c.phone}</span>}
+                                                        </div>
+                                                        {formData.customer === c._id && <Check className="h-4 w-4 shrink-0" />}
+                                                    </button>
+                                                ))
+                                            ) : customerSearch.trim() ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleCreateCustomer(customerSearch.trim())}
+                                                    className="flex items-center gap-2 w-full px-3 py-3 rounded-xl text-sm font-bold text-[#E8601C] hover:bg-[#E8601C]/10 transition-colors"
+                                                >
+                                                    <Plus className="h-4 w-4" />
+                                                    {lang === 'th' ? `เพิ่ม "${customerSearch.trim()}"` : `Add "${customerSearch.trim()}"`}
+                                                </button>
+                                            ) : (
+                                                <p className="text-center text-sm text-slate-400 py-4">{lang === 'th' ? 'ไม่พบลูกค้า' : 'No customers found'}</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                             {selectedCustomer && (
                                 <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-3 text-xs space-y-1">
                                     {selectedCustomer.phone && (
@@ -431,38 +560,150 @@ export default function CreateBillPage() {
                             </div>
 
                             <div className="space-y-3">
-                                <Select
-                                    value={formData.glassType}
-                                    onValueChange={(val) => setFormData({ ...formData, glassType: val || "" })}
-                                >
-                                    <SelectTrigger className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm focus:ring-[#E8601C]">
-                                        <SelectValue placeholder={lang === 'th' ? 'เลือกประเภทกระจก...' : 'Select glass type...'}>
-                                            {(value: string | null) => {
-                                                if (!value) return <span className="text-muted-foreground">{lang === 'th' ? 'เลือกประเภทกระจก...' : 'Select glass type...'}</span>;
-                                                return value;
-                                            }}
-                                        </SelectValue>
-                                    </SelectTrigger>
-                                    <SelectContent className="rounded-2xl">
-                                        {['Clear', 'Tinted', 'Tempered', 'Laminated', 'Low-E', 'Reflective', 'Frosted', 'Patterned'].map(type => (
-                                            <SelectItem key={type} value={type} className="font-bold rounded-xl">{type}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <div ref={glassTypeRef} className="relative">
+                                    <button
+                                        type="button"
+                                        onClick={() => { setGlassTypeOpen(!glassTypeOpen); setGlassTypeSearch(""); setCustomerOpen(false); setThicknessOpen(false); }}
+                                        className="flex items-center justify-between w-full h-11 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm px-4 hover:border-[#E8601C]/50 transition-colors"
+                                    >
+                                        <span className={formData.glassType ? "text-slate-900 dark:text-white" : "text-muted-foreground"}>
+                                            {formData.glassType || (lang === 'th' ? 'ค้นหาหรือเพิ่มประเภท...' : 'Search or add type...')}
+                                        </span>
+                                        <ChevronsUpDown className="h-4 w-4 text-slate-400 shrink-0" />
+                                    </button>
+                                    {glassTypeOpen && (
+                                        <div className="absolute z-50 w-full mt-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl overflow-hidden">
+                                            <div className="flex items-center gap-2 px-3 py-2.5 border-b border-slate-100 dark:border-slate-800">
+                                                <Search className="h-4 w-4 text-slate-400 shrink-0" />
+                                                <input
+                                                    autoFocus
+                                                    placeholder={lang === 'th' ? 'พิมพ์ประเภทกระจก...' : 'Type glass type...'}
+                                                    value={glassTypeSearch}
+                                                    onChange={(e) => setGlassTypeSearch(e.target.value)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' && glassTypeSearch.trim() && filteredGlassTypes.length === 0) {
+                                                            handleAddGlassType(glassTypeSearch.trim());
+                                                        }
+                                                    }}
+                                                    className="w-full bg-transparent text-sm font-medium outline-none placeholder:text-slate-400"
+                                                />
+                                            </div>
+                                            <div className="max-h-[220px] overflow-y-auto p-1.5">
+                                                {filteredGlassTypes.length > 0 ? (
+                                                    filteredGlassTypes.map(type => (
+                                                        <button
+                                                            key={type}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setFormData(prev => ({ ...prev, glassType: type }));
+                                                                setGlassTypeOpen(false);
+                                                                setGlassTypeSearch("");
+                                                            }}
+                                                            className={`flex items-center justify-between w-full px-3 py-2.5 rounded-xl text-left text-sm font-bold transition-colors ${
+                                                                formData.glassType === type
+                                                                    ? 'bg-[#E8601C]/10 text-[#E8601C]'
+                                                                    : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
+                                                            }`}
+                                                        >
+                                                            <span>{type}</span>
+                                                            {formData.glassType === type && <Check className="h-4 w-4 shrink-0" />}
+                                                        </button>
+                                                    ))
+                                                ) : glassTypeSearch.trim() ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleAddGlassType(glassTypeSearch.trim())}
+                                                        className="flex items-center gap-2 w-full px-3 py-3 rounded-xl text-sm font-bold text-[#E8601C] hover:bg-[#E8601C]/10 transition-colors"
+                                                    >
+                                                        <Plus className="h-4 w-4" />
+                                                        {lang === 'th' ? `เพิ่ม "${glassTypeSearch.trim()}"` : `Add "${glassTypeSearch.trim()}"`}
+                                                    </button>
+                                                ) : (
+                                                    <p className="text-center text-sm text-slate-400 py-4">{lang === 'th' ? 'ไม่พบประเภท' : 'No types found'}</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
 
-                                <Select
-                                    value={formData.thickness}
-                                    onValueChange={(val) => setFormData({ ...formData, thickness: val || "5mm" })}
-                                >
-                                    <SelectTrigger className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm focus:ring-[#E8601C]">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent className="rounded-2xl">
-                                        {['3mm', '5mm', '6mm', '8mm', '10mm', '12mm', '15mm', '19mm'].map(t => (
-                                            <SelectItem key={t} value={t} className="font-bold">{t}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <div>
+                                    <Label className="text-[10px] font-bold text-slate-400 uppercase mb-1.5 block">
+                                        {lang === 'th' ? 'ความหนา' : 'Thickness'}
+                                    </Label>
+                                    <div ref={thicknessRef} className="relative">
+                                        <button
+                                            type="button"
+                                            onClick={() => { setThicknessOpen(!thicknessOpen); setThicknessSearch(""); setCustomerOpen(false); setGlassTypeOpen(false); }}
+                                            className="flex items-center justify-between w-full h-11 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm px-4 hover:border-[#E8601C]/50 transition-colors"
+                                        >
+                                            <span className="text-slate-900 dark:text-white">{formData.thickness}</span>
+                                            <ChevronsUpDown className="h-4 w-4 text-slate-400 shrink-0" />
+                                        </button>
+                                        {thicknessOpen && (
+                                            <div className="absolute z-50 w-full mt-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl overflow-hidden">
+                                                <div className="flex items-center gap-2 px-3 py-2.5 border-b border-slate-100 dark:border-slate-800">
+                                                    <Search className="h-4 w-4 text-slate-400 shrink-0" />
+                                                    <input
+                                                        autoFocus
+                                                        placeholder={lang === 'th' ? 'พิมพ์ตัวเลข (mm)...' : 'Type number (mm)...'}
+                                                        value={thicknessSearch}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value.replace(/[^0-9]/g, '');
+                                                            setThicknessSearch(val);
+                                                        }}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter' && thicknessSearch.trim()) {
+                                                                const match = `${thicknessSearch}mm`;
+                                                                if (thicknesses.includes(match)) {
+                                                                    setFormData(prev => ({ ...prev, thickness: match }));
+                                                                    setThicknessOpen(false);
+                                                                    setThicknessSearch("");
+                                                                } else {
+                                                                    handleAddThickness(thicknessSearch.trim());
+                                                                }
+                                                            }
+                                                        }}
+                                                        className="w-full bg-transparent text-sm font-medium outline-none placeholder:text-slate-400"
+                                                    />
+                                                </div>
+                                                <div className="max-h-[220px] overflow-y-auto p-1.5">
+                                                    {filteredThicknesses.length > 0 ? (
+                                                        filteredThicknesses.map(t => (
+                                                            <button
+                                                                key={t}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setFormData(prev => ({ ...prev, thickness: t }));
+                                                                    setThicknessOpen(false);
+                                                                    setThicknessSearch("");
+                                                                }}
+                                                                className={`flex items-center justify-between w-full px-3 py-2.5 rounded-xl text-left text-sm font-bold transition-colors ${
+                                                                    formData.thickness === t
+                                                                        ? 'bg-[#E8601C]/10 text-[#E8601C]'
+                                                                        : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
+                                                                }`}
+                                                            >
+                                                                <span>{t}</span>
+                                                                {formData.thickness === t && <Check className="h-4 w-4 shrink-0" />}
+                                                            </button>
+                                                        ))
+                                                    ) : thicknessSearch.trim() ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleAddThickness(thicknessSearch.trim())}
+                                                            className="flex items-center gap-2 w-full px-3 py-3 rounded-xl text-sm font-bold text-[#E8601C] hover:bg-[#E8601C]/10 transition-colors"
+                                                        >
+                                                            <Plus className="h-4 w-4" />
+                                                            {lang === 'th' ? `เพิ่ม "${thicknessSearch.trim()}mm"` : `Add "${thicknessSearch.trim()}mm"`}
+                                                        </button>
+                                                    ) : (
+                                                        <p className="text-center text-sm text-slate-400 py-4">{lang === 'th' ? 'ไม่พบ' : 'No match'}</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
