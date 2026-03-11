@@ -11,6 +11,7 @@ import {
     Settings,
     ChevronLeft,
     ChevronRight,
+    History
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ export function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
         { name: t.orderRequests, href: "/request", icon: ClipboardList },
         { name: t.production, href: "/production", icon: Factory },
         { name: t.inventory, href: "/inventory", icon: Package },
+        { name: t.logs, href: "/logs", icon: History },
         { name: t.settings, href: "/settings", icon: Settings },
     ];
 

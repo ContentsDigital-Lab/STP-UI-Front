@@ -13,6 +13,7 @@ export const th = {
     orderRequests: "คำสั่งซื้อ",
     production: "ฝ่ายผลิต",
     inventory: "คลังกระจก",
+    logs: "Logs/ประวัติ",
     settings: "ตั้งค่า",
     totalOrders: "รายการสั่งซื้อทั้งหมด",
     inProgress: "กำลังดำเนินการ",
