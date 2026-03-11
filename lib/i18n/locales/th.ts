@@ -10,6 +10,7 @@ export const th = {
         recent_activity: "กิจกรรมล่าสุด",
     },
     orders: "รายการสั่งซื้อ",
+    orderRequests: "คำสั่งซื้อ",
     production: "ฝ่ายผลิต",
     inventory: "คลังกระจก",
     settings: "ตั้งค่า",
@@ -62,6 +63,52 @@ export const th = {
             status: "สถานะการไหลเวียน",
             actionRequired: "น้อย - ควรเติมของ",
             noLogs: "ไม่พบประวัติการทำรายการ"
+        }
+    },
+    order_requests: {
+        title: "คำสั่งซื้อ",
+        subtitle: "จัดการคำสั่งซื้อจากลูกค้า รอการอนุมัติก่อนเข้าสู่ระบบผลิต",
+        newRequest: "สร้างคำสั่งซื้อ",
+        totalRequests: "คำสั่งซื้อทั้งหมด",
+        thisWeek: "สัปดาห์นี้",
+        assigned: "มอบหมายแล้ว",
+        approachingDeadline: "ใกล้ถึงกำหนด",
+        searchPlaceholder: "ค้นหาคำสั่งซื้อ (ชื่อลูกค้า, สถานที่ส่ง)...",
+        table: {
+            customer: "ลูกค้า",
+            productType: "ประเภทสินค้า",
+            quantity: "จำนวน",
+            price: "ราคาประมาณ",
+            deadline: "กำหนดส่ง",
+            location: "สถานที่จัดส่ง",
+            assignedTo: "ผู้รับผิดชอบ",
+            created: "วันที่สร้าง",
+            noData: "ไม่พบคำสั่งซื้อ"
+        },
+        form: {
+            selectCustomer: "เลือกลูกค้า",
+            productType: "ประเภทสินค้า",
+            quantity: "จำนวน",
+            estimatedPrice: "ราคาประมาณ",
+            deadline: "กำหนดส่ง",
+            deliveryLocation: "สถานที่จัดส่ง",
+            assignTo: "มอบหมายให้",
+            expectedDelivery: "วันส่งสินค้าที่คาดหวัง",
+            editTitle: "แก้ไขคำสั่งซื้อ",
+            editDesc: "ปรับปรุงรายละเอียดคำสั่งซื้อ",
+            createDesc: "สร้างคำสั่งซื้อใหม่จากลูกค้า"
+        },
+        detail: {
+            orderInfo: "ข้อมูลคำสั่งซื้อ",
+            customerInfo: "ข้อมูลลูกค้า",
+            timeline: "ไทม์ไลน์",
+            deadlineLabel: "กำหนดส่งมอบ",
+            expectedDelivery: "วันส่งที่คาดหวัง",
+            createdAt: "สร้างเมื่อ",
+            updatedAt: "อัปเดตล่าสุด",
+            deliveryTo: "จัดส่งไปที่",
+            edit: "แก้ไข",
+            delete: "ลบ"
         }
     }
 };

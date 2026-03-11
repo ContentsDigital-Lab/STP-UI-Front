@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useLanguage } from "@/lib/i18n/language-context";
 import {
     LayoutDashboard,
-    ShoppingCart,
+    ClipboardList,
     Factory,
     Package,
     Settings,
@@ -26,6 +26,7 @@ export function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
 
     const navigation = [
         { name: t.dashboard.label, href: "/", icon: LayoutDashboard },
+        { name: t.orderRequests, href: "/request", icon: ClipboardList },
         { name: t.production, href: "/production", icon: Factory },
         { name: t.inventory, href: "/inventory", icon: Package },
         { name: t.settings, href: "/settings", icon: Settings },

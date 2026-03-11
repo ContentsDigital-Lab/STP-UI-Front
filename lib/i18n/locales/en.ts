@@ -12,6 +12,7 @@ export const en: Dictionary = {
         recent_activity: "Recent Activity",
     },
     orders: "Orders",
+    orderRequests: "Order Requests",
     production: "Production",
     inventory: "Glass Inventory",
     settings: "Settings",
@@ -64,6 +65,52 @@ export const en: Dictionary = {
             status: "Flow Status",
             actionRequired: "Low - Restock Soon",
             noLogs: "No transaction history"
+        }
+    },
+    order_requests: {
+        title: "Order Requests",
+        subtitle: "Manage customer order requests. Requests need approval before entering production.",
+        newRequest: "New Request",
+        totalRequests: "Total Requests",
+        thisWeek: "This Week",
+        assigned: "Assigned",
+        approachingDeadline: "Approaching Deadline",
+        searchPlaceholder: "Search requests (customer, location)...",
+        table: {
+            customer: "Customer",
+            productType: "Product Type",
+            quantity: "QTY",
+            price: "Est. Price",
+            deadline: "Deadline",
+            location: "Delivery Location",
+            assignedTo: "Assigned To",
+            created: "Created",
+            noData: "No order requests found"
+        },
+        form: {
+            selectCustomer: "Select Customer",
+            productType: "Product Type",
+            quantity: "Quantity",
+            estimatedPrice: "Estimated Price",
+            deadline: "Deadline",
+            deliveryLocation: "Delivery Location",
+            assignTo: "Assign To",
+            expectedDelivery: "Expected Delivery Date",
+            editTitle: "Edit Order Request",
+            editDesc: "Update the order request details",
+            createDesc: "Create a new customer order request"
+        },
+        detail: {
+            orderInfo: "Order Information",
+            customerInfo: "Customer Information",
+            timeline: "Timeline",
+            deadlineLabel: "Delivery Deadline",
+            expectedDelivery: "Expected Delivery",
+            createdAt: "Created At",
+            updatedAt: "Last Updated",
+            deliveryTo: "Deliver To",
+            edit: "Edit",
+            delete: "Delete"
         }
     }
 };

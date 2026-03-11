@@ -19,6 +19,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     const { isAuthenticated, isLoading } = useAuth();
 
     const getPageTitle = () => {
+        if (pathname.startsWith("/request")) return t.orderRequests;
         if (pathname.startsWith("/orders")) return t.orders;
         if (pathname.startsWith("/production")) return t.production;
         if (pathname.startsWith("/inventory")) return t.inventory;
@@ -77,11 +78,17 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             {/* Main content */}
             <div className="flex flex-1 flex-col overflow-hidden">
                 <Header onMenuClick={() => setMobileMenuOpen(true)} title={getPageTitle()} />
-                <main className="flex-1 overflow-y-auto bg-muted/30 p-4 md:p-6 lg:p-8">
-                    <div className="mx-auto max-w-7xl">
+                {pathname.startsWith("/request/create") ? (
+                    <main className="flex-1 overflow-hidden bg-muted/30">
                         {children}
-                    </div>
-                </main>
+                    </main>
+                ) : (
+                    <main className="flex-1 overflow-y-auto bg-muted/30 p-4 md:p-6 lg:p-8">
+                        <div className="mx-auto max-w-7xl">
+                            {children}
+                        </div>
+                    </main>
+                )}
             </div>
         </div>
     );

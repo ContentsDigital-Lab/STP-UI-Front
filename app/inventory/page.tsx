@@ -428,31 +428,22 @@ export default function InventoryPage() {
                     </div>
 
                     {/* Quick Insight - Dynamic */}
-                    <div className="bg-slate-900 dark:bg-black p-6 rounded-3xl border border-slate-800 dark:border-slate-900 shadow-xl flex flex-col justify-between overflow-hidden relative min-h-[140px]">
-                        {/* Background subtle glass effect */}
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 blur-3xl rounded-full -mr-16 -mt-16"></div>
-
-                        <div className="flex items-center gap-2 mb-4 relative z-10">
-                            <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none">Healthy Flow</span>
+                    <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between overflow-hidden relative min-h-[140px]">
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="h-12 w-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                                <CheckCircle2 className="h-6 w-6" />
+                            </div>
+                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-50 dark:bg-slate-800/50 px-2 py-1 rounded-lg">
+                                Healthy Flow
+                            </span>
                         </div>
-                        <div className="relative z-10">
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{it.mostStocked}</p>
-                            <h4 className="text-lg font-black text-white truncate group-hover:text-[#E8601C] transition-colors">
+                        <div>
+                            <p className="text-sm font-bold text-slate-500 dark:text-slate-400">{it.mostStocked}</p>
+                            <h4 className="text-lg font-black text-slate-900 dark:text-white truncate group-hover:text-[#E8601C] transition-colors mt-1">
                                 {globalStats.topMaterials[0]
                                     ? (getMaterialInfo(globalStats.topMaterials[0].material)?.name || "N/A")
                                     : "---"}
                             </h4>
-                            <div className="flex items-center gap-3 mt-2">
-                                <div className="flex -space-x-2">
-                                    {[...Array(3)].map((_, i) => (
-                                        <div key={i} className="h-6 w-6 rounded-full border-2 border-slate-900 bg-slate-800 flex items-center justify-center text-[8px] font-bold text-slate-500">
-                                            {i + 1}
-                                        </div>
-                                    ))}
-                                </div>
-                                <span className="text-[10px] font-bold text-emerald-400">+12% this week</span>
-                            </div>
                         </div>
                     </div>
                 </div>

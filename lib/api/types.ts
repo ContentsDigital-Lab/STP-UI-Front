@@ -62,6 +62,38 @@ export interface Customer {
     updatedAt: string;
 }
 
+export interface OrderRequest {
+    _id: string;
+    details: {
+        type: string;
+        estimatedPrice: number;
+        quantity: number;
+    };
+    customer: string | Customer;
+    deadline: string;
+    deliveryLocation: string;
+    assignedTo: string | Worker;
+    expectedDeliveryDate: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface Order {
+    _id: string;
+    request: string | OrderRequest;
+    priority: number;
+    customer: string | Customer;
+    material: string | Material;
+    quantity: number;
+    stations: string[];
+    status: "pending" | "in_progress" | "completed" | "cancelled";
+    claim: string;
+    withdrawal: string;
+    assignedTo: string | Worker;
+    createdAt: string;
+    updatedAt: string;
+}
+
 export interface LoginData {
     token: string;
     worker: Worker;

@@ -256,13 +256,13 @@ export default function UsersManagementPage() {
                                     </TableCell>
                                     <TableCell className="text-right">
                                         <div className="flex justify-end gap-1">
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => handleEditClick(worker)}
-                                                disabled={user.role === "manager" && worker.role === "admin"}
-                                                title={user.role === "manager" && worker.role === "admin" ? "Managers cannot edit admins" : "Edit user role"}
-                                            >
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => handleEditClick(worker)}
+                                                    disabled={isSelf(worker._id) || (user.role === "manager" && worker.role === "admin")}
+                                                    title={isSelf(worker._id) ? "You cannot edit yourself" : user.role === "manager" && worker.role === "admin" ? "Managers cannot edit admins" : "Edit user role"}
+                                                >
                                                 <Edit className="h-4 w-4 mr-2" />
                                                 Edit
                                             </Button>
