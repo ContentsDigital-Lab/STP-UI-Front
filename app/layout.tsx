@@ -27,7 +27,7 @@ export default function RootLayout({
   return (
     <html lang="th" suppressHydrationWarning>
       <body
-        className={`${prompt.variable} antialiased`}
+        className={`${prompt.variable} font-sans antialiased`}
       >
         <ThemeProvider
           attribute="class"

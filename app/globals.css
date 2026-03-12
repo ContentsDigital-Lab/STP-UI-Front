@@ -7,6 +7,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --font-prompt: var(--font-prompt);
   --font-sans: var(--font-prompt);
   --font-mono: var(--font-prompt);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -132,6 +133,6 @@
   }
 
   html {
-    @apply font-sans;
+    @apply font-prompt;
   }
 }

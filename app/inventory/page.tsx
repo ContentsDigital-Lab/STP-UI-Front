@@ -64,20 +64,22 @@ import { toast } from "sonner";
 import { inventoriesApi } from "@/lib/api/inventories";
 import { materialsApi } from "@/lib/api/materials";
 import { materialLogsApi } from "@/lib/api/material-logs";
-import { authApi } from "@/lib/api/auth";
+import { workersApi } from "@/lib/api/workers";
 import { Inventory, Material, MaterialLog, Worker } from "@/lib/api/types";
 import { useWebSocket } from "@/lib/hooks/use-socket";
+import { useAuth } from "@/lib/auth/auth-context";
 
 const ITEMS_PER_PAGE = 10;
 
 export default function InventoryPage() {
     const { t, lang } = useLanguage();
     const it = t.inventory_dashboard;
+    const { user: currentWorker } = useAuth();
 
     const [isLoading, setIsLoading] = useState(true);
     const [inventories, setInventories] = useState<Inventory[]>([]);
     const [materials, setMaterials] = useState<Material[]>([]);
-    const [currentWorker, setCurrentWorker] = useState<Worker | null>(null);
+    const [workerMap, setWorkerMap] = useState<Map<string, Worker>>(new Map());
     const [selectedInventory, setSelectedInventory] = useState<Inventory | null>(null);
     const [isDetailOpen, setIsDetailOpen] = useState(false);
     const [materialLogs, setMaterialLogs] = useState<MaterialLog[]>([]);
@@ -228,8 +230,8 @@ export default function InventoryPage() {
 
     useEffect(() => {
         fetchData();
-        authApi.getProfile().then(res => {
-            if (res.success && res.data) setCurrentWorker(res.data);
+        workersApi.getAll().then(res => {
+            if (res.success && res.data) setWorkerMap(new Map(res.data.map(w => [w._id, w])));
         }).catch(() => {});
     }, []);
 
@@ -347,6 +349,27 @@ export default function InventoryPage() {
         }
     };
 
+    // Refs to avoid stale closures in WebSocket callback
+    const selectedInventoryRef = useRef<Inventory | null>(null);
+    useEffect(() => { selectedInventoryRef.current = selectedInventory; }, [selectedInventory]);
+    const fetchLogsRef = useRef<(matId: string, invId: string) => Promise<void>>(async () => {});
+    useEffect(() => { fetchLogsRef.current = fetchLogs; }, [fetchLogs]);
+
+    // WebSocket for real-time log updates in side panel
+    // Server emits only "log:updated" for all actions
+    useWebSocket('log', ['log:updated'], (_event: string, data: unknown) => {
+        const payload = data as { action?: string; data?: MaterialLog };
+        const inv = selectedInventoryRef.current;
+        if (!inv) return;
+        const openMatId = typeof inv.material === 'string' ? inv.material : (inv.material as Material)._id;
+        const logMatId = payload?.data?.material
+            ? (typeof payload.data.material === 'string' ? payload.data.material : (payload.data.material as Material)._id)
+            : null;
+        if (logMatId && logMatId === openMatId) {
+            fetchLogsRef.current(openMatId, inv._id);
+        }
+    });
+
     const resetImportForm = () => {
         setImportData({ material: "", stockType: "Raw", quantity: 1, location: "" });
     };
@@ -431,6 +454,7 @@ export default function InventoryPage() {
                 material: matId,
                 actionType: "withdraw",
                 quantityChanged: -moveQty,
+                stockType: moveSource.stockType,
                 referenceId: moveSource._id,
                 ...(currentWorker ? { worker: currentWorker._id } : {}),
             });
@@ -440,6 +464,7 @@ export default function InventoryPage() {
                 material: matId,
                 actionType: "import",
                 quantityChanged: moveQty,
+                stockType: moveSource.stockType,
                 referenceId: destInventoryId,
                 parentLog: withdrawLogRes.data?._id,
                 ...(currentWorker ? { worker: currentWorker._id } : {}),
@@ -1110,15 +1135,54 @@ export default function InventoryPage() {
                                                                         : log.actionType === 'claim' ? (lang === 'th' ? 'เคลม' : 'Claim')
                                                                             : (lang === 'th' ? 'เบิก' : 'Withdraw');
 
+                                                    // Resolve worker name (object or ID via workerMap)
+                                                    const workerName = log.worker
+                                                        ? (typeof log.worker === 'object'
+                                                            ? ((log.worker as Worker).name || (log.worker as Worker).username)
+                                                            : (workerMap.get(String(log.worker))?.name ?? workerMap.get(String(log.worker))?.username ?? null))
+                                                        : null;
+
+                                                    // Resolve location(s)
+                                                    const srcLoc = log.referenceId && !log.referenceType
+                                                        ? inventories.find(inv => inv._id === log.referenceId)?.location ?? null
+                                                        : null;
+                                                    let fromLoc: string | null = null;
+                                                    let toLoc: string | null = null;
+                                                    if (isMove && srcLoc) {
+                                                        if (isMoveIn) {
+                                                            toLoc = srcLoc;
+                                                            const parentId = typeof log.parentLog === 'object' ? (log.parentLog as MaterialLog)._id : String(log.parentLog ?? '');
+                                                            const parentLog = allLogsForMaterial.find(l => l._id === parentId);
+                                                            fromLoc = parentLog?.referenceId && !parentLog?.referenceType
+                                                                ? inventories.find(inv => inv._id === parentLog.referenceId)?.location ?? null
+                                                                : null;
+                                                        } else {
+                                                            fromLoc = srcLoc;
+                                                            const childLog = allLogsForMaterial.find(l => {
+                                                                if (!l.parentLog) return false;
+                                                                const pid = typeof l.parentLog === 'object' ? (l.parentLog as MaterialLog)._id : String(l.parentLog);
+                                                                return pid === log._id;
+                                                            });
+                                                            toLoc = childLog?.referenceId && !childLog?.referenceType
+                                                                ? inventories.find(inv => inv._id === childLog.referenceId)?.location ?? null
+                                                                : null;
+                                                        }
+                                                    }
+
+                                                    // stockType fallback
+                                                    const stockType = log.stockType ?? (log.referenceId && !log.referenceType
+                                                        ? inventories.find(inv => inv._id === log.referenceId)?.stockType
+                                                        : undefined);
+
                                                     return (
-                                                        <div key={log._id} className="flex items-start gap-3 pl-1 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-900/60 transition-colors">
+                                                        <div key={log._id} className="flex items-start gap-3 pl-1 py-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-900/60 transition-colors">
                                                             {/* Timeline dot */}
                                                             <div className={`mt-1 h-3.5 w-3.5 rounded-full shrink-0 border-2 border-white dark:border-slate-950 ${dotColor} z-10`} />
 
                                                             {/* Content */}
                                                             <div className="flex-1 min-w-0">
                                                                 <div className="flex items-center justify-between gap-2">
-                                                                    <span className="text-xs font-black text-slate-800 dark:text-slate-200 truncate">{actionLabel}</span>
+                                                                    <span className="text-xs font-black text-slate-800 dark:text-slate-200">{actionLabel}</span>
                                                                     <span className={`text-sm font-black tabular-nums shrink-0 ${qtyColor}`}>
                                                                         {isUpdate
                                                                             ? <svg className="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
@@ -1126,18 +1190,45 @@ export default function InventoryPage() {
                                                                         }
                                                                     </span>
                                                                 </div>
-                                                                <div className="flex items-center gap-3 mt-0.5">
+
+                                                                {/* Time + stockType */}
+                                                                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                                                                     <span className="text-[10px] text-slate-400 font-medium">
                                                                         {new Date(log.createdAt).toLocaleString(lang === 'th' ? 'th-TH' : 'en-US', {
                                                                             day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit'
                                                                         })}
                                                                     </span>
-                                                                    {log.stockType && isUpdate && (
-                                                                        <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 uppercase">{log.stockType}</span>
+                                                                    {stockType && (
+                                                                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border ${stockType === 'Raw' ? 'bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700' : 'bg-violet-50 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400 border-violet-100 dark:border-violet-900/40'}`}>{stockType}</span>
                                                                     )}
                                                                 </div>
-                                                                {typeof log.worker === 'object' && log.worker && (
-                                                                    <span className="text-[10px] text-slate-400 font-medium">{(log.worker as { name: string }).name}</span>
+
+                                                                {/* Location */}
+                                                                {isMove && (fromLoc || toLoc) ? (
+                                                                    <div className="flex items-center gap-1 mt-1 flex-wrap">
+                                                                        <span className="text-[10px] font-bold text-violet-600 dark:text-violet-400 flex items-center gap-0.5">
+                                                                            <svg className="h-2.5 w-2.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
+                                                                            {fromLoc ?? '?'}
+                                                                        </span>
+                                                                        <svg className="h-3 w-3 text-slate-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+                                                                        <span className="text-[10px] font-bold text-violet-600 dark:text-violet-400 flex items-center gap-0.5">
+                                                                            <svg className="h-2.5 w-2.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
+                                                                            {toLoc ?? '?'}
+                                                                        </span>
+                                                                    </div>
+                                                                ) : srcLoc && !isMove ? (
+                                                                    <div className="flex items-center gap-1 mt-1">
+                                                                        <svg className="h-2.5 w-2.5 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
+                                                                        <span className="text-[10px] text-slate-400 font-medium">{srcLoc}</span>
+                                                                    </div>
+                                                                ) : null}
+
+                                                                {/* Worker */}
+                                                                {workerName && (
+                                                                    <div className="flex items-center gap-1 mt-1">
+                                                                        <svg className="h-2.5 w-2.5 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/></svg>
+                                                                        <span className="text-[10px] text-slate-400 font-medium">{workerName}</span>
+                                                                    </div>
                                                                 )}
                                                             </div>
                                                         </div>
