@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { MousePointer2, Circle, Undo2, Redo2, RotateCcw, Pen, Focus } from 'lucide-react';
+import { MousePointer2, Circle, Undo2, Redo2, RotateCcw, Pen, Focus, Hand } from 'lucide-react';
 
 export interface HoleData {
     id: string;
@@ -192,7 +192,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
     const glassGroupRef = useRef(new THREE.Group());
     const glassMeshRef = useRef<THREE.Mesh | null>(null);
 
-    const [activeTool, setActiveTool] = useState<'select' | 'addHole' | 'editVertex'>('select');
+    const [activeTool, setActiveTool] = useState<'select' | 'addHole' | 'editVertex' | 'move'>('select');
     const [selectedHoleId, setSelectedHoleId] = useState<string | null>(null);
     const [holeDiameter, setHoleDiameter] = useState(20);
     const [selectedVertexIdx, setSelectedVertexIdx] = useState<number | null>(null);
@@ -206,6 +206,8 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
     const isPanningRef = useRef(false);
     const dragHoleIdRef = useRef<string | null>(null);
     const dragVertexIdxRef = useRef<number | null>(null);
+    const isMovingGlassRef = useRef(false);
+    const moveStartRef = useRef<{ x: number; y: number } | null>(null);
     const lastMouseRef = useRef({ x: 0, y: 0 });
     const panStartRef = useRef({ x: 0, y: 0 });
     const camStartRef = useRef({ cx: 0, cy: 0 });
@@ -738,6 +740,14 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 return;
             }
 
+            if (activeToolRef.current === 'move') {
+                pushUndo();
+                isMovingGlassRef.current = true;
+                moveStartRef.current = { x: pos.x, y: pos.y };
+                canvas.style.cursor = 'grabbing';
+                return;
+            }
+
             if (activeToolRef.current === 'addHole') {
                 if (isPointInPolygon(pos.x, pos.y, verticesRef.current)) {
                     pushUndo();
@@ -788,6 +798,20 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 return;
             }
 
+            if (isMovingGlassRef.current && moveStartRef.current) {
+                const pos = getWorldPos(e.clientX, e.clientY);
+                if (!pos) return;
+                const dx = Math.round(pos.x - moveStartRef.current.x);
+                const dy = Math.round(pos.y - moveStartRef.current.y);
+                if (dx === 0 && dy === 0) return;
+                const newVerts = verticesRef.current.map(v => ({ x: v.x + dx, y: v.y + dy }));
+                const newHoles = holesRef.current.map(h => ({ ...h, x: h.x + dx, y: h.y + dy }));
+                setVertices(newVerts);
+                onHolesChange(newHoles);
+                moveStartRef.current = { x: pos.x, y: pos.y };
+                return;
+            }
+
             if (isDraggingRef.current && dragVertexIdxRef.current !== null) {
                 const pos = getWorldPos(e.clientX, e.clientY);
                 if (!pos) return;
@@ -830,9 +854,13 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         const onMouseUp = () => {
             isPanningRef.current = false;
             isDraggingRef.current = false;
+            isMovingGlassRef.current = false;
+            moveStartRef.current = null;
             dragHoleIdRef.current = null;
             dragVertexIdxRef.current = null;
-            if (activeToolRef.current === 'editVertex') {
+            if (activeToolRef.current === 'move') {
+                canvas.style.cursor = 'grab';
+            } else if (activeToolRef.current === 'editVertex') {
                 canvas.style.cursor = 'crosshair';
             } else {
                 canvas.style.cursor = activeToolRef.current === 'addHole' ? 'crosshair' : 'default';
@@ -874,7 +902,9 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
     useEffect(() => {
         const canvas = rendererRef.current?.domElement;
         if (canvas) {
-            if (activeTool === 'addHole' || activeTool === 'editVertex') {
+            if (activeTool === 'move') {
+                canvas.style.cursor = 'grab';
+            } else if (activeTool === 'addHole' || activeTool === 'editVertex') {
                 canvas.style.cursor = 'crosshair';
             } else {
                 canvas.style.cursor = 'default';
@@ -987,6 +1017,15 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 >
                     <Circle className="h-3.5 w-3.5" />
                     Add Hole
+                </Button>
+                <Button
+                    variant={activeTool === 'move' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => { setActiveTool('move'); setSelectedHoleId(null); setSelectedVertexIdx(null); }}
+                    className={`gap-1.5 rounded-xl text-xs font-bold h-9 ${activeTool === 'move' ? 'bg-[#6366f1] text-white' : ''}`}
+                >
+                    <Hand className="h-3.5 w-3.5" />
+                    Move
                 </Button>
                 <Button
                     variant={activeTool === 'editVertex' ? 'default' : 'outline'}
