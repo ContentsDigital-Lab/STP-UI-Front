@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { materialsApi } from "@/lib/api/materials";
+import { materialLogsApi } from "@/lib/api/material-logs";
 import { Material } from "@/lib/api/types";
 import {
     Table,
@@ -40,6 +41,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2, Search, Plus, Edit, Trash2, FilterX, ChevronLeft, Package, X } from "lucide-react";
 import Link from "next/link";
+import { toast } from "sonner";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -56,6 +58,10 @@ export default function MaterialsManagementPage() {
     // Pagination
     const [currentPage, setCurrentPage] = useState(1);
 
+    // Delete confirmation state
+    const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; logCount: number; step: 1 | 2 } | null>(null);
+    const [isLoadingDeleteTarget, setIsLoadingDeleteTarget] = useState(false);
+
     // Modal state
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -70,7 +76,7 @@ export default function MaterialsManagementPage() {
         color: "",
         glassType: "",
         width: "",
-        height: ""
+        length: ""
     });
 
     useEffect(() => {
@@ -102,19 +108,19 @@ export default function MaterialsManagementPage() {
                 color: material.specDetails?.color || "",
                 glassType: material.specDetails?.glassType || "",
                 width: material.specDetails?.width || "",
-                height: material.specDetails?.height || ""
+                length: material.specDetails?.length || ""
             });
         } else {
             setEditingMaterial(null);
             setFormData({
                 name: "",
-                unit: "ชิ้น",
+                unit: "แผ่น",
                 reorderPoint: 10,
                 thickness: "",
                 color: "",
                 glassType: "",
                 width: "",
-                height: ""
+                length: ""
             });
         }
         setIsModalOpen(true);
@@ -124,49 +130,85 @@ export default function MaterialsManagementPage() {
         if (!formData.name) return;
         setIsSubmitting(true);
 
+        // Only send non-empty specDetails fields to avoid backend stripping empty strings
+        const specDetails: Material["specDetails"] = {};
+        if (formData.thickness) specDetails.thickness = formData.thickness;
+        if (formData.color) specDetails.color = formData.color;
+        if (formData.glassType) specDetails.glassType = formData.glassType;
+        if (formData.width) specDetails.width = formData.width;
+        if (formData.length) specDetails.length = formData.length;
+
         const payload: Partial<Material> = {
             name: formData.name,
             unit: formData.unit,
             reorderPoint: formData.reorderPoint,
-            specDetails: {
-                thickness: formData.thickness,
-                color: formData.color,
-                glassType: formData.glassType,
-                width: formData.width,
-                height: formData.height
-            }
+            specDetails,
         };
 
         try {
             if (editingMaterial) {
                 const response = await materialsApi.update(editingMaterial._id, payload);
-                if (response.success && response.data) {
-                    setMaterials(materials.map(m => m._id === editingMaterial._id ? response.data : m));
+                if (response.success) {
+                    // Re-fetch to confirm actual saved data from server
+                    const freshRes = await materialsApi.getById(editingMaterial._id);
+                    const updated = freshRes.success && freshRes.data ? freshRes.data : response.data;
+                    setMaterials(materials.map(m => m._id === editingMaterial._id ? updated : m));
+                    toast.success('บันทึกข้อมูลเรียบร้อย');
                 }
             } else {
                 const response = await materialsApi.create(payload);
                 if (response.success && response.data) {
                     setMaterials([response.data, ...materials]);
+                    toast.success('เพิ่มวัสดุเรียบร้อย');
                 }
             }
             setIsModalOpen(false);
         } catch (error) {
             console.error("Failed to save material:", error);
+            toast.error('บันทึกไม่สำเร็จ');
         } finally {
             setIsSubmitting(false);
         }
     };
 
     const handleDelete = async (id: string, name: string) => {
-        if (!confirm(`Are you sure you want to delete ${name}?`)) return;
-
+        setIsLoadingDeleteTarget(true);
         try {
+            const logsRes = await materialLogsApi.getAll({ materialId: id });
+            const logCount = logsRes.success && logsRes.data ? logsRes.data.length : 0;
+            setDeleteTarget({ id, name, logCount, step: 1 });
+        } catch {
+            setDeleteTarget({ id, name, logCount: 0, step: 1 });
+        } finally {
+            setIsLoadingDeleteTarget(false);
+        }
+    };
+
+    const executeDelete = async () => {
+        if (!deleteTarget) return;
+        const { id } = deleteTarget;
+        setDeleteTarget(null);
+        try {
+            // Always fetch fresh logs and delete them all before deleting the material
+            const logsRes = await materialLogsApi.getAll({ materialId: id });
+            if (logsRes.success && logsRes.data && logsRes.data.length > 0) {
+                const logs = logsRes.data;
+                // Delete child logs first (those with parentLog), then parents
+                const children = logs.filter(l => l.parentLog);
+                const parents = logs.filter(l => !l.parentLog);
+                await Promise.all(children.map(l => materialLogsApi.delete(l._id)));
+                await Promise.all(parents.map(l => materialLogsApi.delete(l._id)));
+            }
             const response = await materialsApi.delete(id);
             if (response.success) {
                 setMaterials(materials.filter(m => m._id !== id));
+                toast.success('ลบวัสดุเรียบร้อย');
+            } else {
+                toast.error('ลบไม่สำเร็จ');
             }
         } catch (error) {
             console.error("Failed to delete material:", error);
+            toast.error(error instanceof Error ? error.message : 'เกิดข้อผิดพลาด');
         }
     };
 
@@ -185,7 +227,7 @@ export default function MaterialsManagementPage() {
                 (m.specDetails?.thickness || "").toLowerCase().includes(searchLower) ||
                 (m.specDetails?.color || "").toLowerCase().includes(searchLower) ||
                 (m.specDetails?.width || "").toLowerCase().includes(searchLower) ||
-                (m.specDetails?.height || "").toLowerCase().includes(searchLower) ||
+                (m.specDetails?.length || "").toLowerCase().includes(searchLower) ||
                 (m.unit || "").toLowerCase().includes(searchLower);
 
             const matchesThickness = thicknessFilter === "all" || m.specDetails?.thickness === thicknessFilter;
@@ -370,7 +412,7 @@ export default function MaterialsManagementPage() {
                                 </TableRow>
                             ) : (
                                 paginatedMaterials.map((material) => {
-                                    const hasSize = material.specDetails?.width || material.specDetails?.height;
+                                    const hasSize = material.specDetails?.width || material.specDetails?.length;
                                     return (
                                         <TableRow key={material._id} className="hover:bg-slate-50 transition-colors">
                                             <TableCell className="font-medium text-[14px] text-slate-900">{material.name}</TableCell>
@@ -385,7 +427,7 @@ export default function MaterialsManagementPage() {
                                             <TableCell>
                                                 {hasSize ? (
                                                     <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
-                                                        {material.specDetails?.width || "-"} × {material.specDetails?.height || "-"}
+                                                        {material.specDetails?.width || "-"} × {material.specDetails?.length || "-"}
                                                     </span>
                                                 ) : (
                                                     <span className="text-slate-300">-</span>
@@ -417,9 +459,10 @@ export default function MaterialsManagementPage() {
                                                         variant="ghost"
                                                         size="icon"
                                                         onClick={() => handleDelete(material._id, material.name)}
+                                                        disabled={isLoadingDeleteTarget}
                                                         className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
                                                     >
-                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                        {isLoadingDeleteTarget ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                                                     </Button>
                                                 </div>
                                             </TableCell>
@@ -561,13 +604,13 @@ export default function MaterialsManagementPage() {
                                     />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <Label htmlFor="height" className="text-[13px] font-medium text-slate-700">ความสูง (Height)</Label>
+                                    <Label htmlFor="length" className="text-[13px] font-medium text-slate-700">ความสูง (Height)</Label>
                                     <Input
-                                        id="height"
+                                        id="length"
                                         placeholder="เช่น 600mm, 1000mm"
                                         className="h-10 border-slate-200 rounded-xl"
-                                        value={formData.height}
-                                        onChange={(e) => setFormData({ ...formData, height: e.target.value })}
+                                        value={formData.length}
+                                        onChange={(e) => setFormData({ ...formData, length: e.target.value })}
                                     />
                                 </div>
                             </div>
@@ -585,6 +628,74 @@ export default function MaterialsManagementPage() {
                             {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "บันทึก"}
                         </Button>
                     </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Delete Confirmation Dialog — Step 1 */}
+            <Dialog open={deleteTarget?.step === 1} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+                <DialogContent className="sm:max-w-[360px] border-slate-200 dark:border-slate-800 rounded-2xl p-0">
+                    <div className="p-6">
+                        <DialogHeader>
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="h-10 w-10 rounded-xl bg-red-50 dark:bg-red-950/30 flex items-center justify-center shrink-0">
+                                    <Trash2 className="h-5 w-5 text-red-500" />
+                                </div>
+                                <DialogTitle className="text-lg font-black text-slate-900 dark:text-white">ยืนยันการลบ</DialogTitle>
+                            </div>
+                            <DialogDescription className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                                ลบ <span className="font-bold text-slate-700 dark:text-slate-300">&ldquo;{deleteTarget?.name}&rdquo;</span> ออกจากระบบ? การกระทำนี้ไม่สามารถย้อนกลับได้
+                            </DialogDescription>
+                            {deleteTarget && deleteTarget.logCount > 0 && (
+                                <p className="text-xs bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 px-3 py-2 rounded-lg border border-red-100 dark:border-red-900/50 mt-2">
+                                    ⚠️ ประวัติการเคลื่อนไหวทั้งหมด <span className="font-bold">{deleteTarget.logCount} รายการ</span> จะถูกลบด้วย
+                                </p>
+                            )}
+                        </DialogHeader>
+                    </div>
+                    <div className="px-6 pb-6 flex gap-3">
+                        <Button variant="outline" className="flex-1 rounded-xl h-11 font-bold" onClick={() => setDeleteTarget(null)}>
+                            ยกเลิก
+                        </Button>
+                        <Button
+                            className="flex-1 rounded-xl h-11 font-black bg-red-600 hover:bg-red-700 text-white"
+                            onClick={() => deleteTarget && setDeleteTarget({ ...deleteTarget, step: 2 })}
+                        >
+                            <Trash2 className="h-4 w-4 mr-1.5" />
+                            ยืนยัน
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Delete Confirmation Dialog — Step 2 (final, when logs exist) */}
+            <Dialog open={deleteTarget?.step === 2} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+                <DialogContent className="sm:max-w-[360px] border-slate-200 dark:border-slate-800 rounded-2xl p-0">
+                    <div className="p-6">
+                        <DialogHeader>
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="h-10 w-10 rounded-xl bg-red-100 dark:bg-red-950/50 flex items-center justify-center shrink-0">
+                                    <Trash2 className="h-5 w-5 text-red-600" />
+                                </div>
+                                <DialogTitle className="text-lg font-black text-red-600 dark:text-red-400">ยืนยันการลบถาวร</DialogTitle>
+                            </div>
+                            <DialogDescription className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                                คุณแน่ใจหรือไม่? วัสดุ <span className="font-bold text-slate-700 dark:text-slate-300">&ldquo;{deleteTarget?.name}&rdquo;</span>
+                                {deleteTarget && deleteTarget.logCount > 0
+                                    ? <> และประวัติการเคลื่อนไหว <span className="font-bold text-red-600">{deleteTarget.logCount} รายการ</span> จะถูกลบออกจากระบบถาวร</>
+                                    : <> จะถูกลบออกจากระบบถาวร</>
+                                }
+                            </DialogDescription>
+                        </DialogHeader>
+                    </div>
+                    <div className="px-6 pb-6 flex gap-3">
+                        <Button variant="outline" className="flex-1 rounded-xl h-11 font-bold" onClick={() => setDeleteTarget(null)}>
+                            ยกเลิก
+                        </Button>
+                        <Button className="flex-1 rounded-xl h-11 font-black bg-red-700 hover:bg-red-800 text-white" onClick={executeDelete}>
+                            <Trash2 className="h-4 w-4 mr-1.5" />
+                            ลบถาวร
+                        </Button>
+                    </div>
                 </DialogContent>
             </Dialog>
         </div>

@@ -13,7 +13,7 @@ export const th = {
     orderRequests: "คำสั่งซื้อ",
     production: "ฝ่ายผลิต",
     inventory: "คลังกระจก",
-    logs: "Logs/ประวัติ",
+    logs: "ประวัติ",
     settings: "ตั้งค่า",
     totalOrders: "รายการสั่งซื้อทั้งหมด",
     inProgress: "กำลังดำเนินการ",
@@ -63,7 +63,19 @@ export const th = {
             currentStock: "จำนวนที่มีอยู่ปัจจุบัน",
             status: "สถานะการไหลเวียน",
             actionRequired: "น้อย - ควรเติมของ",
-            noLogs: "ไม่พบประวัติการทำรายการ"
+            noLogs: "ไม่พบประวัติการทำรายการ",
+            moveStock: "ย้ายสต็อก",
+            moveStockDesc: "ย้ายวัสดุไปยังตำแหน่งจัดเก็บอื่น",
+            moveSource: "ต้นทาง",
+            moveDest: "ปลายทาง",
+            existingSlot: "ตำแหน่งที่มีอยู่",
+            newLocation: "ตำแหน่งใหม่",
+            moveQtyLabel: "จำนวนที่ต้องการย้าย",
+            selectDest: "เลือกตำแหน่งปลายทาง...",
+            noDest: "ไม่มีตำแหน่งอื่นสำหรับวัสดุนี้",
+            confirmMove: "ยืนยันการย้าย",
+            moving: "กำลังย้าย...",
+            delete: "ลบ"
         }
     },
     order_requests: {

@@ -24,7 +24,7 @@ export interface Material {
         color?: string;
         glassType?: string;
         width?: string;
-        height?: string;
+        length?: string;
     };
     createdAt: string;
     updatedAt: string;
@@ -43,14 +43,17 @@ export interface Inventory {
 export interface MaterialLog {
     _id: string;
     material: string | Material;
-    action: "Import" | "Withdraw" | "Update" | "Delete";
-    quantity: number;
-    previousQuantity: number;
-    newQuantity: number;
-    warehouseLocation: string;
-    worker: string | Worker;
-    note?: string;
+    actionType: "withdraw" | "claim" | "import" | "cut";
+    referenceId?: string;
+    referenceType?: "claim" | "withdrawal";
+    quantityChanged: number;
+    totalPrice?: number;
+    stockType?: "Raw" | "Reuse";
+    order?: string | Order;
+    parentLog?: string | MaterialLog;
+    worker?: string | Worker;
     createdAt: string;
+    updatedAt: string;
 }
 
 export interface Customer {
