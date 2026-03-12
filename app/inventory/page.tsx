@@ -226,30 +226,6 @@ export default function InventoryPage() {
         fetchData(false); // Silent refresh on message
     });
 
-    // Refs to avoid stale closures in WebSocket callback
-    const selectedInventoryRef = useRef<Inventory | null>(null);
-    useEffect(() => { selectedInventoryRef.current = selectedInventory; }, [selectedInventory]);
-    const fetchLogsRef = useRef<(matId: string, invId: string) => Promise<void>>(async () => {});
-    useEffect(() => { fetchLogsRef.current = fetchLogs; }, [fetchLogs]);
-
-    // WebSocket for real-time log updates in side panel
-    const logEvents = ['log:created', 'log:updated', 'log:deleted'];
-    useWebSocket('log', logEvents, (event: string, data: unknown) => {
-        const payload = data as { data?: MaterialLog };
-        const inv = selectedInventoryRef.current;
-        if (!inv) return;
-        // Get the material ID of the currently open side panel
-        const openMatId = typeof inv.material === 'string' ? inv.material : (inv.material as Material)._id;
-        // Get the material ID from the incoming log event
-        const logMatId = payload?.data?.material
-            ? (typeof payload.data.material === 'string' ? payload.data.material : (payload.data.material as Material)._id)
-            : null;
-        if (logMatId && logMatId === openMatId) {
-            console.log(`[Inventory Log] Received ${event}, refreshing side panel logs...`);
-            fetchLogsRef.current(openMatId, inv._id);
-        }
-    });
-
     useEffect(() => {
         fetchData();
         authApi.getProfile().then(res => {
@@ -370,6 +346,27 @@ export default function InventoryPage() {
             setIsLoadingLogs(false);
         }
     };
+
+    // Refs to avoid stale closures in WebSocket callback
+    const selectedInventoryRef = useRef<Inventory | null>(null);
+    useEffect(() => { selectedInventoryRef.current = selectedInventory; }, [selectedInventory]);
+    const fetchLogsRef = useRef<(matId: string, invId: string) => Promise<void>>(async () => {});
+    useEffect(() => { fetchLogsRef.current = fetchLogs; }, [fetchLogs]);
+
+    // WebSocket for real-time log updates in side panel
+    // Server emits only "log:updated" for all actions
+    useWebSocket('log', ['log:updated'], (_event: string, data: unknown) => {
+        const payload = data as { action?: string; data?: MaterialLog };
+        const inv = selectedInventoryRef.current;
+        if (!inv) return;
+        const openMatId = typeof inv.material === 'string' ? inv.material : (inv.material as Material)._id;
+        const logMatId = payload?.data?.material
+            ? (typeof payload.data.material === 'string' ? payload.data.material : (payload.data.material as Material)._id)
+            : null;
+        if (logMatId && logMatId === openMatId) {
+            fetchLogsRef.current(openMatId, inv._id);
+        }
+    });
 
     const resetImportForm = () => {
         setImportData({ material: "", stockType: "Raw", quantity: 1, location: "" });

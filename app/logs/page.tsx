@@ -169,18 +169,19 @@ export default function MaterialLogsPage() {
     }, [fetchLogs]);
 
     // WebSocket — subscribe to "log" room
+    // Server emits only "log:updated" for all actions; payload.action = "created" | "updated" | "deleted"
     const { status: wsStatus } = useWebSocket(
         "log",
-        ["log:created", "log:updated", "log:deleted"],
-        useCallback((event: string, data: unknown) => {
+        ["log:updated"],
+        useCallback((_event: string, data: unknown) => {
             const payload = data as { action?: string; data?: MaterialLog };
             if (!payload?.data) return;
 
             setLogs(prev => {
                 let next = prev;
-                if (event === "log:created") next = [payload.data!, ...prev];
-                else if (event === "log:updated") next = prev.map(l => l._id === payload.data!._id ? payload.data! : l);
-                else if (event === "log:deleted") next = prev.filter(l => l._id !== payload.data!._id);
+                if (payload.action === "created") next = [payload.data!, ...prev];
+                else if (payload.action === "updated") next = prev.map(l => l._id === payload.data!._id ? payload.data! : l);
+                else if (payload.action === "deleted") next = prev.filter(l => l._id !== payload.data!._id);
 
                 // Sync detail panel from updated logs
                 setSelectedLog(sel => {
