@@ -64,6 +64,7 @@ import { customersApi } from "@/lib/api/customers";
 import { workersApi } from "@/lib/api/workers";
 import { OrderRequest, Customer, Worker } from "@/lib/api/types";
 import { useWebSocket } from "@/lib/hooks/use-socket";
+import { toast } from "sonner";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -87,6 +88,7 @@ export default function OrderRequestsPage() {
     const [currentPage, setCurrentPage] = useState(1);
 
     // Create/Edit Dialog
+    const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
@@ -255,20 +257,25 @@ export default function OrderRequestsPage() {
         }
     };
 
-    const handleDelete = async (id: string) => {
-        const msg = lang === 'th'
-            ? "คุณแน่ใจหรือไม่ว่าต้องการลบคำสั่งซื้อนี้?"
-            : "Are you sure you want to delete this order request?";
-        if (!confirm(msg)) return;
+    const handleDelete = (id: string) => setDeleteTargetId(id);
+
+    const executeDelete = async () => {
+        if (!deleteTargetId) return;
+        const id = deleteTargetId;
+        setDeleteTargetId(null);
         try {
             const res = await requestsApi.delete(id);
             if (res.success) {
                 setRequests(prev => prev.filter(r => r._id !== id));
                 setIsDetailOpen(false);
                 setSelectedRequest(null);
+                toast.success(lang === 'th' ? 'ลบคำสั่งซื้อเรียบร้อย' : 'Request deleted');
+            } else {
+                toast.error(lang === 'th' ? 'ลบไม่สำเร็จ' : 'Failed to delete');
             }
         } catch (err) {
             console.error("Failed to delete request:", err);
+            toast.error(lang === 'th' ? 'เกิดข้อผิดพลาด' : 'Something went wrong');
         }
     };
 
@@ -1018,6 +1025,38 @@ export default function OrderRequestsPage() {
                             }
                         </Button>
                     </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Delete Confirmation Dialog */}
+            <Dialog open={!!deleteTargetId} onOpenChange={(open) => { if (!open) setDeleteTargetId(null); }}>
+                <DialogContent className="sm:max-w-[360px] border-slate-200 dark:border-slate-800 rounded-2xl p-0">
+                    <div className="p-6">
+                        <DialogHeader>
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="h-10 w-10 rounded-xl bg-red-50 dark:bg-red-950/30 flex items-center justify-center shrink-0">
+                                    <Trash2 className="h-5 w-5 text-red-500" />
+                                </div>
+                                <DialogTitle className="text-lg font-black text-slate-900 dark:text-white">
+                                    {lang === 'th' ? 'ยืนยันการลบ' : 'Confirm Delete'}
+                                </DialogTitle>
+                            </div>
+                            <DialogDescription className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                                {lang === 'th'
+                                    ? 'ลบคำสั่งซื้อนี้ออกจากระบบ? การกระทำนี้ไม่สามารถย้อนกลับได้'
+                                    : 'Remove this order request? This action cannot be undone.'}
+                            </DialogDescription>
+                        </DialogHeader>
+                    </div>
+                    <div className="px-6 pb-6 flex gap-3">
+                        <Button variant="outline" className="flex-1 rounded-xl h-11 font-bold" onClick={() => setDeleteTargetId(null)}>
+                            {lang === 'th' ? 'ยกเลิก' : 'Cancel'}
+                        </Button>
+                        <Button className="flex-1 rounded-xl h-11 font-black bg-red-600 hover:bg-red-700 text-white" onClick={executeDelete}>
+                            <Trash2 className="h-4 w-4 mr-1.5" />
+                            {lang === 'th' ? 'ลบ' : 'Delete'}
+                        </Button>
+                    </div>
                 </DialogContent>
             </Dialog>
         </div>

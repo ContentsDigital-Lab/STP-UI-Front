@@ -15,7 +15,7 @@ export const en: Dictionary = {
     orderRequests: "Order Requests",
     production: "Production",
     inventory: "Glass Inventory",
-    logs: "Material Logs",
+    logs: "Logs",
     settings: "Settings",
     totalOrders: "Total Orders",
     inProgress: "In Progress",
@@ -65,7 +65,19 @@ export const en: Dictionary = {
             currentStock: "Current Available",
             status: "Flow Status",
             actionRequired: "Low - Restock Soon",
-            noLogs: "No transaction history"
+            noLogs: "No transaction history",
+            moveStock: "Move Stock",
+            moveStockDesc: "Transfer material to another storage location",
+            moveSource: "Source",
+            moveDest: "Destination",
+            existingSlot: "Existing Slot",
+            newLocation: "New Location",
+            moveQtyLabel: "Quantity to Move",
+            selectDest: "Select destination slot...",
+            noDest: "No other slots available for this material",
+            confirmMove: "Confirm Move",
+            moving: "Moving...",
+            delete: "Delete"
         }
     },
     order_requests: {
