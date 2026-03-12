@@ -210,6 +210,8 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
     const panStartRef = useRef({ x: 0, y: 0 });
     const camStartRef = useRef({ cx: 0, cy: 0 });
 
+    const gridObjRef = useRef<THREE.LineSegments | null>(null);
+
     const holesRef = useRef(holes);
     holesRef.current = holes;
 
@@ -248,6 +250,32 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         const scene = sceneRef.current;
         const camera = cameraRef.current;
         if (!renderer || !scene || !camera) return;
+
+        // Dynamic infinite grid based on visible world area
+        if (gridObjRef.current) {
+            scene.remove(gridObjRef.current);
+            gridObjRef.current.geometry.dispose();
+        }
+        const topLeftWorld = new THREE.Vector3(-1, 1, 0).unproject(camera);
+        const bottomRightWorld = new THREE.Vector3(1, -1, 0).unproject(camera);
+        const gridStep = 50;
+        const pad = gridStep * 2;
+        const gLeft = Math.floor((Math.min(topLeftWorld.x, bottomRightWorld.x) - pad) / gridStep) * gridStep;
+        const gRight = Math.ceil((Math.max(topLeftWorld.x, bottomRightWorld.x) + pad) / gridStep) * gridStep;
+        const gBottom = Math.floor((Math.min(topLeftWorld.y, bottomRightWorld.y) - pad) / gridStep) * gridStep;
+        const gTop = Math.ceil((Math.max(topLeftWorld.y, bottomRightWorld.y) + pad) / gridStep) * gridStep;
+        const gridLines: THREE.Vector3[] = [];
+        for (let x = gLeft; x <= gRight; x += gridStep) {
+            gridLines.push(new THREE.Vector3(x, gBottom, -0.2), new THREE.Vector3(x, gTop, -0.2));
+        }
+        for (let y = gBottom; y <= gTop; y += gridStep) {
+            gridLines.push(new THREE.Vector3(gLeft, y, -0.2), new THREE.Vector3(gRight, y, -0.2));
+        }
+        const gridGeo = new THREE.BufferGeometry().setFromPoints(gridLines);
+        const gridMat = new THREE.LineBasicMaterial({ color: 0xeeeeee });
+        const gridObj = new THREE.LineSegments(gridGeo, gridMat);
+        gridObjRef.current = gridObj;
+        scene.add(gridObj);
 
         const frustumWidth = camera.right - camera.left;
         const canvasWidth = renderer.domElement.clientWidth;
@@ -365,17 +393,6 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
 
         const verts = verticesRef.current;
         const bb = getBoundingBox(verts);
-
-        // Grid
-        const gridSize = Math.max(bb.width, bb.height) * 2;
-        const gridStep = 50;
-        const gridLines: THREE.Vector3[] = [];
-        const gridMat = new THREE.LineBasicMaterial({ color: 0xeeeeee });
-        for (let i = -gridSize; i <= gridSize * 2; i += gridStep) {
-            gridLines.push(new THREE.Vector3(i, -gridSize, -0.2), new THREE.Vector3(i, gridSize * 2, -0.2));
-            gridLines.push(new THREE.Vector3(-gridSize, i, -0.2), new THREE.Vector3(gridSize * 2, i, -0.2));
-        }
-        group.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(gridLines), gridMat));
 
         // Glass panel shape from vertices
         const glassShape = new THREE.Shape();
