@@ -32,7 +32,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { GlassDesigner, HoleData } from "@/components/glass-designer";
+import { GlassDesigner, HoleData, VertexData } from "@/components/glass-designer";
 import { requestsApi } from "@/lib/api/requests";
 import { customersApi } from "@/lib/api/customers";
 import { workersApi } from "@/lib/api/workers";
@@ -52,6 +52,12 @@ export default function CreateBillPage() {
     const [glassWidth, setGlassWidth] = useState(800);
     const [glassHeight, setGlassHeight] = useState(600);
     const [holes, setHoles] = useState<HoleData[]>([]);
+    const [vertices, setVertices] = useState<VertexData[]>([
+        { x: 0, y: 0 },
+        { x: 800, y: 0 },
+        { x: 800, y: 600 },
+        { x: 0, y: 600 },
+    ]);
 
     // Combobox state
     const [customerOpen, setCustomerOpen] = useState(false);
@@ -384,6 +390,8 @@ export default function CreateBillPage() {
                 const finalWidth = maxX > 0 ? maxX : glassWidth;
                 const finalHeight = maxY > 0 ? maxY : glassHeight;
 
+                setVertices([{ x: 0, y: 0 }, { x: finalWidth, y: 0 }, { x: finalWidth, y: finalHeight }, { x: 0, y: finalHeight }]);
+
                 const validHoles = importedHoles.filter(h => h.x <= finalWidth && h.y <= finalHeight);
                 const outOfBounds = importedHoles.length - validHoles.length;
 
@@ -462,6 +470,8 @@ export default function CreateBillPage() {
                         height={glassHeight}
                         holes={holes}
                         onHolesChange={handleHolesChange}
+                        vertices={vertices}
+                        onVerticesChange={setVertices}
                     />
                 </div>
 
@@ -723,7 +733,11 @@ export default function CreateBillPage() {
                                         type="number"
                                         min={50}
                                         value={glassWidth}
-                                        onChange={(e) => setGlassWidth(Math.max(1, parseInt(e.target.value) || 1))}
+                                        onChange={(e) => {
+                                            const w = Math.max(1, parseInt(e.target.value) || 1);
+                                            setGlassWidth(w);
+                                            setVertices([{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: glassHeight }, { x: 0, y: glassHeight }]);
+                                        }}
                                         className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-black text-sm px-4 focus:ring-[#E8601C]"
                                     />
                                 </div>
@@ -735,7 +749,11 @@ export default function CreateBillPage() {
                                         type="number"
                                         min={50}
                                         value={glassHeight}
-                                        onChange={(e) => setGlassHeight(Math.max(1, parseInt(e.target.value) || 1))}
+                                        onChange={(e) => {
+                                            const h = Math.max(1, parseInt(e.target.value) || 1);
+                                            setGlassHeight(h);
+                                            setVertices([{ x: 0, y: 0 }, { x: glassWidth, y: 0 }, { x: glassWidth, y: h }, { x: 0, y: h }]);
+                                        }}
                                         className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-black text-sm px-4 focus:ring-[#E8601C]"
                                     />
                                 </div>
