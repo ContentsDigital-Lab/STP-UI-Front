@@ -64,20 +64,20 @@ import { toast } from "sonner";
 import { inventoriesApi } from "@/lib/api/inventories";
 import { materialsApi } from "@/lib/api/materials";
 import { materialLogsApi } from "@/lib/api/material-logs";
-import { authApi } from "@/lib/api/auth";
-import { Inventory, Material, MaterialLog, Worker } from "@/lib/api/types";
+import { Inventory, Material, MaterialLog } from "@/lib/api/types";
 import { useWebSocket } from "@/lib/hooks/use-socket";
+import { useAuth } from "@/lib/auth/auth-context";
 
 const ITEMS_PER_PAGE = 10;
 
 export default function InventoryPage() {
     const { t, lang } = useLanguage();
     const it = t.inventory_dashboard;
+    const { user: currentWorker } = useAuth();
 
     const [isLoading, setIsLoading] = useState(true);
     const [inventories, setInventories] = useState<Inventory[]>([]);
     const [materials, setMaterials] = useState<Material[]>([]);
-    const [currentWorker, setCurrentWorker] = useState<Worker | null>(null);
     const [selectedInventory, setSelectedInventory] = useState<Inventory | null>(null);
     const [isDetailOpen, setIsDetailOpen] = useState(false);
     const [materialLogs, setMaterialLogs] = useState<MaterialLog[]>([]);
@@ -228,9 +228,6 @@ export default function InventoryPage() {
 
     useEffect(() => {
         fetchData();
-        authApi.getProfile().then(res => {
-            if (res.success && res.data) setCurrentWorker(res.data);
-        }).catch(() => {});
     }, []);
 
     const fetchData = async (showLoading = true) => {
@@ -452,6 +449,7 @@ export default function InventoryPage() {
                 material: matId,
                 actionType: "withdraw",
                 quantityChanged: -moveQty,
+                stockType: moveSource.stockType,
                 referenceId: moveSource._id,
                 ...(currentWorker ? { worker: currentWorker._id } : {}),
             });
@@ -461,6 +459,7 @@ export default function InventoryPage() {
                 material: matId,
                 actionType: "import",
                 quantityChanged: moveQty,
+                stockType: moveSource.stockType,
                 referenceId: destInventoryId,
                 parentLog: withdrawLogRes.data?._id,
                 ...(currentWorker ? { worker: currentWorker._id } : {}),

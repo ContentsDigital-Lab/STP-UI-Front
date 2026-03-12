@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { materialLogsApi } from "@/lib/api/material-logs";
 import { MaterialLog, Order, Material, Worker, Inventory } from "@/lib/api/types";
 import { inventoriesApi } from "@/lib/api/inventories";
+import { workersApi } from "@/lib/api/workers";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import {
@@ -119,6 +120,35 @@ function getLocation(log: MaterialLog, invMap: Map<string, Inventory>): string |
     return invMap.get(log.referenceId)?.location ?? null;
 }
 
+function resolveWorkerName(w: MaterialLog['worker'], workerMap: Map<string, Worker>): string | null {
+    if (!w) return null;
+    if (typeof w === 'object') return (w as Worker).name || (w as Worker).username || null;
+    return workerMap.get(String(w))?.name ?? workerMap.get(String(w))?.username ?? null;
+}
+
+function getMoveLocations(
+    log: MaterialLog,
+    moveSourceIds: Set<string>,
+    invMap: Map<string, Inventory>,
+    parentLogMap: Map<string, MaterialLog>,
+    logById: Map<string, MaterialLog>
+): { from: string | null; to: string | null } | null {
+    if (log.actionType === 'import' && log.parentLog) {
+        const to = (log.referenceId && !log.referenceType) ? invMap.get(log.referenceId)?.location ?? null : null;
+        const parentId = typeof log.parentLog === 'object' ? (log.parentLog as MaterialLog)._id : String(log.parentLog);
+        const parentLog = logById.get(parentId);
+        const from = parentLog?.referenceId && !parentLog?.referenceType ? invMap.get(parentLog.referenceId)?.location ?? null : null;
+        return { from, to };
+    }
+    if (log.actionType === 'withdraw' && moveSourceIds.has(log._id)) {
+        const from = (log.referenceId && !log.referenceType) ? invMap.get(log.referenceId)?.location ?? null : null;
+        const childLog = parentLogMap.get(log._id);
+        const to = childLog?.referenceId && !childLog?.referenceType ? invMap.get(childLog.referenceId)?.location ?? null : null;
+        return { from, to };
+    }
+    return null;
+}
+
 export default function MaterialLogsPage() {
     const { t, lang } = useLanguage();
     const [logs, setLogs] = useState<MaterialLog[]>([]);
@@ -136,6 +166,9 @@ export default function MaterialLogsPage() {
 
     // Inventory lookup (for location column)
     const [invMap, setInvMap] = useState<Map<string, Inventory>>(new Map());
+
+    // Worker lookup (for resolving worker IDs to names)
+    const [workerMap, setWorkerMap] = useState<Map<string, Worker>>(new Map());
 
     // Detail panel state
     const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -164,6 +197,12 @@ export default function MaterialLogsPage() {
         inventoriesApi.getAll().then(res => {
             if (res.success && res.data) {
                 setInvMap(new Map(res.data.map(inv => [inv._id, inv])));
+            }
+        }).catch(() => {});
+        // Fetch workers once for name resolution
+        workersApi.getAll().then(res => {
+            if (res.success && res.data) {
+                setWorkerMap(new Map(res.data.map(w => [w._id, w])));
             }
         }).catch(() => {});
     }, [fetchLogs]);
@@ -244,6 +283,25 @@ export default function MaterialLogsPage() {
 
     // Pre-compute move source IDs for the whole log list
     const moveSourceIds = useMemo(() => buildMoveSourceIds(logs), [logs]);
+
+    // Map: parentLog ID → the child import_move log (to find destination for withdraw_move)
+    const parentLogMap = useMemo(() => {
+        const map = new Map<string, MaterialLog>();
+        logs.forEach(l => {
+            if (l.parentLog) {
+                const id = typeof l.parentLog === 'object' ? (l.parentLog as MaterialLog)._id : String(l.parentLog);
+                map.set(id, l);
+            }
+        });
+        return map;
+    }, [logs]);
+
+    // Map: log._id → log (for resolving parentLog references)
+    const logById = useMemo(() => {
+        const map = new Map<string, MaterialLog>();
+        logs.forEach(l => map.set(l._id, l));
+        return map;
+    }, [logs]);
 
     // Filter Logic
     const filteredLogs = useMemo(() => {
@@ -651,16 +709,18 @@ export default function MaterialLogsPage() {
 
                                             {/* Stock Type */}
                                             <TableCell className="py-4">
-                                                {log.stockType ? (
-                                                    <span className={`text-[11px] font-black px-2 py-0.5 rounded-lg border ${log.stockType === "Raw"
-                                                        ? "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
-                                                        : "bg-violet-50 text-violet-700 border-violet-100 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-900/40"
-                                                        }`}>
-                                                        {log.stockType}
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-slate-300 dark:text-slate-700">—</span>
-                                                )}
+                                                {(() => {
+                                                    const stockType = log.stockType ?? (log.referenceId && !log.referenceType ? invMap.get(log.referenceId)?.stockType : undefined);
+                                                    if (!stockType) return <span className="text-slate-300 dark:text-slate-700">—</span>;
+                                                    return (
+                                                        <span className={`text-[11px] font-black px-2 py-0.5 rounded-lg border ${stockType === "Raw"
+                                                            ? "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
+                                                            : "bg-violet-50 text-violet-700 border-violet-100 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-900/40"
+                                                            }`}>
+                                                            {stockType}
+                                                        </span>
+                                                    );
+                                                })()}
                                             </TableCell>
 
                                             {/* Order */}
@@ -671,9 +731,24 @@ export default function MaterialLogsPage() {
                                             {/* Location */}
                                             <TableCell className="py-4">
                                                 {(() => {
+                                                    const moveLocs = getMoveLocations(log, moveSourceIds, invMap, parentLogMap, logById);
+                                                    if (moveLocs) {
+                                                        return (
+                                                            <div className="flex items-center gap-1 text-[11px] font-bold text-violet-700 dark:text-violet-400">
+                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border bg-violet-50 border-violet-100 dark:bg-violet-950/30 dark:border-violet-900/40">
+                                                                    <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
+                                                                    {moveLocs.from ?? '?'}
+                                                                </span>
+                                                                <ChevronRight className="h-3 w-3 text-slate-400 shrink-0" />
+                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border bg-violet-50 border-violet-100 dark:bg-violet-950/30 dark:border-violet-900/40">
+                                                                    <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
+                                                                    {moveLocs.to ?? '?'}
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    }
                                                     const loc = getLocation(log, invMap);
                                                     if (!loc) return <span className="text-slate-300 dark:text-slate-700">—</span>;
-                                                    // quantityChanged === 0 = metadata change (stockType/location update)
                                                     const isUpdate = log.quantityChanged === 0 && log.actionType === "import";
                                                     return (
                                                         <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg border ${isUpdate
@@ -695,12 +770,9 @@ export default function MaterialLogsPage() {
                                             {/* Performed By */}
                                             <TableCell className="py-4 pr-6">
                                                 {(() => {
-                                                    const w = log.worker;
-                                                    if (!w) return <span className="text-slate-300 dark:text-slate-700">—</span>;
-                                                    const name = typeof w === "object"
-                                                        ? ((w as Worker).name || (w as Worker).username)
-                                                        : String(w);
-                                                    const role = typeof w === "object" ? (w as Worker).role : undefined;
+                                                    const name = resolveWorkerName(log.worker, workerMap);
+                                                    if (!name) return <span className="text-slate-300 dark:text-slate-700">—</span>;
+                                                    const role = typeof log.worker === "object" ? (log.worker as Worker).role : workerMap.get(String(log.worker))?.role;
                                                     return (
                                                         <div className="flex flex-col">
                                                             <span className="text-sm font-bold text-slate-800 dark:text-slate-200">{name}</span>
@@ -936,15 +1008,16 @@ export default function MaterialLogsPage() {
 
                                     <div className="flex flex-col gap-0">
                                         {detailLogs.map((log, idx) => {
-                                            const w = log.worker;
-                                            const workerName = w
-                                                ? (typeof w === "object" ? ((w as Worker).name || (w as Worker).username) : String(w))
-                                                : null;
+                                            const workerName = resolveWorkerName(log.worker, workerMap);
+                                            const workerRole = typeof log.worker === 'object' && log.worker ? (log.worker as Worker).role : workerMap.get(String(log.worker ?? ''))?.role;
                                             const orderId = log.order
                                                 ? (typeof log.order === "object" && log.order !== null
                                                     ? ((log.order as Order)._id ?? "")
                                                     : String(log.order))
                                                 : null;
+                                            const stockType = log.stockType ?? (log.referenceId && !log.referenceType ? invMap.get(log.referenceId)?.stockType : undefined);
+                                            const moveLocs = getMoveLocations(log, moveSourceIds, invMap, parentLogMap, logById);
+                                            const singleLoc = !moveLocs ? getLocation(log, invMap) : null;
 
                                             return (
                                                 <div key={log._id} className={`relative pl-7 pb-6 ${idx === detailLogs.length - 1 ? "" : ""}`}>
@@ -969,21 +1042,48 @@ export default function MaterialLogsPage() {
                                                             </div>
                                                             <div className="text-right shrink-0">
                                                                 {renderQuantityChanged(log.quantityChanged)}
-                                                                {log.stockType && (
-                                                                    <p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">
-                                                                        {log.stockType}
-                                                                    </p>
-                                                                )}
                                                             </div>
                                                         </div>
 
                                                         {/* Details row */}
                                                         <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-50 dark:border-slate-800">
+                                                            {/* Stock Type */}
+                                                            {stockType && (
+                                                                <span className={`inline-flex items-center gap-1 text-[11px] font-black px-2.5 py-1 rounded-lg border ${stockType === "Raw"
+                                                                    ? "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
+                                                                    : "bg-violet-50 text-violet-700 border-violet-100 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-900/40"}`}>
+                                                                    {stockType}
+                                                                </span>
+                                                            )}
+
+                                                            {/* Location — single */}
+                                                            {singleLoc && (
+                                                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-100 dark:border-slate-700">
+                                                                    <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
+                                                                    {singleLoc}
+                                                                </span>
+                                                            )}
+
+                                                            {/* Location — move from→to */}
+                                                            {moveLocs && (
+                                                                <div className="flex items-center gap-1 text-[11px] font-bold text-violet-700 dark:text-violet-400 flex-wrap">
+                                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border bg-violet-50 border-violet-100 dark:bg-violet-950/30 dark:border-violet-900/40">
+                                                                        <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
+                                                                        {lang === "th" ? "จาก" : "From"}: {moveLocs.from ?? '?'}
+                                                                    </span>
+                                                                    <ChevronRight className="h-3 w-3 text-slate-400 shrink-0" />
+                                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border bg-violet-50 border-violet-100 dark:bg-violet-950/30 dark:border-violet-900/40">
+                                                                        <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
+                                                                        {lang === "th" ? "ไปยัง" : "To"}: {moveLocs.to ?? '?'}
+                                                                    </span>
+                                                                </div>
+                                                            )}
+
                                                             {/* Worker */}
                                                             {workerName && (
                                                                 <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-100 dark:border-slate-700">
                                                                     <User className="h-3 w-3" />
-                                                                    {workerName}
+                                                                    {workerName}{workerRole ? ` · ${workerRole}` : ''}
                                                                 </span>
                                                             )}
 
@@ -1007,7 +1107,7 @@ export default function MaterialLogsPage() {
                                                             )}
 
                                                             {/* Empty state */}
-                                                            {!workerName && !orderId && !log.referenceId && (
+                                                            {!stockType && !singleLoc && !moveLocs && !workerName && !orderId && !log.referenceType && (
                                                                 <span className="text-[11px] text-slate-300 dark:text-slate-700 font-medium italic">
                                                                     {lang === "th" ? "ไม่มีข้อมูลเพิ่มเติม" : "No additional info"}
                                                                 </span>
