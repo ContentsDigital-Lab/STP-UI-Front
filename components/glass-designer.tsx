@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { MousePointer2, Circle, Trash2, RotateCcw, Pen, Plus, X } from 'lucide-react';
+import { MousePointer2, Circle, Undo2, Redo2, RotateCcw, Pen, Focus } from 'lucide-react';
 
 export interface HoleData {
     id: string;
@@ -199,6 +199,9 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
 
     const internalVertices = externalVertices ?? getDefaultVertices(width, height);
 
+    const undoStackRef = useRef<{ holes: HoleData[]; vertices: VertexData[] }[]>([]);
+    const redoStackRef = useRef<{ holes: HoleData[]; vertices: VertexData[] }[]>([]);
+
     const isDraggingRef = useRef(false);
     const isPanningRef = useRef(false);
     const dragHoleIdRef = useRef<string | null>(null);
@@ -224,6 +227,15 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
 
     const selectedVertexIdxRef = useRef(selectedVertexIdx);
     selectedVertexIdxRef.current = selectedVertexIdx;
+
+    const pushUndo = useCallback(() => {
+        undoStackRef.current.push({
+            holes: JSON.parse(JSON.stringify(holesRef.current)),
+            vertices: JSON.parse(JSON.stringify(verticesRef.current)),
+        });
+        if (undoStackRef.current.length > 50) undoStackRef.current.shift();
+        redoStackRef.current = [];
+    }, []);
 
     const setVertices = useCallback((verts: VertexData[]) => {
         if (onVerticesChange) {
@@ -545,11 +557,11 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         const dimOffset = -50;
         makeDimensionLine(group,
             new THREE.Vector3(bb.minX, bb.minY, 0), new THREE.Vector3(bb.maxX, bb.minY, 0),
-            `${Math.round(bb.width)}`, dimOffset, 'horizontal', 0x444444
+            `${Math.round(bb.width)}`, dimOffset, 'horizontal', 0x1B4B9A
         );
         makeDimensionLine(group,
             new THREE.Vector3(bb.minX, bb.minY, 0), new THREE.Vector3(bb.minX, bb.maxY, 0),
-            `${Math.round(bb.height)}`, dimOffset, 'vertical', 0x444444
+            `${Math.round(bb.height)}`, dimOffset, 'vertical', 0x1B4B9A
         );
 
         renderScene();
@@ -679,6 +691,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             if (activeToolRef.current === 'editVertex') {
                 const vertIdx = findVertexAtPos(pos.x, pos.y);
                 if (vertIdx !== null) {
+                    pushUndo();
                     setSelectedVertexIdx(vertIdx);
                     isDraggingRef.current = true;
                     dragVertexIdxRef.current = vertIdx;
@@ -688,6 +701,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
 
                 const edge = findEdgeAtPos(pos.x, pos.y);
                 if (edge) {
+                    pushUndo();
                     const verts = verticesRef.current;
                     const i = edge.edgeIdx;
                     const j = (i + 1) % verts.length;
@@ -709,6 +723,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
 
             if (activeToolRef.current === 'addHole') {
                 if (isPointInPolygon(pos.x, pos.y, verticesRef.current)) {
+                    pushUndo();
                     const newHole: HoleData = {
                         id: `h_${Date.now()}_${holeCounter++}`,
                         x: Math.round(pos.x),
@@ -725,6 +740,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             const hitId = findHoleAtPos(pos.x, pos.y);
             setSelectedHoleId(hitId);
             if (hitId) {
+                pushUndo();
                 isDraggingRef.current = true;
                 dragHoleIdRef.current = hitId;
                 canvas.style.cursor = 'move';
@@ -835,7 +851,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             canvas.removeEventListener('mouseleave', onMouseUp);
             canvas.removeEventListener('wheel', onWheel);
         };
-    }, [width, height, getWorldPos, findHoleAtPos, findVertexAtPos, findEdgeAtPos, onHolesChange, setVertices, renderScene]);
+    }, [width, height, getWorldPos, findHoleAtPos, findVertexAtPos, findEdgeAtPos, onHolesChange, setVertices, pushUndo, renderScene]);
 
     // Update cursor when tool changes
     useEffect(() => {
@@ -852,14 +868,50 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
     const handleDeleteSelected = () => {
         if (activeTool === 'editVertex' && selectedVertexIdx !== null) {
             if (internalVertices.length <= 3) return;
+            pushUndo();
             const newVerts = internalVertices.filter((_, i) => i !== selectedVertexIdx);
             setVertices(newVerts);
             setSelectedVertexIdx(null);
             return;
         }
         if (!selectedHoleId) return;
+        pushUndo();
         onHolesChange(holes.filter(h => h.id !== selectedHoleId));
         setSelectedHoleId(null);
+    };
+
+    const handleUndo = () => {
+        const prev = undoStackRef.current.pop();
+        if (!prev) return;
+        redoStackRef.current.push({
+            holes: JSON.parse(JSON.stringify(holesRef.current)),
+            vertices: JSON.parse(JSON.stringify(verticesRef.current)),
+        });
+        onHolesChange(prev.holes);
+        setVertices(prev.vertices);
+        setSelectedHoleId(null);
+        setSelectedVertexIdx(null);
+    };
+
+    const handleRedo = () => {
+        const next = redoStackRef.current.pop();
+        if (!next) return;
+        undoStackRef.current.push({
+            holes: JSON.parse(JSON.stringify(holesRef.current)),
+            vertices: JSON.parse(JSON.stringify(verticesRef.current)),
+        });
+        onHolesChange(next.holes);
+        setVertices(next.vertices);
+        setSelectedHoleId(null);
+        setSelectedVertexIdx(null);
+    };
+
+    const handleResetAll = () => {
+        pushUndo();
+        onHolesChange([]);
+        setVertices(getDefaultVertices(width, height));
+        setSelectedHoleId(null);
+        setSelectedVertexIdx(null);
     };
 
     const handleResetView = () => {
@@ -949,18 +1001,36 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 <Button
                     variant="ghost"
                     size="sm"
-                    onClick={handleDeleteSelected}
-                    disabled={activeTool === 'editVertex'
-                        ? selectedVertexIdx === null || internalVertices.length <= 3
-                        : !selectedHoleId}
-                    className="gap-1.5 rounded-xl text-xs font-bold h-9 text-red-500 hover:text-red-600 hover:bg-red-50 disabled:opacity-30"
+                    onClick={handleUndo}
+                    disabled={undoStackRef.current.length === 0}
+                    className="gap-1.5 rounded-xl text-xs font-bold h-9 text-slate-500 hover:text-slate-700 hover:bg-slate-100 disabled:opacity-30"
+                    title="Undo"
                 >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Undo2 className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleRedo}
+                    disabled={redoStackRef.current.length === 0}
+                    className="gap-1.5 rounded-xl text-xs font-bold h-9 text-slate-500 hover:text-slate-700 hover:bg-slate-100 disabled:opacity-30"
+                    title="Redo"
+                >
+                    <Redo2 className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleResetAll}
+                    className="gap-1.5 rounded-xl text-xs font-bold h-9 text-red-500 hover:text-red-600 hover:bg-red-50"
+                    title="Reset all (clear holes & shape)"
+                >
+                    <RotateCcw className="h-3.5 w-3.5" />
                 </Button>
 
                 <div className="ml-auto flex items-center gap-1">
-                    <Button variant="ghost" size="icon" onClick={handleResetView} className="h-8 w-8 rounded-lg text-slate-400 hover:text-slate-600">
-                        <RotateCcw className="h-3.5 w-3.5" />
+                    <Button variant="ghost" size="icon" onClick={handleResetView} className="h-8 w-8 rounded-lg text-slate-400 hover:text-slate-600" title="Fit to view">
+                        <Focus className="h-3.5 w-3.5" />
                     </Button>
                 </div>
             </div>
