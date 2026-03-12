@@ -23,19 +23,32 @@ interface GlassDesignerProps {
 
 let holeCounter = 0;
 
-function makeTextSprite(text: string, color = '#555555'): THREE.Sprite {
+function makeTextSprite(text: string, color = '#555555', vertical = false): THREE.Sprite {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d')!;
     const fontSize = 48;
     ctx.font = `bold ${fontSize}px system-ui, sans-serif`;
     const metrics = ctx.measureText(text);
-    canvas.width = Math.ceil(metrics.width) + 20;
-    canvas.height = fontSize + 20;
-    ctx.font = `bold ${fontSize}px system-ui, sans-serif`;
-    ctx.fillStyle = color;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+
+    if (vertical) {
+        canvas.width = fontSize + 20;
+        canvas.height = Math.ceil(metrics.width) + 20;
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.font = `bold ${fontSize}px system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = color;
+        ctx.fillText(text, 0, 0);
+    } else {
+        canvas.width = Math.ceil(metrics.width) + 20;
+        canvas.height = fontSize + 20;
+        ctx.font = `bold ${fontSize}px system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = color;
+        ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+    }
     const tex = new THREE.CanvasTexture(canvas);
     tex.needsUpdate = true;
     const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false });
@@ -77,9 +90,13 @@ function makeDimensionLine(
         extE2 = new THREE.Vector3(end.x + offset, end.y, 0);
     }
 
-    // Main dimension line
-    const mainGeo = new THREE.BufferGeometry().setFromPoints([p1, p2]);
-    group.add(new THREE.Line(mainGeo, lineMat));
+    const mid = new THREE.Vector3().lerpVectors(p1, p2, 0.5);
+
+    // Main dimension line (two segments with dynamic gap for label)
+    const gapLine1 = new THREE.Line(new THREE.BufferGeometry().setFromPoints([p1, mid]), lineMat);
+    const gapLine2 = new THREE.Line(new THREE.BufferGeometry().setFromPoints([mid, p2]), lineMat);
+    group.add(gapLine1);
+    group.add(gapLine2);
 
     // Extension lines
     const ext1Geo = new THREE.BufferGeometry().setFromPoints([extS1, extS2]);
@@ -109,10 +126,15 @@ function makeDimensionLine(
     group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(arrowPoints2), lineMat));
 
     // Label
-    const mid = new THREE.Vector3().lerpVectors(p1, p2, 0.5);
-    const sprite = makeTextSprite(label);
+    const labelColor = `#${color.toString(16).padStart(6, '0')}`;
+    const sprite = makeTextSprite(label, labelColor, direction === 'vertical');
     sprite.position.copy(mid);
     sprite.position.z = 0.5;
+    sprite.userData.gapLine1 = gapLine1;
+    sprite.userData.gapLine2 = gapLine2;
+    sprite.userData.lineP1 = p1.clone();
+    sprite.userData.lineP2 = p2.clone();
+    sprite.userData.lineDirection = direction;
     group.add(sprite);
 }
 
@@ -160,11 +182,30 @@ export function GlassDesigner({ width, height, holes, onHolesChange }: GlassDesi
 
         glassGroupRef.current.traverse((obj) => {
             if (obj instanceof THREE.Sprite && obj.userData.screenWidth) {
-                obj.scale.set(
-                    obj.userData.screenWidth * scaleFactor,
-                    obj.userData.screenHeight * scaleFactor,
-                    1
-                );
+                const sw = obj.userData.screenWidth * scaleFactor;
+                const sh = obj.userData.screenHeight * scaleFactor;
+                obj.scale.set(sw, sh, 1);
+
+                if (obj.userData.gapLine1 && obj.userData.gapLine2) {
+                    const p1 = obj.userData.lineP1 as THREE.Vector3;
+                    const p2 = obj.userData.lineP2 as THREE.Vector3;
+                    const dir = new THREE.Vector3().subVectors(p2, p1).normalize();
+                    const halfGap = ((obj.userData.lineDirection === 'horizontal' ? sw : sh) / 2) + 3 * scaleFactor;
+                    const spritePos = new THREE.Vector3(obj.position.x, obj.position.y, p1.z);
+
+                    const gapStart = spritePos.clone().sub(dir.clone().multiplyScalar(halfGap));
+                    const gapEnd = spritePos.clone().add(dir.clone().multiplyScalar(halfGap));
+
+                    const pos1 = obj.userData.gapLine1.geometry.attributes.position;
+                    pos1.setXYZ(0, p1.x, p1.y, p1.z);
+                    pos1.setXYZ(1, gapStart.x, gapStart.y, gapStart.z);
+                    pos1.needsUpdate = true;
+
+                    const pos2 = obj.userData.gapLine2.geometry.attributes.position;
+                    pos2.setXYZ(0, gapEnd.x, gapEnd.y, gapEnd.z);
+                    pos2.setXYZ(1, p2.x, p2.y, p2.z);
+                    pos2.needsUpdate = true;
+                }
             }
         });
 
@@ -283,17 +324,84 @@ export function GlassDesigner({ width, height, holes, onHolesChange }: GlassDesi
             const hLabel = makeTextSprite(`⌀${h.diameter}`, isSelected ? '#E8601C' : '#aa5533');
             hLabel.position.set(h.x, h.y - h.diameter / 2 - 18, 3.3);
             group.add(hLabel);
+
+            // Horizontal line from right edge to hole at hole's Y level (two segments with gap)
+            const holeDimMatH = new THREE.LineBasicMaterial({ color: 0xcc8855 });
+            const dimEdgeXH = width + 30;
+            const hLineP1 = new THREE.Vector3(h.x, h.y, 3.2);
+            const hLineP2 = new THREE.Vector3(dimEdgeXH, h.y, 3.2);
+            const hLineMid = new THREE.Vector3((h.x + width) / 2, h.y, 3.2);
+            const hGapLine1 = new THREE.Line(new THREE.BufferGeometry().setFromPoints([hLineP1, hLineMid]), holeDimMatH);
+            const hGapLine2 = new THREE.Line(new THREE.BufferGeometry().setFromPoints([hLineMid, hLineP2]), holeDimMatH);
+            group.add(hGapLine1);
+            group.add(hGapLine2);
+            const hDimLabel = makeTextSprite(`${width - h.x}`, '#cc8855');
+            hDimLabel.position.set((h.x + width) / 2, h.y, 3.3);
+            hDimLabel.userData.gapLine1 = hGapLine1;
+            hDimLabel.userData.gapLine2 = hGapLine2;
+            hDimLabel.userData.lineP1 = hLineP1.clone();
+            hDimLabel.userData.lineP2 = hLineP2.clone();
+            hDimLabel.userData.lineDirection = 'horizontal';
+            group.add(hDimLabel);
         });
 
-        // Dimension lines
-        const dimOffset = -25;
+        // Chained vertical dimensions on right side (between consecutive holes)
+        if (holesRef.current.length > 0) {
+            const holeDimMat = new THREE.LineBasicMaterial({ color: 0xcc8855 });
+            const dimEdgeX = width + 30;
+            const tick = 4;
+            const sortedHoles = [...holesRef.current].sort((a, b) => a.y - b.y);
+            const yPoints = [0, ...sortedHoles.map(h => h.y)];
+
+            // Extension line from glass bottom-right corner
+            group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(width, 0, 0.3),
+                new THREE.Vector3(dimEdgeX, 0, 0.3),
+            ]), holeDimMat));
+
+            // Tick marks at each Y point
+            yPoints.forEach(y => {
+                group.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([
+                    new THREE.Vector3(dimEdgeX - tick, y, 0.3),
+                    new THREE.Vector3(dimEdgeX + tick, y, 0.3),
+                ]), holeDimMat));
+            });
+
+            // Chained vertical segments with gap labels
+            for (let i = 0; i < yPoints.length - 1; i++) {
+                const from = yPoints[i];
+                const to = yPoints[i + 1];
+                const dist = Math.round(to - from);
+                if (dist <= 0) continue;
+
+                const vLineP1 = new THREE.Vector3(dimEdgeX, from, 0.3);
+                const vLineP2 = new THREE.Vector3(dimEdgeX, to, 0.3);
+                const vLineMid = new THREE.Vector3(dimEdgeX, (from + to) / 2, 0.3);
+                const vGapLine1 = new THREE.Line(new THREE.BufferGeometry().setFromPoints([vLineP1, vLineMid]), holeDimMat);
+                const vGapLine2 = new THREE.Line(new THREE.BufferGeometry().setFromPoints([vLineMid, vLineP2]), holeDimMat);
+                group.add(vGapLine1);
+                group.add(vGapLine2);
+
+                const vDimLabel = makeTextSprite(`${dist}`, '#cc8855', true);
+                vDimLabel.position.set(dimEdgeX, (from + to) / 2, 0.5);
+                vDimLabel.userData.gapLine1 = vGapLine1;
+                vDimLabel.userData.gapLine2 = vGapLine2;
+                vDimLabel.userData.lineP1 = vLineP1.clone();
+                vDimLabel.userData.lineP2 = vLineP2.clone();
+                vDimLabel.userData.lineDirection = 'vertical';
+                group.add(vDimLabel);
+            }
+        }
+
+        // Overall glass dimension lines
+        const dimOffset = -50;
         makeDimensionLine(group,
             new THREE.Vector3(0, 0, 0), new THREE.Vector3(width, 0, 0),
-            `${width} mm`, dimOffset, 'horizontal', 0x1B4B9A
+            `${width}`, dimOffset, 'horizontal', 0x1B4B9A
         );
         makeDimensionLine(group,
             new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, height, 0),
-            `${height} mm`, dimOffset, 'vertical', 0x1B4B9A
+            `${height}`, dimOffset, 'vertical', 0x1B4B9A
         );
 
         renderScene();
