@@ -626,31 +626,31 @@ export default function MaterialLogsPage() {
                     <Table>
                         <TableHeader>
                             <TableRow className="border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
-                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 px-6 text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 px-6 text-slate-500 dark:text-slate-400 whitespace-nowrap text-center">
                                     {lang === "th" ? "วันเวลา" : "Date / Time"}
                                 </TableHead>
-                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400">
+                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 text-center">
                                     {lang === "th" ? "วัสดุ" : "Material"}
                                 </TableHead>
-                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400">
+                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 text-center">
                                     {lang === "th" ? "การกระทำ" : "Action"}
                                 </TableHead>
-                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 whitespace-nowrap text-center">
                                     {lang === "th" ? "จำนวนที่เปลี่ยน" : "Qty Changed"}
                                 </TableHead>
-                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 whitespace-nowrap text-center">
                                     {lang === "th" ? "ประเภทสต็อก" : "Stock Type"}
                                 </TableHead>
-                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400">
+                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 text-center">
                                     {lang === "th" ? "ออเดอร์" : "Order"}
                                 </TableHead>
-                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 whitespace-nowrap text-center">
                                     {lang === "th" ? "สถานที่จัดเก็บ" : "Location"}
                                 </TableHead>
-                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400">
+                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 text-center">
                                     {lang === "th" ? "อ้างอิง" : "Reference"}
                                 </TableHead>
-                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 pr-6 whitespace-nowrap">
+                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 pr-6 whitespace-nowrap text-center">
                                     {lang === "th" ? "ผู้ดำเนินการ" : "Performed By"}
                                 </TableHead>
                             </TableRow>
