@@ -26,11 +26,11 @@ let holeCounter = 0;
 function makeTextSprite(text: string, color = '#555555'): THREE.Sprite {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d')!;
-    const fontSize = 28;
+    const fontSize = 48;
     ctx.font = `bold ${fontSize}px system-ui, sans-serif`;
     const metrics = ctx.measureText(text);
-    canvas.width = Math.ceil(metrics.width) + 16;
-    canvas.height = fontSize + 16;
+    canvas.width = Math.ceil(metrics.width) + 20;
+    canvas.height = fontSize + 20;
     ctx.font = `bold ${fontSize}px system-ui, sans-serif`;
     ctx.fillStyle = color;
     ctx.textAlign = 'center';
@@ -40,7 +40,9 @@ function makeTextSprite(text: string, color = '#555555'): THREE.Sprite {
     tex.needsUpdate = true;
     const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false });
     const sprite = new THREE.Sprite(mat);
-    sprite.scale.set(canvas.width / 4, canvas.height / 4, 1);
+    sprite.userData.screenWidth = canvas.width;
+    sprite.userData.screenHeight = canvas.height;
+    sprite.scale.set(canvas.width / 3, canvas.height / 3, 1);
     return sprite;
 }
 
@@ -146,9 +148,27 @@ export function GlassDesigner({ width, height, holes, onHolesChange }: GlassDesi
     holeDiameterRef.current = holeDiameter;
 
     const renderScene = useCallback(() => {
-        if (rendererRef.current && sceneRef.current && cameraRef.current) {
-            rendererRef.current.render(sceneRef.current, cameraRef.current);
-        }
+        const renderer = rendererRef.current;
+        const scene = sceneRef.current;
+        const camera = cameraRef.current;
+        if (!renderer || !scene || !camera) return;
+
+        const frustumWidth = camera.right - camera.left;
+        const canvasWidth = renderer.domElement.clientWidth;
+        const worldPerPixel = frustumWidth / canvasWidth;
+        const scaleFactor = worldPerPixel * 0.45;
+
+        glassGroupRef.current.traverse((obj) => {
+            if (obj instanceof THREE.Sprite && obj.userData.screenWidth) {
+                obj.scale.set(
+                    obj.userData.screenWidth * scaleFactor,
+                    obj.userData.screenHeight * scaleFactor,
+                    1
+                );
+            }
+        });
+
+        renderer.render(scene, camera);
     }, []);
 
     const getWorldPos = useCallback((clientX: number, clientY: number): THREE.Vector3 | null => {
@@ -261,7 +281,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange }: GlassDesi
 
             // Hole label
             const hLabel = makeTextSprite(`⌀${h.diameter}`, isSelected ? '#E8601C' : '#aa5533');
-            hLabel.position.set(h.x, h.y - h.diameter / 2 - 8, 3.3);
+            hLabel.position.set(h.x, h.y - h.diameter / 2 - 18, 3.3);
             group.add(hLabel);
         });
 
