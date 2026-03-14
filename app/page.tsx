@@ -108,7 +108,7 @@ export default function DashboardPage() {
       {/* Welcome Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl md:text-4xl font-black tracking-tight text-slate-900 dark:text-white">
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900 dark:text-white">
             {t.dashboard.welcome}
           </h1>
           <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">
@@ -116,10 +116,10 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Badge variant="outline" className="px-3 py-1 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 font-bold rounded-lg shadow-sm">
+          <Badge variant="outline" className="px-3 py-1 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 font-medium rounded-lg shadow-sm">
             Last updated: Just now
           </Badge>
-          <Button className="bg-[#E8601C] hover:bg-[#E8601C]/90 text-white font-black rounded-xl shadow-lg shadow-orange-500/20 px-6">
+          <Button className="bg-[#E8601C] hover:bg-[#E8601C]/90 text-white font-bold rounded-xl shadow-lg shadow-orange-500/20 px-6">
             Export Report
           </Button>
         </div>
@@ -134,13 +134,13 @@ export default function DashboardPage() {
                 <div className={`p-3 rounded-2xl bg-${kpi.color}-50 dark:bg-${kpi.color}-900/20 text-${kpi.color}-600 dark:text-${kpi.color}-400 group-hover:scale-110 transition-transform`}>
                   <kpi.icon className="h-6 w-6" />
                 </div>
-                <Badge className={`${kpi.isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'} border-none font-black rounded-lg group-hover:px-3 transition-all`}>
+                <Badge className={`${kpi.isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'} border-none font-bold rounded-lg group-hover:px-3 transition-all`}>
                   {kpi.change}
                 </Badge>
               </div>
               <div>
-                <p className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{kpi.title}</p>
-                <h3 className="text-3xl font-black text-slate-900 dark:text-white mt-1 tracking-tight">{kpi.value}</h3>
+                <p className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{kpi.title}</p>
+                <h3 className="text-3xl font-bold text-slate-900 dark:text-white mt-1 tracking-tight">{kpi.value}</h3>
                 <p className="text-[11px] text-slate-400 mt-2 font-medium">{kpi.description}</p>
               </div>
             </CardContent>
@@ -153,7 +153,7 @@ export default function DashboardPage() {
         <Card className="lg:col-span-2 border-slate-200 dark:border-slate-800 shadow-sm rounded-3xl overflow-hidden bg-white dark:bg-slate-900">
           <CardHeader className="flex flex-row items-center justify-between border-b border-slate-50 dark:border-slate-800 pb-6">
             <div>
-              <CardTitle className="text-xl font-black text-slate-900 dark:text-white">{t.dashboard.inventory_flow}</CardTitle>
+              <CardTitle className="text-xl font-bold text-slate-900 dark:text-white">{t.dashboard.inventory_flow}</CardTitle>
               <CardDescription className="font-medium">Daily balance vs outgoing materials</CardDescription>
             </div>
             <div className="flex gap-2">
@@ -201,7 +201,7 @@ export default function DashboardPage() {
         {/* Recent Activity Section */}
         <Card className="border-slate-200 dark:border-slate-800 shadow-sm rounded-3xl overflow-hidden bg-white dark:bg-slate-900">
           <CardHeader className="border-b border-slate-50 dark:border-slate-800">
-            <CardTitle className="text-xl font-black text-slate-900 dark:text-white">{t.dashboard.recent_activity}</CardTitle>
+            <CardTitle className="text-xl font-bold text-slate-900 dark:text-white">{t.dashboard.recent_activity}</CardTitle>
             <CardDescription className="font-medium">Latest stock movements</CardDescription>
           </CardHeader>
           <CardContent className="pt-6">
@@ -216,23 +216,23 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex flex-col flex-1 min-w-0">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-black text-slate-900 dark:text-white truncate group-hover:text-[#E8601C] transition-colors">
+                      <p className="text-sm font-bold text-slate-900 dark:text-white truncate group-hover:text-[#E8601C] transition-colors">
                         {activity.material}
                       </p>
-                      <span className={`text-xs font-black ${activity.type === 'import' ? 'text-emerald-500' :
+                      <span className={`text-xs font-bold ${activity.type === 'import' ? 'text-emerald-500' :
                           activity.type === 'withdrawal' ? 'text-orange-500' : 'text-red-500'
                         }`}>
                         {activity.qty}
                       </span>
                     </div>
                     <div className="flex items-center justify-between mt-1">
-                      <p className="text-xs text-slate-400 font-bold">{activity.user}</p>
+                      <p className="text-xs text-slate-400 font-medium">{activity.user}</p>
                       <p className="text-[10px] text-slate-400 font-medium uppercase">{activity.time}</p>
                     </div>
                   </div>
                 </div>
               ))}
-              <Button variant="ghost" className="w-full text-slate-500 font-black hover:text-[#E8601C] gap-2 py-6 rounded-2xl group transition-all">
+              <Button variant="ghost" className="w-full text-slate-500 font-bold hover:text-[#E8601C] gap-2 py-6 rounded-2xl group transition-all">
                 View Full Logs
                 <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
               </Button>
@@ -255,7 +255,7 @@ export default function DashboardPage() {
                   <tool.icon className="h-6 w-6" />
                 </div>
                 <div>
-                  <h4 className="font-black text-slate-900 dark:text-white group-hover:text-[#E8601C] transition-colors">{tool.title}</h4>
+                  <h4 className="font-bold text-slate-900 dark:text-white group-hover:text-[#E8601C] transition-colors">{tool.title}</h4>
                   <p className="text-sm text-slate-400 font-medium">{tool.desc}</p>
                 </div>
               </div>

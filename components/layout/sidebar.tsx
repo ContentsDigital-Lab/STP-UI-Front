@@ -43,20 +43,20 @@ export function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
         >
             <div className="flex h-16 xl:h-20 items-center justify-between px-4 border-b">
                 {!collapsed && (
-                    <div className="flex items-center justify-center w-full overflow-hidden">
+                    <Link href="/" className="flex items-center justify-center w-full overflow-hidden">
                         <img
                             src="/logo.png"
                             alt="Standard Plus"
                             className="w-auto h-10 object-contain drop-shadow-sm"
                         />
-                    </div>
+                    </Link>
                 )}
                 {collapsed && (
-                    <div className="flex w-full justify-center">
+                    <Link href="/" className="flex w-full justify-center">
                         <div className="w-8 h-8 rounded bg-gradient-to-br from-primary to-accent flex items-center justify-center font-bold text-white shadow-sm">
                             S+
                         </div>
-                    </div>
+                    </Link>
                 )}
             </div>
 

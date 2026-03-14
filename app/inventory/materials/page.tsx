@@ -287,7 +287,7 @@ export default function MaterialsManagementPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr_1fr_1fr_auto] items-end gap-4">
                     {/* Search */}
                     <div className="space-y-1.5">
-                        <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-1.5">
+                        <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-1.5">
                             <Search className="h-3 w-3" />
                             ค้นหา
                         </Label>
@@ -315,7 +315,7 @@ export default function MaterialsManagementPage() {
 
                     {/* Glass Type Filter */}
                     <div className="space-y-1.5">
-                        <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest ml-1">ประเภทกระจก</Label>
+                        <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">ประเภทกระจก</Label>
                         <Select value={glassTypeFilter} onValueChange={(val) => { if (val) setGlassTypeFilter(val); setCurrentPage(1); }}>
                             <SelectTrigger className="h-10 w-full text-sm border-slate-200 bg-white rounded-xl">
                                 <SelectValue placeholder="ทั้งหมด" />
@@ -331,7 +331,7 @@ export default function MaterialsManagementPage() {
 
                     {/* Thickness Filter */}
                     <div className="space-y-1.5">
-                        <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest ml-1">ความหนา</Label>
+                        <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">ความหนา</Label>
                         <Select value={thicknessFilter} onValueChange={(val) => { if (val) setThicknessFilter(val); setCurrentPage(1); }}>
                             <SelectTrigger className="h-10 w-full text-sm border-slate-200 bg-white rounded-xl">
                                 <SelectValue placeholder="ทั้งหมด" />
@@ -347,7 +347,7 @@ export default function MaterialsManagementPage() {
 
                     {/* Color Filter */}
                     <div className="space-y-1.5">
-                        <Label className="text-[11px] font-bold text-slate-500 uppercase tracking-widest ml-1">สีกระจก</Label>
+                        <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">สีกระจก</Label>
                         <Select value={colorFilter} onValueChange={(val) => { if (val) setColorFilter(val); setCurrentPage(1); }}>
                             <SelectTrigger className="h-10 w-full text-sm border-slate-200 bg-white rounded-xl">
                                 <SelectValue placeholder="ทั้งหมด" />
@@ -640,7 +640,7 @@ export default function MaterialsManagementPage() {
                                 <div className="h-10 w-10 rounded-xl bg-red-50 dark:bg-red-950/30 flex items-center justify-center shrink-0">
                                     <Trash2 className="h-5 w-5 text-red-500" />
                                 </div>
-                                <DialogTitle className="text-lg font-black text-slate-900 dark:text-white">ยืนยันการลบ</DialogTitle>
+                                <DialogTitle className="text-lg font-bold text-slate-900 dark:text-white">ยืนยันการลบ</DialogTitle>
                             </div>
                             <DialogDescription className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
                                 ลบ <span className="font-bold text-slate-700 dark:text-slate-300">&ldquo;{deleteTarget?.name}&rdquo;</span> ออกจากระบบ? การกระทำนี้ไม่สามารถย้อนกลับได้
@@ -657,7 +657,7 @@ export default function MaterialsManagementPage() {
                             ยกเลิก
                         </Button>
                         <Button
-                            className="flex-1 rounded-xl h-11 font-black bg-red-600 hover:bg-red-700 text-white"
+                            className="flex-1 rounded-xl h-11 font-bold bg-red-600 hover:bg-red-700 text-white"
                             onClick={() => deleteTarget && setDeleteTarget({ ...deleteTarget, step: 2 })}
                         >
                             <Trash2 className="h-4 w-4 mr-1.5" />
@@ -676,7 +676,7 @@ export default function MaterialsManagementPage() {
                                 <div className="h-10 w-10 rounded-xl bg-red-100 dark:bg-red-950/50 flex items-center justify-center shrink-0">
                                     <Trash2 className="h-5 w-5 text-red-600" />
                                 </div>
-                                <DialogTitle className="text-lg font-black text-red-600 dark:text-red-400">ยืนยันการลบถาวร</DialogTitle>
+                                <DialogTitle className="text-lg font-bold text-red-600 dark:text-red-400">ยืนยันการลบถาวร</DialogTitle>
                             </div>
                             <DialogDescription className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
                                 คุณแน่ใจหรือไม่? วัสดุ <span className="font-bold text-slate-700 dark:text-slate-300">&ldquo;{deleteTarget?.name}&rdquo;</span>
@@ -691,7 +691,7 @@ export default function MaterialsManagementPage() {
                         <Button variant="outline" className="flex-1 rounded-xl h-11 font-bold" onClick={() => setDeleteTarget(null)}>
                             ยกเลิก
                         </Button>
-                        <Button className="flex-1 rounded-xl h-11 font-black bg-red-700 hover:bg-red-800 text-white" onClick={executeDelete}>
+                        <Button className="flex-1 rounded-xl h-11 font-bold bg-red-700 hover:bg-red-800 text-white" onClick={executeDelete}>
                             <Trash2 className="h-4 w-4 mr-1.5" />
                             ลบถาวร
                         </Button>
