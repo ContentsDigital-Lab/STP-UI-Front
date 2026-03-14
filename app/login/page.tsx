@@ -44,9 +44,7 @@ export default function LoginPage() {
             <Card className="w-full max-w-md shadow-lg">
                 <CardHeader className="space-y-2 text-center pb-6">
                     <div className="flex justify-center mb-4">
-                        <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-[#1B4B9A] to-[#E8601C] flex items-center justify-center font-bold text-white text-2xl shadow-sm">
-                            S+
-                        </div>
+                        <img src="/logo.png" alt="Standard Plus" className="h-16 w-auto object-contain" />
                     </div>
                     <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
                     <CardDescription>
