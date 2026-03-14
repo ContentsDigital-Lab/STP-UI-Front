@@ -1,18 +1,32 @@
 "use client";
 
 import { Editor, Frame, Element } from "@craftjs/core";
-import { BlockPalette }     from "./BlockPalette";
-import { PropertiesPanel }  from "./PropertiesPanel";
-import { Toolbar }          from "./Toolbar";
-import { InputBlock }       from "./blocks/InputBlock";
-import { CuttingBlock }     from "./blocks/CuttingBlock";
-import { GrindingBlock }    from "./blocks/GrindingBlock";
-import { ProcessingBlock }  from "./blocks/ProcessingBlock";
-import { InspectionBlock }  from "./blocks/InspectionBlock";
-import { PackagingBlock }   from "./blocks/PackagingBlock";
-import { OutputBlock }      from "./blocks/OutputBlock";
-import { NoteBlock }        from "./blocks/NoteBlock";
-import { CanvasContainer }  from "./CanvasContainer";
+import { BlockPalette }      from "./BlockPalette";
+import { PropertiesPanel }   from "./PropertiesPanel";
+import { Toolbar }           from "./Toolbar";
+import { CanvasContainer }   from "./CanvasContainer";
+
+// ─── Layout ─────────────────────────────────────────────────────────────────
+import { Section }           from "./blocks/Section";
+import { TwoColumns }        from "./blocks/TwoColumns";
+import { Column }            from "./blocks/Column";
+
+// ─── Content ─────────────────────────────────────────────────────────────────
+import { Heading }           from "./blocks/Heading";
+import { Paragraph }         from "./blocks/Paragraph";
+import { Divider }           from "./blocks/Divider";
+import { Spacer }            from "./blocks/Spacer";
+import { Badge }             from "./blocks/Badge";
+
+// ─── Form ────────────────────────────────────────────────────────────────────
+import { InputField }        from "./blocks/InputField";
+import { SelectField }       from "./blocks/SelectField";
+import { TextAreaField }     from "./blocks/TextAreaField";
+import { ButtonBlock }       from "./blocks/ButtonBlock";
+
+// ─── Data ────────────────────────────────────────────────────────────────────
+import { InfoCard }          from "./blocks/InfoCard";
+import { StatusIndicator }   from "./blocks/StatusIndicator";
 
 interface DesignerCanvasProps {
     templateName: string;
@@ -21,17 +35,15 @@ interface DesignerCanvasProps {
     saving?: boolean;
 }
 
-// All blocks must be registered here so Craft.js can deserialize them
 const RESOLVER = {
-    InputBlock,
-    CuttingBlock,
-    GrindingBlock,
-    ProcessingBlock,
-    InspectionBlock,
-    PackagingBlock,
-    OutputBlock,
-    NoteBlock,
-    CanvasContainer,
+    // layout
+    CanvasContainer, Section, TwoColumns, Column,
+    // content
+    Heading, Paragraph, Divider, Spacer, Badge,
+    // form
+    InputField, SelectField, TextAreaField, ButtonBlock,
+    // data
+    InfoCard, StatusIndicator,
 };
 
 export function DesignerCanvas({ templateName, initialNodes, onSave, saving }: DesignerCanvasProps) {
@@ -42,8 +54,8 @@ export function DesignerCanvas({ templateName, initialNodes, onSave, saving }: D
                 <div className="flex flex-1 overflow-hidden">
                     <BlockPalette />
 
-                    {/* Main canvas area */}
-                    <main className="flex-1 overflow-auto bg-slate-100 dark:bg-slate-900/50 p-8">
+                    {/* Canvas */}
+                    <main className="flex-1 overflow-auto bg-slate-100 dark:bg-slate-900/60 p-8">
                         <div className="max-w-2xl mx-auto">
                             <Frame data={initialNodes ? JSON.stringify(initialNodes) : undefined}>
                                 <Element
