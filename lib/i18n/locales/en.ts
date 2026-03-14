@@ -16,6 +16,8 @@ export const en: Dictionary = {
     production: "Production",
     inventory: "Glass Inventory",
     logs: "Logs",
+    withdrawals: "Withdrawals",
+    claims: "Claims",
     settings: "Settings",
     totalOrders: "Total Orders",
     inProgress: "In Progress",

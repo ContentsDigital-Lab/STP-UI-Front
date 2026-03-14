@@ -14,6 +14,8 @@ export const th = {
     production: "ฝ่ายผลิต",
     inventory: "คลังกระจก",
     logs: "ประวัติ",
+    withdrawals: "เบิกวัสดุ",
+    claims: "เคลม",
     settings: "ตั้งค่า",
     totalOrders: "รายการสั่งซื้อทั้งหมด",
     inProgress: "กำลังดำเนินการ",
