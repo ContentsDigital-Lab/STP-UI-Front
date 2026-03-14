@@ -14,6 +14,7 @@ import {
     History,
     ArrowDownFromLine,
     ShieldAlert,
+    LayoutTemplate,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -28,14 +29,15 @@ export function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
     const { t } = useLanguage();
 
     const navigation = [
-        { name: t.dashboard.label, href: "/", icon: LayoutDashboard },
-        { name: t.orderRequests, href: "/request", icon: ClipboardList },
-        { name: t.production, href: "/production", icon: Factory },
-        { name: t.inventory, href: "/inventory", icon: Package },
-        { name: t.withdrawals, href: "/withdrawals", icon: ArrowDownFromLine },
-        { name: t.claims, href: "/claims", icon: ShieldAlert },
-        { name: t.logs, href: "/logs", icon: History },
-        { name: t.settings, href: "/settings", icon: Settings },
+        { name: t.dashboard.label, href: "/",                   icon: LayoutDashboard },
+        { name: t.orderRequests,   href: "/request",            icon: ClipboardList   },
+        { name: t.production,      href: "/stations",           icon: Factory         },
+        { name: "Station Designer", href: "/stations/designer", icon: LayoutTemplate  },
+        { name: t.inventory,       href: "/inventory",          icon: Package         },
+        { name: t.withdrawals,     href: "/withdrawals",        icon: ArrowDownFromLine },
+        { name: t.claims,          href: "/claims",             icon: ShieldAlert     },
+        { name: t.logs,            href: "/logs",               icon: History         },
+        { name: t.settings,        href: "/settings",           icon: Settings        },
     ];
 
     return (
@@ -66,7 +68,7 @@ export function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
 
             <nav className="flex-1 space-y-1 p-2">
                 {navigation.map((item) => {
-                    const isActive = pathname === item.href;
+                    const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
                     return (
                         <Link
                             key={item.href}
