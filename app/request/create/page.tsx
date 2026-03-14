@@ -429,7 +429,7 @@ export default function CreateBillPage() {
                         </Button>
                     </Link>
                     <div>
-                        <h1 className="text-lg font-black text-slate-900 dark:text-white tracking-tight">
+                        <h1 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">
                             {lang === 'th' ? 'สร้างบิล / คำสั่งซื้อ' : 'Create Bill / Order Request'}
                         </h1>
                         <p className="text-[11px] text-slate-400 font-bold">
@@ -450,7 +450,7 @@ export default function CreateBillPage() {
                     <Button
                         onClick={handleSubmit}
                         disabled={isSubmitting || !formData.customer || !formData.glassType}
-                        className="gap-1.5 rounded-xl font-black text-xs h-9 bg-[#E8601C] hover:bg-[#E8601C]/90 text-white shadow-lg shadow-orange-500/20 px-6"
+                        className="gap-1.5 rounded-xl font-bold text-xs h-9 bg-[#E8601C] hover:bg-[#E8601C]/90 text-white shadow-lg shadow-orange-500/20 px-6"
                     >
                         <Save className="h-3.5 w-3.5" />
                         {isSubmitting
@@ -482,7 +482,7 @@ export default function CreateBillPage() {
                         <div className="space-y-3">
                             <div className="flex items-center gap-2">
                                 <Users className="h-4 w-4 text-[#E8601C]" />
-                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.15em]">
+                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">
                                     {lang === 'th' ? 'ลูกค้า' : 'Customer'}
                                 </h3>
                             </div>
@@ -559,7 +559,7 @@ export default function CreateBillPage() {
                                         <p className="text-slate-500"><span className="font-bold text-slate-700 dark:text-slate-300">Addr:</span> {selectedCustomer.address}</p>
                                     )}
                                     {selectedCustomer.discount > 0 && (
-                                        <Badge className="bg-emerald-50 text-emerald-600 border-none text-[10px] font-bold mt-1">
+                                        <Badge className="bg-emerald-50 text-emerald-600 border-none text-[10px] font-semibold mt-1">
                                             Discount: {selectedCustomer.discount}%
                                         </Badge>
                                     )}
@@ -571,7 +571,7 @@ export default function CreateBillPage() {
                         <div className="space-y-3">
                             <div className="flex items-center gap-2">
                                 <Package className="h-4 w-4 text-[#E8601C]" />
-                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.15em]">
+                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">
                                     {lang === 'th' ? 'ข้อมูลกระจก' : 'Glass Specification'}
                                 </h3>
                             </div>
@@ -640,7 +640,7 @@ export default function CreateBillPage() {
                                 </div>
 
                                 <div>
-                                    <Label className="text-[10px] font-bold text-slate-400 uppercase mb-1.5 block">
+                                    <Label className="text-[10px] font-semibold text-slate-400 uppercase mb-1.5 block">
                                         {lang === 'th' ? 'ความหนา' : 'Thickness'}
                                     </Label>
                                     <div ref={thicknessRef} className="relative">
@@ -720,13 +720,13 @@ export default function CreateBillPage() {
                         <div className="space-y-3">
                             <div className="flex items-center gap-2">
                                 <Ruler className="h-4 w-4 text-[#E8601C]" />
-                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.15em]">
+                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">
                                     {lang === 'th' ? 'ขนาดกระจก' : 'Dimensions'}
                                 </h3>
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1.5">
-                                    <Label className="text-[10px] font-bold text-slate-400 uppercase">
+                                    <Label className="text-[10px] font-semibold text-slate-400 uppercase">
                                         {lang === 'th' ? 'กว้าง' : 'Width'} (mm)
                                     </Label>
                                     <Input
@@ -738,11 +738,11 @@ export default function CreateBillPage() {
                                             setGlassWidth(w);
                                             setVertices([{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: glassHeight }, { x: 0, y: glassHeight }]);
                                         }}
-                                        className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-black text-sm px-4 focus:ring-[#E8601C]"
+                                        className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm px-4 focus:ring-[#E8601C]"
                                     />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <Label className="text-[10px] font-bold text-slate-400 uppercase">
+                                    <Label className="text-[10px] font-semibold text-slate-400 uppercase">
                                         {lang === 'th' ? 'สูง' : 'Height'} (mm)
                                     </Label>
                                     <Input
@@ -754,7 +754,7 @@ export default function CreateBillPage() {
                                             setGlassHeight(h);
                                             setVertices([{ x: 0, y: 0 }, { x: glassWidth, y: 0 }, { x: glassWidth, y: h }, { x: 0, y: h }]);
                                         }}
-                                        className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-black text-sm px-4 focus:ring-[#E8601C]"
+                                        className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm px-4 focus:ring-[#E8601C]"
                                     />
                                 </div>
                             </div>
@@ -764,7 +764,7 @@ export default function CreateBillPage() {
                         {holes.length > 0 && (
                             <div className="space-y-3">
                                 <div className="flex items-center justify-between">
-                                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.15em]">
+                                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">
                                         {lang === 'th' ? 'รูเจาะ' : 'Drill Holes'} ({holes.length})
                                     </h3>
                                     <Button
@@ -784,11 +784,11 @@ export default function CreateBillPage() {
                                         >
                                             <div className="flex items-center gap-2">
                                                 <GripVertical className="h-3 w-3 text-slate-300" />
-                                                <Badge variant="outline" className="text-[9px] font-black rounded-md border-slate-200 dark:border-slate-700 text-[#E8601C] px-1.5 py-0">
+                                                <Badge variant="outline" className="text-[9px] font-bold rounded-md border-slate-200 dark:border-slate-700 text-[#E8601C] px-1.5 py-0">
                                                     H{i + 1}
                                                 </Badge>
                                             </div>
-                                            <div className="flex items-center gap-3 text-[11px] font-bold text-slate-500">
+                                            <div className="flex items-center gap-3 text-[11px] font-semibold text-slate-500">
                                                 <span>X: {hole.x}</span>
                                                 <span>Y: {hole.y}</span>
                                                 <span>⌀{hole.diameter}</span>
@@ -811,14 +811,14 @@ export default function CreateBillPage() {
                         <div className="space-y-3">
                             <div className="flex items-center gap-2">
                                 <CalendarDays className="h-4 w-4 text-[#E8601C]" />
-                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.15em]">
+                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">
                                     {lang === 'th' ? 'รายละเอียดคำสั่งซื้อ' : 'Order Details'}
                                 </h3>
                             </div>
 
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1.5">
-                                    <Label className="text-[10px] font-bold text-slate-400 uppercase">
+                                    <Label className="text-[10px] font-semibold text-slate-400 uppercase">
                                         {lang === 'th' ? 'จำนวน' : 'Quantity'}
                                     </Label>
                                     <Input
@@ -826,11 +826,11 @@ export default function CreateBillPage() {
                                         min={1}
                                         value={formData.quantity}
                                         onChange={(e) => setFormData({ ...formData, quantity: Math.max(1, parseInt(e.target.value) || 1) })}
-                                        className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-black text-sm px-4 focus:ring-[#E8601C]"
+                                        className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm px-4 focus:ring-[#E8601C]"
                                     />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <Label className="text-[10px] font-bold text-slate-400 uppercase">
+                                    <Label className="text-[10px] font-semibold text-slate-400 uppercase">
                                         {lang === 'th' ? 'ราคาประมาณ (฿)' : 'Est. Price (฿)'}
                                     </Label>
                                     <Input
@@ -838,14 +838,14 @@ export default function CreateBillPage() {
                                         min={0}
                                         value={formData.estimatedPrice}
                                         onChange={(e) => setFormData({ ...formData, estimatedPrice: Math.max(0, parseFloat(e.target.value) || 0) })}
-                                        className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-black text-sm px-4 focus:ring-[#E8601C]"
+                                        className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm px-4 focus:ring-[#E8601C]"
                                     />
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1.5">
-                                    <Label className="text-[10px] font-bold text-slate-400 uppercase">
+                                    <Label className="text-[10px] font-semibold text-slate-400 uppercase">
                                         {lang === 'th' ? 'กำหนดส่ง' : 'Deadline'}
                                     </Label>
                                     <Input
@@ -856,7 +856,7 @@ export default function CreateBillPage() {
                                     />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <Label className="text-[10px] font-bold text-slate-400 uppercase">
+                                    <Label className="text-[10px] font-semibold text-slate-400 uppercase">
                                         {lang === 'th' ? 'วันส่งที่คาดหวัง' : 'Expected Delivery'}
                                     </Label>
                                     <Input
@@ -869,7 +869,7 @@ export default function CreateBillPage() {
                             </div>
 
                             <div className="space-y-1.5">
-                                <Label className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                                <Label className="text-[10px] font-semibold text-slate-400 uppercase flex items-center gap-1">
                                     <MapPin className="h-3 w-3" />
                                     {lang === 'th' ? 'สถานที่จัดส่ง' : 'Delivery Location'}
                                 </Label>
@@ -882,7 +882,7 @@ export default function CreateBillPage() {
                             </div>
 
                             <div className="space-y-1.5">
-                                <Label className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                                <Label className="text-[10px] font-semibold text-slate-400 uppercase flex items-center gap-1">
                                     <User className="h-3 w-3" />
                                     {lang === 'th' ? 'มอบหมายให้' : 'Assign To'}
                                 </Label>

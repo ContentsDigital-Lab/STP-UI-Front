@@ -354,7 +354,7 @@ export default function OrderRequestsPage() {
             {/* Page Header */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 pb-6 border-b border-slate-200 dark:border-slate-800">
                 <div className="space-y-1">
-                    <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 dark:text-white">
+                    <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white">
                         {it.title}
                     </h1>
                     <p className="text-slate-500 dark:text-slate-400 text-sm sm:text-base font-medium">
@@ -380,15 +380,15 @@ export default function OrderRequestsPage() {
                             <div className="h-12 w-12 rounded-2xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-[#1B4B9A] dark:text-blue-400 group-hover:bg-[#1B4B9A] group-hover:text-white transition-colors">
                                 <ClipboardList className="h-6 w-6" />
                             </div>
-                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-50 dark:bg-slate-800/50 px-2 py-1 rounded-lg">
+                            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-50 dark:bg-slate-800/50 px-2 py-1 rounded-lg">
                                 Overview
                             </span>
                         </div>
                         <div>
                             <p className="text-sm font-bold text-slate-500 dark:text-slate-400">{it.totalRequests}</p>
                             <div className="flex items-baseline gap-2 mt-1">
-                                <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">{globalStats.total}</h3>
-                                <span className="text-[11px] font-bold text-emerald-500 flex items-center bg-emerald-50 dark:bg-emerald-900/20 px-1.5 py-0.5 rounded-md">
+                                <h3 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">{globalStats.total}</h3>
+                                <span className="text-[11px] font-semibold text-emerald-500 flex items-center bg-emerald-50 dark:bg-emerald-900/20 px-1.5 py-0.5 rounded-md">
                                     <ArrowUpRight className="h-3 w-3 mr-0.5" />
                                     Active
                                 </span>
@@ -402,13 +402,13 @@ export default function OrderRequestsPage() {
                             <div className="h-12 w-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
                                 <Calendar className="h-6 w-6" />
                             </div>
-                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-50 dark:bg-slate-800/50 px-2 py-1 rounded-lg">
+                            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-50 dark:bg-slate-800/50 px-2 py-1 rounded-lg">
                                 Recent
                             </span>
                         </div>
                         <div>
                             <p className="text-sm font-bold text-slate-500 dark:text-slate-400">{it.thisWeek}</p>
-                            <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight mt-1">{globalStats.thisWeek}</h3>
+                            <h3 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight mt-1">{globalStats.thisWeek}</h3>
                         </div>
                     </div>
 
@@ -418,15 +418,15 @@ export default function OrderRequestsPage() {
                             <div className="h-12 w-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
                                 <UserCheck className="h-6 w-6" />
                             </div>
-                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-50 dark:bg-slate-800/50 px-2 py-1 rounded-lg">
+                            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-50 dark:bg-slate-800/50 px-2 py-1 rounded-lg">
                                 Staff
                             </span>
                         </div>
                         <div>
                             <p className="text-sm font-bold text-slate-500 dark:text-slate-400">{it.assigned}</p>
                             <div className="flex items-baseline gap-2 mt-1">
-                                <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">{globalStats.assigned}</h3>
-                                <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">
+                                <h3 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">{globalStats.assigned}</h3>
+                                <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase">
                                     / {globalStats.total}
                                 </span>
                             </div>
@@ -446,7 +446,7 @@ export default function OrderRequestsPage() {
                                 <AlertTriangle className="h-6 w-6" />
                             </div>
                             {globalStats.approaching > 0 && (
-                                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-100/50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
+                                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-amber-100/50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
                                     <span className="relative flex h-2 w-2">
                                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                                         <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
@@ -457,7 +457,7 @@ export default function OrderRequestsPage() {
                         </div>
                         <div>
                             <p className="text-sm font-bold text-slate-500 dark:text-slate-400">{it.approachingDeadline}</p>
-                            <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight mt-1">{globalStats.approaching}</h3>
+                            <h3 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight mt-1">{globalStats.approaching}</h3>
                         </div>
                     </div>
                 </div>
@@ -529,12 +529,12 @@ export default function OrderRequestsPage() {
                     <Table>
                         <TableHeader>
                             <TableRow className="border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
-                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 px-6 text-slate-500 dark:text-slate-400">{it.table.customer}</TableHead>
-                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400">{it.table.productType}</TableHead>
-                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-center text-slate-500 dark:text-slate-400">{it.table.quantity}</TableHead>
-                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400">{it.table.price}</TableHead>
-                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400">{it.table.deadline}</TableHead>
-                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400">{it.table.assignedTo}</TableHead>
+                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 px-6 text-slate-500 dark:text-slate-400">{it.table.customer}</TableHead>
+                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400">{it.table.productType}</TableHead>
+                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-center text-slate-500 dark:text-slate-400">{it.table.quantity}</TableHead>
+                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400">{it.table.price}</TableHead>
+                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400">{it.table.deadline}</TableHead>
+                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400">{it.table.assignedTo}</TableHead>
                                 <TableHead className="text-right py-5 pr-6"></TableHead>
                             </TableRow>
                         </TableHeader>
@@ -556,21 +556,21 @@ export default function OrderRequestsPage() {
                                         >
                                             <TableCell className="py-5 px-6">
                                                 <div className="flex flex-col">
-                                                    <span className="font-black text-slate-900 dark:text-white group-hover:text-[#E8601C] transition-colors">
+                                                    <span className="font-bold text-slate-900 dark:text-white group-hover:text-[#E8601C] transition-colors">
                                                         {cust?.name || (lang === 'th' ? 'ไม่ระบุ' : 'Unknown')}
                                                     </span>
-                                                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase mt-0.5">
+                                                    <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase mt-0.5">
                                                         #{req._id.slice(-6).toUpperCase()}
                                                     </span>
                                                 </div>
                                             </TableCell>
                                             <TableCell className="py-5">
-                                                <span className="text-[11px] font-black tracking-widest uppercase px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-900/30 text-[#1B4B9A] dark:text-blue-400">
+                                                <span className="text-[11px] font-semibold tracking-widest uppercase px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-900/30 text-[#1B4B9A] dark:text-blue-400">
                                                     {req.details?.type || "—"}
                                                 </span>
                                             </TableCell>
                                             <TableCell className="py-5 text-center">
-                                                <span className="text-xl font-black text-slate-900 dark:text-white group-hover:scale-110 inline-block transition-transform tabular-nums">
+                                                <span className="text-xl font-bold text-slate-900 dark:text-white group-hover:scale-110 inline-block transition-transform tabular-nums">
                                                     {req.details?.quantity?.toLocaleString() || 0}
                                                 </span>
                                             </TableCell>
@@ -595,7 +595,7 @@ export default function OrderRequestsPage() {
                                             <TableCell className="py-5">
                                                 {worker ? (
                                                     <div className="flex items-center gap-2">
-                                                        <div className="h-7 w-7 rounded-full bg-[#1B4B9A]/10 dark:bg-blue-900/30 flex items-center justify-center text-[10px] font-black text-[#1B4B9A] dark:text-blue-400">
+                                                        <div className="h-7 w-7 rounded-full bg-[#1B4B9A]/10 dark:bg-blue-900/30 flex items-center justify-center text-[10px] font-semibold text-[#1B4B9A] dark:text-blue-400">
                                                             {worker.name.substring(0, 2).toUpperCase()}
                                                         </div>
                                                         <span className="text-sm font-bold text-slate-600 dark:text-slate-300">{worker.name}</span>
@@ -654,7 +654,7 @@ export default function OrderRequestsPage() {
                                     <button
                                         key={i}
                                         onClick={() => setCurrentPage(i + 1)}
-                                        className={`h-9 w-9 rounded-xl flex items-center justify-center text-xs font-black transition-all ${currentPage === i + 1
+                                        className={`h-9 w-9 rounded-xl flex items-center justify-center text-xs font-bold transition-all ${currentPage === i + 1
                                             ? "bg-[#E8601C] text-white shadow-lg shadow-orange-500/20"
                                             : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500"
                                             }`}
@@ -692,17 +692,17 @@ export default function OrderRequestsPage() {
 
                                     <div className="space-y-4 relative z-10">
                                         <div className="flex items-center gap-2">
-                                            <Badge variant="outline" className="rounded-md px-2 py-0 text-[9px] font-black uppercase tracking-tighter border-slate-200 dark:border-slate-700 text-slate-400">
+                                            <Badge variant="outline" className="rounded-md px-2 py-0 text-[9px] font-bold uppercase tracking-tighter border-slate-200 dark:border-slate-700 text-slate-400">
                                                 #{selectedRequest._id.slice(-6).toUpperCase()}
                                             </Badge>
                                             {deadlinePast && (
-                                                <Badge className="bg-red-500 text-white text-[9px] font-black rounded-md border-none">
+                                                <Badge className="bg-red-500 text-white text-[9px] font-bold rounded-md border-none">
                                                     {lang === 'th' ? 'เลยกำหนด' : 'Overdue'}
                                                 </Badge>
                                             )}
                                         </div>
                                         <div>
-                                            <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
+                                            <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight leading-tight">
                                                 {cust?.name || (lang === 'th' ? 'ไม่ระบุลูกค้า' : 'Unknown Customer')}
                                             </h2>
                                             {cust?.phone && (
@@ -713,18 +713,18 @@ export default function OrderRequestsPage() {
                                         {/* Product Details Card */}
                                         <div className="p-6 rounded-3xl mt-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/50 flex items-center justify-between">
                                             <div>
-                                                <span className="text-[10px] font-black uppercase tracking-widest text-blue-500 mb-1 block">
+                                                <span className="text-[10px] font-semibold uppercase tracking-widest text-blue-500 mb-1 block">
                                                     {it.table.productType}
                                                 </span>
-                                                <span className="text-lg font-black text-[#1B4B9A] dark:text-blue-400">
+                                                <span className="text-lg font-bold text-[#1B4B9A] dark:text-blue-400">
                                                     {selectedRequest.details?.type || "—"}
                                                 </span>
                                             </div>
                                             <div className="text-right">
-                                                <span className="text-[10px] font-black uppercase tracking-widest text-blue-500 mb-1 block">
+                                                <span className="text-[10px] font-semibold uppercase tracking-widest text-blue-500 mb-1 block">
                                                     {it.table.quantity}
                                                 </span>
-                                                <span className="text-3xl font-black text-[#1B4B9A] dark:text-blue-400 tabular-nums">
+                                                <span className="text-3xl font-bold text-[#1B4B9A] dark:text-blue-400 tabular-nums">
                                                     {selectedRequest.details?.quantity?.toLocaleString() || 0}
                                                 </span>
                                             </div>
@@ -737,28 +737,28 @@ export default function OrderRequestsPage() {
                                     <div className="space-y-4">
                                         <div className="flex items-center gap-2">
                                             <DollarSign className="h-4 w-4 text-[#E8601C]" />
-                                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">{it.detail.orderInfo}</h3>
+                                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em]">{it.detail.orderInfo}</h3>
                                         </div>
                                         <div className="grid grid-cols-2 gap-3">
                                             <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">{it.table.price}</p>
-                                                <p className="text-sm font-black text-slate-900 dark:text-white">
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase mb-1">{it.table.price}</p>
+                                                <p className="text-sm font-bold text-slate-900 dark:text-white">
                                                     {selectedRequest.details?.estimatedPrice ? formatPrice(selectedRequest.details.estimatedPrice) : "—"}
                                                 </p>
                                             </div>
                                             <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">{it.table.assignedTo}</p>
-                                                <p className="text-sm font-black text-slate-900 dark:text-white">
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase mb-1">{it.table.assignedTo}</p>
+                                                <p className="text-sm font-bold text-slate-900 dark:text-white">
                                                     {worker?.name || (lang === 'th' ? 'ยังไม่มอบหมาย' : 'Unassigned')}
                                                 </p>
                                             </div>
                                         </div>
                                         <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase mb-1 flex items-center gap-1">
+                                            <p className="text-[10px] font-semibold text-slate-400 uppercase mb-1 flex items-center gap-1">
                                                 <MapPin className="h-3 w-3" />
                                                 {it.detail.deliveryTo}
                                             </p>
-                                            <p className="text-sm font-black text-slate-900 dark:text-white">
+                                            <p className="text-sm font-bold text-slate-900 dark:text-white">
                                                 {selectedRequest.deliveryLocation || "—"}
                                             </p>
                                         </div>
@@ -768,39 +768,39 @@ export default function OrderRequestsPage() {
                                     <div className="space-y-4">
                                         <div className="flex items-center gap-2">
                                             <CalendarClock className="h-4 w-4 text-[#E8601C]" />
-                                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">{it.detail.timeline}</h3>
+                                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em]">{it.detail.timeline}</h3>
                                         </div>
                                         <div className="space-y-3">
                                             <div className={`bg-white dark:bg-slate-900 p-4 rounded-2xl border shadow-sm ${deadlinePast
                                                 ? 'border-red-200 dark:border-red-900/50'
                                                 : 'border-slate-100 dark:border-slate-800'
                                                 }`}>
-                                                <p className={`text-[10px] font-bold uppercase mb-1 flex items-center gap-1 ${deadlinePast ? 'text-red-500' : 'text-slate-400'}`}>
+                                                <p className={`text-[10px] font-semibold uppercase mb-1 flex items-center gap-1 ${deadlinePast ? 'text-red-500' : 'text-slate-400'}`}>
                                                     <Clock className="h-3 w-3" />
                                                     {it.detail.deadlineLabel}
                                                 </p>
-                                                <p className={`text-sm font-black ${deadlinePast ? 'text-red-600' : 'text-slate-900 dark:text-white'}`}>
+                                                <p className={`text-sm font-bold ${deadlinePast ? 'text-red-600' : 'text-slate-900 dark:text-white'}`}>
                                                     {formatDate(selectedRequest.deadline)}
                                                 </p>
                                             </div>
                                             <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1 flex items-center gap-1">
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase mb-1 flex items-center gap-1">
                                                     <Truck className="h-3 w-3" />
                                                     {it.detail.expectedDelivery}
                                                 </p>
-                                                <p className="text-sm font-black text-slate-900 dark:text-white">
+                                                <p className="text-sm font-bold text-slate-900 dark:text-white">
                                                     {formatDate(selectedRequest.expectedDeliveryDate)}
                                                 </p>
                                             </div>
                                             <div className="grid grid-cols-2 gap-3">
                                                 <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">{it.detail.createdAt}</p>
+                                                    <p className="text-[10px] font-semibold text-slate-400 uppercase mb-1">{it.detail.createdAt}</p>
                                                     <p className="text-xs font-bold text-slate-600 dark:text-slate-300">
                                                         {formatDate(selectedRequest.createdAt)}
                                                     </p>
                                                 </div>
                                                 <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">{it.detail.updatedAt}</p>
+                                                    <p className="text-[10px] font-semibold text-slate-400 uppercase mb-1">{it.detail.updatedAt}</p>
                                                     <p className="text-xs font-bold text-slate-600 dark:text-slate-300">
                                                         {formatDate(selectedRequest.updatedAt)}
                                                     </p>
@@ -815,13 +815,13 @@ export default function OrderRequestsPage() {
                                     <Button
                                         onClick={() => handleDelete(selectedRequest._id)}
                                         variant="outline"
-                                        className="rounded-2xl h-14 border-red-200 dark:border-red-900 text-red-600 hover:bg-red-50 dark:hover:bg-red-950 font-black tracking-tight"
+                                        className="rounded-2xl h-14 border-red-200 dark:border-red-900 text-red-600 hover:bg-red-50 dark:hover:bg-red-950 font-bold tracking-tight"
                                     >
                                         <Trash2 className="h-5 w-5" />
                                     </Button>
                                     <Button
                                         onClick={() => openEditDialog(selectedRequest)}
-                                        className="rounded-2xl h-14 bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-[#E8601C] dark:hover:bg-[#E8601C] hover:text-white transition-all font-black tracking-tight"
+                                        className="rounded-2xl h-14 bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-[#E8601C] dark:hover:bg-[#E8601C] hover:text-white transition-all font-bold tracking-tight"
                                     >
                                         <Edit3 className="mr-2 h-5 w-5" />
                                         {it.detail.edit}
@@ -840,7 +840,7 @@ export default function OrderRequestsPage() {
             }}>
                 <DialogContent className="sm:max-w-[560px] border-slate-200 dark:border-slate-800 rounded-3xl p-8 bg-white dark:bg-slate-950 max-h-[90vh] overflow-y-auto">
                     <DialogHeader className="mb-6">
-                        <DialogTitle className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                        <DialogTitle className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
                             {isEditing ? it.form.editTitle : it.newRequest}
                         </DialogTitle>
                         <DialogDescription className="text-slate-500 font-medium">
@@ -851,7 +851,7 @@ export default function OrderRequestsPage() {
                     <div className="space-y-8">
                         {/* Customer Selection */}
                         <div className="space-y-3">
-                            <Label className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                            <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
                                 <Users className="h-3 w-3" />
                                 {it.form.selectCustomer} *
                             </Label>
@@ -859,7 +859,7 @@ export default function OrderRequestsPage() {
                                 value={formData.customer}
                                 onValueChange={(val) => setFormData({ ...formData, customer: val || "" })}
                             >
-                                <SelectTrigger className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-black text-slate-900 dark:text-white px-5 focus:ring-[#E8601C] focus:border-[#E8601C]">
+                                <SelectTrigger className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-slate-900 dark:text-white px-5 focus:ring-[#E8601C] focus:border-[#E8601C]">
                                     <SelectValue placeholder={lang === 'th' ? 'เลือกลูกค้า...' : 'Select a customer...'}>
                                         {(value: string | null) => {
                                             if (!value) return <span className="text-muted-foreground">{lang === 'th' ? 'เลือกลูกค้า...' : 'Select a customer...'}</span>;
@@ -889,18 +889,18 @@ export default function OrderRequestsPage() {
                         {/* Product Details */}
                         <div className="grid grid-cols-3 gap-4">
                             <div className="col-span-1 space-y-3">
-                                <Label className="text-xs font-black text-slate-500 uppercase tracking-widest">
+                                <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest">
                                     {it.form.productType} *
                                 </Label>
                                 <Input
                                     placeholder="e.g. Tempered"
                                     value={formData.type}
                                     onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                                    className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-black text-slate-900 dark:text-white px-5 focus:ring-[#E8601C]"
+                                    className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-slate-900 dark:text-white px-5 focus:ring-[#E8601C]"
                                 />
                             </div>
                             <div className="space-y-3">
-                                <Label className="text-xs font-black text-slate-500 uppercase tracking-widest">
+                                <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest">
                                     {it.form.quantity}
                                 </Label>
                                 <Input
@@ -908,11 +908,11 @@ export default function OrderRequestsPage() {
                                     min={1}
                                     value={formData.quantity}
                                     onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 1 })}
-                                    className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-black text-slate-900 dark:text-white px-5 focus:ring-[#E8601C]"
+                                    className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-slate-900 dark:text-white px-5 focus:ring-[#E8601C]"
                                 />
                             </div>
                             <div className="space-y-3">
-                                <Label className="text-xs font-black text-slate-500 uppercase tracking-widest">
+                                <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest">
                                     {it.form.estimatedPrice}
                                 </Label>
                                 <Input
@@ -920,14 +920,14 @@ export default function OrderRequestsPage() {
                                     min={0}
                                     value={formData.estimatedPrice}
                                     onChange={(e) => setFormData({ ...formData, estimatedPrice: parseFloat(e.target.value) || 0 })}
-                                    className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-black text-slate-900 dark:text-white px-5 focus:ring-[#E8601C]"
+                                    className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-slate-900 dark:text-white px-5 focus:ring-[#E8601C]"
                                 />
                             </div>
                         </div>
 
                         {/* Delivery Location */}
                         <div className="space-y-3">
-                            <Label className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                            <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
                                 <MapPin className="h-3 w-3" />
                                 {it.form.deliveryLocation}
                             </Label>
@@ -935,14 +935,14 @@ export default function OrderRequestsPage() {
                                 placeholder={lang === 'th' ? 'เช่น บางนา, กรุงเทพฯ' : 'e.g. Bangna, Bangkok'}
                                 value={formData.deliveryLocation}
                                 onChange={(e) => setFormData({ ...formData, deliveryLocation: e.target.value })}
-                                className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-black text-slate-900 dark:text-white px-5 focus:ring-[#E8601C]"
+                                className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-slate-900 dark:text-white px-5 focus:ring-[#E8601C]"
                             />
                         </div>
 
                         {/* Dates */}
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-3">
-                                <Label className="text-xs font-black text-slate-500 uppercase tracking-widest">
+                                <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest">
                                     {it.form.deadline}
                                 </Label>
                                 <Input
@@ -953,7 +953,7 @@ export default function OrderRequestsPage() {
                                 />
                             </div>
                             <div className="space-y-3">
-                                <Label className="text-xs font-black text-slate-500 uppercase tracking-widest">
+                                <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest">
                                     {it.form.expectedDelivery}
                                 </Label>
                                 <Input
@@ -967,7 +967,7 @@ export default function OrderRequestsPage() {
 
                         {/* Assign To */}
                         <div className="space-y-3">
-                            <Label className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                            <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
                                 <User className="h-3 w-3" />
                                 {it.form.assignTo}
                             </Label>
@@ -975,7 +975,7 @@ export default function OrderRequestsPage() {
                                 value={formData.assignedTo}
                                 onValueChange={(val) => setFormData({ ...formData, assignedTo: val || "" })}
                             >
-                                <SelectTrigger className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-black text-slate-900 dark:text-white px-5 focus:ring-[#E8601C]">
+                                <SelectTrigger className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-slate-900 dark:text-white px-5 focus:ring-[#E8601C]">
                                     <SelectValue placeholder={lang === 'th' ? 'เลือกผู้รับผิดชอบ...' : 'Select a worker...'}>
                                         {(value: string | null) => {
                                             if (!value) return <span className="text-muted-foreground">{lang === 'th' ? 'เลือกผู้รับผิดชอบ...' : 'Select a worker...'}</span>;
@@ -1014,7 +1014,7 @@ export default function OrderRequestsPage() {
                         <Button
                             onClick={handleSubmit}
                             disabled={isSubmitting || !formData.customer || !formData.type}
-                            className={`rounded-2xl h-14 min-w-[160px] font-black tracking-tight text-white transition-all shadow-xl ${isSubmitting ? "bg-slate-400" : "bg-slate-900 dark:bg-white dark:text-slate-900 hover:bg-[#E8601C] dark:hover:bg-[#E8601C] dark:hover:text-white"
+                            className={`rounded-2xl h-14 min-w-[160px] font-bold tracking-tight text-white transition-all shadow-xl ${isSubmitting ? "bg-slate-400" : "bg-slate-900 dark:bg-white dark:text-slate-900 hover:bg-[#E8601C] dark:hover:bg-[#E8601C] dark:hover:text-white"
                                 }`}
                         >
                             {isSubmitting
@@ -1037,7 +1037,7 @@ export default function OrderRequestsPage() {
                                 <div className="h-10 w-10 rounded-xl bg-red-50 dark:bg-red-950/30 flex items-center justify-center shrink-0">
                                     <Trash2 className="h-5 w-5 text-red-500" />
                                 </div>
-                                <DialogTitle className="text-lg font-black text-slate-900 dark:text-white">
+                                <DialogTitle className="text-lg font-bold text-slate-900 dark:text-white">
                                     {lang === 'th' ? 'ยืนยันการลบ' : 'Confirm Delete'}
                                 </DialogTitle>
                             </div>
@@ -1052,7 +1052,7 @@ export default function OrderRequestsPage() {
                         <Button variant="outline" className="flex-1 rounded-xl h-11 font-bold" onClick={() => setDeleteTargetId(null)}>
                             {lang === 'th' ? 'ยกเลิก' : 'Cancel'}
                         </Button>
-                        <Button className="flex-1 rounded-xl h-11 font-black bg-red-600 hover:bg-red-700 text-white" onClick={executeDelete}>
+                        <Button className="flex-1 rounded-xl h-11 font-bold bg-red-600 hover:bg-red-700 text-white" onClick={executeDelete}>
                             <Trash2 className="h-4 w-4 mr-1.5" />
                             {lang === 'th' ? 'ลบ' : 'Delete'}
                         </Button>

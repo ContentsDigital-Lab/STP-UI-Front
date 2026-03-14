@@ -426,7 +426,7 @@ export default function MaterialLogsPage() {
         const colorClass = isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400";
         const sign = isPositive ? "+" : "";
         return (
-            <span className={`text-sm font-black tabular-nums ${colorClass}`}>
+            <span className={`text-sm font-bold tabular-nums ${colorClass}`}>
                 {sign}{qty.toLocaleString()}
             </span>
         );
@@ -439,7 +439,7 @@ export default function MaterialLogsPage() {
             : String(log.order);
         if (!orderId) return <span className="text-slate-300 dark:text-slate-700">—</span>;
         return (
-            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#1B4B9A] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 px-2 py-0.5 rounded-lg border border-blue-100 dark:border-blue-900/40">
+            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#1B4B9A] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 px-2 py-0.5 rounded-lg border border-blue-100 dark:border-blue-900/40">
                 <Package className="h-3 w-3" />
                 {orderId.slice(-6).toUpperCase()}
             </span>
@@ -455,7 +455,7 @@ export default function MaterialLogsPage() {
             : "text-red-700 bg-red-50 border-red-100 dark:text-red-400 dark:bg-red-950/30 dark:border-red-900/40";
         return (
             <div className="flex flex-col gap-0.5">
-                <span className={`inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded border ${colorClass}`}>
+                <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded border ${colorClass}`}>
                     <Link2 className="h-2.5 w-2.5" />
                     {label}
                 </span>
@@ -492,7 +492,7 @@ export default function MaterialLogsPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl lg:text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                    <h1 className="text-3xl lg:text-4xl font-bold text-slate-900 dark:text-white uppercase tracking-tight">
                         {t.logs}
                     </h1>
                     <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">
@@ -521,19 +521,19 @@ export default function MaterialLogsPage() {
                     {/* Stats Card */}
                     <div className="flex items-center gap-3 bg-white dark:bg-slate-900 p-3 lg:px-5 lg:py-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                         <div className="flex flex-col">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">
                                 {lang === "th" ? "รายการทั้งหมด" : "Total Records"}
                             </span>
-                            <span className="text-xl font-black text-slate-900 dark:text-white leading-none">
+                            <span className="text-xl font-bold text-slate-900 dark:text-white leading-none">
                                 {filteredLogs.length.toLocaleString()}
                             </span>
                         </div>
                         {lastUpdated && (
                             <div className="flex flex-col border-l border-slate-100 dark:border-slate-800 pl-3">
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">
                                     {lang === "th" ? "อัปเดตล่าสุด" : "Last update"}
                                 </span>
-                                <span className="text-[11px] font-bold text-slate-500 leading-none">
+                                <span className="text-[11px] font-semibold text-slate-500 leading-none">
                                     {lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                                 </span>
                             </div>
@@ -546,7 +546,7 @@ export default function MaterialLogsPage() {
             <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
                 <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr_1fr_1fr_auto] items-end gap-5">
                     <div className="space-y-2">
-                        <Label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1.5">
+                        <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1.5">
                             <Search className="h-3 w-3" />
                             {lang === "th" ? "ค้นหา" : "Search"}
                         </Label>
@@ -559,7 +559,7 @@ export default function MaterialLogsPage() {
                     </div>
 
                     <div className="space-y-2">
-                        <Label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">
+                        <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">
                             {lang === "th" ? "การกระทำ" : "Action"}
                         </Label>
                         <Select value={actionFilter} onValueChange={(v) => { setActionFilter(v || "all"); setCurrentPage(1); }}>
@@ -577,7 +577,7 @@ export default function MaterialLogsPage() {
                     </div>
 
                     <div className="space-y-2">
-                        <Label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">
+                        <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">
                             {lang === "th" ? "ประเภทสต็อก" : "Stock Type"}
                         </Label>
                         <Select value={stockTypeFilter} onValueChange={(v) => { setStockTypeFilter(v || "all"); setCurrentPage(1); }}>
@@ -593,7 +593,7 @@ export default function MaterialLogsPage() {
                     </div>
 
                     <div className="space-y-2">
-                        <Label className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">
+                        <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">
                             {lang === "th" ? "ช่วงเวลา" : "Period"}
                         </Label>
                         <Select value={dateFilter} onValueChange={(v) => { setDateFilter(v || "all"); setCurrentPage(1); }}>
@@ -626,31 +626,31 @@ export default function MaterialLogsPage() {
                     <Table>
                         <TableHeader>
                             <TableRow className="border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
-                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 px-6 text-slate-500 dark:text-slate-400 whitespace-nowrap text-center">
+                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 px-6 text-slate-500 dark:text-slate-400 whitespace-nowrap text-center">
                                     {lang === "th" ? "วันเวลา" : "Date / Time"}
                                 </TableHead>
-                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 text-center">
+                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 text-center">
                                     {lang === "th" ? "วัสดุ" : "Material"}
                                 </TableHead>
-                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 text-center">
+                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 text-center">
                                     {lang === "th" ? "การกระทำ" : "Action"}
                                 </TableHead>
-                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 whitespace-nowrap text-center">
+                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 whitespace-nowrap text-center">
                                     {lang === "th" ? "จำนวนที่เปลี่ยน" : "Qty Changed"}
                                 </TableHead>
-                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 whitespace-nowrap text-center">
+                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 whitespace-nowrap text-center">
                                     {lang === "th" ? "ประเภทสต็อก" : "Stock Type"}
                                 </TableHead>
-                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 text-center">
+                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 text-center">
                                     {lang === "th" ? "ออเดอร์" : "Order"}
                                 </TableHead>
-                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 whitespace-nowrap text-center">
+                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 whitespace-nowrap text-center">
                                     {lang === "th" ? "สถานที่จัดเก็บ" : "Location"}
                                 </TableHead>
-                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 text-center">
+                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 text-center">
                                     {lang === "th" ? "อ้างอิง" : "Reference"}
                                 </TableHead>
-                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 pr-6 whitespace-nowrap text-center">
+                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 pr-6 whitespace-nowrap text-center">
                                     {lang === "th" ? "ผู้ดำเนินการ" : "Performed By"}
                                 </TableHead>
                             </TableRow>
@@ -676,7 +676,7 @@ export default function MaterialLogsPage() {
                                                             { day: "2-digit", month: "short", year: "numeric" }
                                                         )}
                                                     </span>
-                                                    <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1 mt-0.5">
+                                                    <span className="text-[11px] font-semibold text-slate-500 flex items-center gap-1 mt-0.5">
                                                         <Clock className="h-3 w-3" />
                                                         {new Date(log.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                                                     </span>
@@ -690,7 +690,7 @@ export default function MaterialLogsPage() {
                                                         {materialName || "—"}
                                                     </span>
                                                     {log.stockType && (
-                                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">
                                                             {log.stockType}
                                                         </span>
                                                     )}
@@ -713,7 +713,7 @@ export default function MaterialLogsPage() {
                                                     const stockType = log.stockType ?? (log.referenceId && !log.referenceType ? invMap.get(log.referenceId)?.stockType : undefined);
                                                     if (!stockType) return <span className="text-slate-300 dark:text-slate-700">—</span>;
                                                     return (
-                                                        <span className={`text-[11px] font-black px-2 py-0.5 rounded-lg border ${stockType === "Raw"
+                                                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-lg border ${stockType === "Raw"
                                                             ? "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
                                                             : "bg-violet-50 text-violet-700 border-violet-100 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-900/40"
                                                             }`}>
@@ -734,7 +734,7 @@ export default function MaterialLogsPage() {
                                                     const moveLocs = getMoveLocations(log, moveSourceIds, invMap, parentLogMap, logById);
                                                     if (moveLocs) {
                                                         return (
-                                                            <div className="flex items-center gap-1 text-[11px] font-bold text-violet-700 dark:text-violet-400">
+                                                            <div className="flex items-center gap-1 text-[11px] font-semibold text-violet-700 dark:text-violet-400">
                                                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border bg-violet-50 border-violet-100 dark:bg-violet-950/30 dark:border-violet-900/40">
                                                                     <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
                                                                     {moveLocs.from ?? '?'}
@@ -751,7 +751,7 @@ export default function MaterialLogsPage() {
                                                     if (!loc) return <span className="text-slate-300 dark:text-slate-700">—</span>;
                                                     const isUpdate = log.quantityChanged === 0 && log.actionType === "import";
                                                     return (
-                                                        <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg border ${isUpdate
+                                                        <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg border ${isUpdate
                                                             ? "bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/40"
                                                             : "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
                                                             }`}>
@@ -776,7 +776,7 @@ export default function MaterialLogsPage() {
                                                     return (
                                                         <div className="flex flex-col">
                                                             <span className="text-sm font-bold text-slate-800 dark:text-slate-200">{name}</span>
-                                                            {role && <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{role}</span>}
+                                                            {role && <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">{role}</span>}
                                                         </div>
                                                     );
                                                 })()}
@@ -861,28 +861,28 @@ export default function MaterialLogsPage() {
                                 <div className="h-8 w-8 rounded-xl bg-[#1B4B9A]/10 dark:bg-[#1B4B9A]/20 flex items-center justify-center">
                                     <Layers className="h-4 w-4 text-[#1B4B9A]" />
                                 </div>
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">
                                     {lang === "th" ? "รายละเอียดการเคลื่อนไหว" : "Material Movement Detail"}
                                 </span>
                             </div>
-                            <SheetTitle className="text-xl font-black text-slate-900 dark:text-white leading-tight truncate">
+                            <SheetTitle className="text-xl font-bold text-slate-900 dark:text-white leading-tight truncate">
                                 {selectedLog ? getMaterialName(selectedLog) : "—"}
                             </SheetTitle>
                             <div className="flex flex-wrap items-center gap-2 mt-1.5">
                                 {/* Current location badge */}
                                 {detailInventory && (
-                                    <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-[#1B4B9A]/10 text-[#1B4B9A] dark:text-blue-400 border border-[#1B4B9A]/20">
+                                    <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-[#1B4B9A]/10 text-[#1B4B9A] dark:text-blue-400 border border-[#1B4B9A]/20">
                                         <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
                                         {detailInventory.location}
                                     </span>
                                 )}
                                 {detailInventory?.stockType && (
-                                    <span className={`inline-flex items-center text-[11px] font-bold px-2.5 py-1 rounded-lg border ${detailInventory.stockType === "Raw" ? "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700" : "bg-violet-50 text-violet-700 border-violet-100 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-900/40"}`}>
+                                    <span className={`inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-lg border ${detailInventory.stockType === "Raw" ? "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700" : "bg-violet-50 text-violet-700 border-violet-100 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-900/40"}`}>
                                         {detailInventory.stockType}
                                     </span>
                                 )}
                                 {detailInventory && (
-                                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 px-2.5 py-1 rounded-lg border border-emerald-100 dark:border-emerald-900/40">
+                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 px-2.5 py-1 rounded-lg border border-emerald-100 dark:border-emerald-900/40">
                                         <Layers className="h-3 w-3" />
                                         {lang === "th" ? "คงเหลือ" : "Stock"} {detailInventory.quantity.toLocaleString()}
                                     </span>
@@ -910,7 +910,7 @@ export default function MaterialLogsPage() {
 
                         {/* Summary Stats */}
                         <div className="px-7 py-5 border-b border-slate-100 dark:border-slate-800">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
+                            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-3">
                                 {lang === "th" ? "สรุปการเคลื่อนไหว" : "Movement Summary"}
                             </p>
                             <div className="grid grid-cols-2 gap-3">
@@ -919,7 +919,7 @@ export default function MaterialLogsPage() {
                                     ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/40"
                                     : "bg-red-50 dark:bg-red-950/20 border-red-100 dark:border-red-900/40"
                                     }`}>
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-1">
+                                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-1">
                                         {lang === "th" ? "ยอดสุทธิ (นำเข้า - ออก)" : "Net Change (In - Out)"}
                                     </p>
                                     <div className="flex items-center gap-2">
@@ -927,7 +927,7 @@ export default function MaterialLogsPage() {
                                             ? <TrendingUp className="h-5 w-5 text-emerald-600" />
                                             : <TrendingDown className="h-5 w-5 text-red-600" />
                                         }
-                                        <span className={`text-2xl font-black tabular-nums ${detailStats.net >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400"}`}>
+                                        <span className={`text-2xl font-bold tabular-nums ${detailStats.net >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400"}`}>
                                             {detailStats.net >= 0 ? "+" : ""}{detailStats.net.toLocaleString()}
                                         </span>
                                     </div>
@@ -935,12 +935,12 @@ export default function MaterialLogsPage() {
 
                                 {/* Import */}
                                 <div className="rounded-2xl p-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">
                                         {lang === "th" ? "นำเข้าคลัง" : "Imported"}
                                     </p>
                                     <div className="flex items-center gap-1.5">
                                         <ArrowDownRight className="h-4 w-4 text-emerald-500" />
-                                        <span className="text-lg font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
+                                        <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
                                             +{detailStats.totalImport.toLocaleString()}
                                         </span>
                                     </div>
@@ -948,12 +948,12 @@ export default function MaterialLogsPage() {
 
                                 {/* Withdraw */}
                                 <div className="rounded-2xl p-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">
                                         {lang === "th" ? "เบิกออก" : "Withdrawn"}
                                     </p>
                                     <div className="flex items-center gap-1.5">
                                         <ArrowUpRight className="h-4 w-4 text-orange-500" />
-                                        <span className="text-lg font-black text-orange-600 dark:text-orange-400 tabular-nums">
+                                        <span className="text-lg font-bold text-orange-600 dark:text-orange-400 tabular-nums">
                                             -{detailStats.totalWithdraw.toLocaleString()}
                                         </span>
                                     </div>
@@ -961,12 +961,12 @@ export default function MaterialLogsPage() {
 
                                 {/* Cut */}
                                 <div className="rounded-2xl p-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">
                                         {lang === "th" ? "ตัด/แปรรูป" : "Cut"}
                                     </p>
                                     <div className="flex items-center gap-1.5">
                                         <Scissors className="h-4 w-4 text-blue-500" />
-                                        <span className="text-lg font-black text-blue-600 dark:text-blue-400 tabular-nums">
+                                        <span className="text-lg font-bold text-blue-600 dark:text-blue-400 tabular-nums">
                                             -{detailStats.totalCut.toLocaleString()}
                                         </span>
                                     </div>
@@ -974,12 +974,12 @@ export default function MaterialLogsPage() {
 
                                 {/* Claim */}
                                 <div className="rounded-2xl p-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">
                                         {lang === "th" ? "เคลม" : "Claimed"}
                                     </p>
                                     <div className="flex items-center gap-1.5">
                                         <FileWarning className="h-4 w-4 text-red-500" />
-                                        <span className="text-lg font-black text-red-600 dark:text-red-400 tabular-nums">
+                                        <span className="text-lg font-bold text-red-600 dark:text-red-400 tabular-nums">
                                             -{detailStats.totalClaim.toLocaleString()}
                                         </span>
                                     </div>
@@ -989,7 +989,7 @@ export default function MaterialLogsPage() {
 
                         {/* Timeline */}
                         <div className="px-7 py-5">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-5">
+                            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-5">
                                 {lang === "th" ? "ไทม์ไลน์การเคลื่อนไหว" : "Movement Timeline"}
                                 <span className="ml-2 normal-case font-bold text-slate-300 dark:text-slate-600">
                                     ({lang === "th" ? "ล่าสุดขึ้นก่อน" : "newest first"})
@@ -1049,7 +1049,7 @@ export default function MaterialLogsPage() {
                                                         <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-50 dark:border-slate-800">
                                                             {/* Stock Type */}
                                                             {stockType && (
-                                                                <span className={`inline-flex items-center gap-1 text-[11px] font-black px-2.5 py-1 rounded-lg border ${stockType === "Raw"
+                                                                <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg border ${stockType === "Raw"
                                                                     ? "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
                                                                     : "bg-violet-50 text-violet-700 border-violet-100 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-900/40"}`}>
                                                                     {stockType}
@@ -1058,7 +1058,7 @@ export default function MaterialLogsPage() {
 
                                                             {/* Location — single */}
                                                             {singleLoc && (
-                                                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-100 dark:border-slate-700">
+                                                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-100 dark:border-slate-700">
                                                                     <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
                                                                     {singleLoc}
                                                                 </span>
@@ -1066,7 +1066,7 @@ export default function MaterialLogsPage() {
 
                                                             {/* Location — move from→to */}
                                                             {moveLocs && (
-                                                                <div className="flex items-center gap-1 text-[11px] font-bold text-violet-700 dark:text-violet-400 flex-wrap">
+                                                                <div className="flex items-center gap-1 text-[11px] font-semibold text-violet-700 dark:text-violet-400 flex-wrap">
                                                                     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border bg-violet-50 border-violet-100 dark:bg-violet-950/30 dark:border-violet-900/40">
                                                                         <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
                                                                         {lang === "th" ? "จาก" : "From"}: {moveLocs.from ?? '?'}
@@ -1081,7 +1081,7 @@ export default function MaterialLogsPage() {
 
                                                             {/* Worker */}
                                                             {workerName && (
-                                                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-100 dark:border-slate-700">
+                                                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-100 dark:border-slate-700">
                                                                     <User className="h-3 w-3" />
                                                                     {workerName}{workerRole ? ` · ${workerRole}` : ''}
                                                                 </span>
@@ -1089,7 +1089,7 @@ export default function MaterialLogsPage() {
 
                                                             {/* Order */}
                                                             {orderId && (
-                                                                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#1B4B9A] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 px-2.5 py-1 rounded-lg border border-blue-100 dark:border-blue-900/40">
+                                                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#1B4B9A] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 px-2.5 py-1 rounded-lg border border-blue-100 dark:border-blue-900/40">
                                                                     <Package className="h-3 w-3" />
                                                                     {lang === "th" ? "ออเดอร์" : "Order"} #{orderId.slice(-6).toUpperCase()}
                                                                 </span>
@@ -1097,7 +1097,7 @@ export default function MaterialLogsPage() {
 
                                                             {/* Reference */}
                                                             {log.referenceType && log.referenceId && (
-                                                                <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg border ${log.referenceType === "withdrawal"
+                                                                <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg border ${log.referenceType === "withdrawal"
                                                                     ? "text-orange-700 bg-orange-50 border-orange-100 dark:text-orange-400 dark:bg-orange-950/30 dark:border-orange-900/40"
                                                                     : "text-red-700 bg-red-50 border-red-100 dark:text-red-400 dark:bg-red-950/30 dark:border-red-900/40"
                                                                     }`}>
@@ -1129,7 +1129,7 @@ export default function MaterialLogsPage() {
                         <span className="text-[11px] text-slate-400 font-bold">
                             {lang === "th" ? "ข้อมูล ณ เวลา" : "Data as of"} {lastUpdated?.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) ?? "—"}
                         </span>
-                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
                             <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                             {lang === "th" ? "อัปเดตอัตโนมัติผ่าน WebSocket" : "Auto-updating via WebSocket"}
                         </div>

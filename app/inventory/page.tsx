@@ -617,7 +617,7 @@ export default function InventoryPage() {
             {/* Page Header */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 pb-6 border-b border-slate-200 dark:border-slate-800">
                 <div className="space-y-1">
-                    <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 dark:text-white">
+                    <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white">
                         {it.title}
                     </h1>
                     <p className="text-slate-500 dark:text-slate-400 text-sm sm:text-base font-medium">
@@ -650,15 +650,15 @@ export default function InventoryPage() {
                             <div className="h-12 w-12 rounded-2xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-[#1B4B9A] dark:text-blue-400 group-hover:bg-[#1B4B9A] group-hover:text-white transition-colors">
                                 <Boxes className="h-6 w-6" />
                             </div>
-                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-50 dark:bg-slate-800/50 px-2 py-1 rounded-lg">
+                            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-50 dark:bg-slate-800/50 px-2 py-1 rounded-lg">
                                 ENJOY OVERVIEW
                             </span>
                         </div>
                         <div>
-                            <p className="text-sm font-bold text-slate-500 dark:text-slate-400">{it.totalItems}</p>
+                            <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">{it.totalItems}</p>
                             <div className="flex items-baseline gap-2 mt-1">
-                                <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">{globalStats.totalItems}</h3>
-                                <span className="text-[11px] font-bold text-emerald-500 flex items-center bg-emerald-50 dark:bg-emerald-900/20 px-1.5 py-0.5 rounded-md">
+                                <h3 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">{globalStats.totalItems}</h3>
+                                <span className="text-[11px] font-semibold text-emerald-500 flex items-center bg-emerald-50 dark:bg-emerald-900/20 px-1.5 py-0.5 rounded-md">
                                     <ArrowUpRight className="h-3 w-3 mr-0.5" />
                                     Active
                                 </span>
@@ -682,7 +682,7 @@ export default function InventoryPage() {
                                 }`}>
                                 <AlertTriangle className="h-6 w-6" />
                             </div>
-                            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${showLowStockOnly ? 'bg-red-200 dark:bg-red-900 text-red-700 dark:text-red-300' : 'bg-red-100/50 dark:bg-red-900/30 text-red-600 dark:text-red-400'
+                            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider ${showLowStockOnly ? 'bg-red-200 dark:bg-red-900 text-red-700 dark:text-red-300' : 'bg-red-100/50 dark:bg-red-900/30 text-red-600 dark:text-red-400'
                                 }`}>
                                 <span className="relative flex h-2 w-2">
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
@@ -692,8 +692,8 @@ export default function InventoryPage() {
                             </div>
                         </div>
                         <div>
-                            <p className={`text-sm font-bold ${showLowStockOnly ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-400'}`}>{it.lowStock}</p>
-                            <h3 className="text-3xl font-black tracking-tight mt-1">
+                            <p className={`text-sm font-semibold ${showLowStockOnly ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-400'}`}>{it.lowStock}</p>
+                            <h3 className="text-3xl font-bold tracking-tight mt-1">
                                 {globalStats.lowStockCount}
                             </h3>
                         </div>
@@ -705,15 +705,15 @@ export default function InventoryPage() {
                             <div className="h-12 w-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
                                 <TrendingUp className="h-6 w-6" />
                             </div>
-                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-50 dark:bg-slate-800/50 px-2 py-1 rounded-lg">
+                            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-50 dark:bg-slate-800/50 px-2 py-1 rounded-lg">
                                 Aggregate
                             </span>
                         </div>
                         <div>
-                            <p className="text-sm font-bold text-slate-500 dark:text-slate-400">{it.totalQuantity}</p>
+                            <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">{it.totalQuantity}</p>
                             <div className="flex items-baseline gap-2 mt-1">
-                                <h3 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">{globalStats.totalQuantity.toLocaleString()}</h3>
-                                <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">UNITS</span>
+                                <h3 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">{globalStats.totalQuantity.toLocaleString()}</h3>
+                                <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase">UNITS</span>
                             </div>
                         </div>
                     </div>
@@ -724,13 +724,13 @@ export default function InventoryPage() {
                             <div className="h-12 w-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
                                 <CheckCircle2 className="h-6 w-6" />
                             </div>
-                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-50 dark:bg-slate-800/50 px-2 py-1 rounded-lg">
+                            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-50 dark:bg-slate-800/50 px-2 py-1 rounded-lg">
                                 Healthy Flow
                             </span>
                         </div>
                         <div>
-                            <p className="text-sm font-bold text-slate-500 dark:text-slate-400">{it.mostStocked}</p>
-                            <h4 className="text-lg font-black text-slate-900 dark:text-white truncate group-hover:text-[#E8601C] transition-colors mt-1">
+                            <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">{it.mostStocked}</p>
+                            <h4 className="text-lg font-bold text-slate-900 dark:text-white truncate group-hover:text-[#E8601C] transition-colors mt-1">
                                 {globalStats.topMaterials[0]
                                     ? (getMaterialInfo(globalStats.topMaterials[0].material)?.name || "N/A")
                                     : "---"}
@@ -745,7 +745,7 @@ export default function InventoryPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr_1fr_auto] items-end gap-6 pb-2">
                     {/* Search Field */}
                     <div className="space-y-2">
-                        <Label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
+                        <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
                             <Search className="h-3 w-3" />
                             Quick Search
                         </Label>
@@ -772,18 +772,18 @@ export default function InventoryPage() {
 
                     {/* Area Filter */}
                     <div className="space-y-2">
-                        <Label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
+                        <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
                             <Warehouse className="h-3 w-3" />
                             {it.area}
                         </Label>
                         <Select value={locationFilter} onValueChange={(val) => { setLocationFilter(val || "all"); setCurrentPage(1); }}>
-                            <SelectTrigger className="h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm focus:ring-[#E8601C]">
+                            <SelectTrigger className="h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-medium text-sm focus:ring-[#E8601C]">
                                 <SelectValue placeholder="All Areas" />
                             </SelectTrigger>
                             <SelectContent className="rounded-2xl border-slate-200 dark:border-slate-800">
-                                <SelectItem value="all" className="font-bold">All Areas</SelectItem>
+                                <SelectItem value="all" className="font-medium">All Areas</SelectItem>
                                 {locations.map(loc => (
-                                    <SelectItem key={loc} value={loc} className="font-bold">{loc}</SelectItem>
+                                    <SelectItem key={loc} value={loc} className="font-medium">{loc}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
@@ -791,18 +791,18 @@ export default function InventoryPage() {
 
                     {/* Glass Type Filter */}
                     <div className="space-y-2">
-                        <Label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
+                        <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
                             <Package className="h-3 w-3" />
                             {it.glassType}
                         </Label>
                         <Select value={glassTypeFilter} onValueChange={(val) => { setGlassTypeFilter(val || "all"); setCurrentPage(1); }}>
-                            <SelectTrigger className="h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm focus:ring-[#E8601C]">
+                            <SelectTrigger className="h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-medium text-sm focus:ring-[#E8601C]">
                                 <SelectValue placeholder="All Types" />
                             </SelectTrigger>
                             <SelectContent className="rounded-2xl border-slate-200 dark:border-slate-800">
-                                <SelectItem value="all" className="font-bold">All Types</SelectItem>
+                                <SelectItem value="all" className="font-medium">All Types</SelectItem>
                                 {glassTypes.map(type => (
-                                    <SelectItem key={type} value={type} className="font-bold">{type}</SelectItem>
+                                    <SelectItem key={type} value={type} className="font-medium">{type}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
@@ -829,11 +829,11 @@ export default function InventoryPage() {
                     <Table>
                         <TableHeader>
                             <TableRow className="border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
-                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 px-6 text-slate-500 dark:text-slate-400">{it.table.identity}</TableHead>
-                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400">{it.table.area}</TableHead>
-                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400">{it.table.health}</TableHead>
-                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400">{it.table.type}</TableHead>
-                                <TableHead className="font-black text-xs uppercase tracking-widest py-5 text-center text-slate-500 dark:text-slate-400">{it.table.quantity}</TableHead>
+                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 px-6 text-slate-500 dark:text-slate-400">{it.table.identity}</TableHead>
+                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400">{it.table.area}</TableHead>
+                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400">{it.table.health}</TableHead>
+                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400">{it.table.type}</TableHead>
+                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-center text-slate-500 dark:text-slate-400">{it.table.quantity}</TableHead>
                                 <TableHead className="text-right py-5 pr-6"></TableHead>
                             </TableRow>
                         </TableHeader>
@@ -861,10 +861,10 @@ export default function InventoryPage() {
                                         >
                                             <TableCell className="py-5 px-6">
                                                 <div className="flex flex-col">
-                                                    <span className="font-black text-slate-900 dark:text-white group-hover:text-[#E8601C] transition-colors">
+                                                    <span className="font-bold text-slate-900 dark:text-white group-hover:text-[#E8601C] transition-colors">
                                                         {mat?.name || it.table.unknown}
                                                     </span>
-                                                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase flex items-center mt-1">
+                                                    <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase flex items-center mt-1">
                                                         {mat?.specDetails?.thickness && <span className="mr-2">{addMmUnit(mat.specDetails.thickness)}</span>}
                                                         {mat?.specDetails?.color && <span>{mat.specDetails.color}</span>}
                                                     </span>
@@ -888,7 +888,7 @@ export default function InventoryPage() {
                                                 </Badge>
                                             </TableCell>
                                             <TableCell className="py-5">
-                                                <span className={`text-[11px] font-black tracking-widest uppercase px-2 py-1 rounded-md ${inv.stockType === "Raw"
+                                                <span className={`text-[11px] font-semibold tracking-widest uppercase px-2 py-1 rounded-md ${inv.stockType === "Raw"
                                                     ? "bg-blue-50 dark:bg-blue-900/30 text-[#1B4B9A] dark:text-blue-400"
                                                     : "bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
                                                     }`}>
@@ -896,7 +896,7 @@ export default function InventoryPage() {
                                                 </span>
                                             </TableCell>
                                             <TableCell className="py-5 text-center">
-                                                <span className="text-xl font-black text-slate-900 dark:text-white group-hover:scale-110 inline-block transition-transform tabular-nums">
+                                                <span className="text-xl font-bold text-slate-900 dark:text-white group-hover:scale-110 inline-block transition-transform tabular-nums">
                                                     {inv.quantity.toLocaleString()}
                                                 </span>
                                             </TableCell>
@@ -918,7 +918,7 @@ export default function InventoryPage() {
                                             <div className="h-16 w-16 rounded-3xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-300 dark:text-slate-700">
                                                 <Boxes className="h-8 w-8" />
                                             </div>
-                                            <p className="text-slate-500 dark:text-slate-400 font-bold tracking-tight">ไม่พบข้อมูลที่ต้องการ</p>
+                                            <p className="text-slate-500 dark:text-slate-400 font-medium tracking-tight">ไม่พบข้อมูลที่ต้องการ</p>
                                         </div>
                                     </TableCell>
                                 </TableRow>
@@ -930,7 +930,7 @@ export default function InventoryPage() {
                 {/* Pagination */}
                 {totalPages > 1 && (
                     <div className="p-6 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                        <span className="text-xs font-semibold text-slate-400 uppercase tracking-widest">
                             Showing page {currentPage} of {totalPages}
                         </span>
                         <div className="flex gap-2">
@@ -948,7 +948,7 @@ export default function InventoryPage() {
                                     <button
                                         key={i}
                                         onClick={() => setCurrentPage(i + 1)}
-                                        className={`h-9 w-9 rounded-xl flex items-center justify-center text-xs font-black transition-all ${currentPage === i + 1
+                                        className={`h-9 w-9 rounded-xl flex items-center justify-center text-xs font-bold transition-all ${currentPage === i + 1
                                             ? "bg-[#E8601C] text-white shadow-lg shadow-orange-500/20"
                                             : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500"
                                             }`}
@@ -989,10 +989,10 @@ export default function InventoryPage() {
                                     <div className="flex items-center justify-between mb-4">
                                         <div className="flex items-center gap-2">
                                             <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${isLowStock ? "bg-red-500" : "bg-emerald-500"}`} />
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                            <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
                                                 #{selectedInventory._id.slice(-6).toUpperCase()}
                                             </span>
-                                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${selectedInventory.stockType === 'Raw'
+                                            <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full ${selectedInventory.stockType === 'Raw'
                                                 ? 'bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
                                                 : 'bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400'}`}>
                                                 {selectedInventory.stockType}
@@ -1007,7 +1007,7 @@ export default function InventoryPage() {
                                     </div>
 
                                     {/* Material name */}
-                                    <h2 className="text-xl font-black text-slate-900 dark:text-white leading-tight truncate" title={mat?.name}>
+                                    <h2 className="text-xl font-bold text-slate-900 dark:text-white leading-tight truncate" title={mat?.name}>
                                         {mat?.name || "N/A"}
                                     </h2>
 
@@ -1021,18 +1021,18 @@ export default function InventoryPage() {
                                     <div className="mt-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700">
                                         <div className="flex items-end justify-between mb-2">
                                             <div>
-                                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">{it.detail.currentStock}</p>
-                                                <p className={`text-4xl font-black tabular-nums tracking-tighter leading-none ${isLowStock ? "text-red-600 dark:text-red-400" : "text-slate-900 dark:text-white"}`}>
+                                                <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-0.5">{it.detail.currentStock}</p>
+                                                <p className={`text-4xl font-bold tabular-nums tracking-tighter leading-none ${isLowStock ? "text-red-600 dark:text-red-400" : "text-slate-900 dark:text-white"}`}>
                                                     {selectedInventory.quantity.toLocaleString()}
                                                 </p>
                                             </div>
                                             <div className="text-right">
                                                 {mat?.reorderPoint != null && (
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase">
+                                                    <p className="text-[10px] font-semibold text-slate-400 uppercase">
                                                         {lang === 'th' ? 'จุดสั่งซื้อ' : 'Reorder at'} {mat.reorderPoint}
                                                     </p>
                                                 )}
-                                                <p className={`text-xs font-black uppercase ${isLowStock ? "text-red-500" : "text-emerald-600"}`}>
+                                                <p className={`text-xs font-bold uppercase ${isLowStock ? "text-red-500" : "text-emerald-600"}`}>
                                                     {isLowStock ? it.table.lowStock : it.table.healthy}
                                                 </p>
                                             </div>
@@ -1055,7 +1055,7 @@ export default function InventoryPage() {
                                     <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800">
                                         <div className="flex items-center gap-2 mb-3">
                                             <Shield className="h-3.5 w-3.5 text-[#E8601C]" />
-                                            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{it.detail.technical}</h3>
+                                            <h3 className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.2em]">{it.detail.technical}</h3>
                                         </div>
                                         <div className="divide-y divide-slate-100 dark:divide-slate-800 rounded-xl border border-slate-100 dark:border-slate-800 overflow-hidden bg-slate-50 dark:bg-slate-900">
                                             {[
@@ -1075,7 +1075,7 @@ export default function InventoryPage() {
                                             ].filter(Boolean).map((row, i) => (
                                                 <div key={i} className="flex items-center justify-between px-4 py-2.5">
                                                     <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">{row!.label}</span>
-                                                    <span className="text-[11px] font-black text-slate-900 dark:text-white">{row!.value}</span>
+                                                    <span className="text-[11px] font-semibold text-slate-900 dark:text-white">{row!.value}</span>
                                                 </div>
                                             ))}
                                         </div>
@@ -1086,9 +1086,9 @@ export default function InventoryPage() {
                                         <div className="flex items-center justify-between mb-3">
                                             <div className="flex items-center gap-2">
                                                 <History className="h-3.5 w-3.5 text-[#E8601C]" />
-                                                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{it.detail.logs}</h3>
+                                                <h3 className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.2em]">{it.detail.logs}</h3>
                                             </div>
-                                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-300 dark:text-slate-600">{it.detail.last30}</span>
+                                            <span className="text-[9px] font-bold uppercase tracking-widest text-slate-300 dark:text-slate-600">{it.detail.last30}</span>
                                         </div>
 
                                         {isLoadingLogs ? (
@@ -1182,8 +1182,8 @@ export default function InventoryPage() {
                                                             {/* Content */}
                                                             <div className="flex-1 min-w-0">
                                                                 <div className="flex items-center justify-between gap-2">
-                                                                    <span className="text-xs font-black text-slate-800 dark:text-slate-200">{actionLabel}</span>
-                                                                    <span className={`text-sm font-black tabular-nums shrink-0 ${qtyColor}`}>
+                                                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{actionLabel}</span>
+                                                                    <span className={`text-sm font-bold tabular-nums shrink-0 ${qtyColor}`}>
                                                                         {isUpdate
                                                                             ? <svg className="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
                                                                             : `${isPositive ? '+' : ''}${log.quantityChanged.toLocaleString()}`
@@ -1199,19 +1199,19 @@ export default function InventoryPage() {
                                                                         })}
                                                                     </span>
                                                                     {stockType && (
-                                                                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border ${stockType === 'Raw' ? 'bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700' : 'bg-violet-50 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400 border-violet-100 dark:border-violet-900/40'}`}>{stockType}</span>
+                                                                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${stockType === 'Raw' ? 'bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700' : 'bg-violet-50 dark:bg-violet-950/30 text-violet-600 dark:text-violet-400 border-violet-100 dark:border-violet-900/40'}`}>{stockType}</span>
                                                                     )}
                                                                 </div>
 
                                                                 {/* Location */}
                                                                 {isMove && (fromLoc || toLoc) ? (
                                                                     <div className="flex items-center gap-1 mt-1 flex-wrap">
-                                                                        <span className="text-[10px] font-bold text-violet-600 dark:text-violet-400 flex items-center gap-0.5">
+                                                                        <span className="text-[10px] font-semibold text-violet-600 dark:text-violet-400 flex items-center gap-0.5">
                                                                             <svg className="h-2.5 w-2.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
                                                                             {fromLoc ?? '?'}
                                                                         </span>
                                                                         <svg className="h-3 w-3 text-slate-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
-                                                                        <span className="text-[10px] font-bold text-violet-600 dark:text-violet-400 flex items-center gap-0.5">
+                                                                        <span className="text-[10px] font-semibold text-violet-600 dark:text-violet-400 flex items-center gap-0.5">
                                                                             <svg className="h-2.5 w-2.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
                                                                             {toLoc ?? '?'}
                                                                         </span>
@@ -1239,7 +1239,7 @@ export default function InventoryPage() {
                                         ) : (
                                             <div className="py-10 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center text-center">
                                                 <History className="h-7 w-7 text-slate-200 dark:text-slate-800 mb-2" />
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{it.detail.noLogs}</p>
+                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">{it.detail.noLogs}</p>
                                             </div>
                                         )}
                                     </div>
@@ -1250,14 +1250,14 @@ export default function InventoryPage() {
                                     <Button
                                         onClick={() => handleDelete(selectedInventory._id)}
                                         variant="outline"
-                                        className="rounded-xl h-11 border-red-200 dark:border-red-900 text-red-600 hover:bg-red-50 dark:hover:bg-red-950 font-black"
+                                        className="rounded-xl h-11 border-red-200 dark:border-red-900 text-red-600 hover:bg-red-50 dark:hover:bg-red-950 font-bold"
                                     >
                                         <Trash2 className="h-4 w-4 mr-1.5" />
                                         {it.detail.delete}
                                     </Button>
                                     <Button
                                         onClick={() => openMoveDialog(selectedInventory)}
-                                        className="rounded-xl h-11 bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-[#E8601C] dark:hover:bg-[#E8601C] hover:text-white transition-all font-black gap-2"
+                                        className="rounded-xl h-11 bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-[#E8601C] dark:hover:bg-[#E8601C] hover:text-white transition-all font-bold gap-2"
                                     >
                                         <ArrowRightLeft className="h-4 w-4" />
                                         {it.detail.moveStock}
@@ -1282,7 +1282,7 @@ export default function InventoryPage() {
                     {/* Header */}
                     <div className="px-8 pt-8 pb-6 border-b border-slate-100 dark:border-slate-800">
                         <DialogHeader>
-                            <DialogTitle className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                            <DialogTitle className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
                                 {it.importStock}
                             </DialogTitle>
                             <DialogDescription className="text-slate-500 font-medium text-sm mt-1">
@@ -1295,7 +1295,7 @@ export default function InventoryPage() {
                     <div className="px-8 py-6 space-y-6">
                         {/* Material Selection */}
                         <div className="space-y-2">
-                            <Label className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                            <Label className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
                                 <Package className="h-3 w-3" />
                                 เลือกวัสดุ
                             </Label>
@@ -1303,7 +1303,7 @@ export default function InventoryPage() {
                                 value={importData.material}
                                 onValueChange={(val) => setImportData({ ...importData, material: val || "" })}
                             >
-                                <SelectTrigger className="h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-900 dark:text-white px-4 focus:ring-[#E8601C] focus:border-[#E8601C] text-sm">
+                                <SelectTrigger className="h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 rounded-xl font-medium text-slate-900 dark:text-white px-4 focus:ring-[#E8601C] focus:border-[#E8601C] text-sm">
                                     <SelectValue placeholder="เลือกวัสดุที่ต้องการ...">
                                         {importData.material
                                             ? materials.find(m => m._id === importData.material)?.name || importData.material
@@ -1331,7 +1331,7 @@ export default function InventoryPage() {
 
                         {/* Location - Google-style Autocomplete */}
                         <div className="space-y-2 relative">
-                            <Label className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                            <Label className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
                                 <Warehouse className="h-3 w-3" />
                                 สถานที่จัดเก็บ
                             </Label>
@@ -1380,7 +1380,7 @@ export default function InventoryPage() {
                                                 {loc}
                                             </span>
                                             {(locationUsage[loc] || 0) > 0 && (
-                                                <span className="ml-auto text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                                                <span className="ml-auto text-[10px] font-semibold text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
                                                     ใช้ {locationUsage[loc]} ครั้ง
                                                 </span>
                                             )}
@@ -1393,22 +1393,22 @@ export default function InventoryPage() {
                         {/* Stock Type & Quantity - Side by Side */}
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">ประเภทสต็อก</Label>
+                                <Label className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest">ประเภทสต็อก</Label>
                                 <Select
                                     value={importData.stockType}
                                     onValueChange={(val) => setImportData({ ...importData, stockType: (val as "Raw" | "Reuse") || "Raw" })}
                                 >
-                                    <SelectTrigger className="h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 rounded-xl font-bold px-4 focus:ring-[#E8601C] text-sm">
+                                    <SelectTrigger className="h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 rounded-xl font-medium px-4 focus:ring-[#E8601C] text-sm">
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
-                                        <SelectItem value="Raw" className="font-bold">Raw Material</SelectItem>
-                                        <SelectItem value="Reuse" className="font-bold">Reusable</SelectItem>
+                                        <SelectItem value="Raw" className="font-medium">Raw Material</SelectItem>
+                                        <SelectItem value="Reuse" className="font-medium">Reusable</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
                             <div className="space-y-2">
-                                <Label className="text-[11px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">จำนวน (QTY)</Label>
+                                <Label className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest">จำนวน (QTY)</Label>
                                 <div className="relative">
                                     <Input
                                         type="number"
@@ -1437,7 +1437,7 @@ export default function InventoryPage() {
                                 handleImport();
                             }}
                             disabled={isSubmitting || !importData.material || !importData.location}
-                            className={`rounded-xl h-11 min-w-[140px] font-black tracking-tight text-white transition-all shadow-lg text-sm ${isSubmitting ? "bg-slate-400" : "bg-slate-900 dark:bg-white dark:text-slate-900 hover:bg-[#E8601C] dark:hover:bg-[#E8601C] dark:hover:text-white"
+                            className={`rounded-xl h-11 min-w-[140px] font-bold tracking-tight text-white transition-all shadow-lg text-sm ${isSubmitting ? "bg-slate-400" : "bg-slate-900 dark:bg-white dark:text-slate-900 hover:bg-[#E8601C] dark:hover:bg-[#E8601C] dark:hover:text-white"
                                 }`}
                         >
                             {isSubmitting ? "Processing..." : "ยืนยันนำเข้าสต็อก"}
@@ -1459,7 +1459,7 @@ export default function InventoryPage() {
                                 <div className="h-9 w-9 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
                                     <ArrowRightLeft className="h-4 w-4 text-slate-600 dark:text-slate-300" />
                                 </div>
-                                <DialogTitle className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
+                                <DialogTitle className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
                                     {it.detail.moveStock}
                                 </DialogTitle>
                             </div>
@@ -1480,17 +1480,17 @@ export default function InventoryPage() {
                             <div className="px-8 py-6 space-y-6">
                                 {/* Source Info Card */}
                                 <div className="rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-4 space-y-1">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{it.detail.moveSource}</p>
-                                    <p className="text-sm font-black text-slate-900 dark:text-white">{sourceMat?.name || "N/A"}</p>
+                                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{it.detail.moveSource}</p>
+                                    <p className="text-sm font-bold text-slate-900 dark:text-white">{sourceMat?.name || "N/A"}</p>
                                     <div className="flex items-center gap-3 text-[11px] text-slate-500 font-medium">
                                         <span className="flex items-center gap-1">
                                             <MapPin className="h-3 w-3" />
                                             {moveSource.location}
                                         </span>
-                                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black uppercase ${moveSource.stockType === 'Raw' ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600'}`}>
+                                        <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold uppercase ${moveSource.stockType === 'Raw' ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600'}`}>
                                             {moveSource.stockType}
                                         </span>
-                                        <span className="ml-auto font-black text-slate-700 dark:text-slate-200">
+                                        <span className="ml-auto font-bold text-slate-700 dark:text-slate-200">
                                             {lang === 'th' ? 'มี' : 'Stock:'} {moveSource.quantity.toLocaleString()}
                                         </span>
                                     </div>
@@ -1498,7 +1498,7 @@ export default function InventoryPage() {
 
                                 {/* Quantity */}
                                 <div className="space-y-2">
-                                    <Label className="text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
                                         <Package className="h-3 w-3" />
                                         {it.detail.moveQtyLabel}
                                     </Label>
@@ -1509,7 +1509,7 @@ export default function InventoryPage() {
                                             max={moveSource.quantity}
                                             value={moveQty}
                                             onChange={(e) => setMoveQty(Math.min(moveSource.quantity, Math.max(1, parseInt(e.target.value) || 1)))}
-                                            className="h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 rounded-xl font-black text-slate-900 dark:text-white text-lg px-4 focus:ring-[#E8601C] focus:border-[#E8601C]"
+                                            className="h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-900 dark:text-white text-lg px-4 focus:ring-[#E8601C] focus:border-[#E8601C]"
                                         />
                                         <span className="text-xs text-slate-400 font-bold whitespace-nowrap">
                                             / {moveSource.quantity.toLocaleString()}
@@ -1527,7 +1527,7 @@ export default function InventoryPage() {
                                                 key={b.label}
                                                 type="button"
                                                 onClick={() => setMoveQty(b.val)}
-                                                className={`flex-1 text-[10px] font-black py-1.5 rounded-lg border transition-colors ${moveQty === b.val
+                                                className={`flex-1 text-[10px] font-semibold py-1.5 rounded-lg border transition-colors ${moveQty === b.val
                                                     ? 'bg-[#E8601C] text-white border-[#E8601C]'
                                                     : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:border-[#E8601C] hover:text-[#E8601C]'}`}
                                             >
@@ -1539,7 +1539,7 @@ export default function InventoryPage() {
 
                                 {/* Destination Type Toggle */}
                                 <div className="space-y-3">
-                                    <Label className="text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
                                         <Warehouse className="h-3 w-3" />
                                         {it.detail.moveDest}
                                     </Label>
@@ -1547,7 +1547,7 @@ export default function InventoryPage() {
                                         <button
                                             type="button"
                                             onClick={() => setMoveDestType("existing")}
-                                            className={`py-2.5 rounded-lg text-xs font-black transition-all ${moveDestType === "existing"
+                                            className={`py-2.5 rounded-lg text-xs font-bold transition-all ${moveDestType === "existing"
                                                 ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm'
                                                 : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
                                         >
@@ -1556,7 +1556,7 @@ export default function InventoryPage() {
                                         <button
                                             type="button"
                                             onClick={() => setMoveDestType("new")}
-                                            className={`py-2.5 rounded-lg text-xs font-black transition-all ${moveDestType === "new"
+                                            className={`py-2.5 rounded-lg text-xs font-bold transition-all ${moveDestType === "new"
                                                 ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm'
                                                 : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
                                         >
@@ -1582,16 +1582,16 @@ export default function InventoryPage() {
                                                             : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 bg-white dark:bg-slate-900'}`}
                                                     >
                                                         <div>
-                                                            <p className="text-sm font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                                                            <p className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                                                                 <MapPin className="h-3 w-3 text-slate-400" />
                                                                 {slot.location}
                                                             </p>
-                                                            <p className={`text-[10px] font-black uppercase mt-0.5 ${slot.stockType === 'Raw' ? 'text-blue-500' : 'text-amber-500'}`}>
+                                                            <p className={`text-[10px] font-semibold uppercase mt-0.5 ${slot.stockType === 'Raw' ? 'text-blue-500' : 'text-amber-500'}`}>
                                                                 {slot.stockType}
                                                             </p>
                                                         </div>
                                                         <div className="text-right">
-                                                            <p className="text-sm font-black text-slate-700 dark:text-slate-300">{slot.quantity.toLocaleString()}</p>
+                                                            <p className="text-sm font-bold text-slate-700 dark:text-slate-300">{slot.quantity.toLocaleString()}</p>
                                                             <p className="text-[9px] text-slate-400 uppercase font-bold">{lang === 'th' ? 'ปัจจุบัน' : 'current'}</p>
                                                         </div>
                                                     </button>
@@ -1603,7 +1603,7 @@ export default function InventoryPage() {
                                     {/* New location form */}
                                     {moveDestType === "new" && (
                                         <div className="space-y-1.5 relative">
-                                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                                            <Label className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
                                                 <Warehouse className="h-3 w-3" />
                                                 {lang === 'th' ? 'ตำแหน่งจัดเก็บ' : 'Storage Location'}
                                             </Label>
@@ -1681,7 +1681,7 @@ export default function InventoryPage() {
                                 (moveDestType === "existing" && !moveDestId) ||
                                 (moveDestType === "new" && !moveDestLocation.trim())
                             }
-                            className="rounded-xl h-11 min-w-[150px] font-black text-white bg-slate-900 dark:bg-white dark:text-slate-900 hover:bg-[#E8601C] dark:hover:bg-[#E8601C] dark:hover:text-white transition-all shadow-lg text-sm disabled:opacity-50"
+                            className="rounded-xl h-11 min-w-[150px] font-bold text-white bg-slate-900 dark:bg-white dark:text-slate-900 hover:bg-[#E8601C] dark:hover:bg-[#E8601C] dark:hover:text-white transition-all shadow-lg text-sm disabled:opacity-50"
                         >
                             <ArrowRightLeft className="h-4 w-4 mr-2" />
                             {isMoveSubmitting ? it.detail.moving : it.detail.confirmMove}
