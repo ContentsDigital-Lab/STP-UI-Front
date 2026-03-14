@@ -2,27 +2,23 @@
 
 import { useNode } from "@craftjs/core";
 import { PackageOpen } from "lucide-react";
-import { BaseBlock, BlockField } from "./BaseBlock";
+import { BaseBlock, FieldRow } from "./BaseBlock";
 import { InputBlockProps } from "@/lib/types/station-designer";
 
 export function InputBlock({ label = "รับวัตถุดิบ", materialType = "", quantity }: InputBlockProps) {
     useNode();
     return (
-        <BaseBlock
-            color="bg-green-500"
-            borderColor="border-green-300 dark:border-green-700"
-            bgLight="bg-green-50 dark:bg-green-950/30"
-            icon={<PackageOpen className="h-3.5 w-3.5" />}
-            title={label}
-        >
-            <BlockField label="วัสดุ" value={materialType} />
-            <BlockField label="จำนวน" value={quantity} />
+        <BaseBlock headerColor="bg-green-500" icon={<PackageOpen className="h-4 w-4" />} title={label}>
+            <div className="space-y-2">
+                <FieldRow label="ประเภทวัสดุ"  value={materialType} placeholder="ยังไม่ระบุ" />
+                <FieldRow label="จำนวน"          value={quantity}     placeholder="ยังไม่ระบุ" />
+            </div>
         </BaseBlock>
     );
 }
 
 InputBlock.craft = {
-    displayName: "Input",
+    displayName: "รับวัตถุดิบ",
     props: { label: "รับวัตถุดิบ", materialType: "", quantity: undefined } as InputBlockProps,
     rules: { canDrag: () => true },
 };

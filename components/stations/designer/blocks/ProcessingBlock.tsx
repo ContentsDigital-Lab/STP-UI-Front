@@ -2,27 +2,23 @@
 
 import { useNode } from "@craftjs/core";
 import { Settings } from "lucide-react";
-import { BaseBlock, BlockField } from "./BaseBlock";
+import { BaseBlock, FieldRow } from "./BaseBlock";
 import { ProcessingBlockProps } from "@/lib/types/station-designer";
 
 export function ProcessingBlock({ label = "แปรรูป", processName = "", estimatedTime }: ProcessingBlockProps) {
     useNode();
     return (
-        <BaseBlock
-            color="bg-purple-500"
-            borderColor="border-purple-300 dark:border-purple-700"
-            bgLight="bg-purple-50 dark:bg-purple-950/30"
-            icon={<Settings className="h-3.5 w-3.5" />}
-            title={label}
-        >
-            <BlockField label="ขั้นตอน" value={processName} />
-            <BlockField label="เวลาโดยประมาณ" value={estimatedTime ? `${estimatedTime} นาที` : undefined} />
+        <BaseBlock headerColor="bg-purple-500" icon={<Settings className="h-4 w-4" />} title={label}>
+            <div className="space-y-2">
+                <FieldRow label="ชื่อขั้นตอน"       value={processName}   placeholder="ยังไม่ระบุ" />
+                <FieldRow label="เวลาโดยประมาณ"   value={estimatedTime ? `${estimatedTime} นาที` : undefined} placeholder="ยังไม่ระบุ" />
+            </div>
         </BaseBlock>
     );
 }
 
 ProcessingBlock.craft = {
-    displayName: "Processing",
+    displayName: "แปรรูป",
     props: { label: "แปรรูป", processName: "", estimatedTime: undefined } as ProcessingBlockProps,
     rules: { canDrag: () => true },
 };

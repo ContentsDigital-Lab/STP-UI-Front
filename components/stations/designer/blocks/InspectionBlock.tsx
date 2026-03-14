@@ -2,27 +2,23 @@
 
 import { useNode } from "@craftjs/core";
 import { Search } from "lucide-react";
-import { BaseBlock, BlockField } from "./BaseBlock";
+import { BaseBlock, FieldRow } from "./BaseBlock";
 import { InspectionBlockProps } from "@/lib/types/station-designer";
 
 export function InspectionBlock({ label = "ตรวจสอบคุณภาพ", checkPoints = "", passCriteria = "" }: InspectionBlockProps) {
     useNode();
     return (
-        <BaseBlock
-            color="bg-yellow-500"
-            borderColor="border-yellow-300 dark:border-yellow-700"
-            bgLight="bg-yellow-50 dark:bg-yellow-950/30"
-            icon={<Search className="h-3.5 w-3.5" />}
-            title={label}
-        >
-            <BlockField label="จุดตรวจ" value={checkPoints} />
-            <BlockField label="เกณฑ์ผ่าน" value={passCriteria} />
+        <BaseBlock headerColor="bg-yellow-500" icon={<Search className="h-4 w-4" />} title={label}>
+            <div className="space-y-2">
+                <FieldRow label="จุดตรวจสอบ"     value={checkPoints}   placeholder="ยังไม่ระบุ" />
+                <FieldRow label="เกณฑ์ผ่าน"       value={passCriteria}  placeholder="ยังไม่ระบุ" />
+            </div>
         </BaseBlock>
     );
 }
 
 InspectionBlock.craft = {
-    displayName: "Inspection",
+    displayName: "ตรวจสอบคุณภาพ",
     props: { label: "ตรวจสอบคุณภาพ", checkPoints: "", passCriteria: "" } as InspectionBlockProps,
     rules: { canDrag: () => true },
 };

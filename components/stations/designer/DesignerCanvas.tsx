@@ -43,15 +43,17 @@ export function DesignerCanvas({ templateName, initialNodes, onSave, saving }: D
                     <BlockPalette />
 
                     {/* Main canvas area */}
-                    <main className="flex-1 overflow-auto bg-muted/20 p-6">
-                        <Frame data={initialNodes ? JSON.stringify(initialNodes) : undefined}>
-                            <Element
-                                is={CanvasContainer}
-                                canvas
-                                id="root-canvas"
-                                className="min-h-[600px] w-full"
-                            />
-                        </Frame>
+                    <main className="flex-1 overflow-auto bg-slate-100 dark:bg-slate-900/50 p-8">
+                        <div className="max-w-2xl mx-auto">
+                            <Frame data={initialNodes ? JSON.stringify(initialNodes) : undefined}>
+                                <Element
+                                    is={CanvasContainer}
+                                    canvas
+                                    id="root-canvas"
+                                    className="min-h-[500px] w-full"
+                                />
+                            </Frame>
+                        </div>
                     </main>
 
                     <PropertiesPanel />
