@@ -1,12 +1,25 @@
 export const API_BASE_URL = "https://std.specterint.org/api";
 
+let isRedirectingToLogin = false;
+
+function handleUnauthorized() {
+    if (typeof window === "undefined") return;
+    if (window.location.pathname === "/login") return;
+    if (isRedirectingToLogin) return;
+
+    isRedirectingToLogin = true;
+    localStorage.removeItem("auth_token");
+    localStorage.removeItem("auth_user");
+    sessionStorage.setItem("session_expired", "true");
+    window.location.href = "/login";
+}
+
 export async function fetchApi<T>(
     endpoint: string,
     options: RequestInit = {}
 ): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
 
-    // Get token from localStorage if available (for client-side)
     let token = "";
     if (typeof window !== "undefined") {
         token = localStorage.getItem("auth_token") || "";
@@ -22,6 +35,10 @@ export async function fetchApi<T>(
         ...options,
         headers,
     });
+
+    if (response.status === 401) {
+        handleUnauthorized();
+    }
 
     const data = await response.json();
 

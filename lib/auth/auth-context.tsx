@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { Worker } from "@/lib/api/types";
+import { authApi } from "@/lib/api/auth";
 
 interface AuthContextType {
     user: Worker | null;
@@ -20,21 +21,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        // Only run on client side
-        const storedToken = localStorage.getItem("auth_token");
-        const storedUser = localStorage.getItem("auth_user");
+        const initAuth = async () => {
+            const storedToken = localStorage.getItem("auth_token");
+            const storedUser = localStorage.getItem("auth_user");
 
-        if (storedToken && storedUser) {
-            try {
-                setToken(storedToken);
-                setUser(JSON.parse(storedUser));
-            } catch (error) {
-                console.error("Failed to parse stored user", error);
-                localStorage.removeItem("auth_token");
-                localStorage.removeItem("auth_user");
+            if (storedToken && storedUser) {
+                try {
+                    setToken(storedToken);
+                    setUser(JSON.parse(storedUser));
+                } catch (error) {
+                    console.error("Failed to parse stored user", error);
+                    localStorage.removeItem("auth_token");
+                    localStorage.removeItem("auth_user");
+                    setIsLoading(false);
+                    return;
+                }
+
+                try {
+                    await authApi.getProfile();
+                } catch {
+                    // If 401, fetchApi already cleared auth and triggered redirect.
+                    // For other errors (network, 500), stay logged in optimistically.
+                }
             }
-        }
-        setIsLoading(false);
+
+            setIsLoading(false);
+        };
+
+        initAuth();
     }, []);
 
     const login = (newToken: string, newUser: Worker) => {
