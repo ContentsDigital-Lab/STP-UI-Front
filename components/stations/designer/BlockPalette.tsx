@@ -1,6 +1,6 @@
 "use client";
 
-import { useEditor } from "@craftjs/core";
+import { useEditor, Element } from "@craftjs/core";
 import {
     Columns2, Type, AlignLeft, Minus, MoveVertical,
     Tag, TextCursorInput, ChevronDown, FileText,
@@ -10,6 +10,7 @@ import { ReactElement } from "react";
 
 import { Section }           from "./blocks/Section";
 import { TwoColumns }        from "./blocks/TwoColumns";
+import { Column }            from "./blocks/Column";
 import { Heading }           from "./blocks/Heading";
 import { Paragraph }         from "./blocks/Paragraph";
 import { Divider }           from "./blocks/Divider";
@@ -39,7 +40,7 @@ const PALETTE: PaletteGroup[] = [
         category: "Layout",
         items: [
             { label: "Section",   icon: <LayoutPanelLeft className="h-4 w-4" />, element: <Section />,     bg: "bg-slate-500" },
-            { label: "2 Columns", icon: <Columns2 className="h-4 w-4" />,        element: <TwoColumns />,  bg: "bg-slate-500" },
+            { label: "2 Columns", icon: <Columns2 className="h-4 w-4" />,        element: <TwoColumns><Element is={Column} canvas /><Element is={Column} canvas /></TwoColumns>,  bg: "bg-slate-500" },
         ],
     },
     {

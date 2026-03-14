@@ -5,6 +5,7 @@ import { BlockPalette }      from "./BlockPalette";
 import { PropertiesPanel }   from "./PropertiesPanel";
 import { Toolbar }           from "./Toolbar";
 import { CanvasContainer }   from "./CanvasContainer";
+import { KeyboardShortcuts } from "./KeyboardShortcuts";
 
 // ─── Layout ─────────────────────────────────────────────────────────────────
 import { Section }           from "./blocks/Section";
@@ -49,6 +50,7 @@ const RESOLVER = {
 export function DesignerCanvas({ templateName, initialNodes, onSave, saving }: DesignerCanvasProps) {
     return (
         <Editor resolver={RESOLVER}>
+            <KeyboardShortcuts />
             <div className="flex flex-col h-full">
                 <Toolbar templateName={templateName} onSave={onSave} saving={saving} />
                 <div className="flex flex-1 overflow-hidden">

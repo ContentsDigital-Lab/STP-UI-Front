@@ -1,8 +1,7 @@
 "use client";
 
-import { useNode, Element } from "@craftjs/core";
+import { useNode } from "@craftjs/core";
 import { ReactNode } from "react";
-import { Column } from "./Column";
 
 interface TwoColumnsProps {
     children?: ReactNode;
@@ -20,12 +19,7 @@ export function TwoColumns({ children, gap = "4" }: TwoColumnsProps) {
                 ${selected ? "outline outline-2 outline-primary/40 rounded-lg" : ""}
             `}
         >
-            {children ?? (
-                <>
-                    <Element is={Column} canvas id="col-left" />
-                    <Element is={Column} canvas id="col-right" />
-                </>
-            )}
+            {children}
         </div>
     );
 }
