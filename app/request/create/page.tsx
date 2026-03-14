@@ -788,10 +788,24 @@ export default function CreateBillPage() {
                                                     H{i + 1}
                                                 </Badge>
                                             </div>
-                                            <div className="flex items-center gap-3 text-[11px] font-semibold text-slate-500">
+                                            <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-500">
                                                 <span>X: {hole.x}</span>
                                                 <span>Y: {hole.y}</span>
-                                                <span>⌀{hole.diameter}</span>
+                                                <span className="flex items-center gap-0.5">
+                                                    ⌀
+                                                    <input
+                                                        type="number"
+                                                        min={5}
+                                                        max={500}
+                                                        value={hole.diameter}
+                                                        onChange={(e) => {
+                                                            const val = parseInt(e.target.value);
+                                                            if (!val || val < 5) return;
+                                                            setHoles(holes.map(h => h.id === hole.id ? { ...h, diameter: val } : h));
+                                                        }}
+                                                        className="w-10 bg-transparent border-b border-slate-300 dark:border-slate-600 text-center text-[11px] font-semibold outline-none focus:border-[#E8601C] transition-colors"
+                                                    />
+                                                </span>
                                             </div>
                                             <Button
                                                 variant="ghost"

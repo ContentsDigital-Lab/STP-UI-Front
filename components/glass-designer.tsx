@@ -206,6 +206,8 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
     const isPanningRef = useRef(false);
     const dragHoleIdRef = useRef<string | null>(null);
     const dragVertexIdxRef = useRef<number | null>(null);
+    const isResizingHoleRef = useRef(false);
+    const resizeHoleIdRef = useRef<string | null>(null);
     const isMovingGlassRef = useRef(false);
     const moveStartRef = useRef<{ x: number; y: number } | null>(null);
     const lastMouseRef = useRef({ x: 0, y: 0 });
@@ -389,6 +391,35 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         return bestEdge;
     }, []);
 
+    const findHoleHandleAtPos = useCallback((wx: number, wy: number): string | null => {
+        const camera = cameraRef.current;
+        const renderer = rendererRef.current;
+        if (!camera || !renderer) return null;
+        const frustumWidth = camera.right - camera.left;
+        const canvasWidth = renderer.domElement.clientWidth;
+        const worldPerPixel = frustumWidth / canvasWidth;
+        const hitRadius = 8 * worldPerPixel;
+
+        for (const h of holesRef.current) {
+            if (activeToolRef.current !== 'editVertex' && h.id !== selectedHoleIdRef.current) continue;
+            const r = h.diameter / 2;
+            const handles = [
+                { x: h.x + r, y: h.y },
+                { x: h.x - r, y: h.y },
+                { x: h.x, y: h.y + r },
+                { x: h.x, y: h.y - r },
+            ];
+            for (const handle of handles) {
+                const dx = wx - handle.x;
+                const dy = wy - handle.y;
+                if (Math.sqrt(dx * dx + dy * dy) <= hitRadius) {
+                    return h.id;
+                }
+            }
+        }
+        return null;
+    }, []);
+
     const buildGlassScene = useCallback(() => {
         const group = glassGroupRef.current;
         while (group.children.length) group.remove(group.children[0]);
@@ -506,6 +537,37 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             const hLabel = makeTextSprite(`⌀${h.diameter}`, isSelected ? '#E8601C' : '#aa5533');
             hLabel.position.set(h.x, h.y - h.diameter / 2 - 18, 3.3);
             group.add(hLabel);
+
+            if (activeToolRef.current === 'editVertex' || (isSelected && activeToolRef.current === 'select')) {
+                const r = h.diameter / 2;
+                const camera = cameraRef.current;
+                const renderer = rendererRef.current;
+                const handleSize = camera && renderer
+                    ? ((camera.right - camera.left) / renderer.domElement.clientWidth) * 6
+                    : 5;
+                const handles = [
+                    { x: h.x + r, y: h.y },
+                    { x: h.x - r, y: h.y },
+                    { x: h.x, y: h.y + r },
+                    { x: h.x, y: h.y - r },
+                ];
+                handles.forEach(hp => {
+                    const s = handleSize;
+                    const squarePoints = [
+                        new THREE.Vector3(hp.x - s, hp.y - s, 4),
+                        new THREE.Vector3(hp.x + s, hp.y - s, 4),
+                        new THREE.Vector3(hp.x + s, hp.y + s, 4),
+                        new THREE.Vector3(hp.x - s, hp.y + s, 4),
+                        new THREE.Vector3(hp.x - s, hp.y - s, 4),
+                    ];
+                    group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(squarePoints), new THREE.LineBasicMaterial({ color: 0xE8601C })));
+                    const fillGeo = new THREE.PlaneGeometry(s * 2, s * 2);
+                    const fillMat = new THREE.MeshBasicMaterial({ color: 0xE8601C, transparent: true, opacity: 0.35, depthTest: false });
+                    const fillMesh = new THREE.Mesh(fillGeo, fillMat);
+                    fillMesh.position.set(hp.x, hp.y, 3.9);
+                    group.add(fillMesh);
+                });
+            }
 
             // Horizontal line from right edge to hole at hole's Y level (two segments with gap)
             const holeDimMatH = new THREE.LineBasicMaterial({ color: 0xcc8855 });
@@ -708,10 +770,21 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             if (e.button !== 0) return;
 
             if (activeToolRef.current === 'editVertex') {
+                // Check hole resize handles first
+                const resizeHit = findHoleHandleAtPos(pos.x, pos.y);
+                if (resizeHit) {
+                    pushUndo();
+                    isResizingHoleRef.current = true;
+                    resizeHoleIdRef.current = resizeHit;
+                    canvas.style.cursor = 'nwse-resize';
+                    return;
+                }
+
                 const vertIdx = findVertexAtPos(pos.x, pos.y);
                 if (vertIdx !== null) {
                     pushUndo();
                     setSelectedVertexIdx(vertIdx);
+                    setSelectedHoleId(null);
                     isDraggingRef.current = true;
                     dragVertexIdxRef.current = vertIdx;
                     canvas.style.cursor = 'move';
@@ -730,13 +803,23 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                     newVerts.splice(j, 0, { x: newX, y: newY });
                     setVertices(newVerts);
                     setSelectedVertexIdx(j);
+                    setSelectedHoleId(null);
                     isDraggingRef.current = true;
                     dragVertexIdxRef.current = j;
                     canvas.style.cursor = 'move';
                     return;
                 }
 
+                // Check if clicking a hole to select it
+                const holeHit = findHoleAtPos(pos.x, pos.y);
+                if (holeHit) {
+                    setSelectedHoleId(holeHit);
+                    setSelectedVertexIdx(null);
+                    return;
+                }
+
                 setSelectedVertexIdx(null);
+                setSelectedHoleId(null);
                 return;
             }
 
@@ -763,7 +846,16 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 return;
             }
 
-            // Select mode
+            // Select mode — check resize handles first
+            const resizeHitId = findHoleHandleAtPos(pos.x, pos.y);
+            if (resizeHitId) {
+                pushUndo();
+                isResizingHoleRef.current = true;
+                resizeHoleIdRef.current = resizeHitId;
+                canvas.style.cursor = 'nwse-resize';
+                return;
+            }
+
             const hitId = findHoleAtPos(pos.x, pos.y);
             setSelectedHoleId(hitId);
             if (hitId) {
@@ -824,6 +916,21 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 return;
             }
 
+            if (isResizingHoleRef.current && resizeHoleIdRef.current) {
+                const pos = getWorldPos(e.clientX, e.clientY);
+                if (!pos) return;
+                const hole = holesRef.current.find(h => h.id === resizeHoleIdRef.current);
+                if (!hole) return;
+                const dx = pos.x - hole.x;
+                const dy = pos.y - hole.y;
+                const newDiameter = Math.max(5, Math.round(Math.sqrt(dx * dx + dy * dy) * 2));
+                const updated = holesRef.current.map(h =>
+                    h.id === resizeHoleIdRef.current ? { ...h, diameter: newDiameter } : h
+                );
+                onHolesChange(updated);
+                return;
+            }
+
             if (isDraggingRef.current && dragHoleIdRef.current) {
                 const pos = getWorldPos(e.clientX, e.clientY);
                 if (!pos) return;
@@ -836,16 +943,30 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 onHolesChange(updated);
             }
 
-            // Cursor hint in editVertex mode
-            if (activeToolRef.current === 'editVertex' && !isDraggingRef.current) {
+            // Cursor hints
+            if (!isDraggingRef.current && !isResizingHoleRef.current) {
                 const pos2 = getWorldPos(e.clientX, e.clientY);
                 if (pos2) {
-                    if (findVertexAtPos(pos2.x, pos2.y) !== null) {
-                        canvas.style.cursor = 'move';
-                    } else if (findEdgeAtPos(pos2.x, pos2.y)) {
-                        canvas.style.cursor = 'copy';
-                    } else {
-                        canvas.style.cursor = 'crosshair';
+                    if (activeToolRef.current === 'select') {
+                        if (findHoleHandleAtPos(pos2.x, pos2.y)) {
+                            canvas.style.cursor = 'nwse-resize';
+                        } else if (findHoleAtPos(pos2.x, pos2.y)) {
+                            canvas.style.cursor = 'move';
+                        } else {
+                            canvas.style.cursor = 'default';
+                        }
+                    } else if (activeToolRef.current === 'editVertex') {
+                        if (findHoleHandleAtPos(pos2.x, pos2.y)) {
+                            canvas.style.cursor = 'nwse-resize';
+                        } else if (findVertexAtPos(pos2.x, pos2.y) !== null) {
+                            canvas.style.cursor = 'move';
+                        } else if (findEdgeAtPos(pos2.x, pos2.y)) {
+                            canvas.style.cursor = 'copy';
+                        } else if (findHoleAtPos(pos2.x, pos2.y)) {
+                            canvas.style.cursor = 'pointer';
+                        } else {
+                            canvas.style.cursor = 'crosshair';
+                        }
                     }
                 }
             }
@@ -854,6 +975,8 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         const onMouseUp = () => {
             isPanningRef.current = false;
             isDraggingRef.current = false;
+            isResizingHoleRef.current = false;
+            resizeHoleIdRef.current = null;
             isMovingGlassRef.current = false;
             moveStartRef.current = null;
             dragHoleIdRef.current = null;
@@ -896,7 +1019,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             canvas.removeEventListener('mouseleave', onMouseUp);
             canvas.removeEventListener('wheel', onWheel);
         };
-    }, [width, height, getWorldPos, findHoleAtPos, findVertexAtPos, findEdgeAtPos, onHolesChange, setVertices, pushUndo, renderScene]);
+    }, [width, height, getWorldPos, findHoleAtPos, findHoleHandleAtPos, findVertexAtPos, findEdgeAtPos, onHolesChange, setVertices, pushUndo, renderScene]);
 
     // Update cursor when tool changes
     useEffect(() => {
