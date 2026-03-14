@@ -103,3 +103,43 @@ export interface LoginData {
     token: string;
     worker: Worker;
 }
+
+export interface Withdrawal {
+    _id: string;
+    order: string | Order;
+    withdrawnBy: string | Worker;
+    material: string | Material;
+    quantity: number;
+    stockType: "Raw" | "Reuse";
+    withdrawnDate: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface Claim {
+    _id: string;
+    order: string | Order;
+    source: "customer" | "worker";
+    material: string | Material;
+    description: string;
+    decision?: "destroy" | "keep";
+    reportedBy: string | Worker;
+    approvedBy?: string | Worker;
+    claimDate?: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface Notification {
+    _id: string;
+    recipient: string | Worker;
+    type: string;
+    title: string;
+    message: string;
+    referenceId?: string;
+    referenceType?: string;
+    priority: "low" | "medium" | "high";
+    readStatus: boolean;
+    createdAt: string;
+    updatedAt: string;
+}

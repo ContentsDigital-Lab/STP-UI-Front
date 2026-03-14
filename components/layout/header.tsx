@@ -8,6 +8,7 @@ import { useLanguage } from "@/lib/i18n/language-context";
 import { useAuth } from "@/lib/auth/auth-context";
 import { authApi } from "@/lib/api/auth";
 import { Button } from "@/components/ui/button";
+import { NotificationBell } from "@/components/layout/notification-bell";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -90,6 +91,8 @@ export function Header({ onMenuClick, title }: HeaderProps) {
                         )}
                         <span className="sr-only">Toggle theme</span>
                     </Button>
+
+                    <NotificationBell />
 
                     {/* Separator */}
                     <div className="hidden lg:block lg:h-6 lg:w-px lg:bg-border" aria-hidden="true" />
