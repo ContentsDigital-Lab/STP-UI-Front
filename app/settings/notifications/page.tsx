@@ -95,7 +95,7 @@ export default function NotificationSoundSettingsPage() {
     };
 
     return (
-        <div className="max-w-2xl space-y-8">
+        <div className="max-w-2xl mx-auto space-y-8">
             {/* Header */}
             <div className="space-y-1">
                 <h1 className="text-2xl font-bold flex items-center gap-2">

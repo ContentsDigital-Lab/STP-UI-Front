@@ -4,26 +4,37 @@ export interface SoundDefinition {
     id: string;
     label: string;
     description: string;
-    category: "gentle" | "clear" | "urgent";
+    category: "gentle" | "chat" | "clear" | "urgent";
 }
 
 export const SOUND_LIST: SoundDefinition[] = [
-    { id: "soft_pop",      label: "Soft Pop",      description: "เสียง pop เบาๆ สั้น",          category: "gentle" },
-    { id: "ding",          label: "Ding",           description: "กริ่งเดียว นุ่มๆ",             category: "gentle" },
-    { id: "double_ding",   label: "Double Ding",    description: "กริ่งสองครั้ง",                category: "gentle" },
-    { id: "chime",         label: "Chime",          description: "เสียงระฆังสั้น สดใส",          category: "clear"  },
-    { id: "ping",          label: "Ping",           description: "เสียงชัดสั้น เหมือน message",  category: "clear"  },
-    { id: "bell",          label: "Bell",           description: "ระฆังใหญ่ มีก้อง",             category: "clear"  },
-    { id: "rising",        label: "Rising",         description: "โน้ตขึ้น 3 ตัว บอกข่าวดี",    category: "clear"  },
-    { id: "falling",       label: "Falling",        description: "โน้ตลง 3 ตัว ระวัง",           category: "clear"  },
-    { id: "alert",         label: "Alert",          description: "เสียงเตือนชัด ต้องสังเกต",     category: "urgent" },
-    { id: "urgent",        label: "Urgent",         description: "เสียงเร่งด่วน ต้องดำเนินการ",  category: "urgent" },
+    // gentle
+    { id: "soft_pop",      label: "Soft Pop",      description: "เสียง pop เบาๆ สั้น",               category: "gentle" },
+    { id: "ding",          label: "Ding",           description: "กริ่งเดียว นุ่มๆ",                  category: "gentle" },
+    { id: "double_ding",   label: "Double Ding",    description: "กริ่งสองครั้ง",                     category: "gentle" },
+    { id: "bell",          label: "Bell",           description: "ระฆังใหญ่ มีก้อง",                  category: "gentle" },
+    // chat
+    { id: "chat_line",     label: "Chat (LINE)",    description: "เสียงแบบ LINE — สองโน้ตขึ้นเร็ว",   category: "chat"   },
+    { id: "chat_pop",      label: "Chat Pop",       description: "เสียงแชทแบบ bubble pop",            category: "chat"   },
+    { id: "chat_ping",     label: "Chat Ping",      description: "เสียงข้อความสั้น ชัด",              category: "chat"   },
+    { id: "chat_notify",   label: "Chat Notify",    description: "เสียงแจ้งเตือน 3 โน้ต คล้าย app",  category: "chat"   },
+    // clear
+    { id: "chime",         label: "Chime",          description: "เสียงระฆังสั้น สดใส",               category: "clear"  },
+    { id: "ping",          label: "Ping",           description: "เสียงชัดสั้น",                      category: "clear"  },
+    { id: "rising",        label: "Rising",         description: "โน้ตขึ้น 3 ตัว บอกข่าวดี",         category: "clear"  },
+    { id: "falling",       label: "Falling",        description: "โน้ตลง 3 ตัว ระวัง",                category: "clear"  },
+    // urgent
+    { id: "alert",         label: "Alert",          description: "เสียงเตือนซ้ำ ต้องสังเกต",          category: "urgent" },
+    { id: "buzz",          label: "Buzz (สั่น)",    description: "เสียงสั่นสกิด จำลองการสั่น",        category: "urgent" },
+    { id: "zap",           label: "Zap (สกิด)",     description: "เสียงไฟฟ้าสกิด กระชากสั้น",         category: "urgent" },
+    { id: "urgent",        label: "Urgent",         description: "เสียงเร่งด่วน หลายพัลส์",           category: "urgent" },
 ];
 
 export const SOUND_CATEGORIES = {
     gentle: "เบา / นุ่มนวล",
+    chat:   "แชท / ข้อความ",
     clear:  "ชัดเจน / ปกติ",
-    urgent: "เร่งด่วน / สำคัญ",
+    urgent: "เร่งด่วน / สั่น",
 };
 
 export const DEFAULT_SOUND_SETTINGS: NotificationSoundSettings = {
@@ -159,6 +170,60 @@ export async function playSound(soundId: string, volume = 0.6): Promise<void> {
                 tone(ctx, 880 + (i % 2) * 220, t + i * 0.12, 0.1, v * 0.8, "sawtooth", 0.005, 0.05);
             }
             break;
+
+        // ─── Chat sounds ────────────────────────────────────────────────────
+        case "chat_line":
+            // LINE-style: two quick ascending tones
+            tone(ctx, 620, t,        0.12, v * 0.55, "sine", 0.005, 0.07);
+            tone(ctx, 820, t + 0.13, 0.18, v * 0.55, "sine", 0.005, 0.12);
+            break;
+
+        case "chat_pop":
+            // bubble pop + tiny echo
+            tone(ctx, 900, t,        0.08, v * 0.5,  "sine", 0.003, 0.05);
+            tone(ctx, 700, t + 0.09, 0.12, v * 0.25, "sine", 0.003, 0.09);
+            break;
+
+        case "chat_ping":
+            // short clear message sound
+            tone(ctx, 1050, t,       0.15, v * 0.5, "sine", 0.003, 0.10);
+            break;
+
+        case "chat_notify":
+            // 3-note app notification (do-mi-sol)
+            tone(ctx, 523,  t,        0.14, v * 0.5, "sine", 0.005, 0.08);
+            tone(ctx, 659,  t + 0.14, 0.14, v * 0.5, "sine", 0.005, 0.08);
+            tone(ctx, 784,  t + 0.28, 0.22, v * 0.5, "sine", 0.005, 0.15);
+            break;
+
+        // ─── Urgent / vibration-style ───────────────────────────────────────
+        case "buzz": {
+            // simulate phone vibration: bursts of noise-like sawtooth at low freq
+            const buzzFreqs = [80, 90, 80, 95, 80];
+            buzzFreqs.forEach((f, i) => {
+                tone(ctx, f, t + i * 0.07, 0.055, v * 0.9, "sawtooth", 0.002, 0.02);
+            });
+            break;
+        }
+
+        case "zap": {
+            // electric zap/spark: sharp sawtooth sweep down
+            const osc = ctx.createOscillator();
+            const g = ctx.createGain();
+            osc.type = "sawtooth";
+            osc.frequency.setValueAtTime(1200, t);
+            osc.frequency.exponentialRampToValueAtTime(150, t + 0.18);
+            g.gain.setValueAtTime(0, t);
+            g.gain.linearRampToValueAtTime(v * 0.7, t + 0.01);
+            g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+            osc.connect(g);
+            g.connect(ctx.destination);
+            osc.start(t);
+            osc.stop(t + 0.2);
+            // second spark
+            tone(ctx, 900, t + 0.22, 0.08, v * 0.4, "square", 0.003, 0.05);
+            break;
+        }
 
         default:
             tone(ctx, 880, t, 0.4, v * 0.5, "sine", 0.005, 0.25);
