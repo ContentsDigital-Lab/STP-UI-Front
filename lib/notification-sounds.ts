@@ -18,6 +18,7 @@ export const SOUND_LIST: SoundDefinition[] = [
     { id: "chat_pop",      label: "Chat Pop",       description: "เสียงแชทแบบ bubble pop",            category: "chat"   },
     { id: "chat_ping",     label: "Chat Ping",      description: "เสียงข้อความสั้น ชัด",              category: "chat"   },
     { id: "chat_notify",   label: "Chat Notify",    description: "เสียงแจ้งเตือน 3 โน้ต คล้าย app",  category: "chat"   },
+    { id: "tap_ding",      label: "Tap & Ding",     description: "ตึ + ดิ้ง~ สั้นแล้วก้องยาว",         category: "chat"   },
     // clear
     { id: "chime",         label: "Chime",          description: "เสียงระฆังสั้น สดใส",               category: "clear"  },
     { id: "ping",          label: "Ping",           description: "เสียงชัดสั้น",                      category: "clear"  },
@@ -25,8 +26,8 @@ export const SOUND_LIST: SoundDefinition[] = [
     { id: "falling",       label: "Falling",        description: "โน้ตลง 3 ตัว ระวัง",                category: "clear"  },
     // urgent
     { id: "alert",         label: "Alert",          description: "เสียงเตือนซ้ำ ต้องสังเกต",          category: "urgent" },
-    { id: "buzz",          label: "Buzz (สั่น)",    description: "เสียงสั่นสกิด จำลองการสั่น",        category: "urgent" },
-    { id: "zap",           label: "Zap (สกิด)",     description: "เสียงไฟฟ้าสกิด กระชากสั้น",         category: "urgent" },
+    { id: "buzz",          label: "Buzz (สั่น)",    description: "เสียงสั่นจริง คล้ายมือถือสั่นบนโต๊ะ",  category: "urgent" },
+    { id: "zap",           label: "Zap (Garena)",   description: "เสียง bop bop แบบ Garena/เกม",          category: "urgent" },
     { id: "urgent",        label: "Urgent",         description: "เสียงเร่งด่วน หลายพัลส์",           category: "urgent" },
 ];
 
@@ -64,7 +65,16 @@ export function loadSoundSettings(): NotificationSoundSettings {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return DEFAULT_SOUND_SETTINGS;
-        return { ...DEFAULT_SOUND_SETTINGS, ...JSON.parse(raw) };
+        const stored = JSON.parse(raw) as Partial<NotificationSoundSettings>;
+        // Deep merge — missing nested keys fall back to defaults
+        return {
+            ...DEFAULT_SOUND_SETTINGS,
+            ...stored,
+            sounds: {
+                ...DEFAULT_SOUND_SETTINGS.sounds,
+                ...(stored.sounds ?? {}),
+            },
+        };
     } catch {
         return DEFAULT_SOUND_SETTINGS;
     }
@@ -196,32 +206,51 @@ export async function playSound(soundId: string, volume = 0.6): Promise<void> {
             tone(ctx, 784,  t + 0.28, 0.22, v * 0.5, "sine", 0.005, 0.15);
             break;
 
+        case "tap_ding":
+            // Quick tap at 700 Hz + clear bell ring at 1400 Hz (reverse-engineered from reference)
+            tone(ctx, 700,  t,        0.09, v * 0.75, "sine", 0.003, 0.06);  // short tap
+            tone(ctx, 1400, t + 0.09, 0.72, v * 0.55, "sine", 0.005, 0.65);  // long bell ring
+            break;
+
         // ─── Urgent / vibration-style ───────────────────────────────────────
         case "buzz": {
-            // simulate phone vibration: bursts of noise-like sawtooth at low freq
-            const buzzFreqs = [80, 90, 80, 95, 80];
-            buzzFreqs.forEach((f, i) => {
-                tone(ctx, f, t + i * 0.07, 0.055, v * 0.9, "sawtooth", 0.002, 0.02);
-            });
+            // ตึ ตึ ดึ้ง — 3 rapid percussive taps, triangle wave with slight pitch drop
+            const makeTap = (startTime: number, freq: number, dur: number) => {
+                const osc  = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = "triangle";
+                osc.frequency.setValueAtTime(freq * 1.5, startTime);
+                osc.frequency.exponentialRampToValueAtTime(freq, startTime + 0.012);
+                gain.gain.setValueAtTime(v * 0.72, startTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, startTime + dur);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(startTime);
+                osc.stop(startTime + dur + 0.01);
+            };
+            makeTap(t,         420, 0.05);  // ตึ
+            makeTap(t + 0.075, 420, 0.05);  // ตึ
+            makeTap(t + 0.15,  370, 0.13);  // ดึ้ง (lower, longer resonance)
             break;
         }
 
         case "zap": {
-            // electric zap/spark: sharp sawtooth sweep down
-            const osc = ctx.createOscillator();
-            const g = ctx.createGain();
-            osc.type = "sawtooth";
-            osc.frequency.setValueAtTime(1200, t);
-            osc.frequency.exponentialRampToValueAtTime(150, t + 0.18);
-            g.gain.setValueAtTime(0, t);
-            g.gain.linearRampToValueAtTime(v * 0.7, t + 0.01);
-            g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
-            osc.connect(g);
-            g.connect(ctx.destination);
-            osc.start(t);
-            osc.stop(t + 0.2);
-            // second spark
-            tone(ctx, 900, t + 0.22, 0.08, v * 0.4, "square", 0.003, 0.05);
+            // ตึ้ง ตึ้ง — two quick punchy impacts, slight pitch drop (Garena-like)
+            const makeHit = (startTime: number) => {
+                const osc  = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = "triangle";
+                osc.frequency.setValueAtTime(540, startTime);
+                osc.frequency.exponentialRampToValueAtTime(280, startTime + 0.02);
+                gain.gain.setValueAtTime(v * 0.75, startTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.08);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(startTime);
+                osc.stop(startTime + 0.09);
+            };
+            makeHit(t);
+            makeHit(t + 0.11);
             break;
         }
 
