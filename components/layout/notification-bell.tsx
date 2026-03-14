@@ -5,6 +5,7 @@ import { Bell, Check, CheckCheck } from "lucide-react";
 import {
     DropdownMenu,
     DropdownMenuContent,
+    DropdownMenuGroup,
     DropdownMenuItem,
     DropdownMenuLabel,
     DropdownMenuSeparator,
@@ -80,6 +81,7 @@ export function NotificationBell() {
                 <span className="sr-only">Notifications</span>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-80">
+                <DropdownMenuGroup>
                 <DropdownMenuLabel className="flex items-center justify-between">
                     <span>Notifications</span>
                     {unreadCount > 0 && (
@@ -92,6 +94,7 @@ export function NotificationBell() {
                         </button>
                     )}
                 </DropdownMenuLabel>
+                </DropdownMenuGroup>
                 <DropdownMenuSeparator />
                 {notifications.length === 0 ? (
                     <div className="py-6 text-center text-sm text-muted-foreground">
