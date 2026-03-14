@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Notification } from "@/lib/api/types";
 import { notificationsApi } from "@/lib/api/notifications";
 import { useWebSocket } from "@/lib/hooks/use-socket";
+import { playNotificationSound } from "@/lib/notification-sounds";
 
 export function NotificationBell() {
     const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -31,6 +32,7 @@ export function NotificationBell() {
         const notif = data as Notification;
         if (notif?._id) {
             setNotifications((prev) => [notif, ...prev]);
+            playNotificationSound(notif.priority ?? "medium");
         }
     }, []);
 

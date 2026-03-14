@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { UserCog, ShieldAlert, Users } from "lucide-react";
+import { UserCog, ShieldAlert, Users, Bell } from "lucide-react";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/lib/auth/auth-context";
 
@@ -62,6 +62,22 @@ export default function SettingsPage() {
                             </div>
                             <CardDescription>
                                 Manage customer records, contact details, and discount rates.
+                            </CardDescription>
+                        </CardHeader>
+                    </Card>
+                </Link>
+
+                <Link href="/settings/notifications" className="block h-full cursor-pointer transition-transform hover:scale-[1.02]">
+                    <Card className="h-full shadow-sm hover:shadow-md transition-shadow bg-card/60 backdrop-blur-sm border-muted/50 border-primary/20">
+                        <CardHeader>
+                            <div className="flex items-center gap-2 mb-2">
+                                <div className="p-2 bg-yellow-500/10 rounded-lg text-yellow-500">
+                                    <Bell className="h-6 w-6" />
+                                </div>
+                                <CardTitle className="text-xl">การแจ้งเตือน</CardTitle>
+                            </div>
+                            <CardDescription>
+                                ตั้งค่าเสียงแจ้งเตือนและระดับเสียงตามความสำคัญของการแจ้งเตือน
                             </CardDescription>
                         </CardHeader>
                     </Card>
