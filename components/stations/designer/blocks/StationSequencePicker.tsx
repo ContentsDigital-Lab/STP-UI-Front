@@ -1,0 +1,274 @@
+"use client";
+
+import { useNode } from "@craftjs/core";
+import { useRef, useState } from "react";
+import { X, Plus, Send, CheckCircle2, Loader2, Workflow, GripVertical } from "lucide-react";
+import { fetchApi } from "@/lib/api/config";
+import { usePreview } from "../PreviewContext";
+
+// ── Station catalog ───────────────────────────────────────────────────────────
+interface StationOption { id: string; label: string; desc: string; color: string; }
+
+const STATION_CATALOG: StationOption[] = [
+    { id: "cutting",    label: "ตัดกระจก",       desc: "ตัดตามขนาดที่กำหนด",       color: "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300"           },
+    { id: "grinding",   label: "เจียร/ลบคม",     desc: "เจียรขอบให้เรียบ",          color: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300" },
+    { id: "drilling",   label: "เจาะรู",          desc: "เจาะรูตามแบบ",              color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300" },
+    { id: "tempering",  label: "เทมเปอร์",        desc: "อบความร้อนเพิ่มความแข็ง",  color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"             },
+    { id: "laminating", label: "ลามิเนต",          desc: "เคลือบฟิล์มกันแตก",        color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"     },
+    { id: "coating",    label: "เคลือบผิว",       desc: "เคลือบสีหรือกันรังสี UV",  color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300" },
+    { id: "framing",    label: "ใส่กรอบ/ประกอบ", desc: "ประกอบชิ้นส่วนและใส่กรอบ", color: "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300"         },
+    { id: "inspection", label: "ตรวจสอบคุณภาพ",  desc: "QC ก่อนส่งมอบ",            color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"         },
+    { id: "packing",    label: "บรรจุ/แพ็ค",      desc: "บรรจุหีบห่อป้องกันแตก",    color: "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300"         },
+    { id: "delivery",   label: "จัดส่ง",          desc: "ส่งมอบให้ลูกค้า",          color: "bg-slate-100 text-slate-700 dark:bg-slate-700/30 dark:text-slate-300"     },
+];
+
+const PRESETS = [
+    { label: "กระจกเทมเปอร์",  match: ["temper","tempered"],         stations: ["cutting","grinding","tempering","inspection","packing","delivery"]            },
+    { label: "กระจกลามิเนต",   match: ["laminat","laminate"],         stations: ["cutting","grinding","laminating","inspection","packing","delivery"]           },
+    { label: "กระจกธรรมดา",    match: ["clear","plain","float","ใส"], stations: ["cutting","grinding","inspection","packing","delivery"]                        },
+    { label: "กระจกเจาะรู",    match: ["drill","hole","เจาะ"],        stations: ["cutting","grinding","drilling","inspection","packing","delivery"]             },
+    { label: "เต็มกระบวนการ",  match: [],                             stations: ["cutting","grinding","drilling","tempering","laminating","coating","framing","inspection","packing","delivery"] },
+];
+
+// ── Props ─────────────────────────────────────────────────────────────────────
+interface StationSequencePickerProps {
+    title?:          string;
+    submitEndpoint?: string;
+    requestIdParam?: string;
+}
+
+// ── Drag-and-drop sequence list ───────────────────────────────────────────────
+function DraggableSequence({
+    sequence,
+    onReorder,
+    onRemove,
+}: {
+    sequence:  string[];
+    onReorder: (from: number, to: number) => void;
+    onRemove:  (id: string) => void;
+}) {
+    const dragIndex  = useRef<number | null>(null);
+    const overIndex  = useRef<number | null>(null);
+    const [dragging, setDragging] = useState<number | null>(null);
+    const [over,     setOver]     = useState<number | null>(null);
+
+    return (
+        <div className="space-y-1.5">
+            {sequence.map((id, i) => {
+                const s = STATION_CATALOG.find((c) => c.id === id)!;
+                const isDragging = dragging === i;
+                const isOver     = over === i && dragging !== null && dragging !== i;
+                return (
+                    <div
+                        key={id}
+                        draggable
+                        onDragStart={() => { dragIndex.current = i; setDragging(i); }}
+                        onDragOver={(e) => { e.preventDefault(); overIndex.current = i; setOver(i); }}
+                        onDragLeave={() => { overIndex.current = null; setOver(null); }}
+                        onDrop={(e) => {
+                            e.preventDefault();
+                            if (dragIndex.current !== null && overIndex.current !== null && dragIndex.current !== overIndex.current) {
+                                onReorder(dragIndex.current, overIndex.current);
+                            }
+                            setDragging(null); setOver(null);
+                            dragIndex.current = null; overIndex.current = null;
+                        }}
+                        onDragEnd={() => { setDragging(null); setOver(null); }}
+                        className={`flex items-center gap-2.5 rounded-lg border bg-card px-3 py-2.5 select-none transition-all ${
+                            isDragging ? "opacity-40 scale-[0.98]" : "opacity-100"
+                        } ${isOver ? "border-primary shadow-md translate-y-[-2px]" : "border-border"} cursor-grab active:cursor-grabbing`}
+                    >
+                        <GripVertical className="h-4 w-4 text-muted-foreground/30 shrink-0" />
+                        <span className="text-xs text-muted-foreground/50 w-5 text-center shrink-0 font-mono">{i + 1}</span>
+                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${s.color}`}>{s.label}</span>
+                        <span className="text-xs text-muted-foreground flex-1 truncate">{s.desc}</span>
+                        <button
+                            type="button"
+                            onClick={() => onRemove(id)}
+                            className="shrink-0 p-1 rounded hover:bg-red-50 text-muted-foreground/30 hover:text-red-500 transition-colors"
+                        >
+                            <X className="h-3.5 w-3.5" />
+                        </button>
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+export function StationSequencePicker({
+    title          = "กำหนดเส้นทางการผลิต",
+    submitEndpoint = "/orders",
+    requestIdParam = "id",
+}: StationSequencePickerProps) {
+    const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
+    const isPreview = usePreview();
+
+    const [sequence,   setSequence]   = useState<string[]>(["cutting","grinding","inspection","packing","delivery"]);
+    const [feedback,   setFeedback]   = useState<"" | "loading" | "ok" | "error">("");
+    const [presetUsed, setPresetUsed] = useState("");
+
+    const addStation = (id: string) => { if (!sequence.includes(id)) setSequence([...sequence, id]); };
+    const removeStation = (id: string) => setSequence(sequence.filter((s) => s !== id));
+
+    const reorder = (from: number, to: number) => {
+        const next = [...sequence];
+        const [item] = next.splice(from, 1);
+        next.splice(to, 0, item);
+        setSequence(next);
+    };
+
+    const applyPreset = (stations: string[], label: string) => {
+        setSequence(stations);
+        setPresetUsed(label);
+    };
+
+    const handleSubmit = async () => {
+        const requestId = new URLSearchParams(window.location.search).get(requestIdParam)
+            ?? window.location.pathname.split("/").filter(Boolean).pop();
+        setFeedback("loading");
+        try {
+            await fetchApi(submitEndpoint, { method: "POST", body: JSON.stringify({ request: requestId, stations: sequence }) });
+            setFeedback("ok");
+        } catch {
+            setFeedback("error");
+            setTimeout(() => setFeedback(""), 3000);
+        }
+    };
+
+    // ── Preview render ────────────────────────────────────────────────────────
+    if (isPreview) {
+        if (feedback === "ok") {
+            return (
+                <div className="w-full rounded-xl border bg-card p-10 flex flex-col items-center gap-3 text-center">
+                    <CheckCircle2 className="h-14 w-14 text-green-500" />
+                    <p className="text-base font-semibold">เปิดออเดอร์สำเร็จ!</p>
+                    <p className="text-sm text-muted-foreground">ออเดอร์ถูกสร้างพร้อมเส้นทางผลิตที่กำหนดแล้ว</p>
+                </div>
+            );
+        }
+
+        const available = STATION_CATALOG.filter((s) => !sequence.includes(s.id));
+        return (
+            <div className="w-full rounded-xl border bg-card overflow-hidden">
+                {/* Header */}
+                <div className="px-5 py-3.5 border-b bg-muted/30">
+                    <p className="text-sm font-semibold">{title}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">ลากเพื่อจัดเรียง · คลิก × เพื่อลบ</p>
+                </div>
+
+                {/* Presets */}
+                <div className="px-5 pt-4 pb-3">
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">เส้นทางแนะนำ</p>
+                    <div className="flex flex-wrap gap-1.5">
+                        {PRESETS.map((p) => (
+                            <button key={p.label} type="button" onClick={() => applyPreset(p.stations, p.label)}
+                                className={`text-xs px-3 py-1 rounded-full border font-medium transition-all ${
+                                    presetUsed === p.label
+                                        ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                                        : "bg-background border-muted-foreground/25 text-muted-foreground hover:border-primary/50 hover:text-primary"
+                                }`}>
+                                {p.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Selected sequence — drag to reorder */}
+                <div className="px-5 pb-4 border-t pt-4">
+                    <div className="flex items-center justify-between mb-2.5">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                            เส้นทางที่เลือก ({sequence.length} สถานี)
+                        </p>
+                        {sequence.length > 1 && (
+                            <p className="text-[10px] text-muted-foreground/50 flex items-center gap-1">
+                                <GripVertical className="h-3 w-3" /> ลากเพื่อจัดเรียง
+                            </p>
+                        )}
+                    </div>
+
+                    {sequence.length === 0 ? (
+                        <div className="border-2 border-dashed border-muted-foreground/20 rounded-xl py-6 text-center">
+                            <p className="text-sm text-muted-foreground/50">เพิ่มสถานีจากด้านล่าง</p>
+                        </div>
+                    ) : (
+                        <DraggableSequence sequence={sequence} onReorder={reorder} onRemove={removeStation} />
+                    )}
+                </div>
+
+                {/* Available stations */}
+                {available.length > 0 && (
+                    <div className="px-5 pb-4 border-t pt-3">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2.5">เพิ่มสถานี</p>
+                        <div className="flex flex-wrap gap-1.5">
+                            {available.map((s) => (
+                                <button key={s.id} type="button" onClick={() => addStation(s.id)}
+                                    className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-muted-foreground/25 text-muted-foreground hover:border-primary/60 hover:text-primary hover:bg-primary/5 transition-all">
+                                    <Plus className="h-3 w-3" />{s.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Submit */}
+                <div className="px-5 pb-5">
+                    {feedback === "error" && <p className="text-xs text-red-500 mb-2">เกิดข้อผิดพลาด กรุณาลองใหม่</p>}
+                    <button type="button" onClick={handleSubmit}
+                        disabled={sequence.length === 0 || feedback === "loading"}
+                        className="w-full rounded-lg bg-primary text-primary-foreground px-4 py-2.5 text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+                        {feedback === "loading"
+                            ? <><Loader2 className="h-4 w-4 animate-spin" /> กำลังสร้างออเดอร์...</>
+                            : <><Send className="h-4 w-4" /> เปิดออเดอร์ ({sequence.length} สถานี)</>
+                        }
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // ── Design mode ───────────────────────────────────────────────────────────
+    return (
+        <div
+            ref={(ref) => { ref && connect(drag(ref)); }}
+            className={`w-full rounded-xl border-2 cursor-grab overflow-hidden transition-all
+                ${selected ? "border-primary ring-2 ring-primary/20" : "border-slate-200 dark:border-slate-700 hover:border-primary/30"}`}
+        >
+            <div className="flex items-center justify-between px-4 py-2.5 bg-muted/30 border-b">
+                <div className="flex items-center gap-2">
+                    <Workflow className="h-3.5 w-3.5 text-muted-foreground/60" />
+                    <p className="text-xs font-semibold text-foreground/70">{title}</p>
+                </div>
+                <span className="text-[10px] text-muted-foreground/50">POST {submitEndpoint}</span>
+            </div>
+            <div className="p-4 space-y-2 opacity-60 pointer-events-none">
+                <div className="flex flex-wrap gap-1">
+                    {PRESETS.slice(0, 4).map((p) => (
+                        <span key={p.label} className="text-[10px] px-2 py-0.5 rounded-full border border-muted-foreground/20 text-muted-foreground">{p.label}</span>
+                    ))}
+                </div>
+                <div className="space-y-1">
+                    {["cutting","grinding","inspection","delivery"].map((id, i) => {
+                        const s = STATION_CATALOG.find((c) => c.id === id)!;
+                        return (
+                            <div key={id} className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2">
+                                <GripVertical className="h-3.5 w-3.5 text-muted-foreground/20" />
+                                <span className="text-[10px] text-muted-foreground/30 w-4 font-mono">{i + 1}</span>
+                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${s.color}`}>{s.label}</span>
+                            </div>
+                        );
+                    })}
+                </div>
+                <div className="h-9 rounded-lg bg-primary/20 flex items-center justify-center">
+                    <span className="text-xs text-primary/60 font-medium">เปิดออเดอร์</span>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+StationSequencePicker.craft = {
+    displayName: "Station Sequence",
+    props: { title: "กำหนดเส้นทางการผลิต", submitEndpoint: "/orders", requestIdParam: "id" } as StationSequencePickerProps,
+};
