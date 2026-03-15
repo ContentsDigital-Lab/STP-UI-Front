@@ -35,10 +35,12 @@ import { RecordDetail }           from "./blocks/RecordDetail";
 import { StationSequencePicker }  from "./blocks/StationSequencePicker";
 
 interface DesignerCanvasProps {
-    templateName: string;
+    templateName:  string;
     initialNodes?: Record<string, unknown>;
-    onSave: (craftNodes: Record<string, unknown>) => Promise<void>;
-    saving?: boolean;
+    onSave:        (craftNodes: Record<string, unknown>) => Promise<void>;
+    saving?:       boolean;
+    /** Start directly in preview/live mode — hides toolbar edit controls */
+    previewOnly?:  boolean;
 }
 
 const RESOLVER = {
@@ -57,8 +59,8 @@ function EditorModeSync({ enabled }: { enabled: boolean }) {
     return null;
 }
 
-export function DesignerCanvas({ templateName, initialNodes, onSave, saving }: DesignerCanvasProps) {
-    const [isPreview, setIsPreview] = useState(false);
+export function DesignerCanvas({ templateName, initialNodes, onSave, saving, previewOnly = false }: DesignerCanvasProps) {
+    const [isPreview, setIsPreview] = useState(previewOnly);
 
     return (
         <PreviewContext.Provider value={isPreview}>
@@ -66,13 +68,16 @@ export function DesignerCanvas({ templateName, initialNodes, onSave, saving }: D
                 <EditorModeSync enabled={!isPreview} />
                 <KeyboardShortcuts />
                 <div className="flex flex-col h-full">
-                    <Toolbar
-                        templateName={templateName}
-                        onSave={onSave}
-                        saving={saving}
-                        isPreview={isPreview}
-                        onTogglePreview={() => setIsPreview((p) => !p)}
-                    />
+                    {/* Hide entire toolbar in previewOnly (live station) mode */}
+                    {!previewOnly && (
+                        <Toolbar
+                            templateName={templateName}
+                            onSave={onSave}
+                            saving={saving}
+                            isPreview={isPreview}
+                            onTogglePreview={() => setIsPreview((p) => !p)}
+                        />
+                    )}
                     <div className="flex flex-1 overflow-hidden">
                         {/* Hide palette + properties in preview */}
                         {!isPreview && <BlockPalette />}
@@ -83,7 +88,7 @@ export function DesignerCanvas({ templateName, initialNodes, onSave, saving }: D
                                 ? "bg-white dark:bg-slate-950 [&_*]:!cursor-default"
                                 : "bg-slate-100 dark:bg-slate-900/60"
                         }`}>
-                            {isPreview && (
+                            {isPreview && !previewOnly && (
                                 <div className="max-w-2xl mx-auto mb-3">
                                     <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-xs font-medium">
                                         <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
