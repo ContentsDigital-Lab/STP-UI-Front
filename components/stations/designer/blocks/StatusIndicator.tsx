@@ -1,6 +1,7 @@
 "use client";
 
 import { useNode } from "@craftjs/core";
+import { Database } from "lucide-react";
 
 const STATUS_CONFIG: Record<string, { label: string; dot: string; bg: string; text: string }> = {
     pending:     { label: "รอดำเนินการ",  dot: "bg-slate-400",  bg: "bg-slate-100 dark:bg-slate-800",   text: "text-slate-600 dark:text-slate-300" },
@@ -10,11 +11,12 @@ const STATUS_CONFIG: Record<string, { label: string; dot: string; bg: string; te
 };
 
 interface StatusIndicatorProps {
-    label?: string;
-    status?: "pending" | "in_progress" | "completed" | "error";
+    label?:   string;
+    status?:  "pending" | "in_progress" | "completed" | "error";
+    dataVar?: string;
 }
 
-export function StatusIndicator({ label = "สถานะงาน", status = "pending" }: StatusIndicatorProps) {
+export function StatusIndicator({ label = "สถานะงาน", status = "pending", dataVar = "" }: StatusIndicatorProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.pending;
 
@@ -23,8 +25,15 @@ export function StatusIndicator({ label = "สถานะงาน", status = "
             ref={(ref) => { ref && connect(drag(ref)); }}
             className={`w-full rounded-xl border-2 p-4 cursor-grab transition-all ${selected ? "border-primary ring-2 ring-primary/20" : "border-slate-200 dark:border-slate-700 hover:border-primary/30"}`}
         >
-            <p className="text-xs font-semibold text-muted-foreground mb-2">{label}</p>
-            <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 ${cfg.bg}`}>
+            <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold text-muted-foreground">{label}</p>
+                {dataVar && (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px] font-mono">
+                        <Database className="h-2.5 w-2.5" />{`{${dataVar}}`}
+                    </span>
+                )}
+            </div>
+            <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 ${cfg.bg} ${dataVar ? "opacity-60" : ""}`}>
                 <span className={`h-2 w-2 rounded-full ${cfg.dot} animate-pulse`} />
                 <span className={`text-sm font-medium ${cfg.text}`}>{cfg.label}</span>
             </div>
@@ -34,5 +43,5 @@ export function StatusIndicator({ label = "สถานะงาน", status = "
 
 StatusIndicator.craft = {
     displayName: "Status",
-    props: { label: "สถานะงาน", status: "pending" } as StatusIndicatorProps,
+    props: { label: "สถานะงาน", status: "pending", dataVar: "" } as StatusIndicatorProps,
 };
