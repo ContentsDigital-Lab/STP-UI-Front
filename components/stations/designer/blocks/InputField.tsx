@@ -2,6 +2,7 @@
 
 import { useNode } from "@craftjs/core";
 import { Hash } from "lucide-react";
+import { usePreview } from "../PreviewContext";
 
 interface InputFieldProps {
     label?:        string;
@@ -22,6 +23,17 @@ export function InputField({
     defaultValue = "",
 }: InputFieldProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
+    const isPreview = usePreview();
+
+    if (isPreview) {
+        return (
+            <div className="w-full space-y-1.5">
+                {label && <label className="block text-xs font-semibold text-foreground/70">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>}
+                <input type={fieldType} placeholder={placeholder} defaultValue={defaultValue} className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
+            </div>
+        );
+    }
+
     return (
         <div
             ref={(ref) => { ref && connect(drag(ref)); }}

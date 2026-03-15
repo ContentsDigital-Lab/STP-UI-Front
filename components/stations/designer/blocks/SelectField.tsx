@@ -1,26 +1,27 @@
 "use client";
 
 import { useNode } from "@craftjs/core";
-import { ChevronDown, Database, Hash } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ChevronDown, Database, Hash, Loader2 } from "lucide-react";
+import { fetchApi } from "@/lib/api/config";
+import { usePreview } from "../PreviewContext";
 
 interface SelectFieldProps {
     label?:       string;
     placeholder?: string;
-    // data binding
     fieldKey?:    string;
-    dataSource?:  string;   // "static" | "/materials" | "/workers" | "/customers" | "/orders" | "/inventory"
-    labelField?:  string;   // which field to display as option label
-    valueField?:  string;   // which field to use as option value
-    options?:     string;   // comma-separated for static source
+    dataSource?:  string;
+    labelField?:  string;
+    valueField?:  string;
+    options?:     string;
 }
 
-// Source display label
 const SOURCE_LABEL: Record<string, string> = {
-    "/materials":  "Materials",
-    "/workers":    "Workers",
-    "/customers":  "Customers",
-    "/orders":     "Orders",
-    "/inventory":  "Inventory",
+    "/materials":  "รายการวัสดุ",
+    "/workers":    "รายการพนักงาน",
+    "/customers":  "รายการลูกค้า",
+    "/orders":     "รายการออเดอร์",
+    "/inventory":  "คลังสินค้า",
 };
 
 export function SelectField({
@@ -33,14 +34,59 @@ export function SelectField({
     options = "ตัวเลือก 1, ตัวเลือก 2",
 }: SelectFieldProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
-    const isApi = dataSource && dataSource !== "static";
+    const isPreview = usePreview();
+    const isApi     = dataSource && dataSource !== "static";
 
+    // ── Preview: fetch real API data ──────────────────────────────────────────
+    const [apiItems, setApiItems] = useState<{ label: string; value: string }[]>([]);
+    const [fetching, setFetching] = useState(false);
+
+    useEffect(() => {
+        if (!isPreview || !isApi) return;
+        setFetching(true);
+        fetchApi<{ success: boolean; data: Record<string, string>[] }>(dataSource)
+            .then((res) => {
+                if (res.success && Array.isArray(res.data)) {
+                    setApiItems(res.data.map((item) => ({
+                        label: item[labelField || "name"] || item.name || item._id || "—",
+                        value: item[valueField || "_id"]  || item._id  || "",
+                    })));
+                }
+            })
+            .catch(() => setApiItems([]))
+            .finally(() => setFetching(false));
+    }, [isPreview, dataSource, labelField, valueField, isApi]);
+
+    // ── Preview render ────────────────────────────────────────────────────────
+    if (isPreview) {
+        const staticOpts = (options ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+        return (
+            <div className="w-full space-y-1.5">
+                {label && <label className="block text-xs font-semibold text-foreground/70">{label}</label>}
+                <div className="relative">
+                    <select className="w-full rounded-lg border bg-background px-3 py-2 text-sm appearance-none pr-8 focus:outline-none focus:ring-2 focus:ring-primary/40">
+                        <option value="">{fetching ? "กำลังโหลด..." : placeholder}</option>
+                        {isApi
+                            ? apiItems.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)
+                            : staticOpts.map((o) => <option key={o} value={o}>{o}</option>)
+                        }
+                    </select>
+                    {fetching
+                        ? <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground animate-spin" />
+                        : <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                    }
+                </div>
+                {isApi && <p className="text-[10px] text-emerald-600">{apiItems.length} รายการจาก {SOURCE_LABEL[dataSource] ?? dataSource}</p>}
+            </div>
+        );
+    }
+
+    // ── Design mode render ────────────────────────────────────────────────────
     return (
         <div
             ref={(ref) => { ref && connect(drag(ref)); }}
             className={`w-full rounded-xl border-2 p-3 space-y-1.5 cursor-grab transition-all ${selected ? "border-primary bg-primary/5" : "border-slate-200 dark:border-slate-700 hover:border-primary/30 bg-card"}`}
         >
-            {/* Binding badges */}
             {(fieldKey || isApi) && (
                 <div className="flex flex-wrap items-center gap-1 mb-1">
                     {fieldKey && (
@@ -64,10 +110,9 @@ export function SelectField({
                 <ChevronDown className="h-3.5 w-3.5 shrink-0" />
             </div>
 
-            {/* Preview of options */}
             {isApi ? (
                 <p className="text-[10px] text-teal-600 dark:text-teal-400">
-                    📡 ดึงข้อมูลจาก {dataSource} → แสดง {labelField || "name"}
+                    📡 ดึงข้อมูลจาก {SOURCE_LABEL[dataSource] ?? dataSource} → แสดง {labelField || "name"}
                 </p>
             ) : options ? (
                 <p className="text-[10px] text-muted-foreground/50 truncate">ตัวเลือก: {options}</p>

@@ -2,17 +2,18 @@
 
 import { useEditor } from "@craftjs/core";
 import { useState } from "react";
-import { Save, Undo2, Redo2, Code2, Trash2, Keyboard } from "lucide-react";
+import { Save, Undo2, Redo2, Code2, Trash2, Keyboard, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface ToolbarProps {
     templateName: string;
     onSave: (craftNodes: Record<string, unknown>) => Promise<void>;
-    onDeleteSelected?: () => void;
     saving?: boolean;
+    isPreview?: boolean;
+    onTogglePreview?: () => void;
 }
 
-export function Toolbar({ templateName, onSave, saving }: ToolbarProps) {
+export function Toolbar({ templateName, onSave, saving, isPreview = false, onTogglePreview }: ToolbarProps) {
     const { actions, query, canUndo, canRedo, selected } = useEditor((state, q) => ({
         canUndo: q.history.canUndo(),
         canRedo: q.history.canRedo(),
@@ -59,6 +60,18 @@ export function Toolbar({ templateName, onSave, saving }: ToolbarProps) {
                 )}
 
                 <div className="flex-1" />
+
+                {/* Preview toggle */}
+                <Button
+                    variant={isPreview ? "default" : "outline"}
+                    size="sm"
+                    onClick={onTogglePreview}
+                    className={`h-8 gap-1.5 ${isPreview ? "bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600" : ""}`}
+                    title={isPreview ? "ออกจาก Preview" : "ทดสอบหน้าตา (Preview)"}
+                >
+                    {isPreview ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                    {isPreview ? "ออก Preview" : "Preview"}
+                </Button>
 
                 <Button variant="outline" size="sm" onClick={() => setShowKeys(true)} className="h-8 w-8 p-0" title="Keyboard shortcuts">
                     <Keyboard className="h-3.5 w-3.5" />
