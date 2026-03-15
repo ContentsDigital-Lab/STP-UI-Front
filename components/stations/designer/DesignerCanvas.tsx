@@ -28,8 +28,11 @@ import { TextAreaField }     from "./blocks/TextAreaField";
 import { ButtonBlock }       from "./blocks/ButtonBlock";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
-import { InfoCard }          from "./blocks/InfoCard";
-import { StatusIndicator }   from "./blocks/StatusIndicator";
+import { InfoCard }               from "./blocks/InfoCard";
+import { StatusIndicator }        from "./blocks/StatusIndicator";
+import { RecordList }             from "./blocks/RecordList";
+import { RecordDetail }           from "./blocks/RecordDetail";
+import { StationSequencePicker }  from "./blocks/StationSequencePicker";
 
 interface DesignerCanvasProps {
     templateName: string;
@@ -42,7 +45,7 @@ const RESOLVER = {
     CanvasContainer, Section, TwoColumns, Column,
     Heading, Paragraph, Divider, Spacer, Badge,
     InputField, SelectField, TextAreaField, ButtonBlock,
-    InfoCard, StatusIndicator,
+    InfoCard, StatusIndicator, RecordList, RecordDetail, StationSequencePicker,
 };
 
 /** Syncs preview (enabled/disabled) into Craft.js options — must be inside <Editor> */

@@ -17,11 +17,14 @@ interface SelectFieldProps {
 }
 
 const SOURCE_LABEL: Record<string, string> = {
-    "/materials":  "รายการวัสดุ",
-    "/workers":    "รายการพนักงาน",
-    "/customers":  "รายการลูกค้า",
-    "/orders":     "รายการออเดอร์",
-    "/inventory":  "คลังสินค้า",
+    "/materials":    "รายการวัสดุ",
+    "/workers":      "รายการพนักงาน",
+    "/customers":    "รายการลูกค้า",
+    "/orders":       "รายการออเดอร์/คำสั่งผลิต",
+    "/inventories":  "คลังสินค้า",
+    "/requests":     "รายการคำขอ (บิล)",
+    "/withdrawals":  "รายการเบิกวัสดุ",
+    "/claims":       "รายการเคลม",
 };
 
 export function SelectField({

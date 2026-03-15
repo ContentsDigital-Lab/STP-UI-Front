@@ -2,9 +2,9 @@
 
 import { useEditor, Element } from "@craftjs/core";
 import {
-    Columns2, Type, AlignLeft, Minus, MoveVertical,
+    Columns2, Columns3, Columns4, Type, AlignLeft, Minus, MoveVertical,
     Tag, TextCursorInput, ChevronDown, FileText,
-    MousePointerClick, CreditCard, Activity, LayoutPanelLeft,
+    MousePointerClick, CreditCard, Activity, LayoutPanelLeft, Table2, ClipboardList, Workflow,
 } from "lucide-react";
 import { ReactElement } from "react";
 
@@ -22,6 +22,9 @@ import { TextAreaField }     from "./blocks/TextAreaField";
 import { ButtonBlock }       from "./blocks/ButtonBlock";
 import { InfoCard }          from "./blocks/InfoCard";
 import { StatusIndicator }   from "./blocks/StatusIndicator";
+import { RecordList }             from "./blocks/RecordList";
+import { RecordDetail }           from "./blocks/RecordDetail";
+import { StationSequencePicker }  from "./blocks/StationSequencePicker";
 
 interface PaletteItem {
     label: string;
@@ -40,7 +43,9 @@ const PALETTE: PaletteGroup[] = [
         category: "Layout",
         items: [
             { label: "Section",   icon: <LayoutPanelLeft className="h-4 w-4" />, element: <Section />,     bg: "bg-slate-500" },
-            { label: "2 Columns", icon: <Columns2 className="h-4 w-4" />,        element: <TwoColumns><Element is={Column} canvas /><Element is={Column} canvas /></TwoColumns>,  bg: "bg-slate-500" },
+            { label: "2 Columns", icon: <Columns2 className="h-4 w-4" />, element: <TwoColumns columns={2}><Element is={Column} canvas /><Element is={Column} canvas /></TwoColumns>, bg: "bg-slate-500" },
+            { label: "3 Columns", icon: <Columns3 className="h-4 w-4" />, element: <TwoColumns columns={3}><Element is={Column} canvas /><Element is={Column} canvas /><Element is={Column} canvas /></TwoColumns>, bg: "bg-slate-500" },
+            { label: "4 Columns", icon: <Columns4 className="h-4 w-4" />, element: <TwoColumns columns={4}><Element is={Column} canvas /><Element is={Column} canvas /><Element is={Column} canvas /><Element is={Column} canvas /></TwoColumns>, bg: "bg-slate-500" },
         ],
     },
     {
@@ -67,6 +72,9 @@ const PALETTE: PaletteGroup[] = [
         items: [
             { label: "Info Card", icon: <CreditCard className="h-4 w-4" />,  element: <InfoCard />,        bg: "bg-teal-500"  },
             { label: "Status",    icon: <Activity className="h-4 w-4" />,    element: <StatusIndicator />, bg: "bg-teal-500"  },
+            { label: "รายการข้อมูล",     icon: <Table2 className="h-4 w-4" />,       element: <RecordList />,            bg: "bg-indigo-500"  },
+            { label: "รายละเอียด",      icon: <ClipboardList className="h-4 w-4" />, element: <RecordDetail />,          bg: "bg-cyan-600"    },
+            { label: "เส้นทางผลิต",     icon: <Workflow className="h-4 w-4" />,      element: <StationSequencePicker />, bg: "bg-emerald-600" },
         ],
     },
 ];

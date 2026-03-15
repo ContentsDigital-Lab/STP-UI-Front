@@ -2,14 +2,14 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useEditor } from "@craftjs/core";
-import { Database, Zap, Settings2, HelpCircle, ChevronDown } from "lucide-react";
+import { Database, Zap, Settings2, HelpCircle, ChevronDown, Plus, Trash2, GripVertical } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Section  = "props" | "data" | "action";
 type FieldDef = {
     label:         string;
     hint?:         string;
-    type:          "text" | "number" | "select" | "textarea" | "toggle";
+    type:          "text" | "number" | "select" | "textarea" | "toggle" | "column-editor";
     options?:      string[];
     optionLabels?: string[];
     placeholder?:  string;
@@ -21,7 +21,8 @@ type FieldDef = {
 // ── Shared suggestion banks ───────────────────────────────────────────────────
 const FIELD_KEY_SUGGESTIONS = ["customerName","materialId","workerId","quantity","notes","deadline","status","description","price","orderId","requestId","email","phone","address","remark","type"];
 const DATA_VAR_SUGGESTIONS   = ["order.status","order.quantity","order.customer.name","order.material.name","order.priority","order.assignedTo.name","request.details.type","request.details.estimatedPrice","request.deadline","request.deliveryLocation","request.customer.name"];
-const ENDPOINT_SUGGESTIONS   = ["/orders","/materials","/workers","/customers","/requests","/claims","/withdrawals"];
+const ENDPOINT_SUGGESTIONS    = ["/orders","/requests","/materials","/workers","/customers","/inventories","/claims","/withdrawals","/material-logs","/notifications"];
+const NAVIGATE_TO_SUGGESTIONS = ["/production","/request","/stations","/inventory","/withdrawals","/claims","/logs","/settings"];
 const NAVIGATE_SUGGESTIONS   = ["/production","/request","/stations","/inventory","/withdrawals","/claims","/logs","/settings"];
 const LABEL_FIELD_SUGGESTIONS = ["name","username","title","type","status","position"];
 const VALUE_FIELD_SUGGESTIONS = ["_id","name","id"];
@@ -34,7 +35,9 @@ const FIELD_META: Record<string, Record<string, FieldDef>> = {
         padding: { label: "ระยะห่างด้านใน", type: "select", section: "props", options: ["none","sm","md","lg"], optionLabels: ["ไม่มี","เล็ก","กลาง","ใหญ่"] },
     },
     "2 Columns": {
-        gap: { label: "ช่องว่างระหว่างคอลัมน์", type: "select", section: "props", options: ["2","4","6","8"], optionLabels: ["แคบมาก","แคบ","กลาง","กว้าง"] },
+        columns:    { label: "จำนวนคอลัมน์",         type: "select", section: "props", options: ["2","3","4"], optionLabels: ["2 คอลัมน์","3 คอลัมน์","4 คอลัมน์"] },
+        widthRatio: { label: "สัดส่วนความกว้าง",       type: "select", section: "props", options: ["equal","2/3-1/3","1/3-2/3","3/4-1/4","1/4-3/4"], optionLabels: ["เท่ากัน","ซ้ายกว้าง (2/3 | 1/3)","ขวากว้าง (1/3 | 2/3)","ซ้ายกว้างมาก (3/4 | 1/4)","ขวากว้างมาก (1/4 | 3/4)"], showWhen: { field: "columns", value: "2" } },
+        gap:        { label: "ช่องว่างระหว่างคอลัมน์", type: "select", section: "props", options: ["2","4","6","8"], optionLabels: ["แคบมาก","แคบ","กลาง","กว้าง"] },
     },
     Heading: {
         text:    { label: "ข้อความหัวข้อ",  type: "text",   section: "props", placeholder: "พิมพ์หัวข้อที่นี่" },
@@ -73,10 +76,10 @@ const FIELD_META: Record<string, Record<string, FieldDef>> = {
         label:       { label: "ชื่อช่องเลือก",            type: "text",   section: "props", placeholder: "เช่น เลือกวัสดุ" },
         placeholder: { label: "ข้อความตอนยังไม่เลือก",    type: "text",   section: "props", placeholder: "เช่น -- เลือก --" },
         fieldKey:    { label: "ชื่อตัวแปร (ใช้ในฟอร์ม)", type: "text",   section: "data", hint: "ชื่อที่จะใช้ระบุข้อมูลที่เลือกเมื่อส่งฟอร์ม", placeholder: "เช่น materialId", suggestions: FIELD_KEY_SUGGESTIONS },
-        dataSource:  { label: "ดึงตัวเลือกมาจาก",        type: "select", section: "data", options: ["static","/materials","/workers","/customers","/orders","/inventory"], optionLabels: ["กำหนดเอง","รายการวัสดุ","รายการพนักงาน","รายการลูกค้า","รายการออเดอร์","คลังสินค้า"] },
+        dataSource:  { label: "ดึงตัวเลือกมาจาก",        type: "select", section: "data", options: ["static","/materials","/workers","/customers","/orders","/inventories","/requests","/claims","/withdrawals"], optionLabels: ["กำหนดเอง","รายการวัสดุ","รายการพนักงาน","รายการลูกค้า","รายการออเดอร์","คลังสินค้า","รายการคำขอ (บิล)","รายการเคลม","รายการเบิกวัสดุ"] },
         options:     { label: "รายการตัวเลือก",           type: "text",   section: "data", hint: "พิมพ์ตัวเลือกแต่ละอัน คั่นด้วยเครื่องหมายจุลภาค (,)", placeholder: "ตัวเลือก A, ตัวเลือก B, ตัวเลือก C", showWhen: { field: "dataSource", value: "static" } },
-        labelField:  { label: "แสดงข้อความจากฟิลด์",    type: "text",   section: "data", hint: "ฟิลด์ที่จะนำมาแสดงเป็นชื่อตัวเลือก (ค่าเริ่มต้น: name)", placeholder: "name", suggestions: LABEL_FIELD_SUGGESTIONS, showWhen: { field: "dataSource", value: ["/materials","/workers","/customers","/orders","/inventory"] } },
-        valueField:  { label: "ค่าที่ส่งเป็นฟิลด์",    type: "text",   section: "data", hint: "ฟิลด์ที่จะใช้เป็นค่าเมื่อเลือก (ค่าเริ่มต้น: _id)", placeholder: "_id", suggestions: VALUE_FIELD_SUGGESTIONS, showWhen: { field: "dataSource", value: ["/materials","/workers","/customers","/orders","/inventory"] } },
+        labelField:  { label: "แสดงข้อความจากฟิลด์",    type: "text",   section: "data", hint: "ฟิลด์ที่จะนำมาแสดงเป็นชื่อตัวเลือก (ค่าเริ่มต้น: name)", placeholder: "name", suggestions: LABEL_FIELD_SUGGESTIONS, showWhen: { field: "dataSource", value: ["/materials","/workers","/customers","/orders","/inventories","/requests","/claims","/withdrawals"] } },
+        valueField:  { label: "ค่าที่ส่งเป็นฟิลด์",    type: "text",   section: "data", hint: "ฟิลด์ที่จะใช้เป็นค่าเมื่อเลือก (ค่าเริ่มต้น: _id)", placeholder: "_id", suggestions: VALUE_FIELD_SUGGESTIONS, showWhen: { field: "dataSource", value: ["/materials","/workers","/customers","/orders","/inventories","/requests","/claims","/withdrawals"] } },
     },
     "Text Area": {
         label:       { label: "ชื่อช่องข้อความ",         type: "text",   section: "props", placeholder: "เช่น หมายเหตุ" },
@@ -102,10 +105,31 @@ const FIELD_META: Record<string, Record<string, FieldDef>> = {
         accentColor: { label: "สีแถบข้าง",     type: "select",   section: "props", options: ["blue","green","orange","purple","red","slate"], optionLabels: ["ฟ้า","เขียว","ส้ม","ม่วง","แดง","เทา"] },
         dataVar:     { label: "เชื่อมกับข้อมูล", type: "text",   section: "data", hint: "ชื่อ object ที่จะนำข้อมูลมาแสดงในการ์ด", placeholder: "เช่น selectedOrder", suggestions: DATA_VAR_SUGGESTIONS },
     },
+    "Record Detail": {
+        title:      { label: "ชื่อหัวข้อ",         type: "text",   section: "props", placeholder: "เช่น รายละเอียดคำขอ" },
+        endpoint:   { label: "แหล่งข้อมูล",         type: "select", section: "data",  options: ["static","/orders","/requests","/materials","/workers","/customers","/inventories","/claims","/withdrawals"], optionLabels: ["ตัวอย่าง (ไม่ต้องการ API)","รายการออเดอร์/คำสั่งผลิต","รายการคำขอ (บิล)","รายการวัสดุ","รายการพนักงาน","รายการลูกค้า","คลังสินค้า","รายการเคลม","รายการเบิกวัสดุ"] },
+        idParam:    { label: "URL Param ของ ID",    type: "text",   section: "data",  hint: "ชื่อ query param หรือ path segment ที่เก็บ ID ของ record เช่น ?id=xxx", placeholder: "id" },
+        fieldsJson: { label: "ฟิลด์ที่แสดง",       type: "column-editor", section: "data" },
+    },
+    "Station Sequence": {
+        title:          { label: "ชื่อหัวข้อ",         type: "text",   section: "props", placeholder: "เช่น กำหนดเส้นทางการผลิต" },
+        submitEndpoint: { label: "API สร้างออเดอร์",   type: "select", section: "action", options: ["/orders"], optionLabels: ["สร้างออเดอร์ (/orders)"] },
+        requestIdParam: { label: "URL Param ของบิล",   type: "text",   section: "action", hint: "ชื่อ query param ที่เก็บ ID ของ request/bill", placeholder: "id" },
+    },
+    "Record List": {
+        label:       { label: "ชื่อหัวข้อรายการ", type: "text",          section: "props", placeholder: "เช่น รายการบิล" },
+        showHeader:  { label: "แสดงหัวรายการ",    type: "toggle",        section: "props" },
+        showSearch:  { label: "แสดงช่องค้นหา",   type: "toggle",        section: "props" },
+        maxRows:     { label: "จำนวนแถวสูงสุด",  type: "number",        section: "props", placeholder: "5" },
+        dataSource:  { label: "แหล่งข้อมูล",     type: "select",        section: "data",  options: ["static","/orders","/requests","/materials","/workers","/customers","/inventories","/claims","/withdrawals","/material-logs","/notifications"], optionLabels: ["ตัวอย่าง (ไม่ต้องการ API)","รายการออเดอร์/คำสั่งผลิต","รายการคำขอ (บิล)","รายการวัสดุ","รายการพนักงาน","รายการลูกค้า","คลังสินค้า","รายการเคลม","รายการเบิกวัสดุ","ประวัติการใช้วัสดุ","การแจ้งเตือน"] },
+        columnsJson: { label: "คอลัมน์",         type: "column-editor", section: "data" },
+        navigateTo:  { label: "คลิกแถวไปหน้า", type: "select",        section: "action", options: ["","production","request","inventory","withdrawals","claims"], optionLabels: ["ไม่มี (ไม่คลิกได้)","คำสั่งผลิต (/production)","คำขอ (/request)","คลังสินค้า (/inventory)","เบิกวัสดุ (/withdrawals)","เคลม (/claims)"], hint: "เมื่อคลิกแถว ระบบจะนำไปหน้าที่เลือก" },
+    },
     Status: {
-        label:   { label: "ชื่อหัวข้อสถานะ",    type: "text",   section: "props", placeholder: "เช่น สถานะงาน" },
-        status:  { label: "สถานะที่แสดง",       type: "select", section: "props", options: ["pending","in_progress","completed","error"], optionLabels: ["รอดำเนินการ","กำลังดำเนินการ","เสร็จแล้ว","มีปัญหา"] },
-        dataVar: { label: "เชื่อมกับข้อมูลสถานะ", type: "text", section: "data", hint: "ชื่อตัวแปรที่มีค่าสถานะ", placeholder: "เช่น order.status", suggestions: DATA_VAR_SUGGESTIONS },
+        label:        { label: "ชื่อหัวข้อ",       type: "text",   section: "props", placeholder: "เช่น สถานะงาน" },
+        displayStyle: { label: "รูปแบบการแสดง",   type: "select", section: "props", options: ["pill","badge","dot","tag"], optionLabels: ["แถบกลม (Pill)","ป้าย (Badge)","จุด + ข้อความ","แท็กขอบซ้าย"] },
+        displayMode:  { label: "โหมดแสดง",         type: "select", section: "data",  options: ["single","list"], optionLabels: ["ค่าเดียว","รายการ (หลายรายการ)"], hint: "เลือก 'รายการ' เมื่อต้องการแสดงหลายออเดอร์พร้อมกัน" },
+        dataVar:      { label: "เชื่อมกับข้อมูลสถานะ", type: "text", section: "data", hint: "ชื่อตัวแปรที่มีค่าสถานะ เช่น order.status หรือ orders (array)", placeholder: "เช่น order.status", suggestions: DATA_VAR_SUGGESTIONS },
     },
 };
 
@@ -178,9 +202,224 @@ function ComboField({ value, onChange, placeholder, suggestions, base }: {
     );
 }
 
+// ── Column editor ─────────────────────────────────────────────────────────────
+interface ColDef { key: string; label: string; type: string; width: string; }
+
+const COL_TYPES   = ["text","status","number","currency","date","badge"];
+const COL_WIDTHS  = ["auto","sm","md","lg"];
+const COL_TYPE_LABELS  = ["ข้อความ","สถานะ (สี)","ตัวเลข","ราคา (฿)","วันที่","ป้าย"];
+const COL_WIDTH_LABELS = ["อัตโนมัติ","แคบ","กลาง","กว้าง"];
+
+// Available fields per endpoint — key, Thai label, and auto type
+const SOURCE_FIELDS: Record<string, { key: string; label: string; type: string }[]> = {
+    "/requests": [
+        { key: "details.type",           label: "ประเภทงาน",        type: "text"     },
+        { key: "details.estimatedPrice", label: "ราคาประมาณ",       type: "currency" },
+        { key: "details.quantity",       label: "จำนวน",            type: "number"   },
+        { key: "customer",               label: "ลูกค้า",           type: "text"     },
+        { key: "deadline",               label: "กำหนดส่ง",         type: "date"     },
+        { key: "deliveryLocation",       label: "สถานที่ส่ง",       type: "text"     },
+        { key: "assignedTo",             label: "ผู้รับผิดชอบ",     type: "text"     },
+        { key: "expectedDeliveryDate",   label: "วันส่งจริง",       type: "date"     },
+        { key: "createdAt",              label: "วันที่สร้าง",      type: "date"     },
+    ],
+    "/orders": [
+        { key: "status",      label: "สถานะ",             type: "status"   },
+        { key: "quantity",    label: "จำนวน",             type: "number"   },
+        { key: "material",    label: "วัสดุ",             type: "text"     },
+        { key: "customer",    label: "ลูกค้า",            type: "text"     },
+        { key: "priority",    label: "ลำดับความสำคัญ",  type: "number"   },
+        { key: "assignedTo",  label: "ผู้รับผิดชอบ",    type: "text"     },
+        { key: "createdAt",   label: "วันที่สร้าง",     type: "date"     },
+    ],
+    "/materials": [
+        { key: "name",              label: "ชื่อวัสดุ",           type: "text"   },
+        { key: "unit",              label: "หน่วย",               type: "badge"  },
+        { key: "reorderPoint",      label: "จุดสั่งซื้อ",         type: "number" },
+        { key: "specDetails.thickness", label: "ความหนา",         type: "text"   },
+        { key: "specDetails.color",     label: "สี",              type: "badge"  },
+        { key: "specDetails.glassType", label: "ประเภทกระจก",    type: "badge"  },
+        { key: "createdAt",         label: "วันที่เพิ่ม",         type: "date"   },
+    ],
+    "/workers": [
+        { key: "name",      label: "ชื่อ",          type: "text"  },
+        { key: "username",  label: "ชื่อผู้ใช้",   type: "badge" },
+        { key: "position",  label: "ตำแหน่ง",      type: "text"  },
+        { key: "role",      label: "สิทธิ์",        type: "badge" },
+        { key: "createdAt", label: "วันที่เพิ่ม",  type: "date"  },
+    ],
+    "/customers": [
+        { key: "name",      label: "ชื่อลูกค้า",   type: "text"     },
+        { key: "phone",     label: "โทรศัพท์",     type: "text"     },
+        { key: "address",   label: "ที่อยู่",       type: "text"     },
+        { key: "discount",  label: "ส่วนลด",       type: "number"   },
+        { key: "notes",     label: "หมายเหตุ",     type: "text"     },
+        { key: "createdAt", label: "วันที่เพิ่ม",  type: "date"     },
+    ],
+    "/inventories": [
+        { key: "material",  label: "วัสดุ",        type: "text"   },
+        { key: "stockType", label: "ประเภทสต็อก",  type: "badge"  },
+        { key: "quantity",  label: "จำนวน",        type: "number" },
+        { key: "location",  label: "ตำแหน่ง",     type: "text"   },
+        { key: "createdAt", label: "อัพเดทล่าสุด", type: "date"  },
+    ],
+    "/withdrawals": [
+        { key: "material",      label: "วัสดุ",          type: "text"   },
+        { key: "quantity",      label: "จำนวนที่เบิก",  type: "number" },
+        { key: "stockType",     label: "ประเภทสต็อก",   type: "badge"  },
+        { key: "withdrawnBy",   label: "เบิกโดย",       type: "text"   },
+        { key: "withdrawnDate", label: "วันที่เบิก",    type: "date"   },
+    ],
+    "/claims": [
+        { key: "source",      label: "แหล่งที่มา",     type: "badge" },
+        { key: "material",    label: "วัสดุ",           type: "text"  },
+        { key: "description", label: "รายละเอียด",     type: "text"  },
+        { key: "decision",    label: "การตัดสินใจ",   type: "badge" },
+        { key: "reportedBy",  label: "รายงานโดย",     type: "text"  },
+        { key: "claimDate",   label: "วันที่เคลม",    type: "date"  },
+    ],
+    "/material-logs": [
+        { key: "material",        label: "วัสดุ",       type: "text"   },
+        { key: "actionType",      label: "ประเภทการกระทำ", type: "badge" },
+        { key: "quantityChanged", label: "จำนวนที่เปลี่ยน", type: "number" },
+        { key: "totalPrice",      label: "ราคารวม",    type: "currency" },
+        { key: "worker",          label: "พนักงาน",    type: "text"   },
+        { key: "createdAt",       label: "วันที่",     type: "date"   },
+    ],
+    "/notifications": [
+        { key: "title",     label: "หัวข้อ",     type: "text"  },
+        { key: "message",   label: "ข้อความ",    type: "text"  },
+        { key: "priority",  label: "ระดับ",      type: "badge" },
+        { key: "type",      label: "ประเภท",     type: "badge" },
+        { key: "createdAt", label: "วันที่",     type: "date"  },
+    ],
+};
+
+// Preset column layouts per endpoint (matching real API field names)
+const COLUMN_PRESETS: Record<string, ColDef[]> = {
+    "/requests":      [{ key:"details.type",label:"ประเภทงาน",type:"text",width:"lg"},{ key:"details.estimatedPrice",label:"ราคาประมาณ",type:"currency",width:"md"},{ key:"customer",label:"ลูกค้า",type:"text",width:"md"},{ key:"deadline",label:"กำหนดส่ง",type:"date",width:"md"}],
+    "/orders":        [{ key:"status",label:"สถานะ",type:"status",width:"md"},{ key:"quantity",label:"จำนวน",type:"number",width:"sm"},{ key:"material",label:"วัสดุ",type:"text",width:"lg"},{ key:"customer",label:"ลูกค้า",type:"text",width:"md"}],
+    "/materials":     [{ key:"name",label:"ชื่อวัสดุ",type:"text",width:"lg"},{ key:"unit",label:"หน่วย",type:"badge",width:"sm"},{ key:"reorderPoint",label:"จุดสั่งซื้อ",type:"number",width:"sm"}],
+    "/workers":       [{ key:"name",label:"ชื่อ",type:"text",width:"lg"},{ key:"position",label:"ตำแหน่ง",type:"text",width:"md"},{ key:"role",label:"สิทธิ์",type:"badge",width:"sm"}],
+    "/customers":     [{ key:"name",label:"ชื่อลูกค้า",type:"text",width:"lg"},{ key:"phone",label:"โทร",type:"text",width:"md"},{ key:"address",label:"ที่อยู่",type:"text",width:"lg"}],
+    "/inventories":   [{ key:"material",label:"วัสดุ",type:"text",width:"lg"},{ key:"stockType",label:"ประเภท",type:"badge",width:"sm"},{ key:"quantity",label:"จำนวน",type:"number",width:"sm"},{ key:"location",label:"ตำแหน่ง",type:"text",width:"md"}],
+    "/withdrawals":   [{ key:"material",label:"วัสดุ",type:"text",width:"lg"},{ key:"quantity",label:"จำนวน",type:"number",width:"sm"},{ key:"stockType",label:"ประเภท",type:"badge",width:"sm"},{ key:"withdrawnDate",label:"วันที่",type:"date",width:"md"}],
+    "/claims":        [{ key:"source",label:"จาก",type:"badge",width:"sm"},{ key:"material",label:"วัสดุ",type:"text",width:"lg"},{ key:"description",label:"รายละเอียด",type:"text",width:"lg"},{ key:"claimDate",label:"วันที่",type:"date",width:"md"}],
+    "/material-logs": [{ key:"material",label:"วัสดุ",type:"text",width:"lg"},{ key:"actionType",label:"ประเภท",type:"badge",width:"md"},{ key:"quantityChanged",label:"จำนวน",type:"number",width:"sm"},{ key:"createdAt",label:"วันที่",type:"date",width:"md"}],
+    "/notifications": [{ key:"title",label:"หัวข้อ",type:"text",width:"lg"},{ key:"message",label:"ข้อความ",type:"text",width:"lg"},{ key:"priority",label:"ระดับ",type:"badge",width:"sm"},{ key:"createdAt",label:"วันที่",type:"date",width:"md"}],
+};
+
+function ColumnEditor({ value, onChange, dataSource }: { value: unknown; onChange: (v: string) => void; dataSource?: string }) {
+    const cols: ColDef[] = (() => {
+        try { return JSON.parse(String(value ?? "[]")); } catch { return []; }
+    })();
+
+    const update  = (next: ColDef[]) => onChange(JSON.stringify(next));
+    const setCol  = (i: number, patch: Partial<ColDef>) => update(cols.map((c, idx) => idx === i ? { ...c, ...patch } : c));
+    const delCol  = (i: number) => update(cols.filter((_, idx) => idx !== i));
+
+    const availableFields = dataSource ? (SOURCE_FIELDS[dataSource] ?? []) : [];
+    const hasFieldList    = availableFields.length > 0;
+
+    // When user picks a field from the dropdown, auto-fill label + type
+    const handleFieldPick = (i: number, key: string) => {
+        const found = availableFields.find((f) => f.key === key);
+        if (found) setCol(i, { key, label: found.label, type: found.type });
+        else       setCol(i, { key });
+    };
+
+    const addCol = () => {
+        const first = availableFields.find((f) => !cols.some((c) => c.key === f.key));
+        if (first) update([...cols, { key: first.key, label: first.label, type: first.type, width: "auto" }]);
+        else       update([...cols, { key: "", label: "คอลัมน์ใหม่", type: "text", width: "auto" }]);
+    };
+
+    const sel = "rounded border bg-background text-[11px] px-1.5 py-1 outline-none focus:ring-1 focus:ring-primary/40 cursor-pointer";
+    const inp = "rounded border bg-background text-xs px-1.5 py-1 outline-none focus:ring-1 focus:ring-primary/40";
+
+    return (
+        <div className="space-y-3">
+            {/* ── Chip picker (known endpoints) ── */}
+            {hasFieldList ? (
+                <div className="space-y-1.5">
+                    <p className="text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-wide">
+                        เลือกคอลัมน์ที่ต้องการแสดง
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                        {availableFields.map((f) => {
+                            const already = cols.some((c) => c.key === f.key);
+                            return (
+                                <button
+                                    key={f.key}
+                                    type="button"
+                                    onClick={() => {
+                                        if (already) delCol(cols.findIndex((c) => c.key === f.key));
+                                        else update([...cols, { key: f.key, label: f.label, type: f.type, width: "auto" }]);
+                                    }}
+                                    className={`inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border font-medium transition-all ${
+                                        already
+                                            ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                                            : "bg-background border-muted-foreground/25 text-muted-foreground hover:border-primary/50 hover:text-primary hover:bg-primary/5"
+                                    }`}
+                                >
+                                    {already ? <>✓ {f.label}</> : <>+ {f.label}</>}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            ) : (
+                cols.length === 0 && (
+                    <p className="text-[11px] text-muted-foreground/60 italic">ยังไม่มีคอลัมน์ — กด + เพิ่มได้เลย</p>
+                )
+            )}
+
+            {/* ── Selected columns list ── */}
+            {cols.length > 0 && (
+                <div className="space-y-1">
+                    {hasFieldList && (
+                        <p className="text-[10px] text-muted-foreground/60 font-semibold uppercase tracking-wide">
+                            คอลัมน์ที่เลือก — แก้ชื่อหัวได้
+                        </p>
+                    )}
+                    {cols.map((col, i) => (
+                        <div key={i} className="grid grid-cols-[auto_1fr_auto_auto] gap-1.5 items-center rounded-lg border bg-card px-2.5 py-2">
+                            <span className="text-[10px] text-muted-foreground/40 w-4 text-center shrink-0">{i + 1}</span>
+                            <input
+                                value={col.label}
+                                onChange={(e) => setCol(i, { label: e.target.value })}
+                                placeholder="ชื่อหัวคอลัมน์"
+                                className={`${inp} w-full text-sm font-medium`}
+                            />
+                            <select
+                                value={col.type || "text"}
+                                onChange={(e) => setCol(i, { type: e.target.value })}
+                                className={`${sel} w-[5.5rem] shrink-0`}
+                            >
+                                {COL_TYPES.map((t, ti) => <option key={t} value={t}>{COL_TYPE_LABELS[ti]}</option>)}
+                            </select>
+                            <button type="button" onClick={() => delCol(i)} className="text-muted-foreground/30 hover:text-red-500 transition-colors shrink-0 p-0.5">
+                                <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Add button — only for static/unknown source */}
+            {!hasFieldList && (
+                <button type="button" onClick={addCol} className="flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 font-medium transition-colors">
+                    <Plus className="h-3.5 w-3.5" /> เพิ่มคอลัมน์
+                </button>
+            )}
+        </div>
+    );
+}
+
 // ── Field renderer ────────────────────────────────────────────────────────────
-function Field({ label, value, fieldDef, onChange }: {
+function Field({ label, value, fieldDef, onChange, allProps }: {
     label: string; value: unknown; fieldDef: FieldDef; onChange: (v: string | number | boolean) => void;
+    allProps?: Record<string, unknown>;
 }) {
     const base = "w-full rounded-lg border bg-background px-2.5 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/40 transition";
 
@@ -188,7 +427,9 @@ function Field({ label, value, fieldDef, onChange }: {
         <div className="space-y-1">
             <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide block">{label}</label>
 
-            {fieldDef.type === "toggle" ? (
+            {fieldDef.type === "column-editor" ? (
+                <ColumnEditor value={value} onChange={(v) => onChange(v)} dataSource={String(allProps?.dataSource ?? "")} />
+            ) : fieldDef.type === "toggle" ? (
                 <button type="button" role="switch" aria-checked={Boolean(value)}
                     onClick={() => onChange(!value)}
                     className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${Boolean(value) ? "bg-primary" : "bg-muted border"}`}
@@ -237,7 +478,7 @@ function SectionPanel({ section, fields, props, setProp }: {
                 </div>
             )}
             {visible.map(([key, def]) => (
-                <Field key={key} label={def.label} value={props[key]} fieldDef={def} onChange={(v) => setProp(key, v)} />
+                <Field key={key} label={def.label} value={props[key]} fieldDef={def} onChange={(v) => setProp(key, v)} allProps={props} />
             ))}
         </div>
     );
@@ -270,9 +511,14 @@ export function PropertiesPanel() {
     };
 
     const sections: Record<Section, [string, FieldDef][]> = { props: [], data: [], action: [] };
-    for (const [key, def] of Object.entries(fieldMeta)) sections[def.section].push([key, def]);
-    for (const key of Object.keys(props)) {
-        if (key !== "children" && !fieldMeta[key]) sections.props.push([key, { label: key, type: "text", section: "props" }]);
+    const hasMeta = Object.keys(fieldMeta).length > 0;
+    if (hasMeta) {
+        for (const [key, def] of Object.entries(fieldMeta)) sections[def.section].push([key, def]);
+    } else {
+        // No FIELD_META — show all raw props as text fields
+        for (const key of Object.keys(props)) {
+            if (key !== "children") sections.props.push([key, { label: key, type: "text", section: "props" }]);
+        }
     }
 
     const hasData   = sections.data.some(([, def]) => isVisible(def, props));
