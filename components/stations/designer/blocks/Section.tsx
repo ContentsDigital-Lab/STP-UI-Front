@@ -2,6 +2,7 @@
 
 import { useNode } from "@craftjs/core";
 import { ReactNode } from "react";
+import { usePreview } from "../PreviewContext";
 
 const BG_OPTIONS: Record<string, string> = {
     white:   "bg-white dark:bg-slate-900",
@@ -26,6 +27,7 @@ interface SectionProps {
 
 export function Section({ children, bgColor = "white", padding = "md" }: SectionProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
+    const isPreview = usePreview();
 
     const hasChildren = Array.isArray(children) ? children.some(Boolean) : Boolean(children);
 
@@ -33,16 +35,21 @@ export function Section({ children, bgColor = "white", padding = "md" }: Section
         <div
             ref={(ref) => { ref && connect(drag(ref)); }}
             className={`
-                w-full rounded-xl border-2 transition-all
+                w-full rounded-xl transition-all
                 ${BG_OPTIONS[bgColor] ?? BG_OPTIONS.white}
                 ${PAD_OPTIONS[padding] ?? PAD_OPTIONS.md}
-                ${selected ? "border-primary ring-2 ring-primary/20" : "border-slate-200 dark:border-slate-700 hover:border-primary/30"}
+                ${isPreview
+                    ? ""
+                    : `border-2 ${selected ? "border-primary ring-2 ring-primary/20" : "border-slate-200 dark:border-slate-700 hover:border-primary/30"}`
+                }
             `}
         >
             {hasChildren ? children : (
-                <div className="flex items-center justify-center py-8 border-2 border-dashed border-muted-foreground/20 rounded-lg">
-                    <p className="text-xs text-muted-foreground/50">วาง component ที่นี่</p>
-                </div>
+                !isPreview && (
+                    <div className="flex items-center justify-center py-8 border-2 border-dashed border-muted-foreground/20 rounded-lg">
+                        <p className="text-xs text-muted-foreground/50">วาง component ที่นี่</p>
+                    </div>
+                )
             )}
         </div>
     );

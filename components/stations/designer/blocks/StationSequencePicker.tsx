@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { X, Plus, Send, CheckCircle2, Loader2, Workflow, GripVertical } from "lucide-react";
 import { fetchApi } from "@/lib/api/config";
 import { usePreview } from "../PreviewContext";
+import { getStations, getColorOption, StationEntity } from "@/lib/stations/stations-store";
 
 // ── Station catalog ───────────────────────────────────────────────────────────
 interface StationOption { id: string; label: string; desc: string; color: string; }
@@ -40,12 +41,14 @@ interface StationSequencePickerProps {
 // ── Drag-and-drop sequence list ───────────────────────────────────────────────
 function DraggableSequence({
     sequence,
+    allStations,
     onReorder,
     onRemove,
 }: {
-    sequence:  string[];
-    onReorder: (from: number, to: number) => void;
-    onRemove:  (id: string) => void;
+    sequence:    string[];
+    allStations: StationEntity[];
+    onReorder:   (from: number, to: number) => void;
+    onRemove:    (id: string) => void;
 }) {
     const dragIndex  = useRef<number | null>(null);
     const overIndex  = useRef<number | null>(null);
@@ -55,7 +58,9 @@ function DraggableSequence({
     return (
         <div className="space-y-1.5">
             {sequence.map((id, i) => {
-                const s = STATION_CATALOG.find((c) => c.id === id)!;
+                const station    = allStations.find((s) => s._id === id);
+                const colorCls   = station ? getColorOption(station.colorId).cls : "bg-muted text-muted-foreground";
+                const label      = station?.name ?? id;
                 const isDragging = dragging === i;
                 const isOver     = over === i && dragging !== null && dragging !== i;
                 return (
@@ -80,12 +85,11 @@ function DraggableSequence({
                     >
                         <GripVertical className="h-4 w-4 text-muted-foreground/30 shrink-0" />
                         <span className="text-xs text-muted-foreground/50 w-5 text-center shrink-0 font-mono">{i + 1}</span>
-                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${s.color}`}>{s.label}</span>
-                        <span className="text-xs text-muted-foreground flex-1 truncate">{s.desc}</span>
+                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${colorCls}`}>{label}</span>
                         <button
                             type="button"
                             onClick={() => onRemove(id)}
-                            className="shrink-0 p-1 rounded hover:bg-red-50 text-muted-foreground/30 hover:text-red-500 transition-colors"
+                            className="shrink-0 ml-auto p-1 rounded hover:bg-red-50 text-muted-foreground/30 hover:text-red-500 transition-colors"
                         >
                             <X className="h-3.5 w-3.5" />
                         </button>
@@ -105,11 +109,13 @@ export function StationSequencePicker({
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
 
-    const [sequence,   setSequence]   = useState<string[]>(["cutting","grinding","inspection","packing","delivery"]);
-    const [feedback,   setFeedback]   = useState<"" | "loading" | "ok" | "error">("");
-    const [presetUsed, setPresetUsed] = useState("");
+    // Load user-created stations from store
+    const allStations = getStations();
 
-    const addStation = (id: string) => { if (!sequence.includes(id)) setSequence([...sequence, id]); };
+    const [sequence, setSequence] = useState<string[]>(() => allStations.map((s) => s._id));
+    const [feedback, setFeedback] = useState<"" | "loading" | "ok" | "error">("");
+
+    const addStation    = (id: string) => { if (!sequence.includes(id)) setSequence([...sequence, id]); };
     const removeStation = (id: string) => setSequence(sequence.filter((s) => s !== id));
 
     const reorder = (from: number, to: number) => {
@@ -117,11 +123,6 @@ export function StationSequencePicker({
         const [item] = next.splice(from, 1);
         next.splice(to, 0, item);
         setSequence(next);
-    };
-
-    const applyPreset = (stations: string[], label: string) => {
-        setSequence(stations);
-        setPresetUsed(label);
     };
 
     const handleSubmit = async () => {
@@ -149,7 +150,17 @@ export function StationSequencePicker({
             );
         }
 
-        const available = STATION_CATALOG.filter((s) => !sequence.includes(s.id));
+        if (allStations.length === 0) {
+            return (
+                <div className="w-full rounded-xl border bg-card px-5 py-10 flex flex-col items-center gap-3 text-center">
+                    <Workflow className="h-10 w-10 text-muted-foreground/30" />
+                    <p className="text-sm font-medium text-muted-foreground">ยังไม่มีสถานี</p>
+                    <p className="text-xs text-muted-foreground/60">สร้างสถานีในหน้าสถานีก่อน แล้วกลับมาใช้งาน</p>
+                </div>
+            );
+        }
+
+        const available = allStations.filter((s) => !sequence.includes(s._id));
         return (
             <div className="w-full rounded-xl border bg-card overflow-hidden">
                 {/* Header */}
@@ -158,25 +169,8 @@ export function StationSequencePicker({
                     <p className="text-xs text-muted-foreground mt-0.5">ลากเพื่อจัดเรียง · คลิก × เพื่อลบ</p>
                 </div>
 
-                {/* Presets */}
-                <div className="px-5 pt-4 pb-3">
-                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">เส้นทางแนะนำ</p>
-                    <div className="flex flex-wrap gap-1.5">
-                        {PRESETS.map((p) => (
-                            <button key={p.label} type="button" onClick={() => applyPreset(p.stations, p.label)}
-                                className={`text-xs px-3 py-1 rounded-full border font-medium transition-all ${
-                                    presetUsed === p.label
-                                        ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                                        : "bg-background border-muted-foreground/25 text-muted-foreground hover:border-primary/50 hover:text-primary"
-                                }`}>
-                                {p.label}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
                 {/* Selected sequence — drag to reorder */}
-                <div className="px-5 pb-4 border-t pt-4">
+                <div className="px-5 pb-4 pt-4">
                     <div className="flex items-center justify-between mb-2.5">
                         <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                             เส้นทางที่เลือก ({sequence.length} สถานี)
@@ -193,21 +187,29 @@ export function StationSequencePicker({
                             <p className="text-sm text-muted-foreground/50">เพิ่มสถานีจากด้านล่าง</p>
                         </div>
                     ) : (
-                        <DraggableSequence sequence={sequence} onReorder={reorder} onRemove={removeStation} />
+                        <DraggableSequence
+                            sequence={sequence}
+                            allStations={allStations}
+                            onReorder={reorder}
+                            onRemove={removeStation}
+                        />
                     )}
                 </div>
 
-                {/* Available stations */}
+                {/* Available stations to add */}
                 {available.length > 0 && (
                     <div className="px-5 pb-4 border-t pt-3">
                         <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2.5">เพิ่มสถานี</p>
                         <div className="flex flex-wrap gap-1.5">
-                            {available.map((s) => (
-                                <button key={s.id} type="button" onClick={() => addStation(s.id)}
-                                    className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border border-muted-foreground/25 text-muted-foreground hover:border-primary/60 hover:text-primary hover:bg-primary/5 transition-all">
-                                    <Plus className="h-3 w-3" />{s.label}
-                                </button>
-                            ))}
+                            {available.map((s) => {
+                                const color = getColorOption(s.colorId);
+                                return (
+                                    <button key={s._id} type="button" onClick={() => addStation(s._id)}
+                                        className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full border font-medium transition-all hover:opacity-80 ${color.cls}`}>
+                                        <Plus className="h-3 w-3" />{s.name}
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
                 )}
@@ -229,6 +231,8 @@ export function StationSequencePicker({
     }
 
     // ── Design mode ───────────────────────────────────────────────────────────
+    const userStations = getStations();
+
     return (
         <div
             ref={(ref) => { ref && connect(drag(ref)); }}
@@ -248,18 +252,19 @@ export function StationSequencePicker({
                         <span key={p.label} className="text-[10px] px-2 py-0.5 rounded-full border border-muted-foreground/20 text-muted-foreground">{p.label}</span>
                     ))}
                 </div>
-                <div className="space-y-1">
-                    {["cutting","grinding","inspection","delivery"].map((id, i) => {
-                        const s = STATION_CATALOG.find((c) => c.id === id)!;
-                        return (
-                            <div key={id} className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2">
+                {userStations.length === 0 ? (
+                    <p className="text-[10px] text-muted-foreground/50 italic px-1">ยังไม่มีสถานี — สร้างสถานีก่อนในหน้าสถานี</p>
+                ) : (
+                    <div className="space-y-1">
+                        {userStations.map((station, i) => (
+                            <div key={station._id} className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2">
                                 <GripVertical className="h-3.5 w-3.5 text-muted-foreground/20" />
                                 <span className="text-[10px] text-muted-foreground/30 w-4 font-mono">{i + 1}</span>
-                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${s.color}`}>{s.label}</span>
+                                <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-muted text-foreground/60">{station.name}</span>
                             </div>
-                        );
-                    })}
-                </div>
+                        ))}
+                    </div>
+                )}
                 <div className="h-9 rounded-lg bg-primary/20 flex items-center justify-center">
                     <span className="text-xs text-primary/60 font-medium">เปิดออเดอร์</span>
                 </div>

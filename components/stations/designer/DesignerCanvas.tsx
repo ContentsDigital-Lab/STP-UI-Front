@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Editor, Frame, Element, useEditor } from "@craftjs/core";
 import { BlockPalette }      from "./BlockPalette";
 import { PropertiesPanel }   from "./PropertiesPanel";
-import { Toolbar }           from "./Toolbar";
+import { Toolbar, CanvasSize, CanvasAlignment } from "./Toolbar";
 import { CanvasContainer }   from "./CanvasContainer";
 import { KeyboardShortcuts } from "./KeyboardShortcuts";
 import { PreviewContext }     from "./PreviewContext";
@@ -35,10 +35,12 @@ import { RecordDetail }           from "./blocks/RecordDetail";
 import { StationSequencePicker }  from "./blocks/StationSequencePicker";
 
 interface DesignerCanvasProps {
-    templateName: string;
+    templateName:  string;
     initialNodes?: Record<string, unknown>;
-    onSave: (craftNodes: Record<string, unknown>) => Promise<void>;
-    saving?: boolean;
+    onSave:        (craftNodes: Record<string, unknown>) => Promise<void>;
+    saving?:       boolean;
+    /** Start directly in preview/live mode — hides toolbar edit controls */
+    previewOnly?:  boolean;
 }
 
 const RESOLVER = {
@@ -57,41 +59,140 @@ function EditorModeSync({ enabled }: { enabled: boolean }) {
     return null;
 }
 
-export function DesignerCanvas({ templateName, initialNodes, onSave, saving }: DesignerCanvasProps) {
-    const [isPreview, setIsPreview] = useState(false);
+/** Auto-saves 1.5 s after any node change. Skips the initial hydration render. */
+function AutoSave({
+    onSave,
+    enabled,
+    onStatusChange,
+}: {
+    onSave:          (json: Record<string, unknown>) => Promise<void>;
+    enabled:         boolean;
+    onStatusChange?: (status: "idle" | "saving" | "saved") => void;
+}) {
+    const { query, nodes } = useEditor((state) => ({ nodes: state.nodes }));
+    const initializedRef   = useRef(false);
+    const timerRef         = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => {
+        // Skip the first call — that's just Craft.js hydrating from initialNodes
+        if (!initializedRef.current) { initializedRef.current = true; return; }
+        if (!enabled) return;
+
+        if (timerRef.current) clearTimeout(timerRef.current);
+        onStatusChange?.("idle");
+        timerRef.current = setTimeout(async () => {
+            try {
+                onStatusChange?.("saving");
+                const json = JSON.parse(query.serialize()) as Record<string, unknown>;
+                await onSave(json);
+                onStatusChange?.("saved");
+                setTimeout(() => onStatusChange?.("idle"), 2000);
+            } catch {
+                onStatusChange?.("idle");
+            }
+        }, 1500);
+
+        return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [nodes]);
+
+    return null;
+}
+
+export function DesignerCanvas({ templateName, initialNodes, onSave, saving, previewOnly = false }: DesignerCanvasProps) {
+    const [isPreview,   setIsPreview]   = useState(previewOnly);
+    const [canvasSize,  setCanvasSize]  = useState<CanvasSize>({ width: 900, height: 700 });
+    const [alignment,   setAlignment]   = useState<CanvasAlignment>("center");
+    const [zoom,        setZoom]        = useState(100);
+    const [autoStatus,  setAutoStatus]  = useState<"idle" | "saving" | "saved">("idle");
+    const mainRef = useRef<HTMLElement>(null);
 
     return (
         <PreviewContext.Provider value={isPreview}>
             <Editor resolver={RESOLVER}>
                 <EditorModeSync enabled={!isPreview} />
                 <KeyboardShortcuts />
+                {/* Auto-save on every node change (1.5 s debounce) */}
+                {!previewOnly && (
+                    <AutoSave onSave={onSave} enabled={!isPreview} onStatusChange={setAutoStatus} />
+                )}
                 <div className="flex flex-col h-full">
-                    <Toolbar
-                        templateName={templateName}
-                        onSave={onSave}
-                        saving={saving}
-                        isPreview={isPreview}
-                        onTogglePreview={() => setIsPreview((p) => !p)}
-                    />
+                    {/* Hide entire toolbar in previewOnly (live station) mode */}
+                    {!previewOnly && (
+                        <Toolbar
+                            templateName={templateName}
+                            onSave={onSave}
+                            saving={saving}
+                            isPreview={isPreview}
+                            onTogglePreview={() => setIsPreview((p) => !p)}
+                            canvasSize={canvasSize}
+                            onCanvasSize={(s) => {
+                                setCanvasSize(s);
+                                if (s.width !== "100%" && mainRef.current) {
+                                    const available = mainRef.current.clientWidth - 64;
+                                    const fit = Math.min(100, Math.floor((available / (s.width as number)) * 100));
+                                    setZoom(Math.max(25, fit));
+                                } else {
+                                    setZoom(100);
+                                }
+                            }}
+                            alignment={alignment}
+                            onAlignment={setAlignment}
+                            zoom={zoom}
+                            onZoom={setZoom}
+                            onFitZoom={() => {
+                                if (!mainRef.current || canvasSize.width === "100%") { setZoom(100); return; }
+                                const available = mainRef.current.clientWidth - 64; // 32px padding each side
+                                const fit = Math.floor((available / (canvasSize.width as number)) * 100);
+                                setZoom(Math.max(25, Math.min(200, fit)));
+                            }}
+                            autoSaveStatus={autoStatus}
+                        />
+                    )}
                     <div className="flex flex-1 overflow-hidden">
                         {/* Hide palette + properties in preview */}
                         {!isPreview && <BlockPalette />}
 
                         {/* Canvas */}
-                        <main className={`flex-1 overflow-auto p-8 transition-colors ${
-                            isPreview
-                                ? "bg-white dark:bg-slate-950 [&_*]:!cursor-default"
-                                : "bg-slate-100 dark:bg-slate-900/60"
-                        }`}>
-                            {isPreview && (
-                                <div className="max-w-2xl mx-auto mb-3">
+                        <main
+                            ref={mainRef}
+                            className={`flex-1 min-w-0 overflow-auto p-8 transition-colors ${
+                                isPreview
+                                    ? "bg-white dark:bg-slate-950 [&_*]:!cursor-default"
+                                    : "bg-slate-100 dark:bg-slate-900/60"
+                            }`}
+                        >
+                            {isPreview && !previewOnly && (
+                                <div className="w-full mb-3">
                                     <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-xs font-medium">
                                         <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                                         Preview Mode — กดปุ่มได้จริง, Select ดึงข้อมูล API จริง
                                     </div>
                                 </div>
                             )}
-                            <div className="max-w-2xl mx-auto">
+                            {/*
+                             * Canvas container — block element with margin: auto for alignment.
+                             * Flex approach clips the left side when canvas > viewport.
+                             * Block + margin: auto works correctly:
+                             *   - canvas < parent → auto margins apply → alignment works
+                             *   - canvas > parent → auto margins = 0 → overflows right → main scrolls
+                             * CSS zoom scales BOTH visual size AND layout footprint (unlike transform).
+                             */}
+                            <div
+                                style={(isPreview || previewOnly || canvasSize.width === "100%") ? {} : {
+                                    display:    "block",
+                                    width:      `${canvasSize.width}px`,
+                                    minWidth:   `${canvasSize.width}px`,
+                                    minHeight:  canvasSize.height !== "100%" ? `${canvasSize.height}px` : undefined,
+                                    zoom:       zoom !== 100 ? zoom / 100 : undefined,
+                                    marginLeft:  (alignment === "right"  || alignment === "center") ? "auto" : 0,
+                                    marginRight: (alignment === "left"   || alignment === "center") ? "auto" : 0,
+                                }}
+                                className={(isPreview || previewOnly || canvasSize.width === "100%")
+                                    ? "w-full"
+                                    : "shadow-lg ring-1 ring-black/5 rounded-sm"
+                                }
+                            >
                                 <Frame data={initialNodes ? JSON.stringify(initialNodes) : undefined}>
                                     <Element
                                         is={CanvasContainer}

@@ -2,26 +2,87 @@
 
 import { useEditor } from "@craftjs/core";
 import { useState } from "react";
-import { Save, Undo2, Redo2, Code2, Trash2, Keyboard, Eye, EyeOff } from "lucide-react";
+import { Save, Undo2, Redo2, Code2, Trash2, Keyboard, Eye, EyeOff, Smartphone, Tablet, Monitor, Maximize2, Settings2, Cloud, Loader2, AlignLeft, AlignCenter, AlignRight, ZoomIn, ZoomOut, Shrink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-interface ToolbarProps {
-    templateName: string;
-    onSave: (craftNodes: Record<string, unknown>) => Promise<void>;
-    saving?: boolean;
-    isPreview?: boolean;
-    onTogglePreview?: () => void;
+export type CanvasAlignment = "left" | "center" | "right";
+
+// ── Canvas size presets ───────────────────────────────────────────────────────
+export interface CanvasSize {
+    width:  number | "100%";
+    height: number | "100%";
 }
 
-export function Toolbar({ templateName, onSave, saving, isPreview = false, onTogglePreview }: ToolbarProps) {
+export interface CanvasPreset {
+    id:     string;
+    label:  string;
+    size:   CanvasSize;
+    icon:   React.ElementType;
+}
+
+export const CANVAS_PRESETS: CanvasPreset[] = [
+    { id: "mobile",  label: "Mobile",  size: { width: 390,   height: 844   }, icon: Smartphone },
+    { id: "tablet",  label: "Tablet",  size: { width: 768,   height: 1024  }, icon: Tablet     },
+    { id: "desktop", label: "Desktop", size: { width: 1280,  height: 900   }, icon: Monitor    },
+    { id: "full",    label: "Full",    size: { width: "100%", height: "100%" }, icon: Maximize2  },
+];
+
+/** @deprecated use CanvasSize */
+export type CanvasWidthValue = number | "100%";
+
+interface ToolbarProps {
+    templateName:    string;
+    onSave:          (craftNodes: Record<string, unknown>) => Promise<void>;
+    saving?:         boolean;
+    isPreview?:      boolean;
+    onTogglePreview?: () => void;
+    canvasSize:       CanvasSize;
+    onCanvasSize:     (s: CanvasSize) => void;
+    alignment:        CanvasAlignment;
+    onAlignment:      (a: CanvasAlignment) => void;
+    zoom:             number;
+    onZoom:           (z: number) => void;
+    onFitZoom:        () => void;
+    autoSaveStatus?:  "idle" | "saving" | "saved";
+}
+
+export function Toolbar({ templateName, onSave, saving, isPreview = false, onTogglePreview, canvasSize, onCanvasSize, alignment, onAlignment, zoom, onZoom, onFitZoom, autoSaveStatus = "idle" }: ToolbarProps) {
     const { actions, query, canUndo, canRedo, selected } = useEditor((state, q) => ({
         canUndo: q.history.canUndo(),
         canRedo: q.history.canRedo(),
         selected: [...state.events.selected][0] ?? null,
     }));
 
-    const [showJson,  setShowJson]  = useState(false);
-    const [showKeys, setShowKeys] = useState(false);
+    const [showJson,   setShowJson]   = useState(false);
+    const [showKeys,   setShowKeys]   = useState(false);
+    const [customMode, setCustomMode] = useState(false);
+    const [customW,    setCustomW]    = useState(
+        typeof canvasSize.width  === "number" ? String(canvasSize.width)  : ""
+    );
+    const [customH,    setCustomH]    = useState(
+        typeof canvasSize.height === "number" ? String(canvasSize.height) : ""
+    );
+
+    const activePresetId = CANVAS_PRESETS.find(
+        (p) => p.size.width === canvasSize.width && p.size.height === canvasSize.height
+    )?.id ?? "custom";
+
+    const handlePreset = (preset: CanvasPreset) => {
+        setCustomMode(false);
+        setCustomW(typeof preset.size.width  === "number" ? String(preset.size.width)  : "");
+        setCustomH(typeof preset.size.height === "number" ? String(preset.size.height) : "");
+        onCanvasSize(preset.size);
+    };
+
+    const handleCustomCommit = () => {
+        const w = parseInt(customW, 10);
+        const h = parseInt(customH, 10);
+        const newSize: CanvasSize = {
+            width:  (!isNaN(w) && w >= 200 && w <= 3840) ? w : canvasSize.width,
+            height: (!isNaN(h) && h >= 200 && h <= 5000) ? h : canvasSize.height,
+        };
+        onCanvasSize(newSize);
+    };
 
     const handleSave = async () => {
         const json = JSON.parse(query.serialize());
@@ -59,6 +120,148 @@ export function Toolbar({ templateName, onSave, saving, isPreview = false, onTog
                     </Button>
                 )}
 
+                {/* Canvas size picker */}
+                {!isPreview && (
+                    <div className="flex items-center gap-1 rounded-lg border bg-muted/40 px-1.5 py-1">
+                        {CANVAS_PRESETS.map((preset) => {
+                            const Icon     = preset.icon;
+                            const isActive = !customMode && activePresetId === preset.id;
+                            return (
+                                <button
+                                    key={preset.id}
+                                    type="button"
+                                    title={`${preset.label} (${preset.size.width === "100%" ? "เต็มหน้า" : `${preset.size.width}×${preset.size.height}px`})`}
+                                    onClick={() => handlePreset(preset)}
+                                    className={`p-1.5 rounded-md transition-all ${
+                                        isActive
+                                            ? "bg-background shadow-sm text-foreground"
+                                            : "text-muted-foreground hover:text-foreground"
+                                    }`}
+                                >
+                                    <Icon className="h-3.5 w-3.5" />
+                                </button>
+                            );
+                        })}
+                        {/* Custom size button */}
+                        <button
+                            type="button"
+                            title="กำหนดขนาดเอง"
+                            onClick={() => {
+                                setCustomMode((p) => !p);
+                                setCustomW(typeof canvasSize.width  === "number" ? String(canvasSize.width)  : "");
+                                setCustomH(typeof canvasSize.height === "number" ? String(canvasSize.height) : "");
+                            }}
+                            className={`p-1.5 rounded-md transition-all ${
+                                customMode
+                                    ? "bg-background shadow-sm text-foreground"
+                                    : "text-muted-foreground hover:text-foreground"
+                            }`}
+                        >
+                            <Settings2 className="h-3.5 w-3.5" />
+                        </button>
+                        {/* Custom W × H inputs */}
+                        {customMode && (
+                            <div className="flex items-center gap-1 pl-1 border-l border-border/60">
+                                <span className="text-[10px] text-muted-foreground">W</span>
+                                <input
+                                    type="number"
+                                    min={200}
+                                    max={3840}
+                                    value={customW}
+                                    onChange={(e) => setCustomW(e.target.value)}
+                                    onKeyDown={(e) => e.key === "Enter" && handleCustomCommit()}
+                                    onBlur={handleCustomCommit}
+                                    placeholder="px"
+                                    className="w-14 bg-background border rounded px-2 py-0.5 text-xs outline-none focus:ring-1 focus:ring-primary/40 text-center"
+                                />
+                                <span className="text-[10px] text-muted-foreground">×</span>
+                                <span className="text-[10px] text-muted-foreground">H</span>
+                                <input
+                                    type="number"
+                                    min={200}
+                                    max={5000}
+                                    value={customH}
+                                    onChange={(e) => setCustomH(e.target.value)}
+                                    onKeyDown={(e) => e.key === "Enter" && handleCustomCommit()}
+                                    onBlur={handleCustomCommit}
+                                    placeholder="px"
+                                    className="w-14 bg-background border rounded px-2 py-0.5 text-xs outline-none focus:ring-1 focus:ring-primary/40 text-center"
+                                />
+                            </div>
+                        )}
+                        {/* Current size label */}
+                        {!customMode && (
+                            <span className="text-[10px] text-muted-foreground pl-1 border-l border-border/60 pr-0.5 min-w-[60px] text-center">
+                                {canvasSize.width === "100%" ? "Full" : `${canvasSize.width}×${canvasSize.height}`}
+                            </span>
+                        )}
+                    </div>
+                )}
+
+                {/* Canvas alignment */}
+                {!isPreview && canvasSize.width !== "100%" && (
+                    <div className="flex items-center gap-0.5 rounded-lg border bg-muted/40 px-1 py-1">
+                        {([
+                            { id: "left",   icon: AlignLeft,   title: "ชิดซ้าย" },
+                            { id: "center", icon: AlignCenter, title: "ตรงกลาง" },
+                            { id: "right",  icon: AlignRight,  title: "ชิดขวา"  },
+                        ] as const).map(({ id, icon: Icon, title }) => (
+                            <button
+                                key={id}
+                                type="button"
+                                title={title}
+                                onClick={() => onAlignment(id)}
+                                className={`p-1.5 rounded-md transition-all ${
+                                    alignment === id
+                                        ? "bg-background shadow-sm text-foreground"
+                                        : "text-muted-foreground hover:text-foreground"
+                                }`}
+                            >
+                                <Icon className="h-3.5 w-3.5" />
+                            </button>
+                        ))}
+                    </div>
+                )}
+
+                {/* Zoom controls */}
+                {!isPreview && (
+                    <div className="flex items-center gap-0.5 rounded-lg border bg-muted/40 px-1 py-1">
+                        <button
+                            type="button"
+                            title="Fit to viewport"
+                            onClick={onFitZoom}
+                            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground transition-all"
+                        >
+                            <Shrink className="h-3.5 w-3.5" />
+                        </button>
+                        <div className="w-px h-4 bg-border/60 mx-0.5" />
+                        <button
+                            type="button"
+                            title="ซูมออก"
+                            onClick={() => onZoom(Math.max(25, zoom - 25))}
+                            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground transition-all"
+                        >
+                            <ZoomOut className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => onZoom(100)}
+                            className="px-2 py-0.5 rounded text-[11px] font-mono text-muted-foreground hover:text-foreground min-w-[42px] text-center transition-all"
+                            title="รีเซ็ต 100%"
+                        >
+                            {zoom}%
+                        </button>
+                        <button
+                            type="button"
+                            title="ซูมเข้า"
+                            onClick={() => onZoom(Math.min(200, zoom + 25))}
+                            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground transition-all"
+                        >
+                            <ZoomIn className="h-3.5 w-3.5" />
+                        </button>
+                    </div>
+                )}
+
                 <div className="flex-1" />
 
                 {/* Preview toggle */}
@@ -80,6 +283,18 @@ export function Toolbar({ templateName, onSave, saving, isPreview = false, onTog
                     <Code2 className="h-3.5 w-3.5" />
                     ดู JSON
                 </Button>
+                {/* Auto-save status indicator */}
+                {autoSaveStatus === "saving" && (
+                    <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                        <Loader2 className="h-3 w-3 animate-spin" /> กำลังบันทึก...
+                    </span>
+                )}
+                {autoSaveStatus === "saved" && (
+                    <span className="flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400">
+                        <Cloud className="h-3 w-3" /> บันทึกแล้ว
+                    </span>
+                )}
+
                 <Button size="sm" disabled={saving} onClick={handleSave} className="h-8 gap-1.5">
                     <Save className="h-3.5 w-3.5" />
                     {saving ? "กำลังบันทึก..." : "บันทึก"}

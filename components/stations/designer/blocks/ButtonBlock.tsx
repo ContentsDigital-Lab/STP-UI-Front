@@ -26,6 +26,7 @@ interface ButtonBlockProps {
     variant?:        "primary" | "outline" | "danger" | "success";
     size?:           "sm" | "md" | "lg";
     fullWidth?:      boolean;
+    align?:          "left" | "center" | "right";
     action?:         "none" | "submit-form" | "navigate" | "api-call" | "show-confirm";
     actionEndpoint?: string;
     actionMethod?:   string;
@@ -33,11 +34,14 @@ interface ButtonBlockProps {
     confirmText?:    string;
 }
 
+const ALIGN_MAP = { left: "justify-start", center: "justify-center", right: "justify-end" };
+
 export function ButtonBlock({
     label = "ปุ่มกด",
     variant = "primary",
     size = "md",
     fullWidth = false,
+    align = "left",
     action = "none",
     actionEndpoint = "",
     actionMethod = "POST",
@@ -76,30 +80,34 @@ export function ButtonBlock({
         setTimeout(() => setFeedback(""), 1500);
     };
 
+    const alignClass = ALIGN_MAP[align] ?? "justify-start";
+
     // ── Preview render ────────────────────────────────────────────────────────
     if (isPreview) {
         return (
-            <div className={fullWidth ? "w-full" : "inline-flex"}>
-                <button
-                    onClick={handlePreviewClick}
-                    disabled={feedback === "loading"}
-                    className={`rounded-lg font-semibold transition-all ${VARIANT_MAP[variant] ?? VARIANT_MAP.primary} ${SIZE_MAP[size]} ${fullWidth ? "w-full" : ""} ${feedback === "ok" ? "!bg-green-500 !text-white !border-green-500" : ""} disabled:opacity-70 flex items-center justify-center gap-2`}
-                >
-                    {feedback === "loading" ? (
-                        <><Loader2 className="h-4 w-4 animate-spin" /> กำลังส่ง...</>
-                    ) : feedback === "ok" ? (
-                        <><CheckCircle2 className="h-4 w-4" /> สำเร็จ</>
-                    ) : (
-                        label
+            <div className={`w-full flex ${alignClass}`}>
+                <div className="flex flex-col items-stretch" style={fullWidth ? { width: "100%" } : {}}>
+                    <button
+                        onClick={handlePreviewClick}
+                        disabled={feedback === "loading"}
+                        className={`rounded-lg font-semibold transition-all ${VARIANT_MAP[variant] ?? VARIANT_MAP.primary} ${SIZE_MAP[size]} ${fullWidth ? "w-full" : ""} ${feedback === "ok" ? "!bg-green-500 !text-white !border-green-500" : ""} disabled:opacity-70 flex items-center justify-center gap-2`}
+                    >
+                        {feedback === "loading" ? (
+                            <><Loader2 className="h-4 w-4 animate-spin" /> กำลังส่ง...</>
+                        ) : feedback === "ok" ? (
+                            <><CheckCircle2 className="h-4 w-4" /> สำเร็จ</>
+                        ) : (
+                            label
+                        )}
+                    </button>
+                    {action !== "none" && actionCfg && feedback === "" && (
+                        <p className="text-[10px] text-muted-foreground mt-1 text-center">
+                            {action === "navigate" && navigateTo ? `→ ${navigateTo}` : ""}
+                            {(action === "submit-form" || action === "api-call") && actionEndpoint ? `${actionMethod} ${actionEndpoint}` : ""}
+                            {action === "show-confirm" ? "แสดงการยืนยัน" : ""}
+                        </p>
                     )}
-                </button>
-                {action !== "none" && actionCfg && feedback === "" && (
-                    <p className="text-[10px] text-muted-foreground mt-1 text-center w-full">
-                        {action === "navigate" && navigateTo ? `→ ${navigateTo}` : ""}
-                        {(action === "submit-form" || action === "api-call") && actionEndpoint ? `${actionMethod} ${actionEndpoint}` : ""}
-                        {action === "show-confirm" ? "แสดงการยืนยัน" : ""}
-                    </p>
-                )}
+                </div>
             </div>
         );
     }
@@ -108,11 +116,11 @@ export function ButtonBlock({
     return (
         <div
             ref={(ref) => { ref && connect(drag(ref)); }}
-            className={`cursor-grab rounded-xl p-1.5 transition-all space-y-1.5 ${selected ? "ring-2 ring-primary/40 bg-primary/5" : "hover:bg-muted/20"} ${fullWidth ? "w-full" : "inline-flex flex-col"}`}
+            className={`w-full flex ${alignClass} cursor-grab rounded-xl p-1.5 transition-all ${selected ? "ring-2 ring-primary/40 bg-primary/5" : "hover:bg-muted/20"}`}
         >
-            {actionCfg && (
-                <div className="flex items-center gap-1 flex-wrap">
-                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${actionCfg.color}`}>
+            <div className="flex flex-col gap-1 items-stretch" style={fullWidth ? { width: "100%" } : {}}>
+                {actionCfg && (
+                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium self-start ${actionCfg.color}`}>
                         <Zap className="h-2.5 w-2.5" />
                         {action === "submit-form" && actionEndpoint ? `ส่งฟอร์ม → ${actionEndpoint}` : ""}
                         {action === "navigate"    && navigateTo      ? `ไปยัง ${navigateTo}` : ""}
@@ -120,11 +128,11 @@ export function ButtonBlock({
                         {action === "show-confirm"                   ? `ยืนยัน` : ""}
                         {!actionEndpoint && !navigateTo && action !== "show-confirm" ? actionCfg.label : ""}
                     </span>
-                </div>
-            )}
-            <button className={`rounded-lg font-semibold transition-colors pointer-events-none ${VARIANT_MAP[variant] ?? VARIANT_MAP.primary} ${SIZE_MAP[size]} ${fullWidth ? "w-full" : ""}`}>
-                {label}
-            </button>
+                )}
+                <button className={`rounded-lg font-semibold transition-colors pointer-events-none ${VARIANT_MAP[variant] ?? VARIANT_MAP.primary} ${SIZE_MAP[size]} ${fullWidth ? "w-full" : ""}`}>
+                    {label}
+                </button>
+            </div>
         </div>
     );
 }
@@ -132,7 +140,7 @@ export function ButtonBlock({
 ButtonBlock.craft = {
     displayName: "Button",
     props: {
-        label: "ปุ่มกด", variant: "primary", size: "md", fullWidth: false,
+        label: "ปุ่มกด", variant: "primary", size: "md", fullWidth: false, align: "left",
         action: "none", actionEndpoint: "", actionMethod: "POST",
         navigateTo: "", confirmText: "",
     } as ButtonBlockProps,
