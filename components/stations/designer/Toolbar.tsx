@@ -2,10 +2,10 @@
 
 import { useEditor } from "@craftjs/core";
 import { useState } from "react";
-import { Save, Undo2, Redo2, Code2, Trash2, Keyboard, Eye, EyeOff, Smartphone, Tablet, Monitor, Maximize2, Settings2, Cloud, Loader2, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
+import { Save, Undo2, Redo2, Code2, Trash2, Keyboard, Eye, EyeOff, Smartphone, Tablet, Monitor, Maximize2, Settings2, Cloud, Loader2, AlignLeft, AlignCenter, AlignRight, ZoomIn, ZoomOut, Shrink } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export type CanvasAlignment = "left" | "center" | "right";
-import { Button } from "@/components/ui/button";
 
 // ── Canvas size presets ───────────────────────────────────────────────────────
 export interface CanvasSize {
@@ -40,10 +40,13 @@ interface ToolbarProps {
     onCanvasSize:     (s: CanvasSize) => void;
     alignment:        CanvasAlignment;
     onAlignment:      (a: CanvasAlignment) => void;
+    zoom:             number;
+    onZoom:           (z: number) => void;
+    onFitZoom:        () => void;
     autoSaveStatus?:  "idle" | "saving" | "saved";
 }
 
-export function Toolbar({ templateName, onSave, saving, isPreview = false, onTogglePreview, canvasSize, onCanvasSize, alignment, onAlignment, autoSaveStatus = "idle" }: ToolbarProps) {
+export function Toolbar({ templateName, onSave, saving, isPreview = false, onTogglePreview, canvasSize, onCanvasSize, alignment, onAlignment, zoom, onZoom, onFitZoom, autoSaveStatus = "idle" }: ToolbarProps) {
     const { actions, query, canUndo, canRedo, selected } = useEditor((state, q) => ({
         canUndo: q.history.canUndo(),
         canRedo: q.history.canRedo(),
@@ -217,6 +220,45 @@ export function Toolbar({ templateName, onSave, saving, isPreview = false, onTog
                                 <Icon className="h-3.5 w-3.5" />
                             </button>
                         ))}
+                    </div>
+                )}
+
+                {/* Zoom controls */}
+                {!isPreview && (
+                    <div className="flex items-center gap-0.5 rounded-lg border bg-muted/40 px-1 py-1">
+                        <button
+                            type="button"
+                            title="Fit to viewport"
+                            onClick={onFitZoom}
+                            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground transition-all"
+                        >
+                            <Shrink className="h-3.5 w-3.5" />
+                        </button>
+                        <div className="w-px h-4 bg-border/60 mx-0.5" />
+                        <button
+                            type="button"
+                            title="ซูมออก"
+                            onClick={() => onZoom(Math.max(25, zoom - 25))}
+                            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground transition-all"
+                        >
+                            <ZoomOut className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => onZoom(100)}
+                            className="px-2 py-0.5 rounded text-[11px] font-mono text-muted-foreground hover:text-foreground min-w-[42px] text-center transition-all"
+                            title="รีเซ็ต 100%"
+                        >
+                            {zoom}%
+                        </button>
+                        <button
+                            type="button"
+                            title="ซูมเข้า"
+                            onClick={() => onZoom(Math.min(200, zoom + 25))}
+                            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground transition-all"
+                        >
+                            <ZoomIn className="h-3.5 w-3.5" />
+                        </button>
                     </div>
                 )}
 

@@ -103,7 +103,9 @@ export function DesignerCanvas({ templateName, initialNodes, onSave, saving, pre
     const [isPreview,   setIsPreview]   = useState(previewOnly);
     const [canvasSize,  setCanvasSize]  = useState<CanvasSize>({ width: 900, height: 700 });
     const [alignment,   setAlignment]   = useState<CanvasAlignment>("center");
+    const [zoom,        setZoom]        = useState(100);
     const [autoStatus,  setAutoStatus]  = useState<"idle" | "saving" | "saved">("idle");
+    const mainRef = useRef<HTMLElement>(null);
 
     return (
         <PreviewContext.Provider value={isPreview}>
@@ -124,9 +126,17 @@ export function DesignerCanvas({ templateName, initialNodes, onSave, saving, pre
                             isPreview={isPreview}
                             onTogglePreview={() => setIsPreview((p) => !p)}
                             canvasSize={canvasSize}
-                            onCanvasSize={setCanvasSize}
+                            onCanvasSize={(s) => { setCanvasSize(s); setZoom(100); }}
                             alignment={alignment}
                             onAlignment={setAlignment}
+                            zoom={zoom}
+                            onZoom={setZoom}
+                            onFitZoom={() => {
+                                if (!mainRef.current || canvasSize.width === "100%") { setZoom(100); return; }
+                                const available = mainRef.current.clientWidth - 64; // 32px padding each side
+                                const fit = Math.floor((available / (canvasSize.width as number)) * 100);
+                                setZoom(Math.max(25, Math.min(200, fit)));
+                            }}
                             autoSaveStatus={autoStatus}
                         />
                     )}
@@ -135,36 +145,51 @@ export function DesignerCanvas({ templateName, initialNodes, onSave, saving, pre
                         {!isPreview && <BlockPalette />}
 
                         {/* Canvas */}
-                        <main className={`flex-1 overflow-auto p-8 transition-colors ${
-                            isPreview
-                                ? "bg-white dark:bg-slate-950 [&_*]:!cursor-default"
-                                : "bg-slate-100 dark:bg-slate-900/60"
-                        }`}>
+                        <main
+                            ref={mainRef}
+                            className={`flex-1 overflow-auto p-8 transition-colors ${
+                                isPreview
+                                    ? "bg-white dark:bg-slate-950 [&_*]:!cursor-default"
+                                    : "bg-slate-100 dark:bg-slate-900/60"
+                            }`}
+                        >
                             {isPreview && !previewOnly && (
-                                <div className="max-w-2xl mx-auto mb-3">
+                                <div className="w-full mb-3">
                                     <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-xs font-medium">
                                         <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                                         Preview Mode — กดปุ่มได้จริง, Select ดึงข้อมูล API จริง
                                     </div>
                                 </div>
                             )}
-                            <div
-                                style={canvasSize.width === "100%" ? {} : {
-                                    width:     canvasSize.width,
-                                    minHeight: canvasSize.height !== "100%" ? canvasSize.height : undefined,
-                                    marginLeft:  alignment === "right"  ? "auto" : alignment === "center" ? "auto" : 0,
-                                    marginRight: alignment === "left"   ? "auto" : alignment === "center" ? "auto" : 0,
-                                }}
-                                className={canvasSize.width === "100%" ? "w-full" : ""}
-                            >
-                                <Frame data={initialNodes ? JSON.stringify(initialNodes) : undefined}>
-                                    <Element
-                                        is={CanvasContainer}
-                                        canvas
-                                        id="root-canvas"
-                                        className="min-h-[500px] w-full"
-                                    />
-                                </Frame>
+                            {/* Alignment wrapper — flex approach so it works at all zoom levels */}
+                            <div className={`w-full flex ${
+                                isPreview || previewOnly || canvasSize.width === "100%"
+                                    ? ""
+                                    : alignment === "center" ? "justify-center"
+                                    : alignment === "right"  ? "justify-end"
+                                    : "justify-start"
+                            }`}>
+                                <div
+                                    style={isPreview || previewOnly ? {} : {
+                                        // CSS zoom scales the element AND its layout footprint
+                                        zoom:      zoom !== 100 ? zoom / 100 : undefined,
+                                        width:     canvasSize.width !== "100%" ? canvasSize.width : undefined,
+                                        minHeight: canvasSize.height !== "100%" ? canvasSize.height : undefined,
+                                    }}
+                                    className={(!isPreview && !previewOnly && canvasSize.width !== "100%")
+                                        ? "shadow-lg ring-1 ring-black/5"   // visible canvas boundary in design mode
+                                        : "w-full"
+                                    }
+                                >
+                                    <Frame data={initialNodes ? JSON.stringify(initialNodes) : undefined}>
+                                        <Element
+                                            is={CanvasContainer}
+                                            canvas
+                                            id="root-canvas"
+                                            className="min-h-[500px] w-full"
+                                        />
+                                    </Frame>
+                                </div>
                             </div>
                         </main>
 
