@@ -92,6 +92,7 @@ const FIELD_META: Record<string, Record<string, FieldDef>> = {
         variant:   { label: "รูปแบบปุ่ม",       type: "select", section: "props", options: ["primary","outline","danger","success"], optionLabels: ["สีหลัก (เน้น)","กรอบเส้น","แดง (ลบ/ยกเลิก)","เขียว (ยืนยัน)"] },
         size:      { label: "ขนาดปุ่ม",         type: "select", section: "props", options: ["sm","md","lg"], optionLabels: ["เล็ก","กลาง","ใหญ่"] },
         fullWidth: { label: "ยืดเต็มความกว้าง", type: "toggle", section: "props" },
+        align:     { label: "ตำแหน่งปุ่ม",      type: "select", section: "props", options: ["left","center","right"], optionLabels: ["ชิดซ้าย","ตรงกลาง","ชิดขวา"] },
         action:         { label: "เมื่อกดปุ่มจะ...", type: "select", section: "action", options: ["none","submit-form","navigate","api-call","show-confirm"], optionLabels: ["ไม่มีการกระทำ","ส่งข้อมูลฟอร์ม","ไปยังหน้าอื่น","เรียกใช้ API","แสดงการยืนยันก่อน"] },
         actionEndpoint: { label: "ส่งข้อมูลไปที่ (URL ปลายทาง)", type: "text",   section: "action", hint: "เช่น /orders — ถามทีมเทคนิคหากไม่แน่ใจ", placeholder: "เช่น /orders", suggestions: ENDPOINT_SUGGESTIONS, showWhen: { field: "action", value: ["submit-form","api-call"] } },
         actionMethod:   { label: "ประเภทการส่งข้อมูล",           type: "select", section: "action", options: ["POST","PATCH","PUT","DELETE","GET"], optionLabels: ["เพิ่มข้อมูลใหม่","แก้ไขข้อมูล","แทนที่ข้อมูลทั้งหมด","ลบข้อมูล","ดึงข้อมูล"], showWhen: { field: "action", value: ["submit-form","api-call"] } },
