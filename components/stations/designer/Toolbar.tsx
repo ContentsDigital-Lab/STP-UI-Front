@@ -2,7 +2,7 @@
 
 import { useEditor } from "@craftjs/core";
 import { useState } from "react";
-import { Save, Undo2, Redo2, Code2, Trash2, Keyboard, Eye, EyeOff, Smartphone, Tablet, Monitor, Maximize2, Settings2 } from "lucide-react";
+import { Save, Undo2, Redo2, Code2, Trash2, Keyboard, Eye, EyeOff, Smartphone, Tablet, Monitor, Maximize2, Settings2, Cloud, CloudOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 // ── Canvas width presets ───────────────────────────────────────────────────────
@@ -28,11 +28,12 @@ interface ToolbarProps {
     saving?:         boolean;
     isPreview?:      boolean;
     onTogglePreview?: () => void;
-    canvasWidth:     CanvasWidthValue;
-    onCanvasWidth:   (w: CanvasWidthValue) => void;
+    canvasWidth:      CanvasWidthValue;
+    onCanvasWidth:    (w: CanvasWidthValue) => void;
+    autoSaveStatus?:  "idle" | "saving" | "saved";
 }
 
-export function Toolbar({ templateName, onSave, saving, isPreview = false, onTogglePreview, canvasWidth, onCanvasWidth }: ToolbarProps) {
+export function Toolbar({ templateName, onSave, saving, isPreview = false, onTogglePreview, canvasWidth, onCanvasWidth, autoSaveStatus = "idle" }: ToolbarProps) {
     const { actions, query, canUndo, canRedo, selected } = useEditor((state, q) => ({
         canUndo: q.history.canUndo(),
         canRedo: q.history.canRedo(),
@@ -176,6 +177,18 @@ export function Toolbar({ templateName, onSave, saving, isPreview = false, onTog
                     <Code2 className="h-3.5 w-3.5" />
                     ดู JSON
                 </Button>
+                {/* Auto-save status indicator */}
+                {autoSaveStatus === "saving" && (
+                    <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                        <Loader2 className="h-3 w-3 animate-spin" /> กำลังบันทึก...
+                    </span>
+                )}
+                {autoSaveStatus === "saved" && (
+                    <span className="flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400">
+                        <Cloud className="h-3 w-3" /> บันทึกแล้ว
+                    </span>
+                )}
+
                 <Button size="sm" disabled={saving} onClick={handleSave} className="h-8 gap-1.5">
                     <Save className="h-3.5 w-3.5" />
                     {saving ? "กำลังบันทึก..." : "บันทึก"}

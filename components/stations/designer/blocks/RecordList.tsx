@@ -17,9 +17,8 @@ export interface ColumnDef {
 }
 
 const DEFAULT_COLUMNS: ColumnDef[] = [
-    { key: "name",   label: "ชื่อรายการ",  type: "text",   width: "lg" },
-    { key: "status", label: "สถานะ",       type: "status", width: "md" },
-    { key: "amount", label: "จำนวน",       type: "number", width: "sm" },
+    { key: "name",   label: "ชื่อรายการ", type: "text",   width: "lg" },
+    { key: "amount", label: "จำนวน",     type: "number", width: "sm" },
 ];
 
 const DEFAULT_COLUMNS_STR = JSON.stringify(DEFAULT_COLUMNS);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Editor, Frame, Element, useEditor } from "@craftjs/core";
 import { BlockPalette }      from "./BlockPalette";
 import { PropertiesPanel }   from "./PropertiesPanel";
@@ -59,15 +59,60 @@ function EditorModeSync({ enabled }: { enabled: boolean }) {
     return null;
 }
 
+/** Auto-saves 1.5 s after any node change. Skips the initial hydration render. */
+function AutoSave({
+    onSave,
+    enabled,
+    onStatusChange,
+}: {
+    onSave:          (json: Record<string, unknown>) => Promise<void>;
+    enabled:         boolean;
+    onStatusChange?: (status: "idle" | "saving" | "saved") => void;
+}) {
+    const { query, nodes } = useEditor((state) => ({ nodes: state.nodes }));
+    const initializedRef   = useRef(false);
+    const timerRef         = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => {
+        // Skip the first call — that's just Craft.js hydrating from initialNodes
+        if (!initializedRef.current) { initializedRef.current = true; return; }
+        if (!enabled) return;
+
+        if (timerRef.current) clearTimeout(timerRef.current);
+        onStatusChange?.("idle");
+        timerRef.current = setTimeout(async () => {
+            try {
+                onStatusChange?.("saving");
+                const json = JSON.parse(query.serialize()) as Record<string, unknown>;
+                await onSave(json);
+                onStatusChange?.("saved");
+                setTimeout(() => onStatusChange?.("idle"), 2000);
+            } catch {
+                onStatusChange?.("idle");
+            }
+        }, 1500);
+
+        return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [nodes]);
+
+    return null;
+}
+
 export function DesignerCanvas({ templateName, initialNodes, onSave, saving, previewOnly = false }: DesignerCanvasProps) {
     const [isPreview,   setIsPreview]   = useState(previewOnly);
     const [canvasWidth, setCanvasWidth] = useState<CanvasWidthValue>(900);
+    const [autoStatus,  setAutoStatus]  = useState<"idle" | "saving" | "saved">("idle");
 
     return (
         <PreviewContext.Provider value={isPreview}>
             <Editor resolver={RESOLVER}>
                 <EditorModeSync enabled={!isPreview} />
                 <KeyboardShortcuts />
+                {/* Auto-save on every node change (1.5 s debounce) */}
+                {!previewOnly && (
+                    <AutoSave onSave={onSave} enabled={!isPreview} onStatusChange={setAutoStatus} />
+                )}
                 <div className="flex flex-col h-full">
                     {/* Hide entire toolbar in previewOnly (live station) mode */}
                     {!previewOnly && (
@@ -79,6 +124,7 @@ export function DesignerCanvas({ templateName, initialNodes, onSave, saving, pre
                             onTogglePreview={() => setIsPreview((p) => !p)}
                             canvasWidth={canvasWidth}
                             onCanvasWidth={setCanvasWidth}
+                            autoSaveStatus={autoStatus}
                         />
                     )}
                     <div className="flex flex-1 overflow-hidden">
