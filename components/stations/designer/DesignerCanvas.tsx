@@ -161,35 +161,36 @@ export function DesignerCanvas({ templateName, initialNodes, onSave, saving, pre
                                     </div>
                                 </div>
                             )}
-                            {/* Alignment wrapper — flex approach so it works at all zoom levels */}
-                            <div className={`w-full flex ${
-                                isPreview || previewOnly || canvasSize.width === "100%"
-                                    ? ""
-                                    : alignment === "center" ? "justify-center"
-                                    : alignment === "right"  ? "justify-end"
-                                    : "justify-start"
-                            }`}>
-                                <div
-                                    style={isPreview || previewOnly ? {} : {
-                                        // CSS zoom scales the element AND its layout footprint
-                                        zoom:      zoom !== 100 ? zoom / 100 : undefined,
-                                        width:     canvasSize.width !== "100%" ? canvasSize.width : undefined,
-                                        minHeight: canvasSize.height !== "100%" ? canvasSize.height : undefined,
-                                    }}
-                                    className={(!isPreview && !previewOnly && canvasSize.width !== "100%")
-                                        ? "shadow-lg ring-1 ring-black/5"   // visible canvas boundary in design mode
-                                        : "w-full"
-                                    }
-                                >
-                                    <Frame data={initialNodes ? JSON.stringify(initialNodes) : undefined}>
-                                        <Element
-                                            is={CanvasContainer}
-                                            canvas
-                                            id="root-canvas"
-                                            className="min-h-[500px] w-full"
-                                        />
-                                    </Frame>
-                                </div>
+                            {/*
+                             * Canvas container — block element with margin: auto for alignment.
+                             * Flex approach clips the left side when canvas > viewport.
+                             * Block + margin: auto works correctly:
+                             *   - canvas < parent → auto margins apply → alignment works
+                             *   - canvas > parent → auto margins = 0 → overflows right → main scrolls
+                             * CSS zoom scales BOTH visual size AND layout footprint (unlike transform).
+                             */}
+                            <div
+                                style={(isPreview || previewOnly || canvasSize.width === "100%") ? {} : {
+                                    display:    "block",
+                                    width:      canvasSize.width,
+                                    minHeight:  canvasSize.height !== "100%" ? canvasSize.height : undefined,
+                                    zoom:       zoom !== 100 ? zoom / 100 : undefined,
+                                    marginLeft:  (alignment === "right"  || alignment === "center") ? "auto" : 0,
+                                    marginRight: (alignment === "left"   || alignment === "center") ? "auto" : 0,
+                                }}
+                                className={(isPreview || previewOnly || canvasSize.width === "100%")
+                                    ? "w-full"
+                                    : "shadow-lg ring-1 ring-black/5 rounded-sm"
+                                }
+                            >
+                                <Frame data={initialNodes ? JSON.stringify(initialNodes) : undefined}>
+                                    <Element
+                                        is={CanvasContainer}
+                                        canvas
+                                        id="root-canvas"
+                                        className="min-h-[500px] w-full"
+                                    />
+                                </Frame>
                             </div>
                         </main>
 
