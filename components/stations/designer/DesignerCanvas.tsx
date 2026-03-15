@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Editor, Frame, Element, useEditor } from "@craftjs/core";
 import { BlockPalette }      from "./BlockPalette";
 import { PropertiesPanel }   from "./PropertiesPanel";
-import { Toolbar }           from "./Toolbar";
+import { Toolbar, CanvasWidthValue } from "./Toolbar";
 import { CanvasContainer }   from "./CanvasContainer";
 import { KeyboardShortcuts } from "./KeyboardShortcuts";
 import { PreviewContext }     from "./PreviewContext";
@@ -60,7 +60,8 @@ function EditorModeSync({ enabled }: { enabled: boolean }) {
 }
 
 export function DesignerCanvas({ templateName, initialNodes, onSave, saving, previewOnly = false }: DesignerCanvasProps) {
-    const [isPreview, setIsPreview] = useState(previewOnly);
+    const [isPreview,   setIsPreview]   = useState(previewOnly);
+    const [canvasWidth, setCanvasWidth] = useState<CanvasWidthValue>(900);
 
     return (
         <PreviewContext.Provider value={isPreview}>
@@ -76,6 +77,8 @@ export function DesignerCanvas({ templateName, initialNodes, onSave, saving, pre
                             saving={saving}
                             isPreview={isPreview}
                             onTogglePreview={() => setIsPreview((p) => !p)}
+                            canvasWidth={canvasWidth}
+                            onCanvasWidth={setCanvasWidth}
                         />
                     )}
                     <div className="flex flex-1 overflow-hidden">
@@ -96,7 +99,10 @@ export function DesignerCanvas({ templateName, initialNodes, onSave, saving, pre
                                     </div>
                                 </div>
                             )}
-                            <div className="max-w-2xl mx-auto">
+                            <div
+                                style={canvasWidth === "100%" ? {} : { maxWidth: canvasWidth, margin: "0 auto" }}
+                                className={canvasWidth === "100%" ? "w-full" : "w-full"}
+                            >
                                 <Frame data={initialNodes ? JSON.stringify(initialNodes) : undefined}>
                                     <Element
                                         is={CanvasContainer}

@@ -2,26 +2,61 @@
 
 import { useEditor } from "@craftjs/core";
 import { useState } from "react";
-import { Save, Undo2, Redo2, Code2, Trash2, Keyboard, Eye, EyeOff } from "lucide-react";
+import { Save, Undo2, Redo2, Code2, Trash2, Keyboard, Eye, EyeOff, Smartphone, Tablet, Monitor, Maximize2, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-interface ToolbarProps {
-    templateName: string;
-    onSave: (craftNodes: Record<string, unknown>) => Promise<void>;
-    saving?: boolean;
-    isPreview?: boolean;
-    onTogglePreview?: () => void;
+// ── Canvas width presets ───────────────────────────────────────────────────────
+export interface CanvasPreset {
+    id:     string;
+    label:  string;
+    width:  number | "100%";
+    icon:   React.ElementType;
 }
 
-export function Toolbar({ templateName, onSave, saving, isPreview = false, onTogglePreview }: ToolbarProps) {
+export const CANVAS_PRESETS: CanvasPreset[] = [
+    { id: "mobile",  label: "Mobile",  width: 390,   icon: Smartphone },
+    { id: "tablet",  label: "Tablet",  width: 768,   icon: Tablet     },
+    { id: "desktop", label: "Desktop", width: 1280,  icon: Monitor    },
+    { id: "full",    label: "Full",    width: "100%", icon: Maximize2  },
+];
+
+export type CanvasWidthValue = number | "100%";
+
+interface ToolbarProps {
+    templateName:    string;
+    onSave:          (craftNodes: Record<string, unknown>) => Promise<void>;
+    saving?:         boolean;
+    isPreview?:      boolean;
+    onTogglePreview?: () => void;
+    canvasWidth:     CanvasWidthValue;
+    onCanvasWidth:   (w: CanvasWidthValue) => void;
+}
+
+export function Toolbar({ templateName, onSave, saving, isPreview = false, onTogglePreview, canvasWidth, onCanvasWidth }: ToolbarProps) {
     const { actions, query, canUndo, canRedo, selected } = useEditor((state, q) => ({
         canUndo: q.history.canUndo(),
         canRedo: q.history.canRedo(),
         selected: [...state.events.selected][0] ?? null,
     }));
 
-    const [showJson,  setShowJson]  = useState(false);
-    const [showKeys, setShowKeys] = useState(false);
+    const [showJson,   setShowJson]   = useState(false);
+    const [showKeys,   setShowKeys]   = useState(false);
+    const [customMode, setCustomMode] = useState(false);
+    const [customVal,  setCustomVal]  = useState(
+        typeof canvasWidth === "number" ? String(canvasWidth) : ""
+    );
+
+    const activePresetId = CANVAS_PRESETS.find((p) => p.width === canvasWidth)?.id ?? "custom";
+
+    const handlePreset = (preset: CanvasPreset) => {
+        setCustomMode(false);
+        onCanvasWidth(preset.width);
+    };
+
+    const handleCustomCommit = () => {
+        const n = parseInt(customVal, 10);
+        if (!isNaN(n) && n >= 200 && n <= 3840) onCanvasWidth(n);
+    };
 
     const handleSave = async () => {
         const json = JSON.parse(query.serialize());
@@ -57,6 +92,67 @@ export function Toolbar({ templateName, onSave, saving, isPreview = false, onTog
                         <Trash2 className="h-3.5 w-3.5" />
                         ลบ block
                     </Button>
+                )}
+
+                {/* Canvas width picker */}
+                {!isPreview && (
+                    <div className="flex items-center gap-1 rounded-lg border bg-muted/40 px-1.5 py-1">
+                        {CANVAS_PRESETS.map((preset) => {
+                            const Icon     = preset.icon;
+                            const isActive = !customMode && activePresetId === preset.id;
+                            return (
+                                <button
+                                    key={preset.id}
+                                    type="button"
+                                    title={`${preset.label} (${preset.width === "100%" ? "เต็มหน้า" : preset.width + "px"})`}
+                                    onClick={() => handlePreset(preset)}
+                                    className={`p-1.5 rounded-md transition-all ${
+                                        isActive
+                                            ? "bg-background shadow-sm text-foreground"
+                                            : "text-muted-foreground hover:text-foreground"
+                                    }`}
+                                >
+                                    <Icon className="h-3.5 w-3.5" />
+                                </button>
+                            );
+                        })}
+                        {/* Custom width button */}
+                        <button
+                            type="button"
+                            title="กำหนดขนาดเอง"
+                            onClick={() => setCustomMode((p) => !p)}
+                            className={`p-1.5 rounded-md transition-all ${
+                                customMode
+                                    ? "bg-background shadow-sm text-foreground"
+                                    : "text-muted-foreground hover:text-foreground"
+                            }`}
+                        >
+                            <Settings2 className="h-3.5 w-3.5" />
+                        </button>
+                        {/* Custom input — shown when custom mode active */}
+                        {customMode && (
+                            <div className="flex items-center gap-1 pl-1 border-l border-border/60">
+                                <input
+                                    type="number"
+                                    min={200}
+                                    max={3840}
+                                    value={customVal}
+                                    onChange={(e) => setCustomVal(e.target.value)}
+                                    onKeyDown={(e) => e.key === "Enter" && handleCustomCommit()}
+                                    onBlur={handleCustomCommit}
+                                    placeholder="px"
+                                    className="w-16 bg-background border rounded px-2 py-0.5 text-xs outline-none focus:ring-1 focus:ring-primary/40 text-center"
+                                />
+                                <span className="text-[10px] text-muted-foreground pr-0.5">px</span>
+                            </div>
+                        )}
+                        {/* Current width label */}
+                        {!customMode && (
+                            <span className="text-[10px] text-muted-foreground pl-1 border-l border-border/60 pr-0.5 min-w-[40px] text-center">
+                                {canvasWidth === "100%" ? "Full" : `${canvasWidth}px`}
+                            </span>
+                        )}
+                    </div>
                 )}
 
                 <div className="flex-1" />
