@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { X, Plus, Send, CheckCircle2, Loader2, Workflow, GripVertical } from "lucide-react";
 import { fetchApi } from "@/lib/api/config";
 import { usePreview } from "../PreviewContext";
+import { getStations } from "@/lib/stations/stations-store";
 
 // ── Station catalog ───────────────────────────────────────────────────────────
 interface StationOption { id: string; label: string; desc: string; color: string; }
@@ -229,6 +230,8 @@ export function StationSequencePicker({
     }
 
     // ── Design mode ───────────────────────────────────────────────────────────
+    const userStations = getStations();
+
     return (
         <div
             ref={(ref) => { ref && connect(drag(ref)); }}
@@ -248,18 +251,19 @@ export function StationSequencePicker({
                         <span key={p.label} className="text-[10px] px-2 py-0.5 rounded-full border border-muted-foreground/20 text-muted-foreground">{p.label}</span>
                     ))}
                 </div>
-                <div className="space-y-1">
-                    {["cutting","grinding","inspection","delivery"].map((id, i) => {
-                        const s = STATION_CATALOG.find((c) => c.id === id)!;
-                        return (
-                            <div key={id} className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2">
+                {userStations.length === 0 ? (
+                    <p className="text-[10px] text-muted-foreground/50 italic px-1">ยังไม่มีสถานี — สร้างสถานีก่อนในหน้าสถานี</p>
+                ) : (
+                    <div className="space-y-1">
+                        {userStations.map((station, i) => (
+                            <div key={station._id} className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2">
                                 <GripVertical className="h-3.5 w-3.5 text-muted-foreground/20" />
                                 <span className="text-[10px] text-muted-foreground/30 w-4 font-mono">{i + 1}</span>
-                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${s.color}`}>{s.label}</span>
+                                <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-muted text-foreground/60">{station.name}</span>
                             </div>
-                        );
-                    })}
-                </div>
+                        ))}
+                    </div>
+                )}
                 <div className="h-9 rounded-lg bg-primary/20 flex items-center justify-center">
                     <span className="text-xs text-primary/60 font-medium">เปิดออเดอร์</span>
                 </div>

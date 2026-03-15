@@ -2,7 +2,9 @@
 
 import { useEditor } from "@craftjs/core";
 import { useState } from "react";
-import { Save, Undo2, Redo2, Code2, Trash2, Keyboard, Eye, EyeOff, Smartphone, Tablet, Monitor, Maximize2, Settings2, Cloud, Loader2 } from "lucide-react";
+import { Save, Undo2, Redo2, Code2, Trash2, Keyboard, Eye, EyeOff, Smartphone, Tablet, Monitor, Maximize2, Settings2, Cloud, Loader2, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
+
+export type CanvasAlignment = "left" | "center" | "right";
 import { Button } from "@/components/ui/button";
 
 // ── Canvas size presets ───────────────────────────────────────────────────────
@@ -36,10 +38,12 @@ interface ToolbarProps {
     onTogglePreview?: () => void;
     canvasSize:       CanvasSize;
     onCanvasSize:     (s: CanvasSize) => void;
+    alignment:        CanvasAlignment;
+    onAlignment:      (a: CanvasAlignment) => void;
     autoSaveStatus?:  "idle" | "saving" | "saved";
 }
 
-export function Toolbar({ templateName, onSave, saving, isPreview = false, onTogglePreview, canvasSize, onCanvasSize, autoSaveStatus = "idle" }: ToolbarProps) {
+export function Toolbar({ templateName, onSave, saving, isPreview = false, onTogglePreview, canvasSize, onCanvasSize, alignment, onAlignment, autoSaveStatus = "idle" }: ToolbarProps) {
     const { actions, query, canUndo, canRedo, selected } = useEditor((state, q) => ({
         canUndo: q.history.canUndo(),
         canRedo: q.history.canRedo(),
@@ -188,6 +192,31 @@ export function Toolbar({ templateName, onSave, saving, isPreview = false, onTog
                                 {canvasSize.width === "100%" ? "Full" : `${canvasSize.width}×${canvasSize.height}`}
                             </span>
                         )}
+                    </div>
+                )}
+
+                {/* Canvas alignment */}
+                {!isPreview && canvasSize.width !== "100%" && (
+                    <div className="flex items-center gap-0.5 rounded-lg border bg-muted/40 px-1 py-1">
+                        {([
+                            { id: "left",   icon: AlignLeft,   title: "ชิดซ้าย" },
+                            { id: "center", icon: AlignCenter, title: "ตรงกลาง" },
+                            { id: "right",  icon: AlignRight,  title: "ชิดขวา"  },
+                        ] as const).map(({ id, icon: Icon, title }) => (
+                            <button
+                                key={id}
+                                type="button"
+                                title={title}
+                                onClick={() => onAlignment(id)}
+                                className={`p-1.5 rounded-md transition-all ${
+                                    alignment === id
+                                        ? "bg-background shadow-sm text-foreground"
+                                        : "text-muted-foreground hover:text-foreground"
+                                }`}
+                            >
+                                <Icon className="h-3.5 w-3.5" />
+                            </button>
+                        ))}
                     </div>
                 )}
 
