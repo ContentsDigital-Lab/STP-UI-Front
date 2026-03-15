@@ -119,7 +119,7 @@ export default function CreateBillPage() {
             }
             if (thicknessRef.current && !thicknessRef.current.contains(e.target as Node)) {
                 setThicknessOpen(false);
-                setThicknessSearch(latestFormData.current.thickness ? latestFormData.current.thickness.replace('mm', '') : "");
+                setThicknessSearch(latestFormData.current.thickness || "");
             }
         };
         document.addEventListener("mousedown", handleClickOutside);
@@ -176,7 +176,7 @@ export default function CreateBillPage() {
         }
         setThicknesses(prev => [...prev, value].sort((a, b) => parseInt(a) - parseInt(b)));
         setFormData(prev => ({ ...prev, thickness: value }));
-        setThicknessSearch(String(num));
+        setThicknessSearch(value);
         setThicknessOpen(false);
         toast.success(lang === 'th' ? `เพิ่มความหนา ${value} สำเร็จ` : `Thickness ${value} added`);
     };
@@ -522,6 +522,7 @@ export default function CreateBillPage() {
                         onHolesChange={handleHolesChange}
                         vertices={vertices}
                         onVerticesChange={setVertices}
+                        thickness={parseInt(formData.thickness) || 6}
                     />
                 </div>
 
@@ -713,7 +714,7 @@ export default function CreateBillPage() {
                                                     const match = `${thicknessSearch}mm`;
                                                     if (thicknesses.includes(match)) {
                                                         setFormData(prev => ({ ...prev, thickness: match }));
-                                                        setThicknessSearch(thicknessSearch);
+                                                        setThicknessSearch(match);
                                                         setThicknessOpen(false);
                                                     } else {
                                                         handleAddThickness(thicknessSearch.trim());
@@ -733,7 +734,7 @@ export default function CreateBillPage() {
                                                                 type="button"
                                                                 onClick={() => {
                                                                     setFormData(prev => ({ ...prev, thickness: t }));
-                                                                    setThicknessSearch(t.replace('mm', ''));
+                                                                    setThicknessSearch(t);
                                                                     setThicknessOpen(false);
                                                                 }}
                                                                 className={`flex items-center justify-between w-full px-3 py-2.5 rounded-xl text-left text-sm font-bold transition-colors ${

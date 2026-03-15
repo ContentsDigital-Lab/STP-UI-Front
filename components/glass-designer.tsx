@@ -2,10 +2,12 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { MousePointer2, Circle, Undo2, Redo2, RotateCcw, Pen, Focus, Hand, Square, ChevronDown, Hexagon, RectangleHorizontal } from 'lucide-react';
+import { MousePointer2, Circle, Undo2, Redo2, RotateCcw, Pen, Focus, Hand, Square, ChevronDown, Hexagon, RectangleHorizontal, Box } from 'lucide-react';
 
 export type CutoutType = 'circle' | 'rectangle' | 'slot' | 'custom';
 
@@ -33,6 +35,7 @@ interface GlassDesignerProps {
     onHolesChange: (holes: HoleData[]) => void;
     vertices?: VertexData[];
     onVerticesChange?: (vertices: VertexData[]) => void;
+    thickness?: number;
 }
 
 let holeCounter = 0;
@@ -338,7 +341,106 @@ function getCutoutResizeHandles(h: HoleData): { x: number; y: number; axis?: str
     }
 }
 
-export function GlassDesigner({ width, height, holes, onHolesChange, vertices: externalVertices, onVerticesChange }: GlassDesignerProps) {
+function getCutoutBounds(h: HoleData): { minX: number; minY: number; maxX: number; maxY: number } {
+    if (h.type === 'rectangle') {
+        const w = h.width || 100, ht = h.height || 60;
+        return { minX: h.x - w / 2, minY: h.y - ht / 2, maxX: h.x + w / 2, maxY: h.y + ht / 2 };
+    } else if (h.type === 'slot') {
+        const len = h.length || 80, w = h.width || 20;
+        return { minX: h.x - len / 2, minY: h.y - w / 2, maxX: h.x + len / 2, maxY: h.y + w / 2 };
+    } else if (h.type === 'custom' && h.points && h.points.length >= 3) {
+        let mnX = Infinity, mnY = Infinity, mxX = -Infinity, mxY = -Infinity;
+        for (const p of h.points) {
+            mnX = Math.min(mnX, h.x + p.x); mnY = Math.min(mnY, h.y + p.y);
+            mxX = Math.max(mxX, h.x + p.x); mxY = Math.max(mxY, h.y + p.y);
+        }
+        return { minX: mnX, minY: mnY, maxX: mxX, maxY: mxY };
+    } else {
+        const r = h.diameter / 2;
+        return { minX: h.x - r, minY: h.y - r, maxX: h.x + r, maxY: h.y + r };
+    }
+}
+
+function makeClippedCutoutPath(h: HoleData, glassBB: { minX: number; minY: number; maxX: number; maxY: number }, eps = 0.01): THREE.Path {
+    const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+    const lo = { x: glassBB.minX + eps, y: glassBB.minY + eps };
+    const hi = { x: glassBB.maxX - eps, y: glassBB.maxY - eps };
+
+    const clipPts = (pts: { x: number; y: number }[]): { x: number; y: number }[] => {
+        const clipped = pts.map(p => ({ x: clamp(p.x, lo.x, hi.x), y: clamp(p.y, lo.y, hi.y) }));
+        const deduped: { x: number; y: number }[] = [clipped[0]];
+        for (let i = 1; i < clipped.length; i++) {
+            const prev = deduped[deduped.length - 1];
+            if (Math.abs(clipped[i].x - prev.x) > 0.01 || Math.abs(clipped[i].y - prev.y) > 0.01) {
+                deduped.push(clipped[i]);
+            }
+        }
+        return deduped.length >= 3 ? deduped : clipped;
+    };
+
+    const path = new THREE.Path();
+
+    if (h.type === 'rectangle') {
+        const w = h.width || 100, ht = h.height || 60;
+        const pts = [
+            { x: h.x - w / 2, y: h.y - ht / 2 },
+            { x: h.x + w / 2, y: h.y - ht / 2 },
+            { x: h.x + w / 2, y: h.y + ht / 2 },
+            { x: h.x - w / 2, y: h.y + ht / 2 },
+        ];
+        const c = clipPts(pts);
+        path.moveTo(c[0].x, c[0].y);
+        for (let i = 1; i < c.length; i++) path.lineTo(c[i].x, c[i].y);
+        path.closePath();
+    } else if (h.type === 'slot') {
+        const len = h.length || 80, w = h.width || 20;
+        const r = w / 2, halfBody = (len - w) / 2;
+        const segs = 12;
+        const pts: { x: number; y: number }[] = [];
+        pts.push({ x: h.x - halfBody, y: h.y - r });
+        pts.push({ x: h.x + halfBody, y: h.y - r });
+        for (let i = 0; i <= segs; i++) {
+            const a = -Math.PI / 2 + (Math.PI * i) / segs;
+            pts.push({ x: h.x + halfBody + Math.cos(a) * r, y: h.y + Math.sin(a) * r });
+        }
+        pts.push({ x: h.x - halfBody, y: h.y + r });
+        for (let i = 0; i <= segs; i++) {
+            const a = Math.PI / 2 + (Math.PI * i) / segs;
+            pts.push({ x: h.x - halfBody + Math.cos(a) * r, y: h.y + Math.sin(a) * r });
+        }
+        const c = clipPts(pts);
+        path.moveTo(c[0].x, c[0].y);
+        for (let i = 1; i < c.length; i++) path.lineTo(c[i].x, c[i].y);
+        path.closePath();
+    } else if (h.type === 'custom' && h.points && h.points.length >= 3) {
+        const pts = h.points.map(p => ({ x: h.x + p.x, y: h.y + p.y }));
+        const c = clipPts(pts);
+        path.moveTo(c[0].x, c[0].y);
+        for (let i = 1; i < c.length; i++) path.lineTo(c[i].x, c[i].y);
+        path.closePath();
+    } else {
+        const r = h.diameter / 2;
+        const needsClip = h.x - r < glassBB.minX || h.x + r > glassBB.maxX ||
+                          h.y - r < glassBB.minY || h.y + r > glassBB.maxY;
+        if (!needsClip) {
+            path.absarc(h.x, h.y, r, 0, Math.PI * 2, false);
+            return path;
+        }
+        const segs = 48;
+        const pts: { x: number; y: number }[] = [];
+        for (let i = 0; i < segs; i++) {
+            const a = (i / segs) * Math.PI * 2;
+            pts.push({ x: h.x + Math.cos(a) * r, y: h.y + Math.sin(a) * r });
+        }
+        const c = clipPts(pts);
+        path.moveTo(c[0].x, c[0].y);
+        for (let i = 1; i < c.length; i++) path.lineTo(c[i].x, c[i].y);
+        path.closePath();
+    }
+    return path;
+}
+
+export function GlassDesigner({ width, height, holes, onHolesChange, vertices: externalVertices, onVerticesChange, thickness: glassMmThickness }: GlassDesignerProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
     const sceneRef = useRef<THREE.Scene | null>(null);
@@ -357,6 +459,17 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
     const [cutoutSlotWidth, setCutoutSlotWidth] = useState(20);
     const [isDrawingCustom, setIsDrawingCustom] = useState(false);
     const [customDrawPoints, setCustomDrawPoints] = useState<VertexData[]>([]);
+    const [show3DPreview, setShow3DPreview] = useState(true);
+    const [cutoutMenuOpen, setCutoutMenuOpen] = useState(false);
+
+    const preview3DRef = useRef<HTMLDivElement>(null);
+    const previewRendererRef = useRef<THREE.WebGLRenderer | null>(null);
+    const previewSceneRef = useRef<THREE.Scene | null>(null);
+    const previewCameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+    const previewControlsRef = useRef<OrbitControls | null>(null);
+    const previewAnimFrameRef = useRef<number>(0);
+    const preview3DInitRef = useRef(false);
+    const build3DSceneRef = useRef<() => void>(() => {});
 
     const internalVertices = externalVertices ?? getDefaultVertices(width, height);
 
@@ -604,7 +717,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         glassShape.closePath();
 
         holesRef.current.forEach(h => {
-            glassShape.holes.push(makeCutoutPath(h));
+            glassShape.holes.push(makeClippedCutoutPath(h, bb));
         });
 
         const extrudeSettings = { depth: 3, bevelEnabled: false };
@@ -701,12 +814,12 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
 
             const labelText = getCutoutLabel(h);
             const hLabel = makeTextSprite(labelText, isSelected ? '#E8601C' : '#aa5533');
-            let labelOffsetY = 18;
-            if (h.type === 'circle') labelOffsetY = h.diameter / 2 + 18;
-            else if (h.type === 'rectangle') labelOffsetY = (h.height || 60) / 2 + 18;
-            else if (h.type === 'slot') labelOffsetY = (h.width || 20) / 2 + 18;
+            let labelOffsetY = 28;
+            if (h.type === 'circle') labelOffsetY = h.diameter / 2 + 28;
+            else if (h.type === 'rectangle') labelOffsetY = (h.height || 60) / 2 + 28;
+            else if (h.type === 'slot') labelOffsetY = (h.width || 20) / 2 + 28;
             else if (h.type === 'custom' && h.points?.length) {
-                labelOffsetY = Math.max(...h.points.map(p => Math.abs(p.y))) + 18;
+                labelOffsetY = Math.max(...h.points.map(p => Math.abs(p.y))) + 28;
             }
             hLabel.position.set(h.x, h.y - labelOffsetY, 3.3);
             group.add(hLabel);
@@ -1026,7 +1139,11 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             }
 
             if (activeToolRef.current === 'addHole') {
-                if (!isPointInPolygon(pos.x, pos.y, verticesRef.current)) return;
+                const placeBB = getBoundingBox(verticesRef.current);
+                const margin = Math.max(placeBB.width, placeBB.height) * 0.15;
+                const inRange = pos.x >= placeBB.minX - margin && pos.x <= placeBB.maxX + margin &&
+                                pos.y >= placeBB.minY - margin && pos.y <= placeBB.maxY + margin;
+                if (!inRange) return;
 
                 if (cutoutShapeRef.current === 'custom') {
                     if (isDrawingCustomRef.current) {
@@ -1204,8 +1321,9 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 const pos = getWorldPos(e.clientX, e.clientY);
                 if (!pos) return;
                 const bb = getBoundingBox(verticesRef.current);
-                const clampedX = Math.max(bb.minX, Math.min(bb.maxX, Math.round(pos.x)));
-                const clampedY = Math.max(bb.minY, Math.min(bb.maxY, Math.round(pos.y)));
+                const dragMargin = Math.max(bb.width, bb.height) * 0.15;
+                const clampedX = Math.max(bb.minX - dragMargin, Math.min(bb.maxX + dragMargin, Math.round(pos.x)));
+                const clampedY = Math.max(bb.minY - dragMargin, Math.min(bb.maxY + dragMargin, Math.round(pos.y)));
                 const updated = holesRef.current.map(h =>
                     h.id === dragHoleIdRef.current ? { ...h, x: clampedX, y: clampedY } : h
                 );
@@ -1382,6 +1500,198 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         renderScene();
     };
 
+    const build3DScene = useCallback(() => {
+        const scene = previewSceneRef.current;
+        if (!scene) return;
+
+        while (scene.children.length > 0) scene.remove(scene.children[0]);
+
+        // Lighting
+        const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambient);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(200, 300, 400);
+        scene.add(dirLight);
+        const backLight = new THREE.DirectionalLight(0xffffff, 0.3);
+        backLight.position.set(-200, -100, -200);
+        scene.add(backLight);
+
+        const verts = verticesRef.current;
+        if (verts.length < 3) return;
+
+        const bb3 = getBoundingBox(verts);
+        const thicknessMm = glassMmThickness || 6;
+        const depthScale = thicknessMm * 0.8;
+
+        // Build glass solid (no holes) then subtract cutouts with CSG
+        const glassShape = new THREE.Shape();
+        glassShape.moveTo(verts[0].x, verts[0].y);
+        for (let i = 1; i < verts.length; i++) glassShape.lineTo(verts[i].x, verts[i].y);
+        glassShape.closePath();
+
+        const extrudeSettings = { depth: depthScale, bevelEnabled: false };
+        const glassGeo = new THREE.ExtrudeGeometry(glassShape, extrudeSettings);
+
+        const offsetPos = new THREE.Vector3(-bb3.minX - bb3.width / 2, -bb3.minY - bb3.height / 2, -depthScale / 2);
+
+        const glassMat = new THREE.MeshPhysicalMaterial({
+            color: 0xc8e8f8,
+            transparent: true,
+            opacity: 0.55,
+            roughness: 0.05,
+            metalness: 0.0,
+            transmission: 0.6,
+            thickness: 2,
+            clearcoat: 1.0,
+            clearcoatRoughness: 0.05,
+            side: THREE.DoubleSide,
+            envMapIntensity: 1.0,
+        });
+
+        let resultBrush: Brush | null = null;
+
+        if (holesRef.current.length > 0) {
+            const csgEvaluator = new Evaluator();
+            const glassBrush = new Brush(glassGeo, glassMat);
+            glassBrush.position.copy(offsetPos);
+            glassBrush.updateMatrixWorld(true);
+
+            let currentBrush = glassBrush;
+
+            for (const h of holesRef.current) {
+                const cutPath = makeCutoutPath(h);
+                const cutShape = new THREE.Shape();
+                const pts = cutPath.getPoints(48);
+                cutShape.moveTo(pts[0].x, pts[0].y);
+                for (let i = 1; i < pts.length; i++) cutShape.lineTo(pts[i].x, pts[i].y);
+                cutShape.closePath();
+
+                const cutGeo = new THREE.ExtrudeGeometry(cutShape, { depth: depthScale + 4, bevelEnabled: false });
+                const cutBrush = new Brush(cutGeo, glassMat);
+                cutBrush.position.set(offsetPos.x, offsetPos.y, offsetPos.z - 2);
+                cutBrush.updateMatrixWorld(true);
+
+                try {
+                    currentBrush = csgEvaluator.evaluate(currentBrush, cutBrush, SUBTRACTION);
+                } catch {
+                    // Fallback if CSG fails for a cutout
+                }
+                cutGeo.dispose();
+            }
+            resultBrush = currentBrush;
+        }
+
+        if (resultBrush) {
+            resultBrush.material = glassMat;
+            scene.add(resultBrush);
+        } else {
+            const mesh = new THREE.Mesh(glassGeo, glassMat);
+            mesh.position.copy(offsetPos);
+            scene.add(mesh);
+        }
+
+        // Ground shadow plane
+        const groundGeo = new THREE.PlaneGeometry(bb3.width * 2, bb3.height * 2);
+        const groundMat = new THREE.MeshBasicMaterial({ color: 0xf0f0f0, transparent: true, opacity: 0.3 });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.position.set(0, 0, -depthScale / 2 - 1);
+        scene.add(ground);
+
+        // Camera framing — only on first build so user's orbit position is preserved
+        if (!preview3DInitRef.current) {
+            const cam = previewCameraRef.current;
+            if (cam) {
+                const maxDim = Math.max(bb3.width, bb3.height);
+                const dist = maxDim * 1.2;
+                cam.position.set(dist * 0.6, -dist * 0.4, dist * 0.5);
+                cam.lookAt(0, 0, 0);
+                cam.updateProjectionMatrix();
+            }
+            if (previewControlsRef.current) {
+                previewControlsRef.current.target.set(0, 0, 0);
+                previewControlsRef.current.update();
+            }
+            preview3DInitRef.current = true;
+        }
+    }, [glassMmThickness]);
+
+    // Keep ref in sync so lifecycle effect doesn't re-run on every build3DScene change
+    useEffect(() => { build3DSceneRef.current = build3DScene; }, [build3DScene]);
+
+    // 3D preview lifecycle
+    useEffect(() => {
+        if (!show3DPreview || !preview3DRef.current) return;
+
+        const container = preview3DRef.current;
+        const w = container.clientWidth;
+        const h = container.clientHeight;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(w, h);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        container.appendChild(renderer.domElement);
+        previewRendererRef.current = renderer;
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xf8fafc);
+        previewSceneRef.current = scene;
+
+        const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 10000);
+        previewCameraRef.current = camera;
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.08;
+        controls.enablePan = true;
+        controls.minDistance = 50;
+        controls.maxDistance = 5000;
+        previewControlsRef.current = controls;
+
+        build3DSceneRef.current();
+
+        const animate = () => {
+            previewAnimFrameRef.current = requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        };
+        animate();
+
+        const onResize = () => {
+            const cw = container.clientWidth;
+            const ch = container.clientHeight;
+            camera.aspect = cw / ch;
+            camera.updateProjectionMatrix();
+            renderer.setSize(cw, ch);
+        };
+        const resizeObserver = new ResizeObserver(onResize);
+        resizeObserver.observe(container);
+
+        return () => {
+            cancelAnimationFrame(previewAnimFrameRef.current);
+            resizeObserver.disconnect();
+            controls.dispose();
+            renderer.dispose();
+            if (container.contains(renderer.domElement)) {
+                container.removeChild(renderer.domElement);
+            }
+            previewRendererRef.current = null;
+            previewSceneRef.current = null;
+            previewCameraRef.current = null;
+            previewControlsRef.current = null;
+            preview3DInitRef.current = false;
+        };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [show3DPreview]);
+
+    // Re-build 3D scene when design changes
+    useEffect(() => {
+        if (show3DPreview && previewSceneRef.current) {
+            build3DScene();
+        }
+    }, [show3DPreview, width, height, holes, internalVertices, build3DScene]);
+
     const bb = getBoundingBox(internalVertices);
     const isCustomShape = !externalVertices || externalVertices.length !== 4 ||
         !(externalVertices[0].x === 0 && externalVertices[0].y === 0 &&
@@ -1396,7 +1706,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 <Button
                     variant={activeTool === 'select' ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => { setActiveTool('select'); setSelectedVertexIdx(null); }}
+                    onClick={() => { setActiveTool('select'); setSelectedVertexIdx(null); setCutoutMenuOpen(false); }}
                     className={`gap-1.5 rounded-xl text-xs font-bold h-9 ${activeTool === 'select' ? 'bg-[#1B4B9A] text-white' : ''}`}
                 >
                     <MousePointer2 className="h-3.5 w-3.5" />
@@ -1421,14 +1731,19 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                                 variant={activeTool === 'addHole' ? 'default' : 'outline'}
                                 size="sm"
                                 className={`rounded-xl rounded-l-none border-l-0 h-9 px-1.5 ${activeTool === 'addHole' ? 'bg-[#E8601C] text-white' : ''}`}
-                                onClick={(e) => {
-                                    const menu = e.currentTarget.nextElementSibling;
-                                    if (menu) menu.classList.toggle('hidden');
+                                onClick={() => {
+                                    setCutoutMenuOpen(v => !v);
+                                    if (activeTool !== 'addHole') {
+                                        setActiveTool('addHole');
+                                        setSelectedVertexIdx(null);
+                                        setIsDrawingCustom(false);
+                                        setCustomDrawPoints([]);
+                                    }
                                 }}
                             >
                                 <ChevronDown className="h-3 w-3" />
                             </Button>
-                            <div className="hidden absolute top-full left-0 mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-50 py-1 min-w-[140px]">
+                            {cutoutMenuOpen && <div className="absolute top-full left-0 mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-50 py-1 min-w-[140px]">
                                 {([
                                     { type: 'circle' as CutoutType, icon: Circle, label: 'Circle' },
                                     { type: 'rectangle' as CutoutType, icon: Square, label: 'Rectangle' },
@@ -1438,28 +1753,27 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                                     <button
                                         key={opt.type}
                                         className={`flex items-center gap-2 w-full px-3 py-1.5 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 ${cutoutShape === opt.type ? 'text-[#E8601C]' : 'text-slate-700 dark:text-slate-300'}`}
-                                        onClick={(e) => {
+                                        onClick={() => {
                                             setCutoutShape(opt.type);
                                             setActiveTool('addHole');
                                             setSelectedVertexIdx(null);
                                             setIsDrawingCustom(false);
                                             setCustomDrawPoints([]);
-                                            const menu = e.currentTarget.parentElement;
-                                            if (menu) menu.classList.add('hidden');
+                                            setCutoutMenuOpen(false);
                                         }}
                                     >
                                         <opt.icon className="h-3.5 w-3.5" />
                                         {opt.label}
                                     </button>
                                 ))}
-                            </div>
+                            </div>}
                         </div>
                     </div>
                 </div>
                 <Button
                     variant={activeTool === 'move' ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => { setActiveTool('move'); setSelectedHoleId(null); setSelectedVertexIdx(null); }}
+                    onClick={() => { setActiveTool('move'); setSelectedHoleId(null); setSelectedVertexIdx(null); setCutoutMenuOpen(false); }}
                     className={`gap-1.5 rounded-xl text-xs font-bold h-9 ${activeTool === 'move' ? 'bg-[#6366f1] text-white' : ''}`}
                 >
                     <Hand className="h-3.5 w-3.5" />
@@ -1468,7 +1782,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 <Button
                     variant={activeTool === 'editVertex' ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => { setActiveTool('editVertex'); setSelectedHoleId(null); }}
+                    onClick={() => { setActiveTool('editVertex'); setSelectedHoleId(null); setCutoutMenuOpen(false); }}
                     className={`gap-1.5 rounded-xl text-xs font-bold h-9 ${activeTool === 'editVertex' ? 'bg-[#22aa44] text-white' : ''}`}
                 >
                     <Pen className="h-3.5 w-3.5" />
@@ -1478,7 +1792,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-1" />
 
                 {cutoutShape === 'circle' && (
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1">
                         <Label className="text-[10px] font-bold text-slate-400 uppercase">⌀</Label>
                         <Input
                             type="number"
@@ -1486,40 +1800,40 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                             max={200}
                             value={holeDiameter}
                             onChange={(e) => setHoleDiameter(parseInt(e.target.value) || 20)}
-                            className="w-16 h-9 text-xs font-bold rounded-xl border-slate-200 dark:border-slate-800 text-center"
+                            className="w-14 h-8 text-xs font-bold rounded-lg border-slate-200 dark:border-slate-800 text-center px-1"
                         />
                         <span className="text-[10px] font-bold text-slate-400">mm</span>
                     </div>
                 )}
                 {cutoutShape === 'rectangle' && (
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1">
                         <Label className="text-[10px] font-bold text-slate-400 uppercase">W</Label>
                         <Input type="number" min={10} max={500} value={cutoutWidth}
                             onChange={(e) => setCutoutWidth(parseInt(e.target.value) || 100)}
-                            className="w-14 h-9 text-xs font-bold rounded-xl border-slate-200 dark:border-slate-800 text-center" />
+                            className="w-12 h-8 text-xs font-bold rounded-lg border-slate-200 dark:border-slate-800 text-center px-1" />
                         <Label className="text-[10px] font-bold text-slate-400 uppercase">H</Label>
                         <Input type="number" min={10} max={500} value={cutoutHeight}
                             onChange={(e) => setCutoutHeight(parseInt(e.target.value) || 60)}
-                            className="w-14 h-9 text-xs font-bold rounded-xl border-slate-200 dark:border-slate-800 text-center" />
+                            className="w-12 h-8 text-xs font-bold rounded-lg border-slate-200 dark:border-slate-800 text-center px-1" />
                         <span className="text-[10px] font-bold text-slate-400">mm</span>
                     </div>
                 )}
                 {cutoutShape === 'slot' && (
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1">
                         <Label className="text-[10px] font-bold text-slate-400 uppercase">W</Label>
                         <Input type="number" min={5} max={200} value={cutoutSlotWidth}
                             onChange={(e) => setCutoutSlotWidth(parseInt(e.target.value) || 20)}
-                            className="w-14 h-9 text-xs font-bold rounded-xl border-slate-200 dark:border-slate-800 text-center" />
+                            className="w-12 h-8 text-xs font-bold rounded-lg border-slate-200 dark:border-slate-800 text-center px-1" />
                         <Label className="text-[10px] font-bold text-slate-400 uppercase">L</Label>
                         <Input type="number" min={10} max={500} value={cutoutLength}
                             onChange={(e) => setCutoutLength(parseInt(e.target.value) || 80)}
-                            className="w-14 h-9 text-xs font-bold rounded-xl border-slate-200 dark:border-slate-800 text-center" />
+                            className="w-12 h-8 text-xs font-bold rounded-lg border-slate-200 dark:border-slate-800 text-center px-1" />
                         <span className="text-[10px] font-bold text-slate-400">mm</span>
                     </div>
                 )}
                 {cutoutShape === 'custom' && (
-                    <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-bold text-slate-400">Click to place points, click near first point to close</span>
+                    <div className="flex items-center gap-1">
+                        <span className="text-[10px] font-bold text-slate-400">Click to place, click start to close</span>
                     </div>
                 )}
 
@@ -1556,6 +1870,15 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 </Button>
 
                 <div className="ml-auto flex items-center gap-1">
+                    <Button
+                        variant={show3DPreview ? 'default' : 'ghost'}
+                        size="icon"
+                        onClick={() => setShow3DPreview(v => !v)}
+                        className={`h-8 w-8 rounded-lg ${show3DPreview ? 'bg-[#1B4B9A] text-white' : 'text-slate-400 hover:text-slate-600'}`}
+                        title="Toggle 3D Preview"
+                    >
+                        <Box className="h-3.5 w-3.5" />
+                    </Button>
                     <Button variant="ghost" size="icon" onClick={handleResetView} className="h-8 w-8 rounded-lg text-slate-400 hover:text-slate-600" title="Fit to view">
                         <Focus className="h-3.5 w-3.5" />
                     </Button>
@@ -1563,11 +1886,28 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             </div>
 
             {/* Canvas Container */}
-            <div
-                ref={containerRef}
-                className="flex-1 relative bg-slate-50 dark:bg-slate-950"
-                style={{ minHeight: 400 }}
-            />
+            <div className="flex-1 relative bg-slate-50 dark:bg-slate-950" style={{ minHeight: 400 }}>
+                <div ref={containerRef} className="absolute inset-0" />
+
+                {/* 3D Preview Panel */}
+                {show3DPreview && (
+                    <div className="absolute top-3 right-3 z-10 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden" style={{ width: 320, height: 240 }}>
+                        <div className="flex items-center justify-between px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                                <Box className="h-3 w-3" />
+                                3D Preview
+                            </span>
+                            <button
+                                onClick={() => setShow3DPreview(false)}
+                                className="text-slate-400 hover:text-slate-600 text-xs font-bold"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <div ref={preview3DRef} className="w-full" style={{ height: 'calc(100% - 28px)' }} />
+                    </div>
+                )}
+            </div>
 
             {/* Status bar */}
             <div className="flex items-center justify-between px-3 py-1.5 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">
