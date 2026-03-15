@@ -490,14 +490,14 @@ export default function OrderRequestsPage() {
                     </div>
 
                     <div className="flex items-center gap-4 shrink-0">
-                        <div className="w-[180px] space-y-2">
+                        <div className="w-[240px] space-y-2">
                             <Label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
                                 <Package className="h-3 w-3" />
                                 {it.table.productType}
                             </Label>
                             <Select value={typeFilter} onValueChange={(val) => { setTypeFilter(val || "all"); setCurrentPage(1); }}>
-                                <SelectTrigger className="h-12 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm focus:ring-[#E8601C]">
-                                    <SelectValue placeholder="All Types" />
+                                <SelectTrigger className="h-12 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm focus:ring-[#E8601C] truncate">
+                                    <SelectValue placeholder="All Types" className="truncate" />
                                 </SelectTrigger>
                                 <SelectContent className="rounded-2xl border-slate-200 dark:border-slate-800">
                                     <SelectItem value="all" className="font-bold">All Types</SelectItem>

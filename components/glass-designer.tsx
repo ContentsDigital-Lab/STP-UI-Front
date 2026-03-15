@@ -7,7 +7,7 @@ import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { MousePointer2, Circle, Undo2, Redo2, RotateCcw, Pen, Focus, Hand, Square, ChevronDown, Hexagon, RectangleHorizontal, Box } from 'lucide-react';
+import { MousePointer2, Circle, Undo2, Redo2, RotateCcw, Pen, Focus, Hand, Square, ChevronDown, Hexagon, RectangleHorizontal, Box, Maximize2, Minimize2 } from 'lucide-react';
 
 export type CutoutType = 'circle' | 'rectangle' | 'slot' | 'custom';
 
@@ -21,6 +21,7 @@ export interface HoleData {
     height?: number;
     length?: number;
     points?: VertexData[];
+    groupId?: string;
 }
 
 export interface VertexData {
@@ -450,6 +451,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
 
     const [activeTool, setActiveTool] = useState<'select' | 'addHole' | 'editVertex' | 'move'>('select');
     const [selectedHoleId, setSelectedHoleId] = useState<string | null>(null);
+    const [selectedHoleIds, setSelectedHoleIds] = useState<Set<string>>(new Set());
     const [holeDiameter, setHoleDiameter] = useState(20);
     const [selectedVertexIdx, setSelectedVertexIdx] = useState<number | null>(null);
     const [cutoutShape, setCutoutShape] = useState<CutoutType>('circle');
@@ -461,6 +463,9 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
     const [customDrawPoints, setCustomDrawPoints] = useState<VertexData[]>([]);
     const [show3DPreview, setShow3DPreview] = useState(true);
     const [cutoutMenuOpen, setCutoutMenuOpen] = useState(false);
+    const [previewPos, setPreviewPos] = useState<{ x: number; y: number } | null>(null);
+    const [previewExpanded, setPreviewExpanded] = useState(false);
+    const previewDragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
 
     const preview3DRef = useRef<HTMLDivElement>(null);
     const previewRendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -500,6 +505,9 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
 
     const selectedHoleIdRef = useRef(selectedHoleId);
     selectedHoleIdRef.current = selectedHoleId;
+
+    const selectedHoleIdsRef = useRef(selectedHoleIds);
+    selectedHoleIdsRef.current = selectedHoleIds;
 
     const holeDiameterRef = useRef(holeDiameter);
     holeDiameterRef.current = holeDiameter;
@@ -708,7 +716,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         const verts = verticesRef.current;
         const bb = getBoundingBox(verts);
 
-        // Glass panel shape from vertices
+        // Glass panel shape from vertices — use CSG to avoid triangulation artifacts with overlapping holes
         const glassShape = new THREE.Shape();
         glassShape.moveTo(verts[0].x, verts[0].y);
         for (let i = 1; i < verts.length; i++) {
@@ -716,21 +724,47 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         }
         glassShape.closePath();
 
-        holesRef.current.forEach(h => {
-            glassShape.holes.push(makeClippedCutoutPath(h, bb));
-        });
-
         const extrudeSettings = { depth: 3, bevelEnabled: false };
-        const glassGeo = new THREE.ExtrudeGeometry(glassShape, extrudeSettings);
         const glassMat = new THREE.MeshPhongMaterial({
             color: 0xadd8e6,
             transparent: true,
             opacity: 0.45,
             side: THREE.DoubleSide,
         });
-        const mesh = new THREE.Mesh(glassGeo, glassMat);
-        glassMeshRef.current = mesh;
-        group.add(mesh);
+
+        let glassMesh: THREE.Mesh;
+        if (holesRef.current.length > 0) {
+            const csgEvaluator = new Evaluator();
+            const glassGeo = new THREE.ExtrudeGeometry(glassShape, extrudeSettings);
+            let currentBrush: Brush = new Brush(glassGeo, glassMat);
+            currentBrush.updateMatrixWorld(true);
+
+            for (const h of holesRef.current) {
+                const cutPath = makeCutoutPath(h);
+                const cutShape = new THREE.Shape();
+                const pts = cutPath.getPoints(48);
+                cutShape.moveTo(pts[0].x, pts[0].y);
+                for (let i = 1; i < pts.length; i++) cutShape.lineTo(pts[i].x, pts[i].y);
+                cutShape.closePath();
+
+                const cutGeo = new THREE.ExtrudeGeometry(cutShape, { depth: 7, bevelEnabled: false });
+                const cutBrush = new Brush(cutGeo, glassMat);
+                cutBrush.position.set(0, 0, -2);
+                cutBrush.updateMatrixWorld(true);
+
+                try {
+                    currentBrush = csgEvaluator.evaluate(currentBrush, cutBrush, SUBTRACTION);
+                } catch { /* fallback: skip failed cutout */ }
+                cutGeo.dispose();
+            }
+            currentBrush.material = glassMat;
+            glassMesh = currentBrush;
+        } else {
+            const glassGeo = new THREE.ExtrudeGeometry(glassShape, extrudeSettings);
+            glassMesh = new THREE.Mesh(glassGeo, glassMat);
+        }
+        glassMeshRef.current = glassMesh;
+        group.add(glassMesh);
 
         // Glass border
         const borderPoints = verts.map(v => new THREE.Vector3(v.x, v.y, 3.1));
@@ -790,8 +824,9 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
 
         // Cutout visual markers
         holesRef.current.forEach(h => {
-            const isSelected = h.id === selectedHoleIdRef.current;
-            const ringColor = isSelected ? 0xE8601C : 0xd44800;
+            const isSelected = h.id === selectedHoleIdRef.current || selectedHoleIdsRef.current.has(h.id);
+            const isGrouped = !!h.groupId;
+            const ringColor = isSelected ? 0xE8601C : isGrouped ? 0x6366f1 : 0xd44800;
 
             const outlinePoints = getCutoutOutlinePoints(h, 3.2);
             const ringMat = new THREE.LineBasicMaterial({ color: ringColor, linewidth: 2 });
@@ -852,7 +887,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
 
             // Horizontal line from right edge to hole at hole's Y level (two segments with gap)
             const holeDimMatH = new THREE.LineBasicMaterial({ color: 0xcc8855 });
-            const dimEdgeXH = bb.maxX + 30;
+            const dimEdgeXH = bb.maxX + 50;
             const hLineP1 = new THREE.Vector3(h.x, h.y, 3.2);
             const hLineP2 = new THREE.Vector3(dimEdgeXH, h.y, 3.2);
             const hLineMid = new THREE.Vector3((h.x + bb.maxX) / 2, h.y, 3.2);
@@ -873,7 +908,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         // Chained vertical dimensions on right side (between consecutive holes)
         if (holesRef.current.length > 0) {
             const holeDimMat = new THREE.LineBasicMaterial({ color: 0xcc8855 });
-            const dimEdgeX = bb.maxX + 30;
+            const dimEdgeX = bb.maxX + 50;
             const tick = 4;
             const sortedHoles = [...holesRef.current].sort((a, b) => a.y - b.y);
             const yPoints = [bb.minY, ...sortedHoles.map(h => h.y)];
@@ -1049,7 +1084,54 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
     // Re-render when glass props change
     useEffect(() => {
         buildGlassScene();
-    }, [width, height, holes, selectedHoleId, internalVertices, activeTool, selectedVertexIdx, customDrawPoints, isDrawingCustom, buildGlassScene]);
+    }, [width, height, holes, selectedHoleId, selectedHoleIds, internalVertices, activeTool, selectedVertexIdx, customDrawPoints, isDrawingCustom, buildGlassScene]);
+
+    // Keyboard shortcuts: Cmd+G to group, Cmd+Shift+G to ungroup, Escape to deselect, Delete to remove
+    useEffect(() => {
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                setSelectedHoleId(null);
+                setSelectedHoleIds(new Set());
+                return;
+            }
+            if ((e.key === 'Delete' || e.key === 'Backspace') && !e.metaKey && !e.ctrlKey) {
+                handleDeleteSelected();
+                return;
+            }
+            // Cmd+G: group selected holes
+            if ((e.metaKey || e.ctrlKey) && e.key === 'g' && !e.shiftKey) {
+                e.preventDefault();
+                const sel = selectedHoleIdsRef.current;
+                if (sel.size < 2) return;
+                const groupId = `grp-${Date.now()}`;
+                pushUndo();
+                const updated = holesRef.current.map(h =>
+                    sel.has(h.id) ? { ...h, groupId } : h
+                );
+                onHolesChange(updated);
+                return;
+            }
+            // Cmd+Shift+G: ungroup selected holes
+            if ((e.metaKey || e.ctrlKey) && e.key === 'g' && e.shiftKey) {
+                e.preventDefault();
+                const sel = selectedHoleIdsRef.current;
+                const singleSel = selectedHoleIdRef.current;
+                if (sel.size === 0 && !singleSel) return;
+                pushUndo();
+                // Find which groupId(s) to ungroup
+                const idsToUngroup = sel.size > 0 ? sel : new Set(singleSel ? [singleSel] : []);
+                const groupIds = new Set(holesRef.current.filter(h => idsToUngroup.has(h.id) && h.groupId).map(h => h.groupId!));
+                const updated = holesRef.current.map(h =>
+                    h.groupId && groupIds.has(h.groupId) ? { ...h, groupId: undefined } : h
+                );
+                onHolesChange(updated);
+                setSelectedHoleIds(new Set());
+                return;
+            }
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [holes, selectedHoleId, selectedHoleIds, activeTool, internalVertices]);
 
     // Mouse handlers
     useEffect(() => {
@@ -1208,6 +1290,37 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             }
 
             const hitId = findHoleAtPos(pos.x, pos.y);
+            const isMetaClick = e.metaKey || e.ctrlKey;
+
+            if (hitId && isMetaClick) {
+                // Cmd+Click: toggle multi-select
+                setSelectedHoleIds(prev => {
+                    const next = new Set(prev);
+                    // Also include current single-selected hole in multi-select
+                    if (selectedHoleIdRef.current && !next.has(selectedHoleIdRef.current)) {
+                        next.add(selectedHoleIdRef.current);
+                    }
+                    if (next.has(hitId)) next.delete(hitId);
+                    else next.add(hitId);
+                    return next;
+                });
+                setSelectedHoleId(hitId);
+                return;
+            }
+
+            if (hitId) {
+                // Check if this hole is part of a group — auto-select all group members
+                const hitHole = holesRef.current.find(h => h.id === hitId);
+                if (hitHole?.groupId) {
+                    const groupMembers = holesRef.current.filter(h => h.groupId === hitHole.groupId).map(h => h.id);
+                    setSelectedHoleIds(new Set(groupMembers));
+                } else {
+                    setSelectedHoleIds(new Set());
+                }
+            } else {
+                setSelectedHoleIds(new Set());
+            }
+
             setSelectedHoleId(hitId);
             if (hitId) {
                 pushUndo();
@@ -1322,11 +1435,27 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 if (!pos) return;
                 const bb = getBoundingBox(verticesRef.current);
                 const dragMargin = Math.max(bb.width, bb.height) * 0.15;
-                const clampedX = Math.max(bb.minX - dragMargin, Math.min(bb.maxX + dragMargin, Math.round(pos.x)));
-                const clampedY = Math.max(bb.minY - dragMargin, Math.min(bb.maxY + dragMargin, Math.round(pos.y)));
-                const updated = holesRef.current.map(h =>
-                    h.id === dragHoleIdRef.current ? { ...h, x: clampedX, y: clampedY } : h
-                );
+
+                const draggedHole = holesRef.current.find(h => h.id === dragHoleIdRef.current);
+                if (!draggedHole) return;
+
+                const dx = Math.round(pos.x) - draggedHole.x;
+                const dy = Math.round(pos.y) - draggedHole.y;
+
+                // Determine which holes to move: multi-selected, or grouped, or just the one
+                const multiSel = selectedHoleIdsRef.current;
+                const draggedGroup = draggedHole.groupId;
+                const shouldMove = (h: HoleData) =>
+                    h.id === dragHoleIdRef.current ||
+                    multiSel.has(h.id) ||
+                    (draggedGroup && h.groupId === draggedGroup);
+
+                const updated = holesRef.current.map(h => {
+                    if (!shouldMove(h)) return h;
+                    const newX = Math.max(bb.minX - dragMargin, Math.min(bb.maxX + dragMargin, h.x + dx));
+                    const newY = Math.max(bb.minY - dragMargin, Math.min(bb.maxY + dragMargin, h.y + dy));
+                    return { ...h, x: newX, y: newY };
+                });
                 onHolesChange(updated);
             }
 
@@ -1432,6 +1561,13 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             setSelectedVertexIdx(null);
             return;
         }
+        if (selectedHoleIds.size > 0) {
+            pushUndo();
+            onHolesChange(holes.filter(h => !selectedHoleIds.has(h.id)));
+            setSelectedHoleId(null);
+            setSelectedHoleIds(new Set());
+            return;
+        }
         if (!selectedHoleId) return;
         pushUndo();
         onHolesChange(holes.filter(h => h.id !== selectedHoleId));
@@ -1448,6 +1584,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         onHolesChange(prev.holes);
         setVertices(prev.vertices);
         setSelectedHoleId(null);
+        setSelectedHoleIds(new Set());
         setSelectedVertexIdx(null);
     };
 
@@ -1461,6 +1598,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         onHolesChange(next.holes);
         setVertices(next.vertices);
         setSelectedHoleId(null);
+        setSelectedHoleIds(new Set());
         setSelectedVertexIdx(null);
     };
 
@@ -1469,6 +1607,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         onHolesChange([]);
         setVertices(getDefaultVertices(width, height));
         setSelectedHoleId(null);
+        setSelectedHoleIds(new Set());
         setSelectedVertexIdx(null);
     };
 
@@ -1644,7 +1783,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.08;
-        controls.enablePan = true;
+        controls.enablePan = false;
         controls.minDistance = 50;
         controls.maxDistance = 5000;
         previewControlsRef.current = controls;
@@ -1773,7 +1912,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 <Button
                     variant={activeTool === 'move' ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => { setActiveTool('move'); setSelectedHoleId(null); setSelectedVertexIdx(null); setCutoutMenuOpen(false); }}
+                    onClick={() => { setActiveTool('move'); setSelectedHoleId(null); setSelectedHoleIds(new Set()); setSelectedVertexIdx(null); setCutoutMenuOpen(false); }}
                     className={`gap-1.5 rounded-xl text-xs font-bold h-9 ${activeTool === 'move' ? 'bg-[#6366f1] text-white' : ''}`}
                 >
                     <Hand className="h-3.5 w-3.5" />
@@ -1782,7 +1921,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 <Button
                     variant={activeTool === 'editVertex' ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => { setActiveTool('editVertex'); setSelectedHoleId(null); setCutoutMenuOpen(false); }}
+                    onClick={() => { setActiveTool('editVertex'); setSelectedHoleId(null); setSelectedHoleIds(new Set()); setCutoutMenuOpen(false); }}
                     className={`gap-1.5 rounded-xl text-xs font-bold h-9 ${activeTool === 'editVertex' ? 'bg-[#22aa44] text-white' : ''}`}
                 >
                     <Pen className="h-3.5 w-3.5" />
@@ -1891,18 +2030,77 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
 
                 {/* 3D Preview Panel */}
                 {show3DPreview && (
-                    <div className="absolute top-3 right-3 z-10 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden" style={{ width: 320, height: 240 }}>
-                        <div className="flex items-center justify-between px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+                    <div
+                        onMouseDown={(e) => { e.stopPropagation(); if (e.button === 1) e.preventDefault(); }}
+                        onMouseMove={(e) => e.stopPropagation()}
+                        onMouseUp={(e) => e.stopPropagation()}
+                        onWheel={(e) => e.stopPropagation()}
+                        onPointerDown={(e) => { e.stopPropagation(); if (e.button === 1) e.preventDefault(); }}
+                        onPointerMove={(e) => e.stopPropagation()}
+                        onPointerUp={(e) => e.stopPropagation()}
+                        className="absolute z-10 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden transition-all duration-200"
+                        style={previewExpanded
+                            ? { inset: 12 }
+                            : {
+                                width: 320,
+                                height: 240,
+                                ...(previewPos
+                                    ? { left: previewPos.x, top: previewPos.y }
+                                    : { top: 12, right: 12 }),
+                            }
+                        }
+                    >
+                        <div
+                            className="flex items-center justify-between px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 select-none"
+                            style={{ cursor: previewExpanded ? 'default' : 'grab' }}
+                            onMouseDown={(e) => {
+                                if (previewExpanded) return;
+                                e.preventDefault();
+                                const panel = e.currentTarget.parentElement!;
+                                const rect = panel.getBoundingClientRect();
+                                const parentRect = panel.parentElement!.getBoundingClientRect();
+                                previewDragRef.current = {
+                                    startX: e.clientX,
+                                    startY: e.clientY,
+                                    origX: rect.left - parentRect.left,
+                                    origY: rect.top - parentRect.top,
+                                };
+                                const onMove = (ev: MouseEvent) => {
+                                    if (!previewDragRef.current) return;
+                                    const dx = ev.clientX - previewDragRef.current.startX;
+                                    const dy = ev.clientY - previewDragRef.current.startY;
+                                    const newX = Math.max(0, Math.min(parentRect.width - 320, previewDragRef.current.origX + dx));
+                                    const newY = Math.max(0, Math.min(parentRect.height - 240, previewDragRef.current.origY + dy));
+                                    setPreviewPos({ x: newX, y: newY });
+                                };
+                                const onUp = () => {
+                                    previewDragRef.current = null;
+                                    document.removeEventListener('mousemove', onMove);
+                                    document.removeEventListener('mouseup', onUp);
+                                };
+                                document.addEventListener('mousemove', onMove);
+                                document.addEventListener('mouseup', onUp);
+                            }}
+                        >
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                                 <Box className="h-3 w-3" />
                                 3D Preview
                             </span>
-                            <button
-                                onClick={() => setShow3DPreview(false)}
-                                className="text-slate-400 hover:text-slate-600 text-xs font-bold"
-                            >
-                                ✕
-                            </button>
+                            <div className="flex items-center gap-1">
+                                <button
+                                    onClick={() => setPreviewExpanded(v => !v)}
+                                    className="text-slate-400 hover:text-slate-600 p-0.5 rounded transition-colors"
+                                    title={previewExpanded ? 'Minimize' : 'Maximize'}
+                                >
+                                    {previewExpanded ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
+                                </button>
+                                <button
+                                    onClick={() => { setShow3DPreview(false); setPreviewExpanded(false); }}
+                                    className="text-slate-400 hover:text-slate-600 text-xs font-bold"
+                                >
+                                    ✕
+                                </button>
+                            </div>
                         </div>
                         <div ref={preview3DRef} className="w-full" style={{ height: 'calc(100% - 28px)' }} />
                     </div>
@@ -1910,10 +2108,15 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             </div>
 
             {/* Status bar */}
-            <div className="flex items-center justify-between px-3 py-1.5 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">
-                <span>{Math.round(bb.width)} × {Math.round(bb.height)} mm</span>
+            <div className="flex items-center justify-between px-3 py-1.5 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 text-[10px] font-bold text-slate-400 tracking-wider shrink-0">
                 <span>{holes.length} cutout{holes.length !== 1 ? 's' : ''}</span>
-                <span>Scroll to zoom • Alt+Drag to pan</span>
+                <span className="flex items-center gap-6">
+                    <span>Ctrl+Click multi-select</span>
+                    <span>Ctrl+G group</span>
+                    <span>Ctrl+Shift+G ungroup</span>
+                    <span>Esc deselect</span>
+                    <span>Del remove</span>
+                </span>
             </div>
         </div>
     );
