@@ -489,6 +489,10 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
     const resizeHoleIdRef = useRef<string | null>(null);
     const resizeAxisRef = useRef<string | undefined>(undefined);
     const isMovingGlassRef = useRef(false);
+    const isActivelyDraggingRef = useRef(false);
+    const dragRebuildTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const dragRebuildPending = useRef(false);
+    const moveAccumRef = useRef({ dx: 0, dy: 0 });
     const moveStartRef = useRef<{ x: number; y: number } | null>(null);
     const lastMouseRef = useRef({ x: 0, y: 0 });
     const panStartRef = useRef({ x: 0, y: 0 });
@@ -498,7 +502,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
 
     const normalizedHoles = holes.map(h => ({ ...h, type: h.type || 'circle' as CutoutType }));
     const holesRef = useRef(normalizedHoles);
-    holesRef.current = normalizedHoles;
+    if (!isActivelyDraggingRef.current) holesRef.current = normalizedHoles;
 
     const activeToolRef = useRef(activeTool);
     activeToolRef.current = activeTool;
@@ -528,7 +532,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
     customDrawPointsRef.current = customDrawPoints;
 
     const verticesRef = useRef(internalVertices);
-    verticesRef.current = internalVertices;
+    if (!isActivelyDraggingRef.current) verticesRef.current = internalVertices;
 
     const selectedVertexIdxRef = useRef(selectedVertexIdx);
     selectedVertexIdxRef.current = selectedVertexIdx;
@@ -548,71 +552,73 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         }
     }, [onVerticesChange]);
 
-    const renderScene = useCallback(() => {
+    const renderScene = useCallback((fastMode = false) => {
         const renderer = rendererRef.current;
         const scene = sceneRef.current;
         const camera = cameraRef.current;
         if (!renderer || !scene || !camera) return;
 
-        // Dynamic infinite grid based on visible world area
-        if (gridObjRef.current) {
-            scene.remove(gridObjRef.current);
-            gridObjRef.current.geometry.dispose();
-        }
-        const topLeftWorld = new THREE.Vector3(-1, 1, 0).unproject(camera);
-        const bottomRightWorld = new THREE.Vector3(1, -1, 0).unproject(camera);
-        const gridStep = 50;
-        const pad = gridStep * 2;
-        const gLeft = Math.floor((Math.min(topLeftWorld.x, bottomRightWorld.x) - pad) / gridStep) * gridStep;
-        const gRight = Math.ceil((Math.max(topLeftWorld.x, bottomRightWorld.x) + pad) / gridStep) * gridStep;
-        const gBottom = Math.floor((Math.min(topLeftWorld.y, bottomRightWorld.y) - pad) / gridStep) * gridStep;
-        const gTop = Math.ceil((Math.max(topLeftWorld.y, bottomRightWorld.y) + pad) / gridStep) * gridStep;
-        const gridLines: THREE.Vector3[] = [];
-        for (let x = gLeft; x <= gRight; x += gridStep) {
-            gridLines.push(new THREE.Vector3(x, gBottom, -0.2), new THREE.Vector3(x, gTop, -0.2));
-        }
-        for (let y = gBottom; y <= gTop; y += gridStep) {
-            gridLines.push(new THREE.Vector3(gLeft, y, -0.2), new THREE.Vector3(gRight, y, -0.2));
-        }
-        const gridGeo = new THREE.BufferGeometry().setFromPoints(gridLines);
-        const gridMat = new THREE.LineBasicMaterial({ color: 0xeeeeee });
-        const gridObj = new THREE.LineSegments(gridGeo, gridMat);
-        gridObjRef.current = gridObj;
-        scene.add(gridObj);
-
-        const frustumWidth = camera.right - camera.left;
-        const canvasWidth = renderer.domElement.clientWidth;
-        const worldPerPixel = frustumWidth / canvasWidth;
-        const scaleFactor = worldPerPixel * 0.45;
-
-        glassGroupRef.current.traverse((obj) => {
-            if (obj instanceof THREE.Sprite && obj.userData.screenWidth) {
-                const sw = obj.userData.screenWidth * scaleFactor;
-                const sh = obj.userData.screenHeight * scaleFactor;
-                obj.scale.set(sw, sh, 1);
-
-                if (obj.userData.gapLine1 && obj.userData.gapLine2) {
-                    const p1 = obj.userData.lineP1 as THREE.Vector3;
-                    const p2 = obj.userData.lineP2 as THREE.Vector3;
-                    const dir = new THREE.Vector3().subVectors(p2, p1).normalize();
-                    const halfGap = ((obj.userData.lineDirection === 'horizontal' ? sw : sh) / 2) + 3 * scaleFactor;
-                    const spritePos = new THREE.Vector3(obj.position.x, obj.position.y, p1.z);
-
-                    const gapStart = spritePos.clone().sub(dir.clone().multiplyScalar(halfGap));
-                    const gapEnd = spritePos.clone().add(dir.clone().multiplyScalar(halfGap));
-
-                    const pos1 = obj.userData.gapLine1.geometry.attributes.position;
-                    pos1.setXYZ(0, p1.x, p1.y, p1.z);
-                    pos1.setXYZ(1, gapStart.x, gapStart.y, gapStart.z);
-                    pos1.needsUpdate = true;
-
-                    const pos2 = obj.userData.gapLine2.geometry.attributes.position;
-                    pos2.setXYZ(0, gapEnd.x, gapEnd.y, gapEnd.z);
-                    pos2.setXYZ(1, p2.x, p2.y, p2.z);
-                    pos2.needsUpdate = true;
-                }
+        if (!fastMode) {
+            // Dynamic infinite grid — skip during drag for performance
+            if (gridObjRef.current) {
+                scene.remove(gridObjRef.current);
+                gridObjRef.current.geometry.dispose();
             }
-        });
+            const topLeftWorld = new THREE.Vector3(-1, 1, 0).unproject(camera);
+            const bottomRightWorld = new THREE.Vector3(1, -1, 0).unproject(camera);
+            const gridStep = 50;
+            const pad = gridStep * 2;
+            const gLeft = Math.floor((Math.min(topLeftWorld.x, bottomRightWorld.x) - pad) / gridStep) * gridStep;
+            const gRight = Math.ceil((Math.max(topLeftWorld.x, bottomRightWorld.x) + pad) / gridStep) * gridStep;
+            const gBottom = Math.floor((Math.min(topLeftWorld.y, bottomRightWorld.y) - pad) / gridStep) * gridStep;
+            const gTop = Math.ceil((Math.max(topLeftWorld.y, bottomRightWorld.y) + pad) / gridStep) * gridStep;
+            const gridLines: THREE.Vector3[] = [];
+            for (let x = gLeft; x <= gRight; x += gridStep) {
+                gridLines.push(new THREE.Vector3(x, gBottom, -0.2), new THREE.Vector3(x, gTop, -0.2));
+            }
+            for (let y = gBottom; y <= gTop; y += gridStep) {
+                gridLines.push(new THREE.Vector3(gLeft, y, -0.2), new THREE.Vector3(gRight, y, -0.2));
+            }
+            const gridGeo = new THREE.BufferGeometry().setFromPoints(gridLines);
+            const gridMat = new THREE.LineBasicMaterial({ color: 0xeeeeee });
+            const gridObj = new THREE.LineSegments(gridGeo, gridMat);
+            gridObjRef.current = gridObj;
+            scene.add(gridObj);
+
+            const frustumWidth = camera.right - camera.left;
+            const canvasWidth = renderer.domElement.clientWidth;
+            const worldPerPixel = frustumWidth / canvasWidth;
+            const scaleFactor = worldPerPixel * 0.45;
+
+            glassGroupRef.current.traverse((obj) => {
+                if (obj instanceof THREE.Sprite && obj.userData.screenWidth) {
+                    const sw = obj.userData.screenWidth * scaleFactor;
+                    const sh = obj.userData.screenHeight * scaleFactor;
+                    obj.scale.set(sw, sh, 1);
+
+                    if (obj.userData.gapLine1 && obj.userData.gapLine2) {
+                        const p1 = obj.userData.lineP1 as THREE.Vector3;
+                        const p2 = obj.userData.lineP2 as THREE.Vector3;
+                        const dir = new THREE.Vector3().subVectors(p2, p1).normalize();
+                        const halfGap = ((obj.userData.lineDirection === 'horizontal' ? sw : sh) / 2) + 3 * scaleFactor;
+                        const spritePos = new THREE.Vector3(obj.position.x, obj.position.y, p1.z);
+
+                        const gapStart = spritePos.clone().sub(dir.clone().multiplyScalar(halfGap));
+                        const gapEnd = spritePos.clone().add(dir.clone().multiplyScalar(halfGap));
+
+                        const pos1 = obj.userData.gapLine1.geometry.attributes.position;
+                        pos1.setXYZ(0, p1.x, p1.y, p1.z);
+                        pos1.setXYZ(1, gapStart.x, gapStart.y, gapStart.z);
+                        pos1.needsUpdate = true;
+
+                        const pos2 = obj.userData.gapLine2.geometry.attributes.position;
+                        pos2.setXYZ(0, gapEnd.x, gapEnd.y, gapEnd.z);
+                        pos2.setXYZ(1, p2.x, p2.y, p2.z);
+                        pos2.needsUpdate = true;
+                    }
+                }
+            });
+        }
 
         renderer.render(scene, camera);
     }, []);
@@ -733,7 +739,10 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         });
 
         let glassMesh: THREE.Mesh;
-        if (holesRef.current.length > 0) {
+        const useCSG = !isActivelyDraggingRef.current && holesRef.current.length > 0;
+
+        if (useCSG) {
+            // Accurate CSG subtraction — used when not dragging
             const csgEvaluator = new Evaluator();
             const glassGeo = new THREE.ExtrudeGeometry(glassShape, extrudeSettings);
             let currentBrush: Brush = new Brush(glassGeo, glassMat);
@@ -759,6 +768,13 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             }
             currentBrush.material = glassMat;
             glassMesh = currentBrush;
+        } else if (holesRef.current.length > 0) {
+            // Fast Shape.holes path — used during active dragging
+            holesRef.current.forEach(h => {
+                glassShape.holes.push(makeClippedCutoutPath(h, bb));
+            });
+            const glassGeo = new THREE.ExtrudeGeometry(glassShape, extrudeSettings);
+            glassMesh = new THREE.Mesh(glassGeo, glassMat);
         } else {
             const glassGeo = new THREE.ExtrudeGeometry(glassShape, extrudeSettings);
             glassMesh = new THREE.Mesh(glassGeo, glassMat);
@@ -1081,9 +1097,9 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Re-render when glass props change
+    // Re-render when glass props change (skip during active drag — refs are updated directly)
     useEffect(() => {
-        buildGlassScene();
+        if (!isActivelyDraggingRef.current) buildGlassScene();
     }, [width, height, holes, selectedHoleId, selectedHoleIds, internalVertices, activeTool, selectedVertexIdx, customDrawPoints, isDrawingCustom, buildGlassScene]);
 
     // Keyboard shortcuts: Cmd+G to group, Cmd+Shift+G to ungroup, Escape to deselect, Delete to remove
@@ -1309,12 +1325,13 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             }
 
             if (hitId) {
-                // Check if this hole is part of a group — auto-select all group members
                 const hitHole = holesRef.current.find(h => h.id === hitId);
                 if (hitHole?.groupId) {
+                    // Auto-select all group members
                     const groupMembers = holesRef.current.filter(h => h.groupId === hitHole.groupId).map(h => h.id);
                     setSelectedHoleIds(new Set(groupMembers));
-                } else {
+                } else if (!selectedHoleIdsRef.current.has(hitId)) {
+                    // Only clear multi-select if clicking a hole NOT in the current selection
                     setSelectedHoleIds(new Set());
                 }
             } else {
@@ -1331,6 +1348,27 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         };
 
         const onMouseMove = (e: MouseEvent) => {
+            if (isDraggingRef.current || isMovingGlassRef.current || isResizingHoleRef.current) {
+                isActivelyDraggingRef.current = true;
+            }
+
+            const throttledRebuild = () => {
+                if (dragRebuildTimer.current) {
+                    dragRebuildPending.current = true;
+                    return;
+                }
+                buildGlassScene();
+                renderScene();
+                dragRebuildTimer.current = setTimeout(() => {
+                    dragRebuildTimer.current = null;
+                    if (dragRebuildPending.current) {
+                        dragRebuildPending.current = false;
+                        buildGlassScene();
+                        renderScene();
+                    }
+                }, 30);
+            };
+
             if (isPanningRef.current) {
                 const cam = cameraRef.current!;
                 const rect = canvas.getBoundingClientRect();
@@ -1357,14 +1395,15 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             if (isMovingGlassRef.current && moveStartRef.current) {
                 const pos = getWorldPos(e.clientX, e.clientY);
                 if (!pos) return;
-                const dx = Math.round(pos.x - moveStartRef.current.x);
-                const dy = Math.round(pos.y - moveStartRef.current.y);
-                if (dx === 0 && dy === 0) return;
-                const newVerts = verticesRef.current.map(v => ({ x: v.x + dx, y: v.y + dy }));
-                const newHoles = holesRef.current.map(h => ({ ...h, x: h.x + dx, y: h.y + dy }));
-                setVertices(newVerts);
-                onHolesChange(newHoles);
+                const dx = pos.x - moveStartRef.current.x;
+                const dy = pos.y - moveStartRef.current.y;
+                if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) return;
+                glassGroupRef.current.position.x += dx;
+                glassGroupRef.current.position.y += dy;
+                moveAccumRef.current.dx += dx;
+                moveAccumRef.current.dy += dy;
                 moveStartRef.current = { x: pos.x, y: pos.y };
+                renderScene(true);
                 return;
             }
 
@@ -1372,11 +1411,9 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 const pos = getWorldPos(e.clientX, e.clientY);
                 if (!pos) return;
                 const newVerts = [...verticesRef.current];
-                newVerts[dragVertexIdxRef.current] = {
-                    x: Math.round(pos.x),
-                    y: Math.round(pos.y),
-                };
-                setVertices(newVerts);
+                newVerts[dragVertexIdxRef.current] = { x: pos.x, y: pos.y };
+                verticesRef.current = newVerts;
+                throttledRebuild();
                 return;
             }
 
@@ -1387,28 +1424,23 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 if (!hole) return;
                 const axis = resizeAxisRef.current;
 
-                const updated = holesRef.current.map(h => {
+                holesRef.current = holesRef.current.map(h => {
                     if (h.id !== resizeHoleIdRef.current) return h;
                     if (h.type === 'rectangle') {
-                        const w = h.width || 100;
-                        const ht = h.height || 60;
-                        if (axis === 'right') return { ...h, width: Math.max(10, Math.round((pos.x - h.x) * 2)) };
-                        if (axis === 'left') return { ...h, width: Math.max(10, Math.round((h.x - pos.x) * 2)) };
-                        if (axis === 'top') return { ...h, height: Math.max(10, Math.round((pos.y - h.y) * 2)) };
-                        if (axis === 'bottom') return { ...h, height: Math.max(10, Math.round((h.y - pos.y) * 2)) };
+                        if (axis === 'right') return { ...h, width: Math.max(10, (pos.x - h.x) * 2) };
+                        if (axis === 'left') return { ...h, width: Math.max(10, (h.x - pos.x) * 2) };
+                        if (axis === 'top') return { ...h, height: Math.max(10, (pos.y - h.y) * 2) };
+                        if (axis === 'bottom') return { ...h, height: Math.max(10, (h.y - pos.y) * 2) };
                         if (axis?.startsWith('t') || axis?.startsWith('b')) {
-                            const newW = Math.max(10, Math.round(Math.abs(pos.x - h.x) * 2));
-                            const newH = Math.max(10, Math.round(Math.abs(pos.y - h.y) * 2));
-                            return { ...h, width: newW, height: newH };
+                            return { ...h, width: Math.max(10, Math.abs(pos.x - h.x) * 2), height: Math.max(10, Math.abs(pos.y - h.y) * 2) };
                         }
                         return h;
                     } else if (h.type === 'slot') {
                         if (axis?.startsWith('length')) {
-                            const newLen = Math.max(h.width || 20, Math.round(Math.abs(pos.x - h.x) * 2 + (h.width || 20)));
-                            return { ...h, length: newLen };
+                            return { ...h, length: Math.max(h.width || 20, Math.abs(pos.x - h.x) * 2 + (h.width || 20)) };
                         }
                         if (axis?.startsWith('width')) {
-                            const newW = Math.max(5, Math.round(Math.abs(pos.y - h.y) * 2));
+                            const newW = Math.max(5, Math.abs(pos.y - h.y) * 2);
                             return { ...h, width: newW, length: Math.max(newW, h.length || 80) };
                         }
                         return h;
@@ -1416,17 +1448,17 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                         const ptIdx = parseInt(axis.split('-')[1]);
                         if (h.points && ptIdx < h.points.length) {
                             const newPoints = [...h.points];
-                            newPoints[ptIdx] = { x: Math.round(pos.x - h.x), y: Math.round(pos.y - h.y) };
+                            newPoints[ptIdx] = { x: pos.x - h.x, y: pos.y - h.y };
                             return { ...h, points: newPoints };
                         }
                         return h;
                     } else {
                         const dx = pos.x - h.x;
                         const dy = pos.y - h.y;
-                        return { ...h, diameter: Math.max(5, Math.round(Math.sqrt(dx * dx + dy * dy) * 2)) };
+                        return { ...h, diameter: Math.max(5, Math.sqrt(dx * dx + dy * dy) * 2) };
                     }
                 });
-                onHolesChange(updated);
+                throttledRebuild();
                 return;
             }
 
@@ -1439,8 +1471,8 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 const draggedHole = holesRef.current.find(h => h.id === dragHoleIdRef.current);
                 if (!draggedHole) return;
 
-                const dx = Math.round(pos.x) - draggedHole.x;
-                const dy = Math.round(pos.y) - draggedHole.y;
+                const dx = pos.x - draggedHole.x;
+                const dy = pos.y - draggedHole.y;
 
                 // Determine which holes to move: multi-selected, or grouped, or just the one
                 const multiSel = selectedHoleIdsRef.current;
@@ -1450,13 +1482,13 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                     multiSel.has(h.id) ||
                     (draggedGroup && h.groupId === draggedGroup);
 
-                const updated = holesRef.current.map(h => {
+                holesRef.current = holesRef.current.map(h => {
                     if (!shouldMove(h)) return h;
                     const newX = Math.max(bb.minX - dragMargin, Math.min(bb.maxX + dragMargin, h.x + dx));
                     const newY = Math.max(bb.minY - dragMargin, Math.min(bb.maxY + dragMargin, h.y + dy));
                     return { ...h, x: newX, y: newY };
                 });
-                onHolesChange(updated);
+                throttledRebuild();
             }
 
             // Cursor hints
@@ -1489,6 +1521,8 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         };
 
         const onMouseUp = () => {
+            const wasDragging = isActivelyDraggingRef.current;
+            const wasMovingGlass = isMovingGlassRef.current;
             isPanningRef.current = false;
             isDraggingRef.current = false;
             isResizingHoleRef.current = false;
@@ -1498,6 +1532,46 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             moveStartRef.current = null;
             dragHoleIdRef.current = null;
             dragVertexIdxRef.current = null;
+            isActivelyDraggingRef.current = false;
+
+            // Clear any pending throttle timer
+            if (dragRebuildTimer.current) {
+                clearTimeout(dragRebuildTimer.current);
+                dragRebuildTimer.current = null;
+            }
+            dragRebuildPending.current = false;
+
+            if (wasMovingGlass) {
+                // Bake the visual offset into actual coordinates
+                const adx = moveAccumRef.current.dx;
+                const ady = moveAccumRef.current.dy;
+                glassGroupRef.current.position.set(0, 0, 0);
+                moveAccumRef.current = { dx: 0, dy: 0 };
+
+                const snappedVerts = verticesRef.current.map(v => ({ x: Math.round(v.x + adx), y: Math.round(v.y + ady) }));
+                const snappedHoles = holesRef.current.map(h => ({ ...h, x: Math.round(h.x + adx), y: Math.round(h.y + ady) }));
+                verticesRef.current = snappedVerts;
+                holesRef.current = snappedHoles;
+                setVertices(snappedVerts);
+                onHolesChange(snappedHoles);
+            } else if (wasDragging) {
+                // Snap to whole mm on release and sync to React state
+                const snappedHoles = holesRef.current.map(h => ({
+                    ...h,
+                    x: Math.round(h.x),
+                    y: Math.round(h.y),
+                    ...(h.diameter ? { diameter: Math.round(h.diameter) } : {}),
+                    ...(h.width ? { width: Math.round(h.width) } : {}),
+                    ...(h.height ? { height: Math.round(h.height) } : {}),
+                    ...(h.length ? { length: Math.round(h.length) } : {}),
+                    ...(h.points ? { points: h.points.map(p => ({ x: Math.round(p.x), y: Math.round(p.y) })) } : {}),
+                }));
+                holesRef.current = snappedHoles;
+                onHolesChange(snappedHoles);
+                const snappedVerts = verticesRef.current.map(v => ({ x: Math.round(v.x), y: Math.round(v.y) }));
+                verticesRef.current = snappedVerts;
+                setVertices(snappedVerts);
+            }
             if (activeToolRef.current === 'move') {
                 canvas.style.cursor = 'grab';
             } else if (activeToolRef.current === 'editVertex') {
@@ -1729,12 +1803,14 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             scene.add(mesh);
         }
 
-        // Ground shadow plane
         const groundGeo = new THREE.PlaneGeometry(bb3.width * 2, bb3.height * 2);
-        const groundMat = new THREE.MeshBasicMaterial({ color: 0xf0f0f0, transparent: true, opacity: 0.3 });
-        const ground = new THREE.Mesh(groundGeo, groundMat);
-        ground.position.set(0, 0, -depthScale / 2 - 1);
-        scene.add(ground);
+        const groundMat = new THREE.MeshBasicMaterial({ color: 0xf0f0f0, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false });
+        const groundBack = new THREE.Mesh(groundGeo, groundMat);
+        groundBack.position.set(0, 0, -depthScale / 2 - 10);
+        scene.add(groundBack);
+        const groundFront = new THREE.Mesh(groundGeo, groundMat);
+        groundFront.position.set(0, 0, depthScale / 2 + 10);
+        scene.add(groundFront);
 
         // Camera framing — only on first build so user's orbit position is preserved
         if (!preview3DInitRef.current) {
@@ -1777,7 +1853,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         scene.background = new THREE.Color(0xf8fafc);
         previewSceneRef.current = scene;
 
-        const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 10000);
+        const camera = new THREE.PerspectiveCamera(45, w / h, 5, 10000);
         previewCameraRef.current = camera;
 
         const controls = new OrbitControls(camera, renderer.domElement);
@@ -2111,11 +2187,10 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             <div className="flex items-center justify-between px-3 py-1.5 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 text-[10px] font-bold text-slate-400 tracking-wider shrink-0">
                 <span>{holes.length} cutout{holes.length !== 1 ? 's' : ''}</span>
                 <span className="flex items-center gap-6">
+                    <span className="uppercase">Cutout Hotkeys:</span>
                     <span>Ctrl+Click multi-select</span>
                     <span>Ctrl+G group</span>
                     <span>Ctrl+Shift+G ungroup</span>
-                    <span>Esc deselect</span>
-                    <span>Del remove</span>
                 </span>
             </div>
         </div>
