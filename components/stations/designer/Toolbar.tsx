@@ -5,21 +5,27 @@ import { useState } from "react";
 import { Save, Undo2, Redo2, Code2, Trash2, Keyboard, Eye, EyeOff, Smartphone, Tablet, Monitor, Maximize2, Settings2, Cloud, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-// ── Canvas width presets ───────────────────────────────────────────────────────
+// ── Canvas size presets ───────────────────────────────────────────────────────
+export interface CanvasSize {
+    width:  number | "100%";
+    height: number | "100%";
+}
+
 export interface CanvasPreset {
     id:     string;
     label:  string;
-    width:  number | "100%";
+    size:   CanvasSize;
     icon:   React.ElementType;
 }
 
 export const CANVAS_PRESETS: CanvasPreset[] = [
-    { id: "mobile",  label: "Mobile",  width: 390,   icon: Smartphone },
-    { id: "tablet",  label: "Tablet",  width: 768,   icon: Tablet     },
-    { id: "desktop", label: "Desktop", width: 1280,  icon: Monitor    },
-    { id: "full",    label: "Full",    width: "100%", icon: Maximize2  },
+    { id: "mobile",  label: "Mobile",  size: { width: 390,   height: 844   }, icon: Smartphone },
+    { id: "tablet",  label: "Tablet",  size: { width: 768,   height: 1024  }, icon: Tablet     },
+    { id: "desktop", label: "Desktop", size: { width: 1280,  height: 900   }, icon: Monitor    },
+    { id: "full",    label: "Full",    size: { width: "100%", height: "100%" }, icon: Maximize2  },
 ];
 
+/** @deprecated use CanvasSize */
 export type CanvasWidthValue = number | "100%";
 
 interface ToolbarProps {
@@ -28,12 +34,12 @@ interface ToolbarProps {
     saving?:         boolean;
     isPreview?:      boolean;
     onTogglePreview?: () => void;
-    canvasWidth:      CanvasWidthValue;
-    onCanvasWidth:    (w: CanvasWidthValue) => void;
+    canvasSize:       CanvasSize;
+    onCanvasSize:     (s: CanvasSize) => void;
     autoSaveStatus?:  "idle" | "saving" | "saved";
 }
 
-export function Toolbar({ templateName, onSave, saving, isPreview = false, onTogglePreview, canvasWidth, onCanvasWidth, autoSaveStatus = "idle" }: ToolbarProps) {
+export function Toolbar({ templateName, onSave, saving, isPreview = false, onTogglePreview, canvasSize, onCanvasSize, autoSaveStatus = "idle" }: ToolbarProps) {
     const { actions, query, canUndo, canRedo, selected } = useEditor((state, q) => ({
         canUndo: q.history.canUndo(),
         canRedo: q.history.canRedo(),
@@ -43,20 +49,32 @@ export function Toolbar({ templateName, onSave, saving, isPreview = false, onTog
     const [showJson,   setShowJson]   = useState(false);
     const [showKeys,   setShowKeys]   = useState(false);
     const [customMode, setCustomMode] = useState(false);
-    const [customVal,  setCustomVal]  = useState(
-        typeof canvasWidth === "number" ? String(canvasWidth) : ""
+    const [customW,    setCustomW]    = useState(
+        typeof canvasSize.width  === "number" ? String(canvasSize.width)  : ""
+    );
+    const [customH,    setCustomH]    = useState(
+        typeof canvasSize.height === "number" ? String(canvasSize.height) : ""
     );
 
-    const activePresetId = CANVAS_PRESETS.find((p) => p.width === canvasWidth)?.id ?? "custom";
+    const activePresetId = CANVAS_PRESETS.find(
+        (p) => p.size.width === canvasSize.width && p.size.height === canvasSize.height
+    )?.id ?? "custom";
 
     const handlePreset = (preset: CanvasPreset) => {
         setCustomMode(false);
-        onCanvasWidth(preset.width);
+        setCustomW(typeof preset.size.width  === "number" ? String(preset.size.width)  : "");
+        setCustomH(typeof preset.size.height === "number" ? String(preset.size.height) : "");
+        onCanvasSize(preset.size);
     };
 
     const handleCustomCommit = () => {
-        const n = parseInt(customVal, 10);
-        if (!isNaN(n) && n >= 200 && n <= 3840) onCanvasWidth(n);
+        const w = parseInt(customW, 10);
+        const h = parseInt(customH, 10);
+        const newSize: CanvasSize = {
+            width:  (!isNaN(w) && w >= 200 && w <= 3840) ? w : canvasSize.width,
+            height: (!isNaN(h) && h >= 200 && h <= 5000) ? h : canvasSize.height,
+        };
+        onCanvasSize(newSize);
     };
 
     const handleSave = async () => {
@@ -95,7 +113,7 @@ export function Toolbar({ templateName, onSave, saving, isPreview = false, onTog
                     </Button>
                 )}
 
-                {/* Canvas width picker */}
+                {/* Canvas size picker */}
                 {!isPreview && (
                     <div className="flex items-center gap-1 rounded-lg border bg-muted/40 px-1.5 py-1">
                         {CANVAS_PRESETS.map((preset) => {
@@ -105,7 +123,7 @@ export function Toolbar({ templateName, onSave, saving, isPreview = false, onTog
                                 <button
                                     key={preset.id}
                                     type="button"
-                                    title={`${preset.label} (${preset.width === "100%" ? "เต็มหน้า" : preset.width + "px"})`}
+                                    title={`${preset.label} (${preset.size.width === "100%" ? "เต็มหน้า" : `${preset.size.width}×${preset.size.height}px`})`}
                                     onClick={() => handlePreset(preset)}
                                     className={`p-1.5 rounded-md transition-all ${
                                         isActive
@@ -117,11 +135,15 @@ export function Toolbar({ templateName, onSave, saving, isPreview = false, onTog
                                 </button>
                             );
                         })}
-                        {/* Custom width button */}
+                        {/* Custom size button */}
                         <button
                             type="button"
                             title="กำหนดขนาดเอง"
-                            onClick={() => setCustomMode((p) => !p)}
+                            onClick={() => {
+                                setCustomMode((p) => !p);
+                                setCustomW(typeof canvasSize.width  === "number" ? String(canvasSize.width)  : "");
+                                setCustomH(typeof canvasSize.height === "number" ? String(canvasSize.height) : "");
+                            }}
                             className={`p-1.5 rounded-md transition-all ${
                                 customMode
                                     ? "bg-background shadow-sm text-foreground"
@@ -130,27 +152,40 @@ export function Toolbar({ templateName, onSave, saving, isPreview = false, onTog
                         >
                             <Settings2 className="h-3.5 w-3.5" />
                         </button>
-                        {/* Custom input — shown when custom mode active */}
+                        {/* Custom W × H inputs */}
                         {customMode && (
                             <div className="flex items-center gap-1 pl-1 border-l border-border/60">
+                                <span className="text-[10px] text-muted-foreground">W</span>
                                 <input
                                     type="number"
                                     min={200}
                                     max={3840}
-                                    value={customVal}
-                                    onChange={(e) => setCustomVal(e.target.value)}
+                                    value={customW}
+                                    onChange={(e) => setCustomW(e.target.value)}
                                     onKeyDown={(e) => e.key === "Enter" && handleCustomCommit()}
                                     onBlur={handleCustomCommit}
                                     placeholder="px"
-                                    className="w-16 bg-background border rounded px-2 py-0.5 text-xs outline-none focus:ring-1 focus:ring-primary/40 text-center"
+                                    className="w-14 bg-background border rounded px-2 py-0.5 text-xs outline-none focus:ring-1 focus:ring-primary/40 text-center"
                                 />
-                                <span className="text-[10px] text-muted-foreground pr-0.5">px</span>
+                                <span className="text-[10px] text-muted-foreground">×</span>
+                                <span className="text-[10px] text-muted-foreground">H</span>
+                                <input
+                                    type="number"
+                                    min={200}
+                                    max={5000}
+                                    value={customH}
+                                    onChange={(e) => setCustomH(e.target.value)}
+                                    onKeyDown={(e) => e.key === "Enter" && handleCustomCommit()}
+                                    onBlur={handleCustomCommit}
+                                    placeholder="px"
+                                    className="w-14 bg-background border rounded px-2 py-0.5 text-xs outline-none focus:ring-1 focus:ring-primary/40 text-center"
+                                />
                             </div>
                         )}
-                        {/* Current width label */}
+                        {/* Current size label */}
                         {!customMode && (
-                            <span className="text-[10px] text-muted-foreground pl-1 border-l border-border/60 pr-0.5 min-w-[40px] text-center">
-                                {canvasWidth === "100%" ? "Full" : `${canvasWidth}px`}
+                            <span className="text-[10px] text-muted-foreground pl-1 border-l border-border/60 pr-0.5 min-w-[60px] text-center">
+                                {canvasSize.width === "100%" ? "Full" : `${canvasSize.width}×${canvasSize.height}`}
                             </span>
                         )}
                     </div>

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { Editor, Frame, Element, useEditor } from "@craftjs/core";
 import { BlockPalette }      from "./BlockPalette";
 import { PropertiesPanel }   from "./PropertiesPanel";
-import { Toolbar, CanvasWidthValue } from "./Toolbar";
+import { Toolbar, CanvasSize } from "./Toolbar";
 import { CanvasContainer }   from "./CanvasContainer";
 import { KeyboardShortcuts } from "./KeyboardShortcuts";
 import { PreviewContext }     from "./PreviewContext";
@@ -101,7 +101,7 @@ function AutoSave({
 
 export function DesignerCanvas({ templateName, initialNodes, onSave, saving, previewOnly = false }: DesignerCanvasProps) {
     const [isPreview,   setIsPreview]   = useState(previewOnly);
-    const [canvasWidth, setCanvasWidth] = useState<CanvasWidthValue>(900);
+    const [canvasSize,  setCanvasSize]  = useState<CanvasSize>({ width: 900, height: 700 });
     const [autoStatus,  setAutoStatus]  = useState<"idle" | "saving" | "saved">("idle");
 
     return (
@@ -122,8 +122,8 @@ export function DesignerCanvas({ templateName, initialNodes, onSave, saving, pre
                             saving={saving}
                             isPreview={isPreview}
                             onTogglePreview={() => setIsPreview((p) => !p)}
-                            canvasWidth={canvasWidth}
-                            onCanvasWidth={setCanvasWidth}
+                            canvasSize={canvasSize}
+                            onCanvasSize={setCanvasSize}
                             autoSaveStatus={autoStatus}
                         />
                     )}
@@ -146,8 +146,11 @@ export function DesignerCanvas({ templateName, initialNodes, onSave, saving, pre
                                 </div>
                             )}
                             <div
-                                style={canvasWidth === "100%" ? {} : { maxWidth: canvasWidth, margin: "0 auto" }}
-                                className={canvasWidth === "100%" ? "w-full" : "w-full"}
+                                style={{
+                                    ...(canvasSize.width  !== "100%" && { maxWidth: canvasSize.width, margin: "0 auto" }),
+                                    ...(canvasSize.height !== "100%" && { minHeight: canvasSize.height }),
+                                }}
+                                className="w-full"
                             >
                                 <Frame data={initialNodes ? JSON.stringify(initialNodes) : undefined}>
                                     <Element
