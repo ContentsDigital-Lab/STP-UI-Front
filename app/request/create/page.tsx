@@ -119,7 +119,7 @@ export default function CreateBillPage() {
             }
             if (thicknessRef.current && !thicknessRef.current.contains(e.target as Node)) {
                 setThicknessOpen(false);
-                setThicknessSearch(latestFormData.current.thickness ? latestFormData.current.thickness.replace('mm', '') : "");
+                setThicknessSearch(latestFormData.current.thickness || "");
             }
         };
         document.addEventListener("mousedown", handleClickOutside);
@@ -176,7 +176,7 @@ export default function CreateBillPage() {
         }
         setThicknesses(prev => [...prev, value].sort((a, b) => parseInt(a) - parseInt(b)));
         setFormData(prev => ({ ...prev, thickness: value }));
-        setThicknessSearch(String(num));
+        setThicknessSearch(value);
         setThicknessOpen(false);
         toast.success(lang === 'th' ? `เพิ่มความหนา ${value} สำเร็จ` : `Thickness ${value} added`);
     };
@@ -288,33 +288,82 @@ export default function CreateBillPage() {
         pdf.line(gX - 2, gY + gH, dimX - 3, gY + gH);
         pdf.text(`${glassHeight} mm`, dimX - 3, gY + gH / 2, { angle: 90, align: "center" });
 
-        // Holes
+        // Cutouts
         pdf.setDrawColor(232, 96, 28);
         pdf.setLineWidth(0.3);
+        const hScaleX = gW / glassWidth;
+        const hScaleY = gH / glassHeight;
         holes.forEach((hole, i) => {
-            const hx = gX + (hole.x / glassWidth) * gW;
-            const hy = gY + ((glassHeight - hole.y) / glassHeight) * gH;
-            const hr = (hole.diameter / 2 / glassWidth) * gW;
-            pdf.circle(hx, hy, Math.max(hr, 1.5));
-            // Crosshairs
-            pdf.line(hx - hr - 1.5, hy, hx + hr + 1.5, hy);
-            pdf.line(hx, hy - hr - 1.5, hx, hy + hr + 1.5);
+            const hx = gX + hole.x * hScaleX;
+            const hy = gY + (glassHeight - hole.y) * hScaleY;
+            const type = hole.type || 'circle';
+            let labelText = '';
+
+            if (type === 'circle') {
+                const hr = (hole.diameter / 2) * hScaleX;
+                pdf.circle(hx, hy, Math.max(hr, 1.5));
+                pdf.line(hx - hr - 1.5, hy, hx + hr + 1.5, hy);
+                pdf.line(hx, hy - hr - 1.5, hx, hy + hr + 1.5);
+                labelText = `C${i + 1}: ⌀${hole.diameter}mm`;
+            } else if (type === 'rectangle') {
+                const w = (hole.width || 100) * hScaleX;
+                const h = (hole.height || 60) * hScaleY;
+                pdf.rect(hx - w / 2, hy - h / 2, w, h);
+                pdf.line(hx - w / 2 - 1.5, hy, hx + w / 2 + 1.5, hy);
+                pdf.line(hx, hy - h / 2 - 1.5, hx, hy + h / 2 + 1.5);
+                labelText = `C${i + 1}: ${hole.width || 100}×${hole.height || 60}mm`;
+            } else if (type === 'slot') {
+                const len = (hole.length || 80) * hScaleX;
+                const w = (hole.width || 20) * hScaleY;
+                const r = w / 2;
+                const halfBody = (len - w) / 2;
+                pdf.line(hx - halfBody, hy - r, hx + halfBody, hy - r);
+                pdf.line(hx - halfBody, hy + r, hx + halfBody, hy + r);
+                const arcSegs = 12;
+                for (let s = 0; s < arcSegs; s++) {
+                    const a1 = -Math.PI / 2 + (Math.PI * s / arcSegs);
+                    const a2 = -Math.PI / 2 + (Math.PI * (s + 1) / arcSegs);
+                    pdf.line(hx + halfBody + Math.cos(a1) * r, hy + Math.sin(a1) * r,
+                             hx + halfBody + Math.cos(a2) * r, hy + Math.sin(a2) * r);
+                    const b1 = Math.PI / 2 + (Math.PI * s / arcSegs);
+                    const b2 = Math.PI / 2 + (Math.PI * (s + 1) / arcSegs);
+                    pdf.line(hx - halfBody + Math.cos(b1) * r, hy + Math.sin(b1) * r,
+                             hx - halfBody + Math.cos(b2) * r, hy + Math.sin(b2) * r);
+                }
+                pdf.line(hx - len / 2 - 1.5, hy, hx + len / 2 + 1.5, hy);
+                labelText = `C${i + 1}: ${hole.length || 80}×${hole.width || 20}mm`;
+            } else if (type === 'custom' && hole.points && hole.points.length >= 3) {
+                const pts = hole.points;
+                for (let p = 0; p < pts.length; p++) {
+                    const p1 = pts[p];
+                    const p2 = pts[(p + 1) % pts.length];
+                    pdf.line(hx + p1.x * hScaleX, hy - p1.y * hScaleY,
+                             hx + p2.x * hScaleX, hy - p2.y * hScaleY);
+                }
+                labelText = `C${i + 1}: custom ${pts.length}pts`;
+            }
             pdf.setFontSize(6);
-            pdf.text(`H${i + 1}: ⌀${hole.diameter}mm`, hx + hr + 3, hy + 1);
+            pdf.text(labelText, hx + 5, hy + 1);
         });
 
-        // Hole table
+        // Cutout table
         if (holes.length > 0) {
             const tableY = pageH - margin - 15;
             pdf.setFontSize(7);
             pdf.setFont("helvetica", "bold");
             pdf.setDrawColor(150);
-            pdf.text("HOLES", margin, tableY);
+            pdf.text("CUTOUTS", margin, tableY);
             pdf.setFont("helvetica", "normal");
             holes.forEach((hole, i) => {
-                const tx = margin + (i % 4) * 55;
-                const ty = tableY + 4 + Math.floor(i / 4) * 5;
-                pdf.text(`H${i + 1}: X=${hole.x}mm Y=${hole.y}mm ⌀${hole.diameter}mm`, tx, ty);
+                const type = hole.type || 'circle';
+                const tx = margin + (i % 3) * 70;
+                const ty = tableY + 4 + Math.floor(i / 3) * 5;
+                let desc = '';
+                if (type === 'circle') desc = `⌀${hole.diameter}mm`;
+                else if (type === 'rectangle') desc = `${hole.width || 100}×${hole.height || 60}mm`;
+                else if (type === 'slot') desc = `${hole.length || 80}×${hole.width || 20}mm slot`;
+                else if (type === 'custom') desc = `custom ${hole.points?.length || 0}pts`;
+                pdf.text(`C${i + 1}[${type}]: X=${hole.x} Y=${hole.y} ${desc}`, tx, ty);
             });
         }
 
@@ -363,6 +412,7 @@ export default function CreateBillPage() {
                         }
                         importedHoles.push({
                             id: `dxf_${Date.now()}_${importedHoles.length}`,
+                            type: 'circle',
                             x: cx,
                             y: cy,
                             diameter: dia,
@@ -472,6 +522,7 @@ export default function CreateBillPage() {
                         onHolesChange={handleHolesChange}
                         vertices={vertices}
                         onVerticesChange={setVertices}
+                        thickness={parseInt(formData.thickness) || 6}
                     />
                 </div>
 
@@ -663,7 +714,7 @@ export default function CreateBillPage() {
                                                     const match = `${thicknessSearch}mm`;
                                                     if (thicknesses.includes(match)) {
                                                         setFormData(prev => ({ ...prev, thickness: match }));
-                                                        setThicknessSearch(thicknessSearch);
+                                                        setThicknessSearch(match);
                                                         setThicknessOpen(false);
                                                     } else {
                                                         handleAddThickness(thicknessSearch.trim());
@@ -683,7 +734,7 @@ export default function CreateBillPage() {
                                                                 type="button"
                                                                 onClick={() => {
                                                                     setFormData(prev => ({ ...prev, thickness: t }));
-                                                                    setThicknessSearch(t.replace('mm', ''));
+                                                                    setThicknessSearch(t);
                                                                     setThicknessOpen(false);
                                                                 }}
                                                                 className={`flex items-center justify-between w-full px-3 py-2.5 rounded-xl text-left text-sm font-bold transition-colors ${
@@ -760,12 +811,12 @@ export default function CreateBillPage() {
                             </div>
                         </div>
 
-                        {/* Holes List */}
+                        {/* Cutouts List */}
                         {holes.length > 0 && (
                             <div className="space-y-3">
                                 <div className="flex items-center justify-between">
                                     <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">
-                                        {lang === 'th' ? 'รูเจาะ' : 'Drill Holes'} ({holes.length})
+                                        {lang === 'th' ? 'รูเจาะ / คัทเอาท์' : 'Cutouts'} ({holes.length})
                                     </h3>
                                     <Button
                                         variant="ghost"
@@ -777,32 +828,109 @@ export default function CreateBillPage() {
                                     </Button>
                                 </div>
                                 <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                                    {holes.map((hole, i) => (
-                                        <div
-                                            key={hole.id}
-                                            className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 rounded-xl px-3 py-2 group"
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                <GripVertical className="h-3 w-3 text-slate-300" />
-                                                <Badge variant="outline" className="text-[9px] font-bold rounded-md border-slate-200 dark:border-slate-700 text-[#E8601C] px-1.5 py-0">
-                                                    H{i + 1}
-                                                </Badge>
-                                            </div>
-                                            <div className="flex items-center gap-3 text-[11px] font-semibold text-slate-500">
-                                                <span>X: {hole.x}</span>
-                                                <span>Y: {hole.y}</span>
-                                                <span>⌀{hole.diameter}</span>
-                                            </div>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-6 w-6 rounded-md text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                onClick={() => setHoles(holes.filter(h => h.id !== hole.id))}
+                                    {holes.map((hole, i) => {
+                                        const type = hole.type || 'circle';
+                                        const shapeIcons: Record<string, string> = { circle: '●', rectangle: '■', slot: '⬭', custom: '⬡' };
+                                        return (
+                                            <div
+                                                key={hole.id}
+                                                className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 rounded-xl px-3 py-2 group"
                                             >
-                                                <Trash2 className="h-3 w-3" />
-                                            </Button>
-                                        </div>
-                                    ))}
+                                                <div className="flex items-center gap-2">
+                                                    <GripVertical className="h-3 w-3 text-slate-300" />
+                                                    <Badge variant="outline" className="text-[9px] font-bold rounded-md border-slate-200 dark:border-slate-700 text-[#E8601C] px-1.5 py-0">
+                                                        <span className="mr-0.5">{shapeIcons[type]}</span>
+                                                        C{i + 1}
+                                                    </Badge>
+                                                </div>
+                                                <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-500">
+                                                    <span>X:{hole.x}</span>
+                                                    <span>Y:{hole.y}</span>
+                                                    {type === 'circle' && (
+                                                        <span className="flex items-center gap-0.5">
+                                                            ⌀
+                                                            <input
+                                                                type="number" min={5} max={500} value={hole.diameter}
+                                                                onChange={(e) => {
+                                                                    const val = parseInt(e.target.value);
+                                                                    if (!val || val < 5) return;
+                                                                    setHoles(holes.map(h => h.id === hole.id ? { ...h, diameter: val } : h));
+                                                                }}
+                                                                className="w-10 bg-transparent border-b border-slate-300 dark:border-slate-600 text-center text-[11px] font-semibold outline-none focus:border-[#E8601C] transition-colors"
+                                                            />
+                                                        </span>
+                                                    )}
+                                                    {type === 'rectangle' && (
+                                                        <>
+                                                            <span className="flex items-center gap-0.5">
+                                                                W:
+                                                                <input
+                                                                    type="number" min={10} max={500} value={hole.width || 100}
+                                                                    onChange={(e) => {
+                                                                        const val = parseInt(e.target.value);
+                                                                        if (!val || val < 10) return;
+                                                                        setHoles(holes.map(h => h.id === hole.id ? { ...h, width: val } : h));
+                                                                    }}
+                                                                    className="w-10 bg-transparent border-b border-slate-300 dark:border-slate-600 text-center text-[11px] font-semibold outline-none focus:border-[#E8601C] transition-colors"
+                                                                />
+                                                            </span>
+                                                            <span className="flex items-center gap-0.5">
+                                                                H:
+                                                                <input
+                                                                    type="number" min={10} max={500} value={hole.height || 60}
+                                                                    onChange={(e) => {
+                                                                        const val = parseInt(e.target.value);
+                                                                        if (!val || val < 10) return;
+                                                                        setHoles(holes.map(h => h.id === hole.id ? { ...h, height: val } : h));
+                                                                    }}
+                                                                    className="w-10 bg-transparent border-b border-slate-300 dark:border-slate-600 text-center text-[11px] font-semibold outline-none focus:border-[#E8601C] transition-colors"
+                                                                />
+                                                            </span>
+                                                        </>
+                                                    )}
+                                                    {type === 'slot' && (
+                                                        <>
+                                                            <span className="flex items-center gap-0.5">
+                                                                W:
+                                                                <input
+                                                                    type="number" min={5} max={200} value={hole.width || 20}
+                                                                    onChange={(e) => {
+                                                                        const val = parseInt(e.target.value);
+                                                                        if (!val || val < 5) return;
+                                                                        setHoles(holes.map(h => h.id === hole.id ? { ...h, width: val } : h));
+                                                                    }}
+                                                                    className="w-10 bg-transparent border-b border-slate-300 dark:border-slate-600 text-center text-[11px] font-semibold outline-none focus:border-[#E8601C] transition-colors"
+                                                                />
+                                                            </span>
+                                                            <span className="flex items-center gap-0.5">
+                                                                L:
+                                                                <input
+                                                                    type="number" min={10} max={500} value={hole.length || 80}
+                                                                    onChange={(e) => {
+                                                                        const val = parseInt(e.target.value);
+                                                                        if (!val || val < 10) return;
+                                                                        setHoles(holes.map(h => h.id === hole.id ? { ...h, length: val } : h));
+                                                                    }}
+                                                                    className="w-10 bg-transparent border-b border-slate-300 dark:border-slate-600 text-center text-[11px] font-semibold outline-none focus:border-[#E8601C] transition-colors"
+                                                                />
+                                                            </span>
+                                                        </>
+                                                    )}
+                                                    {type === 'custom' && (
+                                                        <span>{hole.points?.length || 0} pts</span>
+                                                    )}
+                                                </div>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-6 w-6 rounded-md text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    onClick={() => setHoles(holes.filter(h => h.id !== hole.id))}
+                                                >
+                                                    <Trash2 className="h-3 w-3" />
+                                                </Button>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}
