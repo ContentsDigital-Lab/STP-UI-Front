@@ -8,8 +8,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { getStationTemplate } from "@/lib/api/station-templates";
 import { StationTemplate } from "@/lib/types/station-designer";
-import { STATION_CATALOG } from "@/lib/stations/catalog";
-import { readAssignments } from "@/lib/stations/assignments";
+import { getStations, getColorOption, StationEntity } from "@/lib/stations/stations-store";
 
 // ⚠️ Craft.js uses browser APIs — disable SSR
 const DesignerCanvas = dynamic(
@@ -33,21 +32,23 @@ export default function LiveStationPage() {
     const router    = useRouter();
     const stationId = params.stationId as string;
 
-    const station = STATION_CATALOG.find((s) => s.id === stationId);
-
+    const [station,    setStation]    = useState<StationEntity | null>(null);
     const [template,   setTemplate]   = useState<StationTemplate | null>(null);
     const [loading,    setLoading]    = useState(true);
     const [noTemplate, setNoTemplate] = useState(false);
 
     useEffect(() => {
-        const assignments = readAssignments();
-        const templateId  = assignments[stationId];
-        if (!templateId) {
+        const stations  = getStations();
+        const found     = stations.find((s) => s._id === stationId) ?? null;
+        setStation(found);
+
+        if (!found?.templateId) {
             setNoTemplate(true);
             setLoading(false);
             return;
         }
-        getStationTemplate(templateId)
+
+        getStationTemplate(found.templateId)
             .then((t) => {
                 if (t) setTemplate(t);
                 else { toast.error("โหลด template ไม่สำเร็จ"); setNoTemplate(true); }
@@ -56,23 +57,26 @@ export default function LiveStationPage() {
             .finally(() => setLoading(false));
     }, [stationId]);
 
-    // Header bar (shown in all states)
+    const color = station ? getColorOption(station.colorId) : null;
+
     const header = (
         <div className="flex items-center gap-3 border-b bg-card px-4 py-2.5 shrink-0">
             <Button variant="ghost" size="sm" className="h-8 gap-1.5" onClick={() => router.push("/stations")}>
                 <ArrowLeft className="h-4 w-4" />
                 สถานี
             </Button>
-            <span className="text-muted-foreground">/</span>
-            {station && (
-                <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${station.color}`}>
-                    {station.label}
-                </span>
+            {station && color && (
+                <>
+                    <span className="text-muted-foreground">/</span>
+                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${color.cls}`}>
+                        {station.name}
+                    </span>
+                </>
             )}
             {template && (
                 <>
                     <span className="text-muted-foreground">/</span>
-                    <span className="text-sm font-medium text-muted-foreground truncate">{template.name}</span>
+                    <span className="text-sm text-muted-foreground truncate">{template.name}</span>
                 </>
             )}
         </div>
@@ -97,7 +101,7 @@ export default function LiveStationPage() {
                     </div>
                     <div className="text-center space-y-1">
                         <p className="font-semibold text-foreground">ยังไม่ได้กำหนด Template</p>
-                        <p className="text-sm text-muted-foreground">กรุณาเลือก template สำหรับสถานีนี้ก่อนเริ่มงาน</p>
+                        <p className="text-sm text-muted-foreground">กรุณาแก้ไขสถานีและเลือก template ก่อนเริ่มงาน</p>
                     </div>
                     <div className="flex gap-2">
                         <Button variant="outline" onClick={() => router.push("/stations")}>
@@ -106,7 +110,7 @@ export default function LiveStationPage() {
                         </Button>
                         <Button onClick={() => router.push("/stations")} className="gap-2">
                             <Settings2 className="h-4 w-4" />
-                            เลือก Template
+                            แก้ไขสถานี
                         </Button>
                     </div>
                 </div>
@@ -114,7 +118,6 @@ export default function LiveStationPage() {
         );
     }
 
-    // Render template in preview mode (isPreview = true via no-save DesignerCanvas)
     return (
         <div className="flex h-full flex-col">
             {header}
@@ -122,7 +125,7 @@ export default function LiveStationPage() {
                 <DesignerCanvas
                     templateName={template.name}
                     initialNodes={Object.keys(template.craftNodes ?? {}).length > 0 ? template.craftNodes : undefined}
-                    onSave={async () => {}}  // no-op: workers don't save
+                    onSave={async () => {}}
                     saving={false}
                     previewOnly
                 />

@@ -1,122 +1,140 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-    Factory, LayoutTemplate, Play, Settings2,
-    CheckCircle2, X, Loader2, ChevronRight,
+    Factory, Plus, Play, Pencil, Trash2,
+    LayoutTemplate, CheckCircle2, X, Loader2,
+    ChevronRight, Settings2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { STATION_CATALOG } from "@/lib/stations/catalog";
 import {
-    readAssignments, writeAssignment, clearAssignment, AssignmentMap,
-} from "@/lib/stations/assignments";
+    getStations, createStation, updateStation, deleteStation,
+    StationEntity, COLOR_OPTIONS, getColorOption,
+} from "@/lib/stations/stations-store";
 import { getStationTemplates } from "@/lib/api/station-templates";
 import { StationTemplate } from "@/lib/types/station-designer";
 
-// ── Template selector modal ───────────────────────────────────────────────────
-function TemplateSelectorModal({
-    stationId,
-    stationLabel,
-    currentTemplateId,
-    onClose,
-    onAssign,
-}: {
-    stationId:         string;
-    stationLabel:      string;
-    currentTemplateId: string | undefined;
-    onClose:           () => void;
-    onAssign:          (stationId: string, templateId: string | null) => void;
-}) {
-    const [templates, setTemplates] = useState<StationTemplate[]>([]);
-    const [loading,   setLoading]   = useState(true);
-    const [selected,  setSelected]  = useState<string | null>(currentTemplateId ?? null);
+// ── Color picker ──────────────────────────────────────────────────────────────
+function ColorPicker({ value, onChange }: { value: string; onChange: (id: string) => void }) {
+    return (
+        <div className="flex flex-wrap gap-2">
+            {COLOR_OPTIONS.map((c) => (
+                <button
+                    key={c.id}
+                    type="button"
+                    title={c.label}
+                    onClick={() => onChange(c.id)}
+                    className={`w-7 h-7 rounded-full border-2 transition-all ${
+                        value === c.id ? "border-foreground scale-110 shadow-md" : "border-transparent hover:scale-105"
+                    }`}
+                    style={{ backgroundColor: c.swatch }}
+                />
+            ))}
+        </div>
+    );
+}
 
-    useEffect(() => {
-        getStationTemplates()
-            .then((t) => setTemplates(t))
-            .finally(() => setLoading(false));
-    }, []);
+// ── Create / Edit modal ───────────────────────────────────────────────────────
+function StationModal({
+    initial,
+    templates,
+    onClose,
+    onSave,
+}: {
+    initial?:   Partial<StationEntity>;
+    templates:  StationTemplate[];
+    onClose:    () => void;
+    onSave:     (data: { name: string; colorId: string; templateId?: string }) => void;
+}) {
+    const [name,       setName]       = useState(initial?.name       ?? "");
+    const [colorId,    setColorId]    = useState(initial?.colorId    ?? "sky");
+    const [templateId, setTemplateId] = useState<string>(initial?.templateId ?? "");
+
+    const color    = getColorOption(colorId);
+    const isEdit   = Boolean(initial?._id);
+    const canSave  = name.trim().length > 0;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
             <div
-                className="bg-card rounded-2xl border shadow-xl w-full max-w-md space-y-4 p-6"
+                className="bg-card rounded-2xl border shadow-xl w-full max-w-md p-6 space-y-5"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
                 <div className="flex items-center justify-between">
-                    <div>
-                        <h2 className="text-base font-semibold">เลือก Template</h2>
-                        <p className="text-xs text-muted-foreground mt-0.5">สถานี: {stationLabel}</p>
-                    </div>
-                    <button type="button" onClick={onClose} className="p-1 rounded text-muted-foreground/40 hover:text-foreground transition-colors">
+                    <h2 className="text-base font-semibold">{isEdit ? "แก้ไขสถานี" : "สร้างสถานีใหม่"}</h2>
+                    <button type="button" onClick={onClose} className="p-1 rounded text-muted-foreground/40 hover:text-foreground">
                         <X className="h-5 w-5" />
                     </button>
                 </div>
 
-                {/* List */}
-                {loading ? (
-                    <div className="flex items-center justify-center py-10 gap-2 text-muted-foreground">
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                        <span className="text-sm">กำลังโหลด...</span>
-                    </div>
-                ) : templates.length === 0 ? (
-                    <div className="text-center py-10">
-                        <LayoutTemplate className="h-10 w-10 text-muted-foreground/30 mx-auto mb-2" />
-                        <p className="text-sm text-muted-foreground">ยังไม่มี template</p>
-                        <p className="text-xs text-muted-foreground/70 mt-1">ไปที่ Designer เพื่อสร้าง template ก่อน</p>
-                    </div>
-                ) : (
-                    <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
-                        {templates.map((tmpl) => {
-                            const isSelected = selected === tmpl._id;
-                            return (
-                                <button
-                                    key={tmpl._id}
-                                    type="button"
-                                    onClick={() => setSelected(isSelected ? null : tmpl._id)}
-                                    className={`w-full text-left rounded-xl border px-4 py-3 transition-all flex items-center gap-3 ${
-                                        isSelected
-                                            ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-                                            : "border-border bg-background hover:border-primary/40"
-                                    }`}
-                                >
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium truncate">{tmpl.name}</p>
-                                        {tmpl.description && (
-                                            <p className="text-xs text-muted-foreground truncate mt-0.5">{tmpl.description}</p>
-                                        )}
-                                    </div>
-                                    {isSelected && <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />}
-                                </button>
-                            );
-                        })}
-                    </div>
-                )}
+                {/* Name */}
+                <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">ชื่อสถานี *</label>
+                    <input
+                        autoFocus
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="เช่น ตัดกระจก, QC, บรรจุ..."
+                        className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+                        onKeyDown={(e) => e.key === "Enter" && canSave && onSave({ name: name.trim(), colorId, templateId: templateId || undefined })}
+                    />
+                    {/* Live preview badge */}
+                    {name.trim() && (
+                        <span className={`inline-block text-sm font-semibold px-3 py-1.5 rounded-xl mt-1 ${color.cls}`}>
+                            {name.trim()}
+                        </span>
+                    )}
+                </div>
+
+                {/* Color */}
+                <div className="space-y-2">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">สีป้ายชื่อ</label>
+                    <ColorPicker value={colorId} onChange={setColorId} />
+                </div>
+
+                {/* Template */}
+                <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Template (ไม่บังคับ)</label>
+                    <select
+                        value={templateId}
+                        onChange={(e) => setTemplateId(e.target.value)}
+                        className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+                    >
+                        <option value="">— ยังไม่เลือก —</option>
+                        {templates.map((t) => (
+                            <option key={t._id} value={t._id}>{t.name}</option>
+                        ))}
+                    </select>
+                    {templates.length === 0 && (
+                        <p className="text-xs text-muted-foreground/60">ยังไม่มี template — สร้างได้ที่ปุ่ม "จัดการ Template"</p>
+                    )}
+                </div>
 
                 {/* Actions */}
-                <div className="flex gap-2 justify-between pt-1">
-                    {currentTemplateId && (
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-                            onClick={() => { onAssign(stationId, null); onClose(); }}
-                        >
-                            ยกเลิก Template
-                        </Button>
-                    )}
-                    <div className="flex gap-2 ml-auto">
-                        <Button variant="outline" size="sm" onClick={onClose}>ยกเลิก</Button>
-                        <Button
-                            size="sm"
-                            disabled={selected === (currentTemplateId ?? null)}
-                            onClick={() => { onAssign(stationId, selected); onClose(); }}
-                        >
-                            ยืนยัน
-                        </Button>
-                    </div>
+                <div className="flex gap-2 justify-end pt-1">
+                    <Button variant="outline" size="sm" onClick={onClose}>ยกเลิก</Button>
+                    <Button size="sm" disabled={!canSave} onClick={() => onSave({ name: name.trim(), colorId, templateId: templateId || undefined })}>
+                        <Plus className="h-3.5 w-3.5 mr-1" />
+                        {isEdit ? "บันทึก" : "สร้างสถานี"}
+                    </Button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ── Delete confirm ────────────────────────────────────────────────────────────
+function DeleteConfirm({ name, onConfirm, onCancel }: { name: string; onConfirm: () => void; onCancel: () => void }) {
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onCancel}>
+            <div className="bg-card rounded-2xl border shadow-xl w-full max-w-sm p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+                <h2 className="text-base font-semibold">ลบสถานี</h2>
+                <p className="text-sm text-muted-foreground">ต้องการลบสถานี <strong>{name}</strong> ใช่ไหม? ไม่สามารถกู้คืนได้</p>
+                <div className="flex gap-2 justify-end">
+                    <Button variant="outline" size="sm" onClick={onCancel}>ยกเลิก</Button>
+                    <Button size="sm" variant="destructive" onClick={onConfirm}>ลบ</Button>
                 </div>
             </div>
         </div>
@@ -127,36 +145,49 @@ function TemplateSelectorModal({
 export default function StationsPage() {
     const router = useRouter();
 
-    const [assignments,   setAssignments]   = useState<AssignmentMap>({});
-    const [templateNames, setTemplateNames] = useState<Record<string, string>>({});
-    const [pickerStation, setPickerStation] = useState<string | null>(null);
+    const [stations,   setStations]   = useState<StationEntity[]>([]);
+    const [templates,  setTemplates]  = useState<StationTemplate[]>([]);
+    const [tmplNames,  setTmplNames]  = useState<Record<string, string>>({});
+    const [loadingTmpl, setLoadingTmpl] = useState(true);
 
-    const loadData = useCallback(() => {
-        const map = readAssignments();
-        setAssignments(map);
-        if (Object.keys(map).length > 0) {
-            getStationTemplates().then((templates) => {
+    const [showCreate, setShowCreate] = useState(false);
+    const [editing,    setEditing]    = useState<StationEntity | null>(null);
+    const [deleting,   setDeleting]   = useState<StationEntity | null>(null);
+
+    const reload = () => setStations(getStations());
+
+    useEffect(() => {
+        reload();
+        getStationTemplates()
+            .then((t) => {
+                setTemplates(t);
                 const names: Record<string, string> = {};
-                for (const tmpl of templates) names[tmpl._id] = tmpl.name;
-                setTemplateNames(names);
-            });
-        }
+                for (const tmpl of t) names[tmpl._id] = tmpl.name;
+                setTmplNames(names);
+            })
+            .finally(() => setLoadingTmpl(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    useEffect(() => { loadData(); }, [loadData]);
-
-    const handleAssign = (stationId: string, templateId: string | null) => {
-        if (templateId) {
-            writeAssignment(stationId, templateId);
-        } else {
-            clearAssignment(stationId);
-        }
-        loadData();
+    const handleCreate = (data: { name: string; colorId: string; templateId?: string }) => {
+        createStation(data);
+        reload();
+        setShowCreate(false);
     };
 
-    const pickerStationInfo = pickerStation
-        ? STATION_CATALOG.find((s) => s.id === pickerStation)
-        : null;
+    const handleUpdate = (data: { name: string; colorId: string; templateId?: string }) => {
+        if (!editing) return;
+        updateStation(editing._id, data);
+        reload();
+        setEditing(null);
+    };
+
+    const handleDelete = () => {
+        if (!deleting) return;
+        deleteStation(deleting._id);
+        reload();
+        setDeleting(null);
+    };
 
     return (
         <div className="space-y-6 p-6">
@@ -169,84 +200,138 @@ export default function StationsPage() {
                     </h1>
                     <p className="text-sm text-muted-foreground">สถานีการทำงานในกระบวนการผลิต</p>
                 </div>
-                <Button
-                    variant="outline"
-                    className="gap-2"
-                    onClick={() => router.push("/stations/designer")}
-                >
-                    <Settings2 className="h-4 w-4" />
-                    จัดการ Template
-                </Button>
+                <div className="flex items-center gap-2">
+                    <Button variant="outline" className="gap-2" onClick={() => router.push("/stations/designer")}>
+                        <Settings2 className="h-4 w-4" />
+                        จัดการ Template
+                    </Button>
+                    <Button className="gap-2" onClick={() => setShowCreate(true)}>
+                        <Plus className="h-4 w-4" />
+                        สร้างสถานี
+                    </Button>
+                </div>
             </div>
+
+            {/* Empty state */}
+            {stations.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-24 space-y-4 border-2 border-dashed rounded-2xl">
+                    <div className="p-4 rounded-2xl bg-muted/50">
+                        <Factory className="h-12 w-12 text-muted-foreground/30" />
+                    </div>
+                    <div className="text-center">
+                        <p className="font-semibold text-muted-foreground">ยังไม่มีสถานี</p>
+                        <p className="text-sm text-muted-foreground/70 mt-1">กด "สร้างสถานี" เพื่อเพิ่มสถานีการทำงาน</p>
+                    </div>
+                    <Button onClick={() => setShowCreate(true)} className="gap-2">
+                        <Plus className="h-4 w-4" />
+                        สร้างสถานีแรก
+                    </Button>
+                </div>
+            )}
 
             {/* Station grid */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {STATION_CATALOG.map((station) => {
-                    const templateId   = assignments[station.id];
-                    const templateName = templateId ? templateNames[templateId] : undefined;
+            {stations.length > 0 && (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {stations.map((station) => {
+                        const color        = getColorOption(station.colorId);
+                        const templateName = station.templateId ? tmplNames[station.templateId] : undefined;
 
-                    return (
-                        <div
-                            key={station.id}
-                            className="rounded-2xl border bg-card p-5 flex flex-col gap-4 hover:shadow-md transition-shadow"
-                        >
-                            {/* Station identity */}
-                            <div>
-                                <span className={`text-sm font-semibold px-3 py-1.5 rounded-xl inline-block ${station.color}`}>
-                                    {station.label}
-                                </span>
-                                <p className="text-xs text-muted-foreground mt-2">{station.desc}</p>
-                            </div>
-
-                            {/* Template assignment badge */}
-                            <div className="flex-1">
-                                {templateName ? (
-                                    <div className="flex items-center gap-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 px-3 py-1.5">
-                                        <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
-                                        <span className="text-xs text-emerald-700 dark:text-emerald-300 font-medium truncate">{templateName}</span>
+                        return (
+                            <div key={station._id} className="rounded-2xl border bg-card p-5 flex flex-col gap-4 hover:shadow-md transition-shadow">
+                                {/* Name badge + actions */}
+                                <div className="flex items-start justify-between gap-2">
+                                    <span className={`text-sm font-semibold px-3 py-1.5 rounded-xl ${color.cls}`}>
+                                        {station.name}
+                                    </span>
+                                    <div className="flex items-center gap-0.5 shrink-0">
+                                        <button
+                                            type="button"
+                                            onClick={() => setEditing(station)}
+                                            className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-foreground hover:bg-muted transition-colors"
+                                            title="แก้ไข"
+                                        >
+                                            <Pencil className="h-3.5 w-3.5" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setDeleting(station)}
+                                            className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                            title="ลบ"
+                                        >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                        </button>
                                     </div>
-                                ) : (
-                                    <div className="rounded-lg border border-dashed border-muted-foreground/25 px-3 py-1.5 text-center">
-                                        <span className="text-xs text-muted-foreground/50">ยังไม่ได้กำหนด template</span>
-                                    </div>
-                                )}
-                            </div>
+                                </div>
 
-                            {/* Action buttons */}
-                            <div className="flex gap-1.5">
+                                {/* Template assignment */}
+                                <div className="flex-1">
+                                    {loadingTmpl ? (
+                                        <div className="rounded-lg border border-muted/40 px-3 py-1.5 flex items-center gap-1.5">
+                                            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground/40" />
+                                            <span className="text-xs text-muted-foreground/40">กำลังโหลด...</span>
+                                        </div>
+                                    ) : templateName ? (
+                                        <div className="flex items-center gap-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 px-3 py-1.5">
+                                            <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
+                                            <span className="text-xs text-emerald-700 dark:text-emerald-300 font-medium truncate">{templateName}</span>
+                                        </div>
+                                    ) : (
+                                        <div className="rounded-lg border border-dashed border-muted-foreground/25 px-3 py-1.5 text-center">
+                                            <span className="text-xs text-muted-foreground/50">ยังไม่ได้กำหนด template</span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Enter station button */}
                                 <Button
                                     size="sm"
-                                    variant="outline"
-                                    className="flex-1 h-8 gap-1 text-xs"
-                                    onClick={() => setPickerStation(station.id)}
+                                    className="w-full h-9 gap-1.5 text-xs"
+                                    disabled={!station.templateId}
+                                    onClick={() => router.push(`/stations/${station._id}`)}
                                 >
-                                    <LayoutTemplate className="h-3 w-3" />
-                                    {templateName ? "เปลี่ยน" : "เลือก Template"}
-                                </Button>
-                                <Button
-                                    size="sm"
-                                    className="h-8 px-3 gap-1 text-xs"
-                                    disabled={!templateId}
-                                    onClick={() => router.push(`/stations/${station.id}`)}
-                                >
-                                    <Play className="h-3 w-3" />
+                                    <Play className="h-3.5 w-3.5" />
                                     เข้าสถานี
-                                    {templateId && <ChevronRight className="h-3 w-3" />}
+                                    {station.templateId && <ChevronRight className="h-3 w-3" />}
                                 </Button>
                             </div>
-                        </div>
-                    );
-                })}
-            </div>
+                        );
+                    })}
 
-            {/* Template selector modal */}
-            {pickerStation && pickerStationInfo && (
-                <TemplateSelectorModal
-                    stationId={pickerStation}
-                    stationLabel={pickerStationInfo.label}
-                    currentTemplateId={assignments[pickerStation]}
-                    onClose={() => setPickerStation(null)}
-                    onAssign={handleAssign}
+                    {/* Quick add card */}
+                    <button
+                        type="button"
+                        onClick={() => setShowCreate(true)}
+                        className="rounded-2xl border-2 border-dashed border-muted-foreground/20 p-5 flex flex-col items-center justify-center gap-2 hover:border-primary/40 hover:bg-primary/5 transition-all min-h-[180px]"
+                    >
+                        <div className="p-2.5 rounded-xl bg-muted/60">
+                            <Plus className="h-5 w-5 text-muted-foreground/50" />
+                        </div>
+                        <span className="text-sm text-muted-foreground/60 font-medium">สร้างสถานีใหม่</span>
+                    </button>
+                </div>
+            )}
+
+            {/* Modals */}
+            {showCreate && (
+                <StationModal
+                    templates={templates}
+                    onClose={() => setShowCreate(false)}
+                    onSave={handleCreate}
+                />
+            )}
+            {editing && (
+                <StationModal
+                    initial={editing}
+                    templates={templates}
+                    onClose={() => setEditing(null)}
+                    onSave={handleUpdate}
+                />
+            )}
+            {deleting && (
+                <DeleteConfirm
+                    name={deleting.name}
+                    onConfirm={handleDelete}
+                    onCancel={() => setDeleting(null)}
                 />
             )}
         </div>
