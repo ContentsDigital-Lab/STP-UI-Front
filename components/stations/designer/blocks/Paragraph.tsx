@@ -2,6 +2,7 @@
 
 import { useNode } from "@craftjs/core";
 import { Database } from "lucide-react";
+import { usePreview } from "../PreviewContext";
 
 const SIZE_MAP  = { sm: "text-xs", base: "text-sm", lg: "text-base" };
 const ALIGN_MAP = { left: "text-left", center: "text-center", right: "text-right" };
@@ -15,10 +16,11 @@ interface ParagraphProps {
 
 export function Paragraph({ text = "ข้อความ...", align = "left", size = "base", dataVar = "" }: ParagraphProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
+    const isPreview = usePreview();
     return (
         <div
             ref={(ref) => { ref && connect(drag(ref)); }}
-            className={`w-full rounded-lg px-1 py-0.5 cursor-grab transition-all ${selected ? "ring-2 ring-primary/40 bg-primary/5" : "hover:bg-muted/30"}`}
+            className={`w-full rounded-lg px-1 py-0.5 transition-all ${isPreview ? "" : `cursor-grab ${selected ? "ring-2 ring-primary/40 bg-primary/5" : "hover:bg-muted/30"}`}`}
         >
             {dataVar && (
                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px] font-mono mb-0.5">

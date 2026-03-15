@@ -2,6 +2,7 @@
 
 import { useNode } from "@craftjs/core";
 import { Database } from "lucide-react";
+import { usePreview } from "../PreviewContext";
 
 const VARIANT_MAP: Record<string, string> = {
     default: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
@@ -19,10 +20,11 @@ interface BadgeProps {
 
 export function Badge({ text = "Status", variant = "default", dataVar = "" }: BadgeProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
+    const isPreview = usePreview();
     return (
         <div
             ref={(ref) => { ref && connect(drag(ref)); }}
-            className={`inline-flex flex-col gap-0.5 cursor-grab rounded-lg ${selected ? "ring-2 ring-primary/40" : ""}`}
+            className={`inline-flex flex-col gap-0.5 rounded-lg ${isPreview ? "" : `cursor-grab ${selected ? "ring-2 ring-primary/40" : ""}`}`}
         >
             {dataVar && (
                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px] font-mono">

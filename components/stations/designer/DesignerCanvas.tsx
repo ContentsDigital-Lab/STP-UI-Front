@@ -126,7 +126,16 @@ export function DesignerCanvas({ templateName, initialNodes, onSave, saving, pre
                             isPreview={isPreview}
                             onTogglePreview={() => setIsPreview((p) => !p)}
                             canvasSize={canvasSize}
-                            onCanvasSize={(s) => { setCanvasSize(s); setZoom(100); }}
+                            onCanvasSize={(s) => {
+                                setCanvasSize(s);
+                                if (s.width !== "100%" && mainRef.current) {
+                                    const available = mainRef.current.clientWidth - 64;
+                                    const fit = Math.min(100, Math.floor((available / (s.width as number)) * 100));
+                                    setZoom(Math.max(25, fit));
+                                } else {
+                                    setZoom(100);
+                                }
+                            }}
                             alignment={alignment}
                             onAlignment={setAlignment}
                             zoom={zoom}
@@ -147,7 +156,7 @@ export function DesignerCanvas({ templateName, initialNodes, onSave, saving, pre
                         {/* Canvas */}
                         <main
                             ref={mainRef}
-                            className={`flex-1 overflow-auto p-8 transition-colors ${
+                            className={`flex-1 min-w-0 overflow-auto p-8 transition-colors ${
                                 isPreview
                                     ? "bg-white dark:bg-slate-950 [&_*]:!cursor-default"
                                     : "bg-slate-100 dark:bg-slate-900/60"
@@ -172,8 +181,9 @@ export function DesignerCanvas({ templateName, initialNodes, onSave, saving, pre
                             <div
                                 style={(isPreview || previewOnly || canvasSize.width === "100%") ? {} : {
                                     display:    "block",
-                                    width:      canvasSize.width,
-                                    minHeight:  canvasSize.height !== "100%" ? canvasSize.height : undefined,
+                                    width:      `${canvasSize.width}px`,
+                                    minWidth:   `${canvasSize.width}px`,
+                                    minHeight:  canvasSize.height !== "100%" ? `${canvasSize.height}px` : undefined,
                                     zoom:       zoom !== 100 ? zoom / 100 : undefined,
                                     marginLeft:  (alignment === "right"  || alignment === "center") ? "auto" : 0,
                                     marginRight: (alignment === "left"   || alignment === "center") ? "auto" : 0,

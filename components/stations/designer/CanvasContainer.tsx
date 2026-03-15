@@ -2,6 +2,7 @@
 
 import { useNode } from "@craftjs/core";
 import { ReactNode } from "react";
+import { usePreview } from "./PreviewContext";
 
 interface CanvasContainerProps {
     children?: ReactNode;
@@ -12,6 +13,7 @@ export function CanvasContainer({ children, className = "" }: CanvasContainerPro
     const { connectors: { connect, drag }, selected } = useNode((state) => ({
         selected: state.events.selected,
     }));
+    const isPreview = usePreview();
 
     const hasChildren = Array.isArray(children)
         ? children.some(Boolean)
@@ -23,8 +25,10 @@ export function CanvasContainer({ children, className = "" }: CanvasContainerPro
             className={`
                 relative flex flex-col gap-3
                 min-h-[500px] w-full p-5
-                rounded-xl border-2 border-dashed
-                ${selected ? "border-primary/40 bg-primary/5" : "border-muted-foreground/20 bg-background"}
+                ${isPreview
+                    ? "bg-background"
+                    : `rounded-xl border-2 border-dashed ${selected ? "border-primary/40 bg-primary/5" : "border-muted-foreground/20 bg-background"}`
+                }
                 transition-colors
                 ${className}
             `}

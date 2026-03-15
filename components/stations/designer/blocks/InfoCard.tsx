@@ -1,6 +1,7 @@
 "use client";
 
 import { useNode } from "@craftjs/core";
+import { usePreview } from "../PreviewContext";
 
 const ACCENT_MAP: Record<string, string> = {
     blue:   "border-l-blue-500",
@@ -20,14 +21,15 @@ interface InfoCardProps {
 
 export function InfoCard({ title = "ชื่อการ์ด", subtitle = "หัวข้อรอง", content = "รายละเอียด...", accentColor = "blue" }: InfoCardProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
+    const isPreview = usePreview();
     return (
         <div
             ref={(ref) => { ref && connect(drag(ref)); }}
             className={`
                 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-card
                 border-l-4 ${ACCENT_MAP[accentColor] ?? ACCENT_MAP.blue}
-                p-4 space-y-1.5 cursor-grab transition-all shadow-sm
-                ${selected ? "ring-2 ring-primary/30 shadow-md" : "hover:shadow-md"}
+                p-4 space-y-1.5 transition-all shadow-sm
+                ${isPreview ? "" : `cursor-grab ${selected ? "ring-2 ring-primary/30 shadow-md" : "hover:shadow-md"}`}
             `}
         >
             <p className="text-sm font-semibold text-foreground">{title}</p>
