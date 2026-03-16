@@ -31,6 +31,14 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+    DialogDescription,
+} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { GlassDesigner, HoleData, VertexData } from "@/components/glass-designer";
 import { requestsApi } from "@/lib/api/requests";
@@ -58,6 +66,17 @@ export default function CreateBillPage() {
         { x: 800, y: 600 },
         { x: 0, y: 600 },
     ]);
+
+    // New customer dialog
+    const [isNewCustomerOpen, setIsNewCustomerOpen] = useState(false);
+    const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
+    const [newCustomerForm, setNewCustomerForm] = useState({
+        name: "",
+        phone: "",
+        address: "",
+        discount: 0,
+        notes: "",
+    });
 
     // Combobox state
     const [customerOpen, setCustomerOpen] = useState(false);
@@ -135,18 +154,34 @@ export default function CreateBillPage() {
         t.toLowerCase().includes(glassTypeSearch.toLowerCase())
     );
 
-    const handleCreateCustomer = async (name: string) => {
+    const openNewCustomerDialog = (prefillName: string) => {
+        setNewCustomerForm({ name: prefillName, phone: "", address: "", discount: 0, notes: "" });
+        setCustomerOpen(false);
+        setIsNewCustomerOpen(true);
+    };
+
+    const handleCreateCustomer = async () => {
+        if (!newCustomerForm.name.trim()) return;
+        setIsCreatingCustomer(true);
         try {
-            const res = await customersApi.create({ name });
+            const payload: Partial<Customer> = { name: newCustomerForm.name.trim() };
+            if (newCustomerForm.phone.trim()) payload.phone = newCustomerForm.phone.trim();
+            if (newCustomerForm.address.trim()) payload.address = newCustomerForm.address.trim();
+            if (newCustomerForm.discount > 0) payload.discount = newCustomerForm.discount;
+            if (newCustomerForm.notes.trim()) payload.notes = newCustomerForm.notes.trim();
+
+            const res = await customersApi.create(payload);
             if (res.success && res.data) {
                 setCustomers(prev => [...prev, res.data!]);
                 setFormData(prev => ({ ...prev, customer: res.data!._id }));
-                setCustomerSearch(name);
-                setCustomerOpen(false);
-                toast.success(lang === 'th' ? `เพิ่มลูกค้า "${name}" สำเร็จ` : `Customer "${name}" created`);
+                setCustomerSearch(res.data!.name);
+                setIsNewCustomerOpen(false);
+                toast.success(lang === 'th' ? `เพิ่มลูกค้า "${res.data!.name}" สำเร็จ` : `Customer "${res.data!.name}" created`);
             }
         } catch {
             toast.error(lang === 'th' ? 'ไม่สามารถเพิ่มลูกค้าได้' : 'Failed to create customer');
+        } finally {
+            setIsCreatingCustomer(false);
         }
     };
 
@@ -553,7 +588,7 @@ export default function CreateBillPage() {
                                     }}
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter' && customerSearch.trim() && filteredCustomers.length === 0) {
-                                            handleCreateCustomer(customerSearch.trim());
+                                            openNewCustomerDialog(customerSearch.trim());
                                         }
                                     }}
                                     className="w-full h-12 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm pl-4 pr-10 hover:border-[#E8601C]/50 transition-colors outline-none focus:ring-1 focus:ring-[#E8601C] focus:border-[#E8601C]"
@@ -588,7 +623,7 @@ export default function CreateBillPage() {
                                             ) : customerSearch.trim() ? (
                                                 <button
                                                     type="button"
-                                                    onClick={() => handleCreateCustomer(customerSearch.trim())}
+                                                    onClick={() => openNewCustomerDialog(customerSearch.trim())}
                                                     className="flex items-center gap-2 w-full px-3 py-3 rounded-xl text-sm font-bold text-[#E8601C] hover:bg-[#E8601C]/10 transition-colors"
                                                 >
                                                     <Plus className="h-4 w-4" />
@@ -1043,6 +1078,102 @@ export default function CreateBillPage() {
                     </div>
                 </div>
             </div>
+
+            {/* New Customer Dialog */}
+            <Dialog open={isNewCustomerOpen} onOpenChange={setIsNewCustomerOpen}>
+                <DialogContent className="sm:max-w-[440px] rounded-2xl">
+                    <DialogHeader>
+                        <DialogTitle className="text-lg font-bold">
+                            {lang === 'th' ? 'เพิ่มลูกค้าใหม่' : 'Add New Customer'}
+                        </DialogTitle>
+                        <DialogDescription className="text-sm text-slate-500">
+                            {lang === 'th' ? 'กรอกข้อมูลลูกค้าเพื่อบันทึกเข้าระบบ' : 'Fill in customer details to save to the system'}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-2">
+                        <div className="space-y-1.5">
+                            <Label className="text-[11px] font-semibold text-slate-500 uppercase">
+                                {lang === 'th' ? 'ชื่อลูกค้า' : 'Customer Name'} <span className="text-red-500">*</span>
+                            </Label>
+                            <Input
+                                placeholder={lang === 'th' ? 'เช่น บริษัท ABC จำกัด' : 'e.g. ABC Company'}
+                                value={newCustomerForm.name}
+                                onChange={(e) => setNewCustomerForm(f => ({ ...f, name: e.target.value }))}
+                                className="h-11 rounded-xl border-slate-200 dark:border-slate-800"
+                            />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1.5">
+                                <Label className="text-[11px] font-semibold text-slate-500 uppercase">
+                                    {lang === 'th' ? 'เบอร์โทร' : 'Phone'}
+                                </Label>
+                                <Input
+                                    placeholder={lang === 'th' ? 'เช่น 081-234-5678' : 'e.g. 081-234-5678'}
+                                    value={newCustomerForm.phone}
+                                    onChange={(e) => setNewCustomerForm(f => ({ ...f, phone: e.target.value }))}
+                                    className="h-11 rounded-xl border-slate-200 dark:border-slate-800"
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label className="text-[11px] font-semibold text-slate-500 uppercase">
+                                    {lang === 'th' ? 'ส่วนลด (%)' : 'Discount (%)'}
+                                </Label>
+                                <Input
+                                    type="number"
+                                    min={0}
+                                    max={100}
+                                    placeholder="0"
+                                    value={newCustomerForm.discount || ""}
+                                    onChange={(e) => setNewCustomerForm(f => ({ ...f, discount: parseFloat(e.target.value) || 0 }))}
+                                    className="h-11 rounded-xl border-slate-200 dark:border-slate-800"
+                                />
+                            </div>
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label className="text-[11px] font-semibold text-slate-500 uppercase">
+                                {lang === 'th' ? 'ที่อยู่' : 'Address'}
+                            </Label>
+                            <Input
+                                placeholder={lang === 'th' ? 'เช่น 123 ถ.สุขุมวิท กรุงเทพฯ' : 'e.g. 123 Sukhumvit Rd, Bangkok'}
+                                value={newCustomerForm.address}
+                                onChange={(e) => setNewCustomerForm(f => ({ ...f, address: e.target.value }))}
+                                className="h-11 rounded-xl border-slate-200 dark:border-slate-800"
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label className="text-[11px] font-semibold text-slate-500 uppercase">
+                                {lang === 'th' ? 'หมายเหตุ' : 'Notes'}
+                            </Label>
+                            <Input
+                                placeholder={lang === 'th' ? 'ข้อมูลเพิ่มเติม (ไม่จำเป็น)' : 'Additional info (optional)'}
+                                value={newCustomerForm.notes}
+                                onChange={(e) => setNewCustomerForm(f => ({ ...f, notes: e.target.value }))}
+                                className="h-11 rounded-xl border-slate-200 dark:border-slate-800"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter className="gap-2">
+                        <Button
+                            variant="outline"
+                            onClick={() => setIsNewCustomerOpen(false)}
+                            disabled={isCreatingCustomer}
+                            className="rounded-xl font-bold"
+                        >
+                            {lang === 'th' ? 'ยกเลิก' : 'Cancel'}
+                        </Button>
+                        <Button
+                            onClick={handleCreateCustomer}
+                            disabled={isCreatingCustomer || !newCustomerForm.name.trim()}
+                            className="rounded-xl font-bold bg-[#E8601C] hover:bg-[#E8601C]/90 text-white"
+                        >
+                            {isCreatingCustomer
+                                ? (lang === 'th' ? 'กำลังบันทึก...' : 'Saving...')
+                                : (lang === 'th' ? 'เพิ่มลูกค้า' : 'Add Customer')
+                            }
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
