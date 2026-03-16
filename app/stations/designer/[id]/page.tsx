@@ -46,13 +46,12 @@ export default function StationDesignerEditorPage() {
         if (!template) return;
         setSaving(true);
         try {
-            const updated = await updateStationTemplate(id, { craftNodes });
-            if (updated) {
-                setTemplate(updated);
-                toast.success("บันทึกแล้ว");
-            }
-        } catch {
-            toast.error("บันทึกไม่สำเร็จ");
+            const updated = await updateStationTemplate(id, { uiSchema: craftNodes });
+            if (updated) setTemplate(updated);
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : "unknown error";
+            console.error("[handleSave] FAILED:", err);
+            toast.error("บันทึกไม่สำเร็จ — " + msg, { duration: 8000 });
         } finally {
             setSaving(false);
         }
@@ -93,7 +92,7 @@ export default function StationDesignerEditorPage() {
             <div className="flex-1 overflow-hidden">
                 <DesignerCanvas
                     templateName={template.name}
-                    initialNodes={Object.keys(template.craftNodes ?? {}).length > 0 ? template.craftNodes : undefined}
+                    initialNodes={Object.keys(template.uiSchema ?? {}).length > 0 ? template.uiSchema : undefined}
                     onSave={handleSave}
                     saving={saving}
                 />

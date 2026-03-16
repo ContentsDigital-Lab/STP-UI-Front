@@ -5,6 +5,7 @@ import {
     Columns2, Columns3, Columns4, Type, AlignLeft, Minus, MoveVertical,
     Tag, TextCursorInput, ChevronDown, FileText,
     MousePointerClick, CreditCard, Activity, LayoutPanelLeft, Table2, ClipboardList, Workflow,
+    Boxes, PackageSearch,
 } from "lucide-react";
 import { ReactElement } from "react";
 
@@ -25,6 +26,8 @@ import { StatusIndicator }   from "./blocks/StatusIndicator";
 import { RecordList }             from "./blocks/RecordList";
 import { RecordDetail }           from "./blocks/RecordDetail";
 import { StationSequencePicker }  from "./blocks/StationSequencePicker";
+import { InventoryStockBlock }    from "./blocks/InventoryStockBlock";
+import { OrderReleasePanel }      from "./blocks/OrderReleasePanel";
 
 interface PaletteItem {
     label: string;
@@ -75,6 +78,8 @@ const PALETTE: PaletteGroup[] = [
             { label: "รายการข้อมูล",     icon: <Table2 className="h-4 w-4" />,       element: <RecordList />,            bg: "bg-indigo-500"  },
             { label: "รายละเอียด",      icon: <ClipboardList className="h-4 w-4" />, element: <RecordDetail />,          bg: "bg-cyan-600"    },
             { label: "เส้นทางผลิต",     icon: <Workflow className="h-4 w-4" />,      element: <StationSequencePicker />, bg: "bg-emerald-600" },
+            { label: "สต็อกวัสดุ",      icon: <Boxes className="h-4 w-4" />,        element: <InventoryStockBlock />,   bg: "bg-emerald-700" },
+            { label: "ประเมินออเดอร์",  icon: <PackageSearch className="h-4 w-4" />, element: <OrderReleasePanel />,    bg: "bg-violet-600"  },
         ],
     },
 ];

@@ -2,7 +2,7 @@
 
 import { useEditor } from "@craftjs/core";
 import { useState } from "react";
-import { Save, Undo2, Redo2, Code2, Trash2, Keyboard, Eye, EyeOff, Smartphone, Tablet, Monitor, Maximize2, Settings2, Cloud, Loader2, AlignLeft, AlignCenter, AlignRight, ZoomIn, ZoomOut, Shrink } from "lucide-react";
+import { Save, Undo2, Redo2, Code2, Trash2, Keyboard, Eye, EyeOff, Smartphone, Tablet, Monitor, Maximize2, Settings2, Cloud, Loader2, AlignLeft, AlignCenter, AlignRight, ZoomIn, ZoomOut, Shrink, PanelRight, PanelRightClose } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export type CanvasAlignment = "left" | "center" | "right";
@@ -43,10 +43,12 @@ interface ToolbarProps {
     zoom:             number;
     onZoom:           (z: number) => void;
     onFitZoom:        () => void;
-    autoSaveStatus?:  "idle" | "saving" | "saved";
+    autoSaveStatus?:  "idle" | "pending" | "saving" | "saved";
+    showProperties?:     boolean;
+    onToggleProperties?: () => void;
 }
 
-export function Toolbar({ templateName, onSave, saving, isPreview = false, onTogglePreview, canvasSize, onCanvasSize, alignment, onAlignment, zoom, onZoom, onFitZoom, autoSaveStatus = "idle" }: ToolbarProps) {
+export function Toolbar({ templateName, onSave, saving, isPreview = false, onTogglePreview, canvasSize, onCanvasSize, alignment, onAlignment, zoom, onZoom, onFitZoom, autoSaveStatus = "idle", showProperties = true, onToggleProperties }: ToolbarProps) {
     const { actions, query, canUndo, canRedo, selected } = useEditor((state, q) => ({
         canUndo: q.history.canUndo(),
         canRedo: q.history.canRedo(),
@@ -276,6 +278,20 @@ export function Toolbar({ templateName, onSave, saving, isPreview = false, onTog
                     {isPreview ? "ออก Preview" : "Preview"}
                 </Button>
 
+                {!isPreview && onToggleProperties && (
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={onToggleProperties}
+                        className="h-8 w-8 p-0"
+                        title={showProperties ? "ซ่อน Properties Panel" : "แสดง Properties Panel"}
+                    >
+                        {showProperties
+                            ? <PanelRightClose className="h-3.5 w-3.5" />
+                            : <PanelRight      className="h-3.5 w-3.5" />
+                        }
+                    </Button>
+                )}
                 <Button variant="outline" size="sm" onClick={() => setShowKeys(true)} className="h-8 w-8 p-0" title="Keyboard shortcuts">
                     <Keyboard className="h-3.5 w-3.5" />
                 </Button>
@@ -284,6 +300,12 @@ export function Toolbar({ templateName, onSave, saving, isPreview = false, onTog
                     ดู JSON
                 </Button>
                 {/* Auto-save status indicator */}
+                {autoSaveStatus === "pending" && (
+                    <span className="flex items-center gap-1.5 text-[11px] text-amber-600 dark:text-amber-400">
+                        <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                        ยังไม่บันทึก
+                    </span>
+                )}
                 {autoSaveStatus === "saving" && (
                     <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
                         <Loader2 className="h-3 w-3 animate-spin" /> กำลังบันทึก...

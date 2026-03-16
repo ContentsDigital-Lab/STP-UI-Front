@@ -117,6 +117,17 @@ const FIELD_META: Record<string, Record<string, FieldDef>> = {
         submitEndpoint: { label: "API สร้างออเดอร์",   type: "select", section: "action", options: ["/orders"], optionLabels: ["สร้างออเดอร์ (/orders)"] },
         requestIdParam: { label: "URL Param ของบิล",   type: "text",   section: "action", hint: "ชื่อ query param ที่เก็บ ID ของ request/bill", placeholder: "id" },
     },
+    "Inventory Stock": {
+        title:       { label: "ชื่อหัวข้อ",       type: "text",   section: "props", placeholder: "เช่น สต็อกวัสดุในคลัง" },
+        maxItems:    { label: "จำนวนสูงสุด",      type: "number", section: "props", placeholder: "8" },
+        stockFilter: { label: "กรองสต็อก",        type: "select", section: "props", options: ["all","low","out"], optionLabels: ["ทั้งหมด","สต็อกต่ำกว่าจุดสั่ง","หมดสต็อก"] },
+        showSearch:  { label: "แสดงช่องค้นหา",   type: "toggle", section: "props" },
+    },
+    "Order Release Panel": {
+        title:          { label: "ชื่อหัวข้อ",        type: "text",   section: "props", placeholder: "เช่น ประเมินออเดอร์" },
+        maxItems:       { label: "จำนวนออเดอร์สูงสุด", type: "number", section: "props", placeholder: "10" },
+        showStockCheck: { label: "ตรวจสอบสต็อกวัสดุ", type: "toggle", section: "props" },
+    },
     "Record List": {
         label:       { label: "ชื่อหัวข้อรายการ", type: "text",          section: "props", placeholder: "เช่น รายการบิล" },
         showHeader:  { label: "แสดงหัวรายการ",    type: "toggle",        section: "props" },

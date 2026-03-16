@@ -130,6 +130,15 @@ export interface Claim {
     updatedAt: string;
 }
 
+export interface Station {
+    _id:         string;
+    name:        string;
+    colorId:     string;
+    templateId?: string;
+    createdAt:   string;
+    updatedAt:   string;
+}
+
 export interface Notification {
     _id: string;
     recipient: string | Worker;

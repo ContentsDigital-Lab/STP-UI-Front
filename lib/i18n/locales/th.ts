@@ -9,6 +9,8 @@ export const th = {
         inventory_flow: "กระแสการหมุนเวียนวัสดุ",
         recent_activity: "กิจกรรมล่าสุด",
     },
+    stations: "สถานี",
+    design: "ออกแบบ",
     orders: "รายการสั่งซื้อ",
     orderRequests: "คำสั่งซื้อ",
     production: "ฝ่ายผลิต",

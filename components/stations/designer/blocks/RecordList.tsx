@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Database, ChevronRight, Loader2, AlertCircle, Hash, ExternalLink } from "lucide-react";
 import { fetchApi } from "@/lib/api/config";
 import { usePreview } from "../PreviewContext";
+import { useWebSocket } from "@/lib/hooks/use-socket";
 import { STATUS_CONFIG } from "./StatusIndicator";
 
 // ── Column definition ─────────────────────────────────────────────────────────
@@ -91,19 +92,33 @@ interface RecordListProps {
     showHeader?:    boolean;
 }
 
+// ── WebSocket room mapping ────────────────────────────────────────────────────
+const DATASOURCE_WS: Record<string, { room: string; events: string[] }> = {
+    "/orders":           { room: "order",      events: ["order:updated"]                              },
+    "/requests":         { room: "request",    events: ["request:updated"]                            },
+    "/claims":           { room: "claim",      events: ["claim:updated"]                              },
+    "/withdrawals":      { room: "withdrawal", events: ["withdrawal:updated"]                         },
+    "/inventories":      { room: "inventory",  events: ["inventory:updated", "material:updated"]      },
+    "/material-logs":    { room: "log",        events: ["log:updated"]                                },
+    "/stations":         { room: "station",    events: ["station:updated", "station-template:updated"] },
+    "/station-templates":{ room: "station",    events: ["station:updated", "station-template:updated"] },
+};
+
 // ── Component ─────────────────────────────────────────────────────────────────
 // friendly label map for design mode badge
 const SOURCE_LABEL: Record<string, string> = {
-    "/orders":        "รายการออเดอร์/คำสั่งผลิต",
-    "/requests":      "รายการคำขอ (บิล)",
-    "/materials":     "รายการวัสดุ",
-    "/workers":       "รายการพนักงาน",
-    "/customers":     "รายการลูกค้า",
-    "/inventories":   "คลังสินค้า",
-    "/claims":        "รายการเคลม",
-    "/withdrawals":   "รายการเบิกวัสดุ",
-    "/material-logs": "ประวัติการใช้วัสดุ",
-    "/notifications": "การแจ้งเตือน",
+    "/orders":            "รายการออเดอร์/คำสั่งผลิต",
+    "/requests":          "รายการคำขอ (บิล)",
+    "/materials":         "รายการวัสดุ",
+    "/workers":           "รายการพนักงาน",
+    "/customers":         "รายการลูกค้า",
+    "/inventories":       "คลังสินค้า",
+    "/claims":            "รายการเคลม",
+    "/withdrawals":       "รายการเบิกวัสดุ",
+    "/material-logs":     "ประวัติการใช้วัสดุ",
+    "/notifications":     "การแจ้งเตือน",
+    "/stations":          "รายการสถานี",
+    "/station-templates": "แม่แบบสถานี",
 };
 
 export function RecordList({
@@ -132,15 +147,25 @@ export function RecordList({
     const [error,    setError]    = useState("");
     const [query,    setQuery]    = useState("");
 
-    useEffect(() => {
-        if (!isPreview) return;
-        if (!isApi)     { setRows(SAMPLE_ROWS); return; }
+    const loadData = () => {
+        if (!isApi) { setRows(SAMPLE_ROWS); return; }
         setFetching(true); setError("");
         fetchApi<{ success: boolean; data: Record<string, unknown>[] }>(dataSource)
             .then((res) => { if (res.success) setRows(res.data ?? []); else setError("โหลดข้อมูลไม่สำเร็จ"); })
             .catch(() => setError("ยังไม่มีข้อมูลจาก API — ลองใช้งานจริงเพื่อดูข้อมูล"))
             .finally(() => setFetching(false));
+    };
+
+    useEffect(() => {
+        if (!isPreview) return;
+        loadData();
     }, [isPreview, dataSource, isApi]);
+
+    // Real-time updates via WebSocket
+    const wsConfig = DATASOURCE_WS[dataSource] ?? { room: "_noop", events: [] };
+    useWebSocket(wsConfig.room, wsConfig.events, () => {
+        if (isPreview && isApi) loadData();
+    });
 
     const filtered = rows
         .filter((r) => {

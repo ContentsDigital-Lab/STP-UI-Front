@@ -19,6 +19,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     const { isAuthenticated, isLoading } = useAuth();
 
     const getPageTitle = () => {
+        if (pathname.startsWith("/stations/designer")) return t.design;
+        if (pathname.startsWith("/stations")) return t.stations;
         if (pathname.startsWith("/request")) return t.orderRequests;
         if (pathname.startsWith("/orders")) return t.orders;
         if (pathname.startsWith("/production")) return t.production;

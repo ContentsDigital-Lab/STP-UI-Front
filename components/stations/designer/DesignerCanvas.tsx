@@ -33,14 +33,17 @@ import { StatusIndicator }        from "./blocks/StatusIndicator";
 import { RecordList }             from "./blocks/RecordList";
 import { RecordDetail }           from "./blocks/RecordDetail";
 import { StationSequencePicker }  from "./blocks/StationSequencePicker";
+import { InventoryStockBlock }    from "./blocks/InventoryStockBlock";
+import { OrderReleasePanel }      from "./blocks/OrderReleasePanel";
 
 interface DesignerCanvasProps {
-    templateName:  string;
-    initialNodes?: Record<string, unknown>;
-    onSave:        (craftNodes: Record<string, unknown>) => Promise<void>;
-    saving?:       boolean;
+    templateName:        string;
+    initialNodes?:       Record<string, unknown>;
+    onSave:              (craftNodes: Record<string, unknown>) => Promise<void>;
+    saving?:             boolean;
+    onSaveStatusChange?: (status: SaveStatus) => void;
     /** Start directly in preview/live mode — hides toolbar edit controls */
-    previewOnly?:  boolean;
+    previewOnly?:        boolean;
 }
 
 const RESOLVER = {
@@ -48,7 +51,15 @@ const RESOLVER = {
     Heading, Paragraph, Divider, Spacer, Badge,
     InputField, SelectField, TextAreaField, ButtonBlock,
     InfoCard, StatusIndicator, RecordList, RecordDetail, StationSequencePicker,
+    InventoryStockBlock, OrderReleasePanel,
 };
+
+/** Syncs Properties panel visibility with current selection — must be inside <Editor> */
+function SelectionWatcher({ onSelection }: { onSelection: (hasSelection: boolean) => void }) {
+    const { selected } = useEditor((state) => ({ selected: [...state.events.selected][0] ?? null }));
+    useEffect(() => { onSelection(!!selected); }, [selected, onSelection]);
+    return null;
+}
 
 /** Syncs preview (enabled/disabled) into Craft.js options — must be inside <Editor> */
 function EditorModeSync({ enabled }: { enabled: boolean }) {
@@ -59,7 +70,9 @@ function EditorModeSync({ enabled }: { enabled: boolean }) {
     return null;
 }
 
-/** Auto-saves 1.5 s after any node change. Skips the initial hydration render. */
+export type SaveStatus = "idle" | "pending" | "saving" | "saved";
+
+/** Auto-saves 5 s after any node change. Skips the initial hydration render. */
 function AutoSave({
     onSave,
     enabled,
@@ -67,7 +80,7 @@ function AutoSave({
 }: {
     onSave:          (json: Record<string, unknown>) => Promise<void>;
     enabled:         boolean;
-    onStatusChange?: (status: "idle" | "saving" | "saved") => void;
+    onStatusChange?: (status: SaveStatus) => void;
 }) {
     const { query, nodes } = useEditor((state) => ({ nodes: state.nodes }));
     const initializedRef   = useRef(false);
@@ -79,18 +92,18 @@ function AutoSave({
         if (!enabled) return;
 
         if (timerRef.current) clearTimeout(timerRef.current);
-        onStatusChange?.("idle");
+        onStatusChange?.("pending"); // unsaved changes exist
         timerRef.current = setTimeout(async () => {
             try {
                 onStatusChange?.("saving");
                 const json = JSON.parse(query.serialize()) as Record<string, unknown>;
                 await onSave(json);
                 onStatusChange?.("saved");
-                setTimeout(() => onStatusChange?.("idle"), 2000);
-            } catch {
-                onStatusChange?.("idle");
+            } catch (err) {
+                console.error("[AutoSave] error:", err);
+                onStatusChange?.("pending"); // revert to pending so user knows it needs saving
             }
-        }, 1500);
+        }, 5000); // 5 s debounce — avoids rate limiting
 
         return () => { if (timerRef.current) clearTimeout(timerRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -99,22 +112,28 @@ function AutoSave({
     return null;
 }
 
-export function DesignerCanvas({ templateName, initialNodes, onSave, saving, previewOnly = false }: DesignerCanvasProps) {
-    const [isPreview,   setIsPreview]   = useState(previewOnly);
-    const [canvasSize,  setCanvasSize]  = useState<CanvasSize>({ width: 900, height: 700 });
-    const [alignment,   setAlignment]   = useState<CanvasAlignment>("center");
-    const [zoom,        setZoom]        = useState(100);
-    const [autoStatus,  setAutoStatus]  = useState<"idle" | "saving" | "saved">("idle");
+export function DesignerCanvas({ templateName, initialNodes, onSave, saving, onSaveStatusChange, previewOnly = false }: DesignerCanvasProps) {
+    const [isPreview,      setIsPreview]      = useState(previewOnly);
+    const [canvasSize,     setCanvasSize]     = useState<CanvasSize>({ width: 900, height: 700 });
+    const [alignment,      setAlignment]      = useState<CanvasAlignment>("center");
+    const [zoom,           setZoom]           = useState(100);
+    const [autoStatus,     setAutoStatus]     = useState<SaveStatus>("idle");
+    const [showProperties, setShowProperties] = useState(false);
     const mainRef = useRef<HTMLElement>(null);
 
     return (
         <PreviewContext.Provider value={isPreview}>
             <Editor resolver={RESOLVER}>
                 <EditorModeSync enabled={!isPreview} />
+                <SelectionWatcher onSelection={(has) => { if (!isPreview) setShowProperties(has); }} />
                 <KeyboardShortcuts />
                 {/* Auto-save on every node change (1.5 s debounce) */}
                 {!previewOnly && (
-                    <AutoSave onSave={onSave} enabled={!isPreview} onStatusChange={setAutoStatus} />
+                    <AutoSave
+                        onSave={onSave}
+                        enabled={!isPreview}
+                        onStatusChange={(s) => { setAutoStatus(s); onSaveStatusChange?.(s); }}
+                    />
                 )}
                 <div className="flex flex-col h-full">
                     {/* Hide entire toolbar in previewOnly (live station) mode */}
@@ -147,6 +166,8 @@ export function DesignerCanvas({ templateName, initialNodes, onSave, saving, pre
                                 setZoom(Math.max(25, Math.min(200, fit)));
                             }}
                             autoSaveStatus={autoStatus}
+                            showProperties={showProperties}
+                            onToggleProperties={() => setShowProperties((p) => !p)}
                         />
                     )}
                     <div className="flex flex-1 overflow-hidden">
@@ -204,7 +225,7 @@ export function DesignerCanvas({ templateName, initialNodes, onSave, saving, pre
                             </div>
                         </main>
 
-                        {!isPreview && <PropertiesPanel />}
+                        {!isPreview && showProperties && <PropertiesPanel />}
                     </div>
                 </div>
             </Editor>

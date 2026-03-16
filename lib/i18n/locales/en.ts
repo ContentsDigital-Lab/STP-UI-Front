@@ -11,6 +11,8 @@ export const en: Dictionary = {
         inventory_flow: "Inventory Flow",
         recent_activity: "Recent Activity",
     },
+    stations: "Stations",
+    design: "Design",
     orders: "Orders",
     orderRequests: "Order Requests",
     production: "Production",

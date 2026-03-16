@@ -8,7 +8,9 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { getStationTemplate } from "@/lib/api/station-templates";
 import { StationTemplate } from "@/lib/types/station-designer";
-import { getStations, getColorOption, StationEntity } from "@/lib/stations/stations-store";
+import { stationsApi } from "@/lib/api/stations";
+import { Station } from "@/lib/api/types";
+import { getColorOption } from "@/lib/stations/stations-store";
 
 // ⚠️ Craft.js uses browser APIs — disable SSR
 const DesignerCanvas = dynamic(
@@ -32,28 +34,30 @@ export default function LiveStationPage() {
     const router    = useRouter();
     const stationId = params.stationId as string;
 
-    const [station,    setStation]    = useState<StationEntity | null>(null);
+    const [station,    setStation]    = useState<Station | null>(null);
     const [template,   setTemplate]   = useState<StationTemplate | null>(null);
     const [loading,    setLoading]    = useState(true);
     const [noTemplate, setNoTemplate] = useState(false);
 
     useEffect(() => {
-        const stations  = getStations();
-        const found     = stations.find((s) => s._id === stationId) ?? null;
-        setStation(found);
+        stationsApi.getById(stationId)
+            .then((res) => {
+                const found = res.success ? res.data : null;
+                setStation(found);
 
-        if (!found?.templateId) {
-            setNoTemplate(true);
-            setLoading(false);
-            return;
-        }
+                if (!found?.templateId) {
+                    setNoTemplate(true);
+                    setLoading(false);
+                    return;
+                }
 
-        getStationTemplate(found.templateId)
-            .then((t) => {
-                if (t) setTemplate(t);
-                else { toast.error("โหลด template ไม่สำเร็จ"); setNoTemplate(true); }
+                return getStationTemplate(found.templateId)
+                    .then((t) => {
+                        if (t) setTemplate(t);
+                        else { toast.error("โหลด template ไม่สำเร็จ"); setNoTemplate(true); }
+                    });
             })
-            .catch(() => { toast.error("เชื่อมต่อ API ไม่ได้"); setNoTemplate(true); })
+            .catch(() => { toast.error("โหลดสถานีไม่สำเร็จ"); setNoTemplate(true); })
             .finally(() => setLoading(false));
     }, [stationId]);
 
@@ -124,7 +128,7 @@ export default function LiveStationPage() {
             <div className="flex-1 overflow-hidden">
                 <DesignerCanvas
                     templateName={template.name}
-                    initialNodes={Object.keys(template.craftNodes ?? {}).length > 0 ? template.craftNodes : undefined}
+                    initialNodes={Object.keys(template.uiSchema ?? {}).length > 0 ? template.uiSchema : undefined}
                     onSave={async () => {}}
                     saving={false}
                     previewOnly
