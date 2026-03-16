@@ -123,7 +123,8 @@ export function StationSequencePicker({
             const res = await stationsApi.getAll();
             if (res.success) {
                 setAllStations(res.data);
-                setSequence((prev) => prev.length === 0 ? res.data.map((s) => s._id) : prev);
+                // Do NOT auto-populate — some stations may be skipped in this route.
+                // Users manually pick only the stations that are part of the sequence.
             }
         } finally {
             setLoadingStations(false);
@@ -273,15 +274,11 @@ export function StationSequencePicker({
             className={`w-full rounded-xl border-2 cursor-grab overflow-hidden transition-all
                 ${selected ? "border-primary ring-2 ring-primary/20" : "border-slate-200 dark:border-slate-700 hover:border-primary/30"}`}
         >
-            <div className="flex items-center justify-between px-4 py-2.5 bg-muted/30 border-b">
-                <div className="flex items-center gap-2">
-                    <Workflow className="h-3.5 w-3.5 text-muted-foreground/60" />
-                    <p className="text-xs font-semibold text-foreground/70">{title}</p>
-                </div>
-                <span className="text-[10px] text-muted-foreground/50">POST {submitEndpoint}</span>
+            <div className="flex items-center gap-2 px-4 py-2.5 bg-muted/30 border-b">
+                <Workflow className="h-3.5 w-3.5 text-muted-foreground/60" />
+                <p className="text-xs font-semibold text-foreground/70">{title}</p>
             </div>
             <div className="p-4 space-y-2 opacity-60 pointer-events-none">
-                <p className="text-[10px] text-muted-foreground/50 italic px-1">ดึงรายการสถานีจาก /api/stations (WebSocket: station:updated)</p>
                 <div className="space-y-1">
                     {[1, 2, 3].map((i) => (
                         <div key={i} className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2">
