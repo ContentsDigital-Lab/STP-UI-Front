@@ -92,7 +92,7 @@ export default function StationDesignerEditorPage() {
             <div className="flex-1 overflow-hidden">
                 <DesignerCanvas
                     templateName={template.name}
-                    initialNodes={Object.keys(template.uiSchema ?? {}).length > 0 ? template.uiSchema : undefined}
+                    initialNodes={template.uiSchema && typeof template.uiSchema === "object" && !Array.isArray(template.uiSchema) && Object.keys(template.uiSchema).length > 0 ? template.uiSchema as Record<string, unknown> : undefined}
                     onSave={handleSave}
                     saving={saving}
                 />

@@ -107,15 +107,12 @@ const FIELD_META: Record<string, Record<string, FieldDef>> = {
         dataVar:     { label: "เชื่อมกับข้อมูล", type: "text",   section: "data", hint: "ชื่อ object ที่จะนำข้อมูลมาแสดงในการ์ด", placeholder: "เช่น selectedOrder", suggestions: DATA_VAR_SUGGESTIONS },
     },
     "Record Detail": {
-        title:      { label: "ชื่อหัวข้อ",         type: "text",   section: "props", placeholder: "เช่น รายละเอียดคำขอ" },
-        endpoint:   { label: "แหล่งข้อมูล",         type: "select", section: "data",  options: ["static","/orders","/requests","/materials","/workers","/customers","/inventories","/claims","/withdrawals"], optionLabels: ["ตัวอย่าง (ไม่ต้องการ API)","รายการออเดอร์/คำสั่งผลิต","รายการคำขอ (บิล)","รายการวัสดุ","รายการพนักงาน","รายการลูกค้า","คลังสินค้า","รายการเคลม","รายการเบิกวัสดุ"] },
-        idParam:    { label: "URL Param ของ ID",    type: "text",   section: "data",  hint: "ชื่อ query param หรือ path segment ที่เก็บ ID ของ record เช่น ?id=xxx", placeholder: "id" },
-        fieldsJson: { label: "ฟิลด์ที่แสดง",       type: "column-editor", section: "data" },
+        title:      { label: "ชื่อหัวข้อ",   type: "text",          section: "props", placeholder: "เช่น รายละเอียดคำขอ" },
+        endpoint:   { label: "แหล่งข้อมูล", type: "select",         section: "data",  options: ["static","/orders","/requests","/materials","/workers","/customers","/inventories","/claims","/withdrawals"], optionLabels: ["ตัวอย่าง (ไม่ต้องการ API)","รายการออเดอร์/คำสั่งผลิต","รายการคำขอ (บิล)","รายการวัสดุ","รายการพนักงาน","รายการลูกค้า","คลังสินค้า","รายการเคลม","รายการเบิกวัสดุ"] },
+        fieldsJson: { label: "ฟิลด์ที่แสดง", type: "column-editor", section: "data"  },
     },
     "Station Sequence": {
-        title:          { label: "ชื่อหัวข้อ",         type: "text",   section: "props", placeholder: "เช่น กำหนดเส้นทางการผลิต" },
-        submitEndpoint: { label: "API สร้างออเดอร์",   type: "select", section: "action", options: ["/orders"], optionLabels: ["สร้างออเดอร์ (/orders)"] },
-        requestIdParam: { label: "URL Param ของบิล",   type: "text",   section: "action", hint: "ชื่อ query param ที่เก็บ ID ของ request/bill", placeholder: "id" },
+        title: { label: "ชื่อหัวข้อ", type: "text", section: "props", placeholder: "เช่น กำหนดเส้นทางการผลิต" },
     },
     "Inventory Stock": {
         title:       { label: "ชื่อหัวข้อ",       type: "text",   section: "props", placeholder: "เช่น สต็อกวัสดุในคลัง" },
@@ -543,7 +540,6 @@ export function PropertiesPanel() {
                 <div className="px-4 pt-4 pb-2">
                     <div className="rounded-lg bg-muted/40 px-3 py-2">
                         <p className="text-xs font-bold text-foreground">{blockName || "Component"}</p>
-                        <p className="text-[11px] text-muted-foreground">ID: {selected.slice(0, 8)}</p>
                     </div>
                 </div>
                 {(hasData || hasAction) && (

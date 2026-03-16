@@ -96,7 +96,7 @@ export default function StationDesignerGalleryPage() {
                         <div key={tmpl._id} className="rounded-xl border bg-card p-4 hover:shadow-md transition-shadow space-y-3">
                             <div className="space-y-1">
                                 <h3 className="font-semibold text-foreground truncate">{tmpl.name}</h3>
-                                <p className="text-xs text-muted-foreground">{Object.keys(tmpl.uiSchema ?? {}).length} nodes</p>
+                                <p className="text-xs text-muted-foreground">{tmpl.uiSchema && typeof tmpl.uiSchema === "object" ? Object.keys(tmpl.uiSchema).length : 0} nodes</p>
                             </div>
                             <div className="flex items-center gap-1 text-[11px] text-muted-foreground/70">
                                 <Clock className="h-3 w-3" />

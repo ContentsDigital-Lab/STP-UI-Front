@@ -112,6 +112,28 @@ function AutoSave({
     return null;
 }
 
+/**
+ * Craft.js calls Object.keys() on every node and every node's sub-properties
+ * (props, linkedNodes, custom, etc.). If ANY of those values is null/undefined
+ * the engine throws "Cannot convert undefined or null to object".
+ * This sanitizer ensures each node and its required sub-fields are real objects.
+ */
+function sanitizeCraftNodes(raw: Record<string, unknown>): string | undefined {
+    const clean: Record<string, unknown> = {};
+    for (const [id, node] of Object.entries(raw)) {
+        if (!node || typeof node !== "object" || Array.isArray(node)) continue;
+        const n = node as Record<string, unknown>;
+        clean[id] = {
+            ...n,
+            props:       (n.props && typeof n.props === "object" && !Array.isArray(n.props))       ? n.props       : {},
+            custom:      (n.custom && typeof n.custom === "object" && !Array.isArray(n.custom))     ? n.custom      : {},
+            linkedNodes: (n.linkedNodes && typeof n.linkedNodes === "object" && !Array.isArray(n.linkedNodes)) ? n.linkedNodes : {},
+            nodes:       Array.isArray(n.nodes) ? n.nodes : [],
+        };
+    }
+    return "ROOT" in clean ? JSON.stringify(clean) : undefined;
+}
+
 export function DesignerCanvas({ templateName, initialNodes, onSave, saving, onSaveStatusChange, previewOnly = false }: DesignerCanvasProps) {
     const [isPreview,      setIsPreview]      = useState(previewOnly);
     const [canvasSize,     setCanvasSize]     = useState<CanvasSize>({ width: 900, height: 700 });
@@ -214,7 +236,13 @@ export function DesignerCanvas({ templateName, initialNodes, onSave, saving, onS
                                     : "shadow-lg ring-1 ring-black/5 rounded-sm"
                                 }
                             >
-                                <Frame data={initialNodes ? JSON.stringify(initialNodes) : undefined}>
+                                <Frame data={
+                                    initialNodes &&
+                                    typeof initialNodes === "object" &&
+                                    !Array.isArray(initialNodes)
+                                        ? sanitizeCraftNodes(initialNodes)
+                                        : undefined
+                                }>
                                     <Element
                                         is={CanvasContainer}
                                         canvas
