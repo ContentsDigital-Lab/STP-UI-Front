@@ -3,17 +3,14 @@
 export interface StationTemplate {
     _id: string;
     name: string;
-    description: string;
-    createdBy?: string;
-    craftNodes: Record<string, unknown>;
+    uiSchema: Record<string, unknown>;
     createdAt: string;
     updatedAt: string;
 }
 
 export interface CreateStationTemplateDto {
     name: string;
-    description: string;
-    craftNodes?: Record<string, unknown>;
+    uiSchema?: Record<string, unknown>;
 }
 
 // ─── UI Block prop interfaces ────────────────────────────────────────────────

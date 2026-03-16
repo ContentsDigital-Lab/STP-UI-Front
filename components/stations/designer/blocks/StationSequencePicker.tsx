@@ -1,11 +1,14 @@
 "use client";
 
 import { useNode } from "@craftjs/core";
-import { useRef, useState } from "react";
-import { X, Plus, Send, CheckCircle2, Loader2, Workflow, GripVertical } from "lucide-react";
+import { useRef, useState, useEffect } from "react";
+import { X, Plus, Send, CheckCircle2, Loader2, Workflow, GripVertical, RefreshCw } from "lucide-react";
 import { fetchApi } from "@/lib/api/config";
 import { usePreview } from "../PreviewContext";
-import { getStations, getColorOption, StationEntity } from "@/lib/stations/stations-store";
+import { useWebSocket } from "@/lib/hooks/use-socket";
+import { stationsApi } from "@/lib/api/stations";
+import { Station } from "@/lib/api/types";
+import { getColorOption } from "@/lib/stations/stations-store";
 
 // ── Station catalog ───────────────────────────────────────────────────────────
 interface StationOption { id: string; label: string; desc: string; color: string; }
@@ -46,7 +49,7 @@ function DraggableSequence({
     onRemove,
 }: {
     sequence:    string[];
-    allStations: StationEntity[];
+    allStations: Station[];
     onReorder:   (from: number, to: number) => void;
     onRemove:    (id: string) => void;
 }) {
@@ -109,11 +112,30 @@ export function StationSequencePicker({
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
 
-    // Load user-created stations from store
-    const allStations = getStations();
+    const [allStations,     setAllStations]     = useState<Station[]>([]);
+    const [loadingStations, setLoadingStations] = useState(false);
+    const [sequence,        setSequence]        = useState<string[]>([]);
+    const [feedback,        setFeedback]        = useState<"" | "loading" | "ok" | "error">("");
 
-    const [sequence, setSequence] = useState<string[]>(() => allStations.map((s) => s._id));
-    const [feedback, setFeedback] = useState<"" | "loading" | "ok" | "error">("");
+    const loadStations = async () => {
+        setLoadingStations(true);
+        try {
+            const res = await stationsApi.getAll();
+            if (res.success) {
+                setAllStations(res.data);
+                setSequence((prev) => prev.length === 0 ? res.data.map((s) => s._id) : prev);
+            }
+        } finally {
+            setLoadingStations(false);
+        }
+    };
+
+    useEffect(() => { if (isPreview) loadStations(); }, [isPreview]);
+
+    // Real-time station list updates via WebSocket
+    useWebSocket("station", ["station:updated", "station-template:updated"], () => {
+        if (isPreview) loadStations();
+    });
 
     const addStation    = (id: string) => { if (!sequence.includes(id)) setSequence([...sequence, id]); };
     const removeStation = (id: string) => setSequence(sequence.filter((s) => s !== id));
@@ -150,12 +172,21 @@ export function StationSequencePicker({
             );
         }
 
+        if (loadingStations) {
+            return (
+                <div className="w-full rounded-xl border bg-card px-5 py-10 flex flex-col items-center gap-3 text-center">
+                    <Loader2 className="h-8 w-8 text-muted-foreground/40 animate-spin" />
+                    <p className="text-sm text-muted-foreground">กำลังโหลดสถานี...</p>
+                </div>
+            );
+        }
+
         if (allStations.length === 0) {
             return (
                 <div className="w-full rounded-xl border bg-card px-5 py-10 flex flex-col items-center gap-3 text-center">
                     <Workflow className="h-10 w-10 text-muted-foreground/30" />
                     <p className="text-sm font-medium text-muted-foreground">ยังไม่มีสถานี</p>
-                    <p className="text-xs text-muted-foreground/60">สร้างสถานีในหน้าสถานีก่อน แล้วกลับมาใช้งาน</p>
+                    <p className="text-xs text-muted-foreground/60">สร้างสถานีในระบบก่อน แล้วกลับมาใช้งาน</p>
                 </div>
             );
         }
@@ -164,9 +195,14 @@ export function StationSequencePicker({
         return (
             <div className="w-full rounded-xl border bg-card overflow-hidden">
                 {/* Header */}
-                <div className="px-5 py-3.5 border-b bg-muted/30">
-                    <p className="text-sm font-semibold">{title}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">ลากเพื่อจัดเรียง · คลิก × เพื่อลบ</p>
+                <div className="px-5 py-3.5 border-b bg-muted/30 flex items-center justify-between">
+                    <div>
+                        <p className="text-sm font-semibold">{title}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">ลากเพื่อจัดเรียง · คลิก × เพื่อลบ</p>
+                    </div>
+                    <button onClick={loadStations} disabled={loadingStations} className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground" title="รีเฟรช">
+                        <RefreshCw className={`h-3.5 w-3.5 ${loadingStations ? "animate-spin" : ""}`} />
+                    </button>
                 </div>
 
                 {/* Selected sequence — drag to reorder */}
@@ -231,8 +267,6 @@ export function StationSequencePicker({
     }
 
     // ── Design mode ───────────────────────────────────────────────────────────
-    const userStations = getStations();
-
     return (
         <div
             ref={(ref) => { ref && connect(drag(ref)); }}
@@ -247,24 +281,16 @@ export function StationSequencePicker({
                 <span className="text-[10px] text-muted-foreground/50">POST {submitEndpoint}</span>
             </div>
             <div className="p-4 space-y-2 opacity-60 pointer-events-none">
-                <div className="flex flex-wrap gap-1">
-                    {PRESETS.slice(0, 4).map((p) => (
-                        <span key={p.label} className="text-[10px] px-2 py-0.5 rounded-full border border-muted-foreground/20 text-muted-foreground">{p.label}</span>
+                <p className="text-[10px] text-muted-foreground/50 italic px-1">ดึงรายการสถานีจาก /api/stations (WebSocket: station:updated)</p>
+                <div className="space-y-1">
+                    {[1, 2, 3].map((i) => (
+                        <div key={i} className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2">
+                            <GripVertical className="h-3.5 w-3.5 text-muted-foreground/20" />
+                            <span className="text-[10px] text-muted-foreground/30 w-4 font-mono">{i}</span>
+                            <div className="h-3 w-20 rounded-full bg-muted animate-none" />
+                        </div>
                     ))}
                 </div>
-                {userStations.length === 0 ? (
-                    <p className="text-[10px] text-muted-foreground/50 italic px-1">ยังไม่มีสถานี — สร้างสถานีก่อนในหน้าสถานี</p>
-                ) : (
-                    <div className="space-y-1">
-                        {userStations.map((station, i) => (
-                            <div key={station._id} className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2">
-                                <GripVertical className="h-3.5 w-3.5 text-muted-foreground/20" />
-                                <span className="text-[10px] text-muted-foreground/30 w-4 font-mono">{i + 1}</span>
-                                <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-muted text-foreground/60">{station.name}</span>
-                            </div>
-                        ))}
-                    </div>
-                )}
                 <div className="h-9 rounded-lg bg-primary/20 flex items-center justify-center">
                     <span className="text-xs text-primary/60 font-medium">เปิดออเดอร์</span>
                 </div>

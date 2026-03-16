@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Database, Loader2, AlertCircle } from "lucide-react";
 import { fetchApi } from "@/lib/api/config";
 import { usePreview } from "../PreviewContext";
+import { useWebSocket } from "@/lib/hooks/use-socket";
 import { STATUS_CONFIG } from "./StatusIndicator";
 
 // ── Field display config ──────────────────────────────────────────────────────
@@ -76,6 +77,18 @@ const SAMPLE_DATA: Record<string, unknown> = {
     assignedTo: "สมชาย ใจดี",
 };
 
+// ── WebSocket room mapping ────────────────────────────────────────────────────
+const ENDPOINT_WS: Record<string, { room: string; events: string[] }> = {
+    "/orders":           { room: "order",      events: ["order:updated"]                              },
+    "/requests":         { room: "request",    events: ["request:updated"]                            },
+    "/claims":           { room: "claim",      events: ["claim:updated"]                              },
+    "/withdrawals":      { room: "withdrawal", events: ["withdrawal:updated"]                         },
+    "/inventories":      { room: "inventory",  events: ["inventory:updated", "material:updated"]      },
+    "/material-logs":    { room: "log",        events: ["log:updated"]                                },
+    "/stations":         { room: "station",    events: ["station:updated", "station-template:updated"] },
+    "/station-templates":{ room: "station",    events: ["station:updated", "station-template:updated"] },
+};
+
 // ── Props ─────────────────────────────────────────────────────────────────────
 interface RecordDetailProps {
     title?:      string;
@@ -103,8 +116,7 @@ export function RecordDetail({
     const [fetching, setFetching] = useState(false);
     const [error,    setError]    = useState("");
 
-    useEffect(() => {
-        if (!isPreview) return;
+    const loadData = () => {
         const id = new URLSearchParams(window.location.search).get(idParam)
             ?? window.location.pathname.split("/").filter(Boolean).pop();
         if (!id) { setRecord(SAMPLE_DATA); return; }
@@ -113,7 +125,18 @@ export function RecordDetail({
             .then((res) => { if (res.success) setRecord(res.data); else setError("โหลดข้อมูลไม่สำเร็จ"); })
             .catch(() => setRecord(SAMPLE_DATA))
             .finally(() => setFetching(false));
+    };
+
+    useEffect(() => {
+        if (!isPreview) return;
+        loadData();
     }, [isPreview, endpoint, idParam]);
+
+    // Real-time updates via WebSocket
+    const wsConfig = ENDPOINT_WS[endpoint] ?? { room: "_noop", events: [] };
+    useWebSocket(wsConfig.room, wsConfig.events, () => {
+        if (isPreview) loadData();
+    });
 
     // ── Preview render ────────────────────────────────────────────────────────
     if (isPreview) {

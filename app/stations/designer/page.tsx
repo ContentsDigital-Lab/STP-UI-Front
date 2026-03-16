@@ -19,7 +19,6 @@ export default function StationDesignerGalleryPage() {
     const [creating,  setCreating]  = useState(false);
     const [showCreate, setShowCreate] = useState(false);
     const [newName,   setNewName]   = useState("");
-    const [newDesc,   setNewDesc]   = useState("");
     const [deleting,  setDeleting]  = useState<string | null>(null);
 
     useEffect(() => {
@@ -30,7 +29,7 @@ export default function StationDesignerGalleryPage() {
         if (!newName.trim()) return;
         setCreating(true);
         try {
-            const tmpl = await createStationTemplate({ name: newName.trim(), description: newDesc.trim() });
+            const tmpl = await createStationTemplate({ name: newName.trim() });
             toast.success("สร้าง template แล้ว");
             router.push(`/stations/designer/${tmpl._id}`);
         } catch {
@@ -97,7 +96,7 @@ export default function StationDesignerGalleryPage() {
                         <div key={tmpl._id} className="rounded-xl border bg-card p-4 hover:shadow-md transition-shadow space-y-3">
                             <div className="space-y-1">
                                 <h3 className="font-semibold text-foreground truncate">{tmpl.name}</h3>
-                                <p className="text-xs text-muted-foreground line-clamp-2">{tmpl.description || "ไม่มีคำอธิบาย"}</p>
+                                <p className="text-xs text-muted-foreground">{Object.keys(tmpl.uiSchema ?? {}).length} nodes</p>
                             </div>
                             <div className="flex items-center gap-1 text-[11px] text-muted-foreground/70">
                                 <Clock className="h-3 w-3" />
@@ -144,19 +143,9 @@ export default function StationDesignerGalleryPage() {
                                     onKeyDown={(e) => e.key === "Enter" && handleCreate()}
                                 />
                             </div>
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">คำอธิบาย</label>
-                                <textarea
-                                    value={newDesc}
-                                    onChange={(e) => setNewDesc(e.target.value)}
-                                    placeholder="อธิบายขั้นตอนโดยย่อ..."
-                                    rows={3}
-                                    className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/40 resize-none"
-                                />
-                            </div>
                         </div>
                         <div className="flex gap-2 justify-end">
-                            <Button variant="outline" onClick={() => { setShowCreate(false); setNewName(""); setNewDesc(""); }}>
+                            <Button variant="outline" onClick={() => { setShowCreate(false); setNewName(""); }}>
                                 ยกเลิก
                             </Button>
                             <Button disabled={!newName.trim() || creating} onClick={handleCreate} className="gap-2">

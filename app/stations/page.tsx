@@ -8,10 +8,9 @@ import {
     ChevronRight, Settings2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-    getStations, createStation, updateStation, deleteStation,
-    StationEntity, COLOR_OPTIONS, getColorOption,
-} from "@/lib/stations/stations-store";
+import { stationsApi } from "@/lib/api/stations";
+import { Station } from "@/lib/api/types";
+import { COLOR_OPTIONS, getColorOption } from "@/lib/stations/stations-store";
 import { getStationTemplates } from "@/lib/api/station-templates";
 import { StationTemplate } from "@/lib/types/station-designer";
 
@@ -42,7 +41,7 @@ function StationModal({
     onClose,
     onSave,
 }: {
-    initial?:   Partial<StationEntity>;
+    initial?:   Partial<Station>;
     templates:  StationTemplate[];
     onClose:    () => void;
     onSave:     (data: { name: string; colorId: string; templateId?: string }) => void;
@@ -145,19 +144,29 @@ function DeleteConfirm({ name, onConfirm, onCancel }: { name: string; onConfirm:
 export default function StationsPage() {
     const router = useRouter();
 
-    const [stations,   setStations]   = useState<StationEntity[]>([]);
-    const [templates,  setTemplates]  = useState<StationTemplate[]>([]);
-    const [tmplNames,  setTmplNames]  = useState<Record<string, string>>({});
+    const [stations,    setStations]    = useState<Station[]>([]);
+    const [templates,   setTemplates]   = useState<StationTemplate[]>([]);
+    const [tmplNames,   setTmplNames]   = useState<Record<string, string>>({});
+    const [loading,     setLoading]     = useState(true);
     const [loadingTmpl, setLoadingTmpl] = useState(true);
 
     const [showCreate, setShowCreate] = useState(false);
-    const [editing,    setEditing]    = useState<StationEntity | null>(null);
-    const [deleting,   setDeleting]   = useState<StationEntity | null>(null);
+    const [editing,    setEditing]    = useState<Station | null>(null);
+    const [deleting,   setDeleting]   = useState<Station | null>(null);
 
-    const reload = () => setStations(getStations());
+    const reload = async () => {
+        const res = await stationsApi.getAll();
+        if (res.success) setStations(res.data);
+    };
 
     useEffect(() => {
-        reload();
+        // Clear legacy localStorage data — stations/templates now live in the backend API
+        if (typeof window !== "undefined") {
+            localStorage.removeItem("std_stations");
+            localStorage.removeItem("std_station_templates");
+        }
+
+        reload().finally(() => setLoading(false));
         getStationTemplates()
             .then((t) => {
                 setTemplates(t);
@@ -169,25 +178,33 @@ export default function StationsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const handleCreate = (data: { name: string; colorId: string; templateId?: string }) => {
-        createStation(data);
-        reload();
+    const handleCreate = async (data: { name: string; colorId: string; templateId?: string }) => {
+        await stationsApi.create(data);
+        await reload();
         setShowCreate(false);
     };
 
-    const handleUpdate = (data: { name: string; colorId: string; templateId?: string }) => {
+    const handleUpdate = async (data: { name: string; colorId: string; templateId?: string }) => {
         if (!editing) return;
-        updateStation(editing._id, data);
-        reload();
+        await stationsApi.update(editing._id, data);
+        await reload();
         setEditing(null);
     };
 
-    const handleDelete = () => {
+    const handleDelete = async () => {
         if (!deleting) return;
-        deleteStation(deleting._id);
-        reload();
+        await stationsApi.delete(deleting._id);
+        await reload();
         setDeleting(null);
     };
+
+    if (loading) {
+        return (
+            <div className="flex h-full items-center justify-center">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6 p-6">
