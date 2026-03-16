@@ -80,7 +80,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             {/* Main content */}
             <div className="flex flex-1 flex-col overflow-hidden">
                 <Header onMenuClick={() => setMobileMenuOpen(true)} title={getPageTitle()} />
-                {pathname.startsWith("/request/create") ? (
+                {(pathname.startsWith("/request/create") || pathname.startsWith("/stations/")) ? (
                     <main className="flex-1 overflow-hidden bg-muted/30">
                         {children}
                     </main>

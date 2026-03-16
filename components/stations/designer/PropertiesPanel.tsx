@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, type ReactNode } from "react";
 import { useEditor } from "@craftjs/core";
 import { Database, Zap, Settings2, HelpCircle, ChevronDown, Plus, Trash2, GripVertical } from "lucide-react";
 
@@ -9,7 +9,7 @@ type Section  = "props" | "data" | "action";
 type FieldDef = {
     label:         string;
     hint?:         string;
-    type:          "text" | "number" | "select" | "textarea" | "toggle" | "column-editor";
+    type:          "text" | "number" | "select" | "textarea" | "toggle" | "column-editor" | "text-format";
     options?:      string[];
     optionLabels?: string[];
     placeholder?:  string;
@@ -40,11 +40,12 @@ const FIELD_META: Record<string, Record<string, FieldDef>> = {
         gap:        { label: "ช่องว่างระหว่างคอลัมน์", type: "select", section: "props", options: ["2","4","6","8"], optionLabels: ["แคบมาก","แคบ","กลาง","กว้าง"] },
     },
     Heading: {
-        text:    { label: "ข้อความหัวข้อ",  type: "text",   section: "props", placeholder: "พิมพ์หัวข้อที่นี่" },
-        level:   { label: "ขนาดหัวข้อ",    type: "select", section: "props", options: ["h1","h2","h3","h4"], optionLabels: ["ใหญ่มาก (H1)","ใหญ่ (H2)","กลาง (H3)","เล็ก (H4)"] },
-        align:   { label: "การจัดวาง",     type: "select", section: "props", options: ["left","center","right"], optionLabels: ["ชิดซ้าย","กึ่งกลาง","ชิดขวา"] },
-        color:   { label: "สีตัวอักษร",    type: "select", section: "props", options: ["default","primary","muted","blue","green"], optionLabels: ["ปกติ","สีหลัก","เทา","ฟ้า","เขียว"] },
-        dataVar: { label: "เชื่อมกับข้อมูล", type: "text", section: "data", hint: "ชื่อตัวแปรที่จะนำมาแสดงแทนข้อความ", placeholder: "เช่น order.customerName", suggestions: DATA_VAR_SUGGESTIONS },
+        text:      { label: "ข้อความหัวข้อ",  type: "text",   section: "props", placeholder: "พิมพ์หัวข้อที่นี่" },
+        level:     { label: "ขนาดหัวข้อ",    type: "select", section: "props", options: ["h1","h2","h3","h4"], optionLabels: ["ใหญ่มาก (H1)","ใหญ่ (H2)","กลาง (H3)","เล็ก (H4)"] },
+        align:     { label: "การจัดวาง",     type: "select", section: "props", options: ["left","center","right"], optionLabels: ["ชิดซ้าย","กึ่งกลาง","ชิดขวา"] },
+        color:     { label: "สีตัวอักษร",    type: "select", section: "props", options: ["default","primary","muted","blue","green"], optionLabels: ["ปกติ","สีหลัก","เทา","ฟ้า","เขียว"] },
+        textStyle: { label: "รูปแบบตัวอักษร", type: "text-format", section: "props" },
+        dataVar:   { label: "เชื่อมกับข้อมูล", type: "text", section: "data", hint: "ชื่อตัวแปรที่จะนำมาแสดงแทนข้อความ", placeholder: "เช่น order.customerName", suggestions: DATA_VAR_SUGGESTIONS },
     },
     Paragraph: {
         text:    { label: "ข้อความ",       type: "textarea", section: "props", placeholder: "พิมพ์ข้อความที่นี่" },
@@ -425,6 +426,37 @@ function ColumnEditor({ value, onChange, dataSource }: { value: unknown; onChang
     );
 }
 
+// ── B / I / U buttons (Word-style text format) ────────────────────────────────
+function TextFormatButtons({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+    const hasBold      = value.includes("bold");
+    const hasItalic    = value.includes("italic");
+    const hasUnderline = value.includes("underline");
+
+    const toggle = (feature: "bold" | "italic" | "underline") => {
+        const parts = new Set(value === "normal" ? [] : value.split("-"));
+        if (parts.has(feature)) parts.delete(feature);
+        else parts.add(feature);
+        // keep canonical order: bold → italic → underline
+        const result = (["bold", "italic", "underline"] as const).filter((f) => parts.has(f)).join("-");
+        onChange(result || "normal");
+    };
+
+    const btn = (active: boolean, onClick: () => void, children: ReactNode, extraClass = "") =>
+        <button
+            type="button"
+            onClick={onClick}
+            className={`h-7 w-7 rounded border text-sm transition-colors ${extraClass} ${active ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-muted border-border"}`}
+        >{children}</button>;
+
+    return (
+        <div className="flex gap-1">
+            {btn(hasBold,      () => toggle("bold"),      <span className="font-bold">B</span>)}
+            {btn(hasItalic,    () => toggle("italic"),    <span className="italic">I</span>)}
+            {btn(hasUnderline, () => toggle("underline"), <span className="underline">U</span>)}
+        </div>
+    );
+}
+
 // ── Field renderer ────────────────────────────────────────────────────────────
 function Field({ label, value, fieldDef, onChange, allProps }: {
     label: string; value: unknown; fieldDef: FieldDef; onChange: (v: string | number | boolean) => void;
@@ -436,7 +468,9 @@ function Field({ label, value, fieldDef, onChange, allProps }: {
         <div className="space-y-1">
             <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide block">{label}</label>
 
-            {fieldDef.type === "column-editor" ? (
+            {fieldDef.type === "text-format" ? (
+                <TextFormatButtons value={String(value ?? "bold")} onChange={(v) => onChange(v)} />
+            ) : fieldDef.type === "column-editor" ? (
                 <ColumnEditor value={value} onChange={(v) => onChange(v)} dataSource={String(allProps?.dataSource ?? "")} />
             ) : fieldDef.type === "toggle" ? (
                 <button type="button" role="switch" aria-checked={Boolean(value)}
@@ -502,8 +536,8 @@ export function PropertiesPanel() {
 
     if (!selected) {
         return (
-            <aside className="w-64 shrink-0 border-l bg-card flex flex-col">
-                <div className="px-4 py-3 border-b"><h2 className="text-sm font-semibold">Properties</h2></div>
+            <aside className="w-72 shrink-0 border-l bg-card flex flex-col h-full">
+                <div className="px-4 py-3 border-b shrink-0"><h2 className="text-sm font-semibold">Properties</h2></div>
                 <div className="flex-1 flex items-center justify-center p-6">
                     <p className="text-xs text-muted-foreground text-center leading-relaxed">คลิก component บน Canvas<br />เพื่อแก้ไข properties</p>
                 </div>
@@ -534,9 +568,9 @@ export function PropertiesPanel() {
     const hasAction = sections.action.some(([, def]) => isVisible(def, props));
 
     return (
-        <aside className="w-64 shrink-0 border-l bg-card flex flex-col overflow-y-auto">
+        <aside className="w-72 shrink-0 border-l bg-card flex flex-col h-full">
             <div className="px-4 py-3 border-b shrink-0"><h2 className="text-sm font-semibold">Properties</h2></div>
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto min-h-0">
                 <div className="px-4 pt-4 pb-2">
                     <div className="rounded-lg bg-muted/40 px-3 py-2">
                         <p className="text-xs font-bold text-foreground">{blockName || "Component"}</p>
