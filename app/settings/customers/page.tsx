@@ -168,9 +168,9 @@ export default function CustomersManagementPage() {
     return (
         <div className="flex flex-col gap-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-foreground">Customer Management</h1>
-                    <p className="text-muted-foreground">Manage customer records, contact details, and discount rates.</p>
+                <div className="min-w-0">
+                    <h1 className="text-xl sm:text-3xl font-bold tracking-tight text-foreground">Customer Management</h1>
+                    <p className="text-muted-foreground text-sm hidden sm:block">Manage customer records, contact details, and discount rates.</p>
                 </div>
                 <Button
                     onClick={() => handleOpenModal()}
@@ -196,7 +196,8 @@ export default function CustomersManagementPage() {
                 </p>
             </div>
 
-            <div className="rounded-md border bg-card">
+            <div className="rounded-md border bg-card overflow-hidden">
+                <div className="overflow-x-auto">
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -255,6 +256,7 @@ export default function CustomersManagementPage() {
                         )}
                     </TableBody>
                 </Table>
+                </div>
             </div>
 
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>

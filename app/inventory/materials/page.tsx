@@ -273,12 +273,12 @@ export default function MaterialsManagementPage() {
     return (
         <div className="flex flex-col gap-6">
             <div className="flex items-center gap-2 mb-2">
-                <Link href="/inventory" className="p-2 rounded-lg hover:bg-muted text-muted-foreground transition-colors mr-2">
+                <Link href="/inventory" className="p-2 rounded-lg hover:bg-muted text-muted-foreground transition-colors mr-1 sm:mr-2 shrink-0">
                     <ChevronLeft className="h-5 w-5" />
                 </Link>
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-foreground">Manage Materials</h1>
-                    <p className="text-muted-foreground">Define base materials, reorder limits, and specifications.</p>
+                <div className="min-w-0">
+                    <h1 className="text-xl sm:text-3xl font-bold tracking-tight text-foreground truncate">Manage Materials</h1>
+                    <p className="text-muted-foreground text-sm hidden sm:block">Define base materials, reorder limits, and specifications.</p>
                 </div>
             </div>
 

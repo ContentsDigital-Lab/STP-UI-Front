@@ -502,9 +502,9 @@ export default function MaterialLogsPage() {
                     </p>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                     {/* WebSocket Status */}
-                    <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold border ${wsStatus === "open"
+                    <div className={`flex items-center gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-xl text-xs font-bold border ${wsStatus === "open"
                         ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/40"
                         : wsStatus === "connecting"
                             ? "bg-yellow-50 dark:bg-yellow-950/30 text-yellow-700 dark:text-yellow-400 border-yellow-100 dark:border-yellow-900/40"
@@ -519,7 +519,7 @@ export default function MaterialLogsPage() {
                     </div>
 
                     {/* Stats Card */}
-                    <div className="flex items-center gap-3 bg-white dark:bg-slate-900 p-3 lg:px-5 lg:py-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                    <div className="flex items-center gap-2 sm:gap-3 bg-white dark:bg-slate-900 p-2 sm:p-3 lg:px-5 lg:py-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                         <div className="flex flex-col">
                             <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">
                                 {lang === "th" ? "รายการทั้งหมด" : "Total Records"}

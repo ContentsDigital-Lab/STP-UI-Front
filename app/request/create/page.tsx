@@ -504,52 +504,52 @@ export default function CreateBillPage() {
     const selectedCustomer = customers.find(c => c._id === formData.customer);
 
     return (
-        <div className="flex flex-col h-full overflow-hidden">
+        <div className="flex flex-col lg:h-full lg:overflow-hidden">
             {/* Top Header Bar */}
-            <div className="flex items-center justify-between px-6 py-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
-                <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-3 sm:px-6 py-3 gap-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
+                <div className="flex items-center gap-3 min-w-0">
                     <Link href="/request">
-                        <Button variant="ghost" size="icon" className="rounded-xl h-9 w-9 text-slate-400 hover:text-slate-900 dark:hover:text-white">
+                        <Button variant="ghost" size="icon" className="rounded-xl h-9 w-9 text-slate-400 hover:text-slate-900 dark:hover:text-white shrink-0">
                             <ChevronLeft className="h-5 w-5" />
                         </Button>
                     </Link>
-                    <div>
-                        <h1 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight">
+                    <div className="min-w-0">
+                        <h1 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white tracking-tight truncate">
                             {lang === 'th' ? 'สร้างบิล / คำสั่งซื้อ' : 'Create Bill / Order Request'}
                         </h1>
-                        <p className="text-[11px] text-slate-400 font-bold">
+                        <p className="text-[11px] text-slate-400 font-bold hidden sm:block">
                             {lang === 'th' ? 'ออกแบบกระจก กำหนดรูเจาะ และส่งคำสั่งซื้อ' : 'Design glass, place drill holes, and submit order request'}
                         </p>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap">
                     <Button variant="outline" size="sm" onClick={handleImportDXF} className="gap-1.5 rounded-xl font-bold text-xs h-9 border-slate-200 dark:border-slate-800">
                         <FileUp className="h-3.5 w-3.5" />
-                        Import DXF
+                        <span className="hidden sm:inline">Import</span> DXF
                     </Button>
                     <Button variant="outline" size="sm" onClick={handleExportPDF} className="gap-1.5 rounded-xl font-bold text-xs h-9 border-slate-200 dark:border-slate-800">
                         <FileDown className="h-3.5 w-3.5" />
-                        Export PDF
+                        <span className="hidden sm:inline">Export</span> PDF
                     </Button>
-                    <div className="h-6 w-px bg-slate-200 dark:bg-slate-700" />
+                    <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block" />
                     <Button
                         onClick={handleSubmit}
                         disabled={isSubmitting || !formData.customer || !formData.glassType}
-                        className="gap-1.5 rounded-xl font-bold text-xs h-9 bg-[#E8601C] hover:bg-[#E8601C]/90 text-white shadow-lg shadow-orange-500/20 px-6"
+                        className="gap-1.5 rounded-xl font-bold text-xs h-9 bg-[#E8601C] hover:bg-[#E8601C]/90 text-white shadow-lg shadow-orange-500/20 px-4 sm:px-6 ml-auto sm:ml-0"
                     >
                         <Save className="h-3.5 w-3.5" />
                         {isSubmitting
-                            ? (lang === 'th' ? 'กำลังบันทึก...' : 'Saving...')
-                            : (lang === 'th' ? 'บันทึกคำสั่งซื้อ' : 'Save Order')
+                            ? (lang === 'th' ? 'บันทึก...' : 'Saving...')
+                            : (lang === 'th' ? 'บันทึก' : 'Save')
                         }
                     </Button>
                 </div>
             </div>
 
             {/* Main Content - Split Layout */}
-            <div className="flex flex-1 overflow-hidden">
+            <div className="flex flex-col lg:flex-row lg:flex-1 lg:overflow-hidden">
                 {/* Left: Glass Designer Canvas */}
-                <div className="flex-1 flex flex-col border-r border-slate-200 dark:border-slate-800 min-w-0">
+                <div className="flex flex-col lg:border-r border-slate-200 dark:border-slate-800 min-w-0 h-[50vh] sm:h-[60vh] lg:h-auto lg:flex-1">
                     <GlassDesigner
                         width={glassWidth}
                         height={glassHeight}
@@ -562,8 +562,11 @@ export default function CreateBillPage() {
                 </div>
 
                 {/* Right: Form Panel */}
-                <div className="w-[380px] shrink-0 overflow-y-auto bg-white dark:bg-slate-900">
-                    <div className="p-6 space-y-8">
+                <div className="w-full lg:w-[380px] shrink-0 lg:overflow-y-auto bg-white dark:bg-slate-900 border-t lg:border-t-0 border-slate-200 dark:border-slate-800">
+                    <div className="p-4 sm:p-6 space-y-6 sm:space-y-8">
+                        <h3 className="text-sm font-bold text-slate-900 dark:text-white lg:hidden">
+                            {lang === 'th' ? 'รายละเอียดคำสั่งซื้อ' : 'Order Details'}
+                        </h3>
                         {/* Customer Section */}
                         <div className="space-y-3">
                             <div className="flex items-center gap-2">

@@ -72,8 +72,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
             {/* Mobile sidebar using Sheet */}
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-                <SheetContent side="left" className="p-0 w-[240px]">
-                    <Sidebar collapsed={false} setCollapsed={() => { }} />
+                <SheetContent side="left" className="p-0 !w-[240px] max-w-[85vw]" showCloseButton={false}>
+                    <Sidebar collapsed={false} setCollapsed={() => { }} onNavigate={() => setMobileMenuOpen(false)} />
                 </SheetContent>
             </Sheet>
 
@@ -81,11 +81,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <div className="flex flex-1 flex-col overflow-hidden">
                 <Header onMenuClick={() => setMobileMenuOpen(true)} title={getPageTitle()} />
                 {pathname.startsWith("/request/create") ? (
-                    <main className="flex-1 overflow-hidden bg-muted/30">
+                    <main className="flex-1 overflow-y-auto lg:overflow-hidden bg-muted/30">
                         {children}
                     </main>
                 ) : (
-                    <main className="flex-1 overflow-y-auto bg-muted/30 p-4 md:p-6 lg:p-8">
+                    <main className="flex-1 overflow-y-auto bg-muted/30 p-3 sm:p-4 md:p-6 lg:p-8">
                         <div className="mx-auto max-w-7xl">
                             {children}
                         </div>

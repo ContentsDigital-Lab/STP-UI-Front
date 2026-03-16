@@ -350,7 +350,7 @@ export default function OrderRequestsPage() {
     );
 
     return (
-        <div className="flex flex-col gap-8 max-w-[1600px] mx-auto w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-8 overflow-x-hidden">
+        <div className="flex flex-col gap-4 sm:gap-6 lg:gap-8 max-w-[1600px] mx-auto w-full overflow-x-hidden">
             {/* Page Header */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 pb-6 border-b border-slate-200 dark:border-slate-800">
                 <div className="space-y-1">
@@ -465,8 +465,8 @@ export default function OrderRequestsPage() {
 
             {/* Filter & Search */}
             <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
-                <div className="flex flex-col lg:flex-row items-end gap-6 overflow-x-auto pb-2 scrollbar-hide">
-                    <div className="w-full lg:max-w-md space-y-2 shrink-0">
+                <div className="flex flex-col lg:flex-row items-stretch lg:items-end gap-4 lg:gap-6">
+                    <div className="w-full lg:max-w-md space-y-2">
                         <Label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
                             <Search className="h-3 w-3" />
                             Quick Search
@@ -489,8 +489,8 @@ export default function OrderRequestsPage() {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-4 shrink-0">
-                        <div className="w-[240px] space-y-2">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+                        <div className="w-full sm:w-[240px] space-y-2">
                             <Label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
                                 <Package className="h-3 w-3" />
                                 {it.table.productType}
@@ -508,7 +508,7 @@ export default function OrderRequestsPage() {
                             </Select>
                         </div>
 
-                        <div className="flex items-center gap-2 pt-6">
+                        <div className="flex items-center gap-2 sm:pt-6">
                             {(searchQuery || typeFilter !== "all") && (
                                 <Button
                                     variant="ghost"
@@ -635,7 +635,7 @@ export default function OrderRequestsPage() {
 
                 {/* Pagination */}
                 {totalPages > 1 && (
-                    <div className="p-6 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                    <div className="p-4 sm:p-6 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
                         <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
                             Page {currentPage} of {totalPages}
                         </span>
@@ -887,7 +887,7 @@ export default function OrderRequestsPage() {
                         </div>
 
                         {/* Product Details */}
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <div className="col-span-1 space-y-3">
                                 <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest">
                                     {it.form.productType} *

@@ -613,7 +613,7 @@ export default function InventoryPage() {
     );
 
     return (
-        <div className="flex flex-col gap-8 max-w-[1600px] mx-auto w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-8 overflow-x-hidden">
+        <div className="flex flex-col gap-4 sm:gap-6 lg:gap-8 max-w-[1600px] mx-auto w-full overflow-x-hidden">
             {/* Page Header */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 pb-6 border-b border-slate-200 dark:border-slate-800">
                 <div className="space-y-1">

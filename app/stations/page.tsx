@@ -260,22 +260,22 @@ export default function StationsPage() {
     }
 
     return (
-        <div className="space-y-6 p-6">
+        <div className="space-y-4 sm:space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="space-y-1">
-                    <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-                        <Factory className="h-6 w-6 text-primary" />
+                    <h1 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2">
+                        <Factory className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
                         สถานี
                     </h1>
                     <p className="text-sm text-muted-foreground">สถานีการทำงานในกระบวนการผลิต</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" className="gap-2" onClick={() => router.push("/stations/designer")}>
+                    <Button variant="outline" className="gap-2 text-xs sm:text-sm" onClick={() => router.push("/stations/designer")}>
                         <Settings2 className="h-4 w-4" />
-                        จัดการ Template
+                        <span className="hidden sm:inline">จัดการ</span> Template
                     </Button>
-                    <Button className="gap-2" onClick={() => setShowCreate(true)}>
+                    <Button className="gap-2 text-xs sm:text-sm" onClick={() => setShowCreate(true)}>
                         <Plus className="h-4 w-4" />
                         สร้างสถานี
                     </Button>
