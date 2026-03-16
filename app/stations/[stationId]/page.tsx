@@ -8,6 +8,9 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { getStationTemplate } from "@/lib/api/station-templates";
 import { StationTemplate } from "@/lib/types/station-designer";
+
+/** Backend populates templateId — can be a plain string ID or the full template object */
+type PopulatedStation = Omit<Station, "templateId"> & { templateId?: string | StationTemplate };
 import { stationsApi } from "@/lib/api/stations";
 import { Station } from "@/lib/api/types";
 import { getColorOption } from "@/lib/stations/stations-store";
@@ -42,8 +45,8 @@ export default function LiveStationPage() {
     useEffect(() => {
         stationsApi.getById(stationId)
             .then((res) => {
-                const found = res.success ? res.data : null;
-                setStation(found);
+                const found = res.success ? (res.data as unknown as PopulatedStation) : null;
+                setStation(found as unknown as Station);
 
                 if (!found?.templateId) {
                     setNoTemplate(true);
@@ -51,7 +54,14 @@ export default function LiveStationPage() {
                     return;
                 }
 
-                return getStationTemplate(found.templateId)
+                // Backend populates templateId — may already be the full template object
+                if (typeof found.templateId === "object" && "_id" in found.templateId) {
+                    setTemplate(found.templateId as StationTemplate);
+                    return;
+                }
+
+                // Fallback: plain string ID — fetch separately
+                return getStationTemplate(found.templateId as string)
                     .then((t) => {
                         if (t) setTemplate(t);
                         else { toast.error("โหลด template ไม่สำเร็จ"); setNoTemplate(true); }
