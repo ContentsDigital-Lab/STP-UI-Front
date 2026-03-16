@@ -8,11 +8,22 @@ import {
     ChevronRight, Settings2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import { stationsApi } from "@/lib/api/stations";
 import { Station } from "@/lib/api/types";
 import { COLOR_OPTIONS, getColorOption } from "@/lib/stations/stations-store";
 import { getStationTemplates } from "@/lib/api/station-templates";
 import { StationTemplate } from "@/lib/types/station-designer";
+
+/** Backend populates templateId — extract string ID from either a plain string or a populated object */
+function resolveTemplateId(templateId: unknown): string {
+    if (!templateId) return "";
+    if (typeof templateId === "string") return templateId;
+    if (typeof templateId === "object" && templateId !== null && "_id" in templateId) {
+        return (templateId as { _id: string })._id;
+    }
+    return "";
+}
 
 // ── Color picker ──────────────────────────────────────────────────────────────
 function ColorPicker({ value, onChange }: { value: string; onChange: (id: string) => void }) {
@@ -48,11 +59,12 @@ function StationModal({
 }) {
     const [name,       setName]       = useState(initial?.name       ?? "");
     const [colorId,    setColorId]    = useState(initial?.colorId    ?? "sky");
-    const [templateId, setTemplateId] = useState<string>(initial?.templateId ?? "");
+    const [templateId, setTemplateId] = useState<string>(resolveTemplateId(initial?.templateId));
 
     const color    = getColorOption(colorId);
     const isEdit   = Boolean(initial?._id);
-    const canSave  = name.trim().length > 0;
+    // templateId is required by the backend DB — always required on create
+    const canSave  = name.trim().length > 0 && (isEdit || templateId.length > 0);
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
@@ -95,19 +107,23 @@ function StationModal({
 
                 {/* Template */}
                 <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Template (ไม่บังคับ)</label>
+                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        Template {!isEdit && <span className="text-red-500">*</span>}
+                    </label>
                     <select
                         value={templateId}
                         onChange={(e) => setTemplateId(e.target.value)}
                         className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/40"
                     >
-                        <option value="">— ยังไม่เลือก —</option>
+                        <option value="">— เลือก template —</option>
                         {templates.map((t) => (
                             <option key={t._id} value={t._id}>{t.name}</option>
                         ))}
                     </select>
-                    {templates.length === 0 && (
+                    {templates.length === 0 ? (
                         <p className="text-xs text-muted-foreground/60">ยังไม่มี template — สร้างได้ที่ปุ่ม "จัดการ Template"</p>
+                    ) : !isEdit && !templateId && (
+                        <p className="text-xs text-amber-600">กรุณาเลือก template ก่อนสร้างสถานี</p>
                     )}
                 </div>
 
@@ -141,12 +157,25 @@ function DeleteConfirm({ name, onConfirm, onCancel }: { name: string; onConfirm:
 }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
+/** colorId is UI-only state; production backend has no colorId field — store in localStorage */
+const COLOR_STORAGE_KEY = "std_station_colors";
+
+function loadColorMap(): Record<string, string> {
+    if (typeof window === "undefined") return {};
+    try { return JSON.parse(localStorage.getItem(COLOR_STORAGE_KEY) ?? "{}"); } catch { return {}; }
+}
+function saveColorMap(map: Record<string, string>) {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(COLOR_STORAGE_KEY, JSON.stringify(map));
+}
+
 export default function StationsPage() {
     const router = useRouter();
 
     const [stations,    setStations]    = useState<Station[]>([]);
     const [templates,   setTemplates]   = useState<StationTemplate[]>([]);
     const [tmplNames,   setTmplNames]   = useState<Record<string, string>>({});
+    const [colorMap,    setColorMap]    = useState<Record<string, string>>({});
     const [loading,     setLoading]     = useState(true);
     const [loadingTmpl, setLoadingTmpl] = useState(true);
 
@@ -164,6 +193,7 @@ export default function StationsPage() {
         if (typeof window !== "undefined") {
             localStorage.removeItem("std_stations");
             localStorage.removeItem("std_station_templates");
+            setColorMap(loadColorMap());
         }
 
         reload().finally(() => setLoading(false));
@@ -179,23 +209,46 @@ export default function StationsPage() {
     }, []);
 
     const handleCreate = async (data: { name: string; colorId: string; templateId?: string }) => {
-        await stationsApi.create(data);
-        await reload();
-        setShowCreate(false);
+        try {
+            const res = await stationsApi.create(data);
+            if (res.success && res.data?._id) {
+                const newMap = { ...loadColorMap(), [res.data._id]: data.colorId };
+                saveColorMap(newMap);
+                setColorMap(newMap);
+            }
+            await reload();
+            setShowCreate(false);
+            toast.success("สร้างสถานีแล้ว");
+        } catch (err) {
+            toast.error("สร้างสถานีไม่สำเร็จ — " + (err instanceof Error ? err.message : "unknown error"));
+        }
     };
 
     const handleUpdate = async (data: { name: string; colorId: string; templateId?: string }) => {
         if (!editing) return;
-        await stationsApi.update(editing._id, data);
-        await reload();
-        setEditing(null);
+        try {
+            await stationsApi.update(editing._id, data);
+            const newMap = { ...loadColorMap(), [editing._id]: data.colorId };
+            saveColorMap(newMap);
+            setColorMap(newMap);
+            await reload();
+            setEditing(null);
+            toast.success("บันทึกแล้ว");
+        } catch (err) {
+            toast.error("บันทึกไม่สำเร็จ — " + (err instanceof Error ? err.message : "unknown error"));
+        }
     };
 
     const handleDelete = async () => {
         if (!deleting) return;
-        await stationsApi.delete(deleting._id);
-        await reload();
-        setDeleting(null);
+        try {
+            await stationsApi.delete(deleting._id);
+            await reload();
+            setDeleting(null);
+            toast.success("ลบสถานีแล้ว");
+        } catch (err) {
+            toast.error("ลบไม่สำเร็จ — " + (err instanceof Error ? err.message : "unknown error"));
+        }
     };
 
     if (loading) {
@@ -250,8 +303,9 @@ export default function StationsPage() {
             {stations.length > 0 && (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {stations.map((station) => {
-                        const color        = getColorOption(station.colorId);
-                        const templateName = station.templateId ? tmplNames[station.templateId] : undefined;
+                        const color        = getColorOption(colorMap[station._id] ?? station.colorId);
+                        const tmplId       = resolveTemplateId(station.templateId);
+                        const templateName = tmplId ? tmplNames[tmplId] : undefined;
 
                         return (
                             <div key={station._id} className="rounded-2xl border bg-card p-5 flex flex-col gap-4 hover:shadow-md transition-shadow">
@@ -263,7 +317,7 @@ export default function StationsPage() {
                                     <div className="flex items-center gap-0.5 shrink-0">
                                         <button
                                             type="button"
-                                            onClick={() => setEditing(station)}
+                                            onClick={() => setEditing({ ...station, colorId: colorMap[station._id] ?? station.colorId ?? "sky" })}
                                             className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-foreground hover:bg-muted transition-colors"
                                             title="แก้ไข"
                                         >
@@ -303,12 +357,12 @@ export default function StationsPage() {
                                 <Button
                                     size="sm"
                                     className="w-full h-9 gap-1.5 text-xs"
-                                    disabled={!station.templateId}
+                                    disabled={!tmplId}
                                     onClick={() => router.push(`/stations/${station._id}`)}
                                 >
                                     <Play className="h-3.5 w-3.5" />
                                     เข้าสถานี
-                                    {station.templateId && <ChevronRight className="h-3 w-3" />}
+                                    {tmplId && <ChevronRight className="h-3 w-3" />}
                                 </Button>
                             </div>
                         );
