@@ -6,7 +6,7 @@ import {
     ArrowLeft, CheckCircle2, XCircle, Loader2, Clock,
     User, Package, Calendar, MapPin, Hash, ChevronUp,
     ChevronDown, Plus, X, Save, AlertCircle, Factory,
-    GripVertical, Info,
+    GripVertical, Info, Printer,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ordersApi } from "@/lib/api/orders";
@@ -160,13 +160,17 @@ export default function ProductionDetailPage() {
                 <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => router.back()}>
                     <ArrowLeft className="h-4 w-4" />
                 </Button>
-                <div>
+                <div className="flex-1">
                     <h1 className="text-xl font-bold flex items-center gap-2">
                         <Factory className="h-5 w-5 text-primary" />
-                        คำสั่งผลิต #{order._id.slice(-6).toUpperCase()}
+                        คำสั่งผลิต #{order.code ?? order._id.slice(-6).toUpperCase()}
                     </h1>
                     <p className="text-xs text-muted-foreground">สร้างเมื่อ {fmtDate(order.createdAt)}</p>
                 </div>
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => router.push(`/production/${id}/print`)}>
+                    <Printer className="h-4 w-4" />
+                    พิมพ์ใบงาน
+                </Button>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

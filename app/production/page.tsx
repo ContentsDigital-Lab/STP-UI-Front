@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
     ClipboardCheck, Search, ChevronRight, Clock, User,
     Package, AlertCircle, CheckCircle2, XCircle, Loader2,
-    ArrowRight, SlidersHorizontal, RefreshCw, QrCode,
+    ArrowRight, SlidersHorizontal, RefreshCw, QrCode, Printer,
 } from "lucide-react";
 import { QrCodeModal } from "@/components/qr/QrCodeModal";
 import { Button } from "@/components/ui/button";
@@ -179,6 +179,7 @@ export default function ProductionPage() {
                                 <th className="px-4 py-2.5 text-left font-semibold">สถานะ</th>
                                 <th className="px-4 py-2.5 text-left font-semibold">วันที่</th>
                                 <th className="px-4 py-2.5 text-left font-semibold">QR</th>
+                                <th className="px-4 py-2.5 text-left font-semibold">ใบงาน</th>
                                 <th className="px-4 py-2.5" />
                             </tr>
                         </thead>
@@ -240,6 +241,16 @@ export default function ProductionPage() {
                                         ) : (
                                             <span className="text-xs text-muted-foreground/40">—</span>
                                         )}
+                                    </td>
+                                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                        <button
+                                            type="button"
+                                            title="พิมพ์ใบงาน"
+                                            onClick={() => router.push(`/production/${order._id}/print`)}
+                                            className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                                        >
+                                            <Printer className="h-4 w-4" />
+                                        </button>
                                     </td>
                                     <td className="px-4 py-3">
                                         <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
