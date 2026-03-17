@@ -4,7 +4,7 @@ import { useNode } from "@craftjs/core";
 import { Database } from "lucide-react";
 import { usePreview } from "../PreviewContext";
 
-const SIZE_MAP  = { h1: "text-3xl font-bold", h2: "text-2xl font-bold", h3: "text-xl font-semibold", h4: "text-base font-semibold" };
+const SIZE_MAP  = { h1: "text-3xl", h2: "text-2xl", h3: "text-xl", h4: "text-base" };
 const ALIGN_MAP = { left: "text-left", center: "text-center", right: "text-right" };
 const COLOR_MAP: Record<string, string> = {
     default: "text-foreground",
@@ -14,15 +14,27 @@ const COLOR_MAP: Record<string, string> = {
     green:   "text-green-600",
 };
 
+const STYLE_MAP: Record<string, string> = {
+    normal:                  "font-normal",
+    bold:                    "font-bold",
+    italic:                  "italic",
+    underline:               "underline",
+    "bold-italic":           "font-bold italic",
+    "bold-underline":        "font-bold underline",
+    "italic-underline":      "italic underline",
+    "bold-italic-underline": "font-bold italic underline",
+};
+
 interface HeadingProps {
-    text?:    string;
-    level?:   "h1" | "h2" | "h3" | "h4";
-    align?:   "left" | "center" | "right";
-    color?:   string;
-    dataVar?: string;
+    text?:      string;
+    level?:     "h1" | "h2" | "h3" | "h4";
+    align?:     "left" | "center" | "right";
+    color?:     string;
+    textStyle?: string;
+    dataVar?:   string;
 }
 
-export function Heading({ text = "หัวข้อ", level = "h2", align = "left", color = "default", dataVar = "" }: HeadingProps) {
+export function Heading({ text = "หัวข้อ", level = "h2", align = "left", color = "default", textStyle = "bold", dataVar = "" }: HeadingProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
     const Tag = level;
@@ -38,7 +50,7 @@ export function Heading({ text = "หัวข้อ", level = "h2", align = "le
                     </span>
                 </div>
             )}
-            <Tag className={`${SIZE_MAP[level]} ${ALIGN_MAP[align]} ${COLOR_MAP[color] ?? COLOR_MAP.default}`}>
+            <Tag className={`${SIZE_MAP[level]} ${ALIGN_MAP[align]} ${COLOR_MAP[color] ?? COLOR_MAP.default} ${STYLE_MAP[textStyle] ?? STYLE_MAP.bold}`}>
                 {dataVar ? <span className="opacity-40 italic">{text}</span> : text}
             </Tag>
         </div>
@@ -47,5 +59,5 @@ export function Heading({ text = "หัวข้อ", level = "h2", align = "le
 
 Heading.craft = {
     displayName: "Heading",
-    props: { text: "หัวข้อ", level: "h2", align: "left", color: "default", dataVar: "" } as HeadingProps,
+    props: { text: "หัวข้อ", level: "h2", align: "left", color: "default", textStyle: "bold", dataVar: "" } as HeadingProps,
 };

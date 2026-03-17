@@ -39,5 +39,11 @@ export const ordersApi = {
             method: "DELETE",
             body: JSON.stringify({ ids }),
         });
-    }
+    },
+
+    release: async (id: string): Promise<ApiResponse<Order>> => {
+        return fetchApi<ApiResponse<Order>>(`/orders/${id}/release`, {
+            method: "POST",
+        });
+    },
 };

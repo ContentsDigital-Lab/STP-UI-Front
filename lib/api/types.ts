@@ -85,6 +85,7 @@ export interface OrderRequest {
 
 export interface Order {
     _id: string;
+    code?: string;   // sequential QR code e.g. "001", "042", "1000"
     request: string | OrderRequest;
     priority: number;
     customer: string | Customer;

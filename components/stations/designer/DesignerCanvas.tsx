@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Editor, Frame, Element, useEditor } from "@craftjs/core";
 import { BlockPalette }      from "./BlockPalette";
 import { PropertiesPanel }   from "./PropertiesPanel";
@@ -143,11 +143,33 @@ export function DesignerCanvas({ templateName, initialNodes, onSave, saving, onS
     const [showProperties, setShowProperties] = useState(false);
     const mainRef = useRef<HTMLElement>(null);
 
+    /** Stable callback for SelectionWatcher — must be memoized so useEffect inside
+     *  SelectionWatcher does NOT re-fire every render (which would re-show the panel
+     *  immediately after the user hides it). */
+    const handleSelection = useCallback((has: boolean) => {
+        if (!isPreview) setShowProperties(has);
+    }, [isPreview]);
+
+    /** Manual save — also updates the status badge (AutoSave only tracks node-change saves) */
+    const handleManualSave = async (json: Record<string, unknown>) => {
+        setAutoStatus("saving");
+        onSaveStatusChange?.("saving");
+        try {
+            await onSave(json);
+            setAutoStatus("saved");
+            onSaveStatusChange?.("saved");
+        } catch (err) {
+            setAutoStatus("pending");
+            onSaveStatusChange?.("pending");
+            throw err;
+        }
+    };
+
     return (
         <PreviewContext.Provider value={isPreview}>
             <Editor resolver={RESOLVER}>
                 <EditorModeSync enabled={!isPreview} />
-                <SelectionWatcher onSelection={(has) => { if (!isPreview) setShowProperties(has); }} />
+                <SelectionWatcher onSelection={handleSelection} />
                 <KeyboardShortcuts />
                 {/* Auto-save on every node change (1.5 s debounce) */}
                 {!previewOnly && (
@@ -162,7 +184,7 @@ export function DesignerCanvas({ templateName, initialNodes, onSave, saving, onS
                     {!previewOnly && (
                         <Toolbar
                             templateName={templateName}
-                            onSave={onSave}
+                            onSave={handleManualSave}
                             saving={saving}
                             isPreview={isPreview}
                             onTogglePreview={() => setIsPreview((p) => !p)}

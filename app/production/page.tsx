@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import {
     ClipboardCheck, Search, ChevronRight, Clock, User,
     Package, AlertCircle, CheckCircle2, XCircle, Loader2,
-    ArrowRight, SlidersHorizontal, RefreshCw,
+    ArrowRight, SlidersHorizontal, RefreshCw, QrCode,
 } from "lucide-react";
+import { QrCodeModal } from "@/components/qr/QrCodeModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +56,7 @@ export default function ProductionPage() {
     const [loading,  setLoading]  = useState(true);
     const [search,   setSearch]   = useState("");
     const [filter,   setFilter]   = useState<"all" | StatusKey>("all");
+    const [qrTarget, setQrTarget] = useState<{ code: string; label: string; url: string } | null>(null);
 
     const load = async () => {
         setLoading(true);
@@ -87,6 +89,7 @@ export default function ProductionPage() {
     const fmtDate = (d: string) => new Date(d).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
 
     return (
+        <>
         <div className="space-y-4 sm:space-y-6">
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -175,6 +178,7 @@ export default function ProductionPage() {
                                 <th className="px-4 py-2.5 text-left font-semibold">สถานี</th>
                                 <th className="px-4 py-2.5 text-left font-semibold">สถานะ</th>
                                 <th className="px-4 py-2.5 text-left font-semibold">วันที่</th>
+                                <th className="px-4 py-2.5 text-left font-semibold">QR</th>
                                 <th className="px-4 py-2.5" />
                             </tr>
                         </thead>
@@ -186,7 +190,10 @@ export default function ProductionPage() {
                                     onClick={() => router.push(`/production/${order._id}`)}
                                 >
                                     <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                                        #{order._id.slice(-6).toUpperCase()}
+                                        {order.code
+                                            ? <span className="font-bold text-foreground">#{order.code}</span>
+                                            : <span>#{order._id.slice(-6).toUpperCase()}</span>
+                                        }
                                     </td>
                                     <td className="px-4 py-3">
                                         <div className="flex items-center gap-1.5">
@@ -216,6 +223,24 @@ export default function ProductionPage() {
                                     <td className="px-4 py-3 text-xs text-muted-foreground">
                                         {fmtDate(order.createdAt)}
                                     </td>
+                                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                        {order.code ? (
+                                            <button
+                                                type="button"
+                                                title={`QR Code #${order.code}`}
+                                                onClick={() => setQrTarget({
+                                                    code:  order.code!,
+                                                    label: `${getMaterialName(order.material)} — ${getCustomerName(order.customer)}`,
+                                                    url:   `${window.location.origin}/production/${order._id}`,
+                                                })}
+                                                className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                                            >
+                                                <QrCode className="h-4 w-4" />
+                                            </button>
+                                        ) : (
+                                            <span className="text-xs text-muted-foreground/40">—</span>
+                                        )}
+                                    </td>
                                     <td className="px-4 py-3">
                                         <ChevronRight className="h-4 w-4 text-muted-foreground/50" />
                                     </td>
@@ -227,5 +252,15 @@ export default function ProductionPage() {
                 </div>
             )}
         </div>
+
+        {qrTarget && (
+            <QrCodeModal
+                code={qrTarget.code}
+                label={qrTarget.label}
+                value={qrTarget.url}
+                onClose={() => setQrTarget(null)}
+            />
+        )}
+        </>
     );
 }

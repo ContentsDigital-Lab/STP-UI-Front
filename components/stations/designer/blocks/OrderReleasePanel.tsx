@@ -4,8 +4,9 @@ import { useNode } from "@craftjs/core";
 import { useEffect, useState } from "react";
 import {
     ClipboardList, Package, CheckCircle2, AlertTriangle, XCircle,
-    ChevronDown, ChevronUp, RefreshCw, Save,
+    ChevronDown, ChevronUp, RefreshCw, Save, QrCode, Rocket,
 } from "lucide-react";
+import { QrCodeModal } from "@/components/qr/QrCodeModal";
 import { usePreview } from "../PreviewContext";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { inventoriesApi } from "@/lib/api/inventories";
@@ -70,6 +71,8 @@ export function OrderReleasePanel({
     const [assignments, setAssignments] = useState<Record<string, string[]>>({});
     const [saving,      setSaving]      = useState<string | null>(null);
     const [savedId,     setSavedId]     = useState<string | null>(null);
+    const [releasing,   setReleasing]   = useState<string | null>(null);
+    const [qrTarget,    setQrTarget]    = useState<{ code: string; label: string; url: string } | null>(null);
 
     useEffect(() => { if (isPreview) load(); }, [isPreview]);
 
@@ -128,6 +131,27 @@ export function OrderReleasePanel({
         }
     };
 
+    const releaseOrder = async (order: Order) => {
+        setReleasing(order._id);
+        try {
+            const res = await ordersApi.release(order._id);
+            if (res.success && res.data.code) {
+                // Show QR immediately after release
+                const mat = typeof order.material === "object" ? (order.material as { name?: string }).name ?? "" : "";
+                const cus = typeof order.customer === "object" ? (order.customer as { name?: string }).name ?? "" : "";
+                setQrTarget({
+                    code:  res.data.code,
+                    label: [mat, cus].filter(Boolean).join(" — "),
+                    url:   `${window.location.origin}/production/${order._id}`,
+                });
+                // refresh list
+                await load();
+            }
+        } finally {
+            setReleasing(null);
+        }
+    };
+
     // ── Design mode ────────────────────────────────────────────────────────────
     if (!isPreview) {
         return (
@@ -177,6 +201,15 @@ export function OrderReleasePanel({
 
     // ── Preview / Live mode ────────────────────────────────────────────────────
     return (
+        <>
+        {qrTarget && (
+            <QrCodeModal
+                code={qrTarget.code}
+                label={qrTarget.label}
+                value={qrTarget.url}
+                onClose={() => setQrTarget(null)}
+            />
+        )}
         <div className="w-full rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-card shadow-sm">
             {/* Header */}
             <div className="flex items-center gap-2 px-4 py-3 bg-muted/20 border-b">
@@ -293,21 +326,51 @@ export function OrderReleasePanel({
                                             </div>
                                         )}
 
-                                        <div className="flex items-center justify-between mt-3">
+                                        <div className="flex items-center justify-between mt-3 gap-2">
                                             {savedId === order._id && (
-                                                <span className="flex items-center gap-1 text-[11px] text-green-600 font-medium">
+                                                <span className="flex items-center gap-1 text-[11px] text-green-600 font-medium shrink-0">
                                                     <CheckCircle2 className="h-3.5 w-3.5" /> บันทึกแล้ว
                                                 </span>
                                             )}
-                                            <button
-                                                type="button"
-                                                onClick={() => saveAssignment(order._id)}
-                                                disabled={saving === order._id}
-                                                className="ml-auto flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-medium hover:bg-violet-700 disabled:opacity-60 transition-colors"
-                                            >
-                                                <Save className="h-3 w-3" />
-                                                {saving === order._id ? "กำลังบันทึก..." : "บันทึกสถานี"}
-                                            </button>
+                                            <div className="ml-auto flex gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => saveAssignment(order._id)}
+                                                    disabled={saving === order._id}
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-violet-300 text-violet-700 dark:text-violet-300 text-xs font-medium hover:bg-violet-50 dark:hover:bg-violet-950/30 disabled:opacity-60 transition-colors"
+                                                >
+                                                    <Save className="h-3 w-3" />
+                                                    {saving === order._id ? "กำลังบันทึก..." : "บันทึกสถานี"}
+                                                </button>
+                                                {!order.code ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => releaseOrder(order)}
+                                                        disabled={releasing === order._id}
+                                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-medium hover:bg-violet-700 disabled:opacity-60 transition-colors"
+                                                    >
+                                                        <Rocket className="h-3 w-3" />
+                                                        {releasing === order._id ? "กำลังปล่อย..." : "ปล่อยงาน"}
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const mat = typeof order.material === "object" ? (order.material as { name?: string }).name ?? "" : "";
+                                                            const cus = typeof order.customer === "object" ? (order.customer as { name?: string }).name ?? "" : "";
+                                                            setQrTarget({
+                                                                code:  order.code!,
+                                                                label: [mat, cus].filter(Boolean).join(" — "),
+                                                                url:   `${window.location.origin}/production/${order._id}`,
+                                                            });
+                                                        }}
+                                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-medium hover:bg-green-700 transition-colors"
+                                                    >
+                                                        <QrCode className="h-3 w-3" />
+                                                        QR #{order.code}
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 )}
@@ -317,6 +380,7 @@ export function OrderReleasePanel({
                 </div>
             )}
         </div>
+        </>
     );
 }
 
