@@ -85,6 +85,7 @@ export interface OrderRequest {
 
 export interface Order {
     _id: string;
+    orderNumber?: string; // e.g. "ORD-0001"
     code?: string;   // sequential QR code e.g. "001", "042", "1000"
     request: string | OrderRequest;
     priority: number;
@@ -92,6 +93,15 @@ export interface Order {
     material: string | Material;
     quantity: number;
     stations: string[];
+    currentStationIndex?: number;
+    stationHistory?: {
+        station: string;
+        enteredAt: string;
+        exitedAt?: string;
+        completedBy?: string;
+    }[];
+    stationData?: Record<string, unknown>;
+    notes?: string;
     status: "pending" | "in_progress" | "completed" | "cancelled";
     claim: string;
     withdrawal: string;

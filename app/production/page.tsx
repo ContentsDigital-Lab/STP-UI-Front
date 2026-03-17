@@ -190,9 +190,11 @@ export default function ProductionPage() {
                                     onClick={() => router.push(`/production/${order._id}`)}
                                 >
                                     <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                                        {order.code
-                                            ? <span className="font-bold text-foreground">#{order.code}</span>
-                                            : <span>#{order._id.slice(-6).toUpperCase()}</span>
+                                        {order.orderNumber
+                                            ? <span className="font-bold text-foreground">{order.orderNumber}</span>
+                                            : order.code
+                                                ? <span className="font-bold text-foreground">#{order.code}</span>
+                                                : <span>#{order._id.slice(-6).toUpperCase()}</span>
                                         }
                                     </td>
                                     <td className="px-4 py-3">

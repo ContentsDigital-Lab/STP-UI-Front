@@ -116,7 +116,7 @@ export default function ClaimsPage() {
 
     const getOrderLabel = (o: string | Order | undefined) => {
         if (!o) return "-";
-        if (typeof o === "object") return `#${o._id.slice(-6)}`;
+        if (typeof o === "object") return o.orderNumber ?? `#${o._id.slice(-6)}`;
         return `#${o.slice(-6)}`;
     };
 
@@ -401,12 +401,18 @@ export default function ClaimsPage() {
                                 <Label>Order <span className="text-red-500">*</span></Label>
                                 <Select value={createForm.order} onValueChange={(v) => setCreateForm((f) => ({ ...f, order: v ?? "" }))}>
                                     <SelectTrigger>
-                                        <SelectValue placeholder="เลือก Order..." />
+                                        <SelectValue placeholder="เลือก Order...">
+                                            {(value: string | null) => {
+                                                if (!value) return <span className="text-muted-foreground">เลือก Order...</span>;
+                                                const o = orders.find(x => x._id === value);
+                                                return o?.orderNumber ?? `#${value.slice(-6)}`;
+                                            }}
+                                        </SelectValue>
                                     </SelectTrigger>
-                                    <SelectContent>
+                                    <SelectContent className="!w-fit">
                                         {orders.filter((o) => o.status !== "cancelled").map((o) => (
                                             <SelectItem key={o._id} value={o._id}>
-                                                #{o._id.slice(-6)}
+                                                {o.orderNumber ?? `#${o._id.slice(-6)}`}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -416,7 +422,12 @@ export default function ClaimsPage() {
                                 <Label>วัสดุ <span className="text-red-500">*</span></Label>
                                 <Select value={createForm.material} onValueChange={(v) => setCreateForm((f) => ({ ...f, material: v ?? "" }))}>
                                     <SelectTrigger>
-                                        <SelectValue placeholder="เลือกวัสดุ..." />
+                                        <SelectValue placeholder="เลือกวัสดุ...">
+                                            {(value: string | null) => {
+                                                if (!value) return <span className="text-muted-foreground">เลือกวัสดุ...</span>;
+                                                return materials.find(x => x._id === value)?.name ?? value;
+                                            }}
+                                        </SelectValue>
                                     </SelectTrigger>
                                     <SelectContent>
                                         {materials.map((m) => (
@@ -452,7 +463,12 @@ export default function ClaimsPage() {
                             <Label>รายงานโดย <span className="text-red-500">*</span></Label>
                             <Select value={createForm.reportedBy} onValueChange={(v) => setCreateForm((f) => ({ ...f, reportedBy: v ?? "" }))}>
                                 <SelectTrigger>
-                                    <SelectValue placeholder="เลือกผู้รายงาน..." />
+                                    <SelectValue placeholder="เลือกผู้รายงาน...">
+                                        {(value: string | null) => {
+                                            if (!value) return <span className="text-muted-foreground">เลือกผู้รายงาน...</span>;
+                                            return workerMap.get(value)?.name ?? value;
+                                        }}
+                                    </SelectValue>
                                 </SelectTrigger>
                                 <SelectContent>
                                     {Array.from(workerMap.values()).map((w) => (
@@ -506,7 +522,13 @@ export default function ClaimsPage() {
                             <Label>อนุมัติโดย</Label>
                             <Select value={decisionForm.approvedBy} onValueChange={(v) => setDecisionForm((f) => ({ ...f, approvedBy: v ?? "" }))}>
                                 <SelectTrigger>
-                                    <SelectValue placeholder="เลือกผู้อนุมัติ..." />
+                                    <SelectValue placeholder="เลือกผู้อนุมัติ...">
+                                        {(value: string | null) => {
+                                            if (!value) return <span className="text-muted-foreground">เลือกผู้อนุมัติ...</span>;
+                                            const w = workerMap.get(value);
+                                            return w ? `${w.name} (${w.role})` : value;
+                                        }}
+                                    </SelectValue>
                                 </SelectTrigger>
                                 <SelectContent>
                                     {Array.from(workerMap.values()).filter((w) => w.role === "admin" || w.role === "manager").map((w) => (

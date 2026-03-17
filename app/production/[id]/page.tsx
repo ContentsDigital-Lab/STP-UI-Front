@@ -163,7 +163,7 @@ export default function ProductionDetailPage() {
                 <div>
                     <h1 className="text-xl font-bold flex items-center gap-2">
                         <Factory className="h-5 w-5 text-primary" />
-                        คำสั่งผลิต #{order._id.slice(-6).toUpperCase()}
+                        คำสั่งผลิต {order.orderNumber ?? `#${order._id.slice(-6).toUpperCase()}`}
                     </h1>
                     <p className="text-xs text-muted-foreground">สร้างเมื่อ {fmtDate(order.createdAt)}</p>
                 </div>

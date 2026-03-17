@@ -27,9 +27,10 @@ import { useWebSocket } from "@/lib/hooks/use-socket";
 import { useAuth } from "@/lib/auth/auth-context";
 import { withdrawalsApi } from "@/lib/api/withdrawals";
 import { materialsApi } from "@/lib/api/materials";
+import { inventoriesApi } from "@/lib/api/inventories";
 import { ordersApi } from "@/lib/api/orders";
 import { workersApi } from "@/lib/api/workers";
-import { Withdrawal, Material, Order, Worker } from "@/lib/api/types";
+import { Withdrawal, Material, Inventory, Order, Worker } from "@/lib/api/types";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -40,6 +41,7 @@ export default function WithdrawalsPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
     const [materials, setMaterials] = useState<Material[]>([]);
+    const [inventories, setInventories] = useState<Inventory[]>([]);
     const [orders, setOrders] = useState<Order[]>([]);
     const [workerMap, setWorkerMap] = useState<Map<string, Worker>>(new Map());
 
@@ -68,11 +70,13 @@ export default function WithdrawalsPage() {
         Promise.all([
             withdrawalsApi.getAll(),
             materialsApi.getAll(),
+            inventoriesApi.getAll(),
             ordersApi.getAll(),
             workersApi.getAll(),
-        ]).then(([wRes, mRes, oRes, workerRes]) => {
+        ]).then(([wRes, mRes, iRes, oRes, workerRes]) => {
             if (wRes.success) setWithdrawals(wRes.data);
             if (mRes.success) setMaterials(mRes.data);
+            if (iRes.success) setInventories(iRes.data);
             if (oRes.success) setOrders(oRes.data);
             if (workerRes.success) {
                 const map = new Map<string, Worker>();
@@ -96,6 +100,15 @@ export default function WithdrawalsPage() {
 
     useWebSocket("withdrawal", ["withdrawal:updated"], handleSocketEvent);
 
+    const getStockForMaterial = useCallback((materialId: string, stockType?: "Raw" | "Reuse") => {
+        return inventories
+            .filter((inv) => {
+                const invMatId = inv.material && typeof inv.material === "object" ? inv.material._id : inv.material;
+                return invMatId === materialId && (!stockType || inv.stockType === stockType);
+            })
+            .reduce((sum, inv) => sum + inv.quantity, 0);
+    }, [inventories]);
+
     // Helpers to resolve populated or string IDs
     const getMaterialName = (m: string | Material | undefined) => {
         if (!m) return "-";
@@ -105,7 +118,7 @@ export default function WithdrawalsPage() {
 
     const getOrderLabel = (o: string | Order | undefined) => {
         if (!o) return "-";
-        if (typeof o === "object") return `#${o._id.slice(-6)}`;
+        if (typeof o === "object") return o.orderNumber ?? `#${o._id.slice(-6)}`;
         return `#${o.slice(-6)}`;
     };
 
@@ -330,12 +343,19 @@ export default function WithdrawalsPage() {
                             <Label>Order <span className="text-red-500">*</span></Label>
                             <Select value={form.order} onValueChange={(v) => setForm((f) => ({ ...f, order: v ?? "" }))}>
                                 <SelectTrigger>
-                                    <SelectValue placeholder="เลือก Order..." />
+                                    <SelectValue placeholder="เลือก Order...">
+                                        {(value: string | null) => {
+                                            if (!value) return <span className="text-muted-foreground">เลือก Order...</span>;
+                                            const o = orders.find(x => x._id === value);
+                                            if (!o) return value;
+                                            return `${o.orderNumber ?? `#${o._id.slice(-6)}`} — ${o.customer && typeof o.customer === "object" ? o.customer.name : "-"}`;
+                                        }}
+                                    </SelectValue>
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="!w-fit">
                                     {orders.filter((o) => o.status !== "cancelled").map((o) => (
                                         <SelectItem key={o._id} value={o._id}>
-                                            #{o._id.slice(-6)} — {o.customer && typeof o.customer === "object" ? o.customer.name : o.customer?.slice(-6) ?? "-"}
+                                            {o.orderNumber ?? `#${o._id.slice(-6)}`} — {o.customer && typeof o.customer === "object" ? o.customer.name : o.customer?.slice(-6) ?? "-"}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
@@ -345,12 +365,30 @@ export default function WithdrawalsPage() {
                             <Label>วัสดุ <span className="text-red-500">*</span></Label>
                             <Select value={form.material} onValueChange={(v) => setForm((f) => ({ ...f, material: v ?? "" }))}>
                                 <SelectTrigger>
-                                    <SelectValue placeholder="เลือกวัสดุ..." />
+                                    <SelectValue placeholder="เลือกวัสดุ...">
+                                        {(value: string | null) => {
+                                            if (!value) return <span className="text-muted-foreground">เลือกวัสดุ...</span>;
+                                            const m = materials.find(x => x._id === value);
+                                            if (!m) return value;
+                                            const stock = getStockForMaterial(m._id, form.stockType);
+                                            return `${m.name} (คงเหลือ: ${stock})`;
+                                        }}
+                                    </SelectValue>
                                 </SelectTrigger>
-                                <SelectContent>
-                                    {materials.map((m) => (
-                                        <SelectItem key={m._id} value={m._id}>{m.name}</SelectItem>
-                                    ))}
+                                <SelectContent className="!w-fit">
+                                    {materials.map((m) => {
+                                        const stock = getStockForMaterial(m._id, form.stockType);
+                                        return (
+                                            <SelectItem key={m._id} value={m._id}>
+                                                <span className="flex items-center justify-between gap-3 w-full">
+                                                    <span>{m.name}</span>
+                                                    <span className={`text-xs font-semibold ${stock <= 0 ? "text-red-500" : stock <= (m.reorderPoint || 10) ? "text-amber-500" : "text-emerald-500"}`}>
+                                                        คงเหลือ: {stock}
+                                                    </span>
+                                                </span>
+                                            </SelectItem>
+                                        );
+                                    })}
                                 </SelectContent>
                             </Select>
                         </div>
