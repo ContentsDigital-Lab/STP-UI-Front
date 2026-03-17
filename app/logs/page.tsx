@@ -104,12 +104,14 @@ const REF_TYPE_LABELS: Record<string, { th: string; en: string }> = {
 };
 
 function getMaterialId(log: MaterialLog): string {
+    if (!log.material) return "";
     return typeof log.material === "object"
         ? (log.material as Material)._id
         : String(log.material);
 }
 
 function getMaterialName(log: MaterialLog): string {
+    if (!log.material) return "—";
     return typeof log.material === "object"
         ? (log.material as Material).name
         : String(log.material);

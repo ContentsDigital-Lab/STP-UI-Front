@@ -335,7 +335,7 @@ export default function WithdrawalsPage() {
                                 <SelectContent>
                                     {orders.filter((o) => o.status !== "cancelled").map((o) => (
                                         <SelectItem key={o._id} value={o._id}>
-                                            #{o._id.slice(-6)} — {typeof o.customer === "object" ? o.customer.name : o.customer?.slice(-6) ?? "-"}
+                                            #{o._id.slice(-6)} — {o.customer && typeof o.customer === "object" ? o.customer.name : o.customer?.slice(-6) ?? "-"}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>

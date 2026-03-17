@@ -87,7 +87,7 @@ export default function ProductionDetailPage() {
                 ));
             }
             // load linked request
-            const reqId = typeof o.request === "object" ? (o.request as OrderRequest)._id : o.request;
+            const reqId = o.request && typeof o.request === "object" ? (o.request as OrderRequest)._id : o.request;
             if (reqId) {
                 const rr = await requestsApi.getById(reqId).catch(() => null);
                 if (rr?.success) setRequest(rr.data);
