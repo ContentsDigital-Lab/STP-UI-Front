@@ -2,7 +2,9 @@
 
 import { useNode } from "@craftjs/core";
 import { useEffect, useState } from "react";
-import { Database, ChevronRight, Loader2, AlertCircle, Hash, ExternalLink } from "lucide-react";
+import { Database, ChevronRight, Loader2, AlertCircle, Hash, ExternalLink, QrCode, FileText } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { QRCodeSVG } from "qrcode.react";
 import { fetchApi } from "@/lib/api/config";
 import { usePreview } from "../PreviewContext";
 import { useWebSocket } from "@/lib/hooks/use-socket";
@@ -93,6 +95,8 @@ interface RecordListProps {
     showHeader?:    boolean;
     selectable?:             boolean;   // when true, clicking a row sets selectedRecord in context instead of navigating
     filterByCurrentStation?: boolean;   // only show orders where stations[currentStationIndex] === current stationId
+    showQrColumn?:           boolean;   // show QR code popup button per row (uses row.code or row._id)
+    showWorkOrderColumn?:    boolean;   // show ใบงาน link button per row → /production/{_id}/print
 }
 
 // ── WebSocket room mapping ────────────────────────────────────────────────────
@@ -124,6 +128,25 @@ const SOURCE_LABEL: Record<string, string> = {
     "/station-templates": "แม่แบบสถานี",
 };
 
+// ── Inline QR popup ───────────────────────────────────────────────────────────
+function QrPopup({ code, orderId, onClose }: { code: string; orderId: string; onClose: () => void }) {
+    const qrValue = typeof window !== "undefined"
+        ? `${window.location.origin}/production/${orderId}`
+        : `/production/${orderId}`;
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+            <div className="bg-white rounded-2xl border shadow-2xl p-5 flex flex-col items-center gap-3 w-56" onClick={(e) => e.stopPropagation()}>
+                <p className="font-mono font-black text-lg tracking-widest text-black">#{code}</p>
+                <div className="p-3 bg-white border rounded-xl">
+                    <QRCodeSVG value={qrValue} size={160} bgColor="#ffffff" fgColor="#000000" level="H" marginSize={2} />
+                </div>
+                <p className="text-[10px] text-gray-400 font-mono break-all text-center">{qrValue}</p>
+                <button onClick={onClose} className="text-xs text-muted-foreground hover:text-foreground px-4 py-1.5 rounded-lg border hover:bg-muted/30 w-full">ปิด</button>
+            </div>
+        </div>
+    );
+}
+
 export function RecordList({
     label        = "รายการข้อมูล",
     dataSource   = "static",
@@ -135,9 +158,13 @@ export function RecordList({
     showHeader   = true,
     selectable              = false,
     filterByCurrentStation  = false,
+    showQrColumn            = false,
+    showWorkOrderColumn     = false,
 }: RecordListProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
+    const router    = useRouter();
+    const [qrRow, setQrRow] = useState<{ code: string; orderId: string } | null>(null);
     const { selectedRecord, setSelectedRecord, stationId } = useStationContext();
     const isApi     = dataSource && dataSource !== "static";
     // PropertiesPanel stores "production" (no slash) — normalise to "/production"
@@ -201,6 +228,7 @@ export function RecordList({
     // ── Preview render ────────────────────────────────────────────────────────
     if (isPreview) {
         return (
+            <>
             <div className="w-full rounded-xl border bg-card overflow-hidden">
                 {/* Header */}
                 {showHeader && (
@@ -234,6 +262,7 @@ export function RecordList({
                     {columns.map((c, ci) => (
                         <span key={`phdr-${ci}`} className={WIDTH_MAP[c.width ?? "auto"]}>{c.label}</span>
                     ))}
+                    {(showQrColumn || showWorkOrderColumn) && <span className="w-auto shrink-0">จัดการ</span>}
                     {navPath && <span className="w-4" />}
                 </div>
                 {/* Rows */}
@@ -262,6 +291,9 @@ export function RecordList({
                                 ? () => setSelectedRecord(isSelected ? null : row)
                                 : undefined;
 
+                            const rowObjId = String(row._id ?? row[idField] ?? i);
+                            const rowCode  = String(row.code ?? rowObjId.slice(-6).toUpperCase());
+
                             const inner = (
                                 <>
                                     {columns.map((c, ci) => (
@@ -269,6 +301,31 @@ export function RecordList({
                                             <CellValue col={c} value={resolveValue(row, c.key)} />
                                         </span>
                                     ))}
+                                    {/* QR + ใบงาน action buttons */}
+                                    {(showQrColumn || showWorkOrderColumn) && (
+                                        <div className="flex items-center gap-1 ml-auto shrink-0" onClick={(e) => e.stopPropagation()}>
+                                            {showQrColumn && (
+                                                <button
+                                                    type="button"
+                                                    title={`QR #${rowCode}`}
+                                                    onClick={() => setQrRow({ code: rowCode, orderId: rowObjId })}
+                                                    className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                                                >
+                                                    <QrCode className="h-4 w-4" />
+                                                </button>
+                                            )}
+                                            {showWorkOrderColumn && (
+                                                <button
+                                                    type="button"
+                                                    title="ดูใบงาน"
+                                                    onClick={() => router.push(`/production/${rowObjId}/print`)}
+                                                    className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                                                >
+                                                    <FileText className="h-4 w-4" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
                                     {navPath && !selectable && (
                                         <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-muted-foreground shrink-0 transition-colors" />
                                     )}
@@ -285,6 +342,9 @@ export function RecordList({
                     </div>
                 )}
             </div>
+            {/* QR popup */}
+            {qrRow && <QrPopup code={qrRow.code} orderId={qrRow.orderId} onClose={() => setQrRow(null)} />}
+            </>
         );
     }
 
@@ -360,5 +420,7 @@ RecordList.craft = {
         showHeader:  true,
         selectable:              false,
         filterByCurrentStation:  false,
+        showQrColumn:            false,
+        showWorkOrderColumn:     false,
     } as RecordListProps,
 };
