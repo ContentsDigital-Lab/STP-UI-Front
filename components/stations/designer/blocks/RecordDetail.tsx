@@ -6,6 +6,7 @@ import { Database, Loader2, AlertCircle } from "lucide-react";
 import { fetchApi } from "@/lib/api/config";
 import { usePreview } from "../PreviewContext";
 import { useWebSocket } from "@/lib/hooks/use-socket";
+import { useStationContext } from "../StationContext";
 import { STATUS_CONFIG } from "./StatusIndicator";
 
 // ── Field display config ──────────────────────────────────────────────────────
@@ -106,31 +107,43 @@ export function RecordDetail({
 }: RecordDetailProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
+    const { orderData, requestData, selectedRecord } = useStationContext();
 
     const fields: DetailField[] = (() => {
         try { return JSON.parse(fieldsJson); } catch { return DEFAULT_FIELDS; }
     })();
 
-    // ── Preview: fetch record ─────────────────────────────────────────────────
-    const [record,   setRecord]   = useState<Record<string, unknown> | null>(null);
+    // ── Preview: use context data if available, otherwise fetch ───────────────
+    const [fetched,  setFetched]  = useState<Record<string, unknown> | null>(null);
     const [fetching, setFetching] = useState(false);
     const [error,    setError]    = useState("");
 
+    // Context shortcut: no extra API call needed when context already has the data
+    const contextRecord =
+        endpoint === "context"                                               ? selectedRecord :
+        (endpoint === "/requests" || endpoint.startsWith("/requests/"))      ? requestData    :
+        (endpoint === "/orders"   || endpoint.startsWith("/orders/"))        ? orderData      :
+        null;
+
+    const record = contextRecord ?? fetched;
+
     const loadData = () => {
+        // Skip fetch if context already has the data
+        if (contextRecord) return;
         const id = new URLSearchParams(window.location.search).get(idParam)
             ?? window.location.pathname.split("/").filter(Boolean).pop();
-        if (!id) { setRecord(SAMPLE_DATA); return; }
+        if (!id) { setFetched(SAMPLE_DATA); return; }
         setFetching(true);
         fetchApi<{ success: boolean; data: Record<string, unknown> }>(`${endpoint}/${id}`)
-            .then((res) => { if (res.success) setRecord(res.data); else setError("โหลดข้อมูลไม่สำเร็จ"); })
-            .catch(() => setRecord(SAMPLE_DATA))
+            .then((res) => { if (res.success) setFetched(res.data); else setError("โหลดข้อมูลไม่สำเร็จ"); })
+            .catch(() => setFetched(SAMPLE_DATA))
             .finally(() => setFetching(false));
     };
 
     useEffect(() => {
         if (!isPreview) return;
         loadData();
-    }, [isPreview, endpoint, idParam]);
+    }, [isPreview, endpoint, idParam, contextRecord]);
 
     // Real-time updates via WebSocket
     const wsConfig = ENDPOINT_WS[endpoint] ?? { room: "_noop", events: [] };
@@ -170,7 +183,8 @@ export function RecordDetail({
             <div className="flex items-center justify-between px-4 py-2.5 bg-muted/30 border-b">
                 <p className="text-xs font-semibold text-foreground/70">{title}</p>
                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 text-[10px]">
-                    <Database className="h-2.5 w-2.5" />{endpoint}/{`{${idParam}}`}
+                    <Database className="h-2.5 w-2.5" />
+                    {endpoint === "context" ? "จากรายการที่เลือก" : `${endpoint}/{${idParam}}`}
                 </span>
             </div>
             <div className="p-4 grid grid-cols-2 gap-x-4 gap-y-3 opacity-60">

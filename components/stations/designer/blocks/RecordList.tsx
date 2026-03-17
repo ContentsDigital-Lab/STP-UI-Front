@@ -6,6 +6,7 @@ import { Database, ChevronRight, Loader2, AlertCircle, Hash, ExternalLink } from
 import { fetchApi } from "@/lib/api/config";
 import { usePreview } from "../PreviewContext";
 import { useWebSocket } from "@/lib/hooks/use-socket";
+import { useStationContext } from "../StationContext";
 import { STATUS_CONFIG } from "./StatusIndicator";
 
 // ── Column definition ─────────────────────────────────────────────────────────
@@ -90,6 +91,8 @@ interface RecordListProps {
     maxRows?:       number;    // max visible rows
     showSearch?:    boolean;
     showHeader?:    boolean;
+    selectable?:             boolean;   // when true, clicking a row sets selectedRecord in context instead of navigating
+    filterByCurrentStation?: boolean;   // only show orders where stations[currentStationIndex] === current stationId
 }
 
 // ── WebSocket room mapping ────────────────────────────────────────────────────
@@ -130,9 +133,12 @@ export function RecordList({
     maxRows      = 5,
     showSearch   = false,
     showHeader   = true,
+    selectable              = false,
+    filterByCurrentStation  = false,
 }: RecordListProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
+    const { selectedRecord, setSelectedRecord, stationId } = useStationContext();
     const isApi     = dataSource && dataSource !== "static";
     // PropertiesPanel stores "production" (no slash) — normalise to "/production"
     const navPath   = navigateTo ? (navigateTo.startsWith("/") ? navigateTo : `/${navigateTo}`) : "";
@@ -147,10 +153,16 @@ export function RecordList({
     const [error,    setError]    = useState("");
     const [query,    setQuery]    = useState("");
 
+    // Auto-filter: when fetching /orders inside a station context, pass stationId server-side
+    const shouldFilterStation = (filterByCurrentStation || (dataSource === "/orders" && !!stationId)) && !!stationId;
+
     const loadData = () => {
         if (!isApi) { setRows(SAMPLE_ROWS); return; }
         setFetching(true); setError("");
-        fetchApi<{ success: boolean; data: Record<string, unknown>[] }>(dataSource)
+        const url = (shouldFilterStation && dataSource === "/orders")
+            ? `/orders?stationId=${encodeURIComponent(stationId!)}`
+            : dataSource;
+        fetchApi<{ success: boolean; data: Record<string, unknown>[] }>(url)
             .then((res) => { if (res.success) setRows(res.data ?? []); else setError("โหลดข้อมูลไม่สำเร็จ"); })
             .catch(() => setError("ยังไม่มีข้อมูลจาก API — ลองใช้งานจริงเพื่อดูข้อมูล"))
             .finally(() => setFetching(false));
@@ -159,7 +171,8 @@ export function RecordList({
     useEffect(() => {
         if (!isPreview) return;
         loadData();
-    }, [isPreview, dataSource, isApi]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isPreview, dataSource, isApi, shouldFilterStation, stationId]);
 
     // Real-time updates via WebSocket
     const wsConfig = DATASOURCE_WS[dataSource] ?? { room: "_noop", events: [] };
@@ -169,6 +182,17 @@ export function RecordList({
 
     const filtered = rows
         .filter((r) => {
+            // Client-side fallback filter (for non-orders endpoints, or in case server ignores stationId param)
+            if (shouldFilterStation) {
+                const stations = r.stations;
+                const idx      = typeof r.currentStationIndex === "number" ? r.currentStationIndex : 0;
+                if (!Array.isArray(stations)) return false;
+                const current = stations[idx];
+                const currentId = typeof current === "object" && current !== null
+                    ? (current as Record<string, unknown>)._id
+                    : current;
+                if (String(currentId) !== stationId) return false;
+            }
             if (!query) return true;
             return columns.some((c) => String(r[c.key] ?? "").toLowerCase().includes(query.toLowerCase()));
         })
@@ -224,27 +248,39 @@ export function RecordList({
                     <div className="divide-y">
                         {filtered.map((row, i) => {
                             const rowId = String(row[idField] ?? i);
-                            const Wrapper = navPath
-                                ? ({ children }: { children: React.ReactNode }) => (
-                                    <a href={`${navPath}/${rowId}`} className="flex items-center gap-4 px-4 py-3 hover:bg-muted/30 transition-colors cursor-pointer group">
-                                        {children}
-                                    </a>
-                                )
-                                : ({ children }: { children: React.ReactNode }) => (
-                                    <div className="flex items-center gap-4 px-4 py-3">{children}</div>
-                                );
-                            return (
-                                <Wrapper key={rowId}>
+                            const isSelected = selectable && selectedRecord && String(selectedRecord[idField] ?? "") === rowId;
+                            const clickable  = selectable || !!navPath;
+                            const rowCls = `flex items-center gap-4 px-4 py-3 transition-colors ${
+                                isSelected
+                                    ? "bg-primary/10 border-l-2 border-primary"
+                                    : clickable
+                                        ? "hover:bg-muted/30 cursor-pointer group"
+                                        : ""
+                            }`;
+
+                            const handleClick = selectable
+                                ? () => setSelectedRecord(isSelected ? null : row)
+                                : undefined;
+
+                            const inner = (
+                                <>
                                     {columns.map((c, ci) => (
                                         <span key={`pcell-${i}-${ci}`} className={`${WIDTH_MAP[c.width ?? "auto"]} min-w-0`}>
                                             <CellValue col={c} value={resolveValue(row, c.key)} />
                                         </span>
                                     ))}
-                                    {navPath && (
+                                    {navPath && !selectable && (
                                         <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-muted-foreground shrink-0 transition-colors" />
                                     )}
-                                </Wrapper>
+                                    {isSelected && (
+                                        <span className="ml-auto shrink-0 text-[10px] font-medium text-primary">เลือกแล้ว</span>
+                                    )}
+                                </>
                             );
+
+                            return navPath && !selectable
+                                ? <a key={rowId} href={`${navPath}/${rowId}`} className={rowCls}>{inner}</a>
+                                : <div key={rowId} className={rowCls} onClick={handleClick}>{inner}</div>;
                         })}
                     </div>
                 )}
@@ -303,7 +339,9 @@ export function RecordList({
                 ))}
             </div>
             <div className="px-4 py-1.5 text-[10px] text-muted-foreground/40 italic border-t">
-                {isApi ? `ดึงข้อมูลจริงจาก ${SOURCE_LABEL[dataSource] ?? dataSource}` : "ตัวอย่างข้อมูล — เลือกแหล่งข้อมูลเพื่อใช้ข้อมูลจริง"}
+                {isApi
+                    ? `ดึงข้อมูลจริงจาก ${SOURCE_LABEL[dataSource] ?? dataSource}${dataSource === "/orders" ? " · กรองเฉพาะงานสถานีนี้อัตโนมัติ" : ""}`
+                    : "ตัวอย่างข้อมูล — เลือกแหล่งข้อมูลเพื่อใช้ข้อมูลจริง"}
             </div>
         </div>
     );
@@ -320,5 +358,7 @@ RecordList.craft = {
         maxRows:     5,
         showSearch:  false,
         showHeader:  true,
+        selectable:              false,
+        filterByCurrentStation:  false,
     } as RecordListProps,
 };

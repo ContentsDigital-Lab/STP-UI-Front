@@ -3,6 +3,7 @@
 import { useNode } from "@craftjs/core";
 import { Database } from "lucide-react";
 import { usePreview } from "../PreviewContext";
+import { useStationContext } from "../StationContext";
 
 const SIZE_MAP  = { h1: "text-3xl", h2: "text-2xl", h3: "text-xl", h4: "text-base" };
 const ALIGN_MAP = { left: "text-left", center: "text-center", right: "text-right" };
@@ -37,13 +38,18 @@ interface HeadingProps {
 export function Heading({ text = "หัวข้อ", level = "h2", align = "left", color = "default", textStyle = "bold", dataVar = "" }: HeadingProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
+    const { resolveVar } = useStationContext();
     const Tag = level;
+
+    // In preview mode, resolve dataVar to its actual value
+    const resolvedText = isPreview && dataVar ? resolveVar(dataVar) : "";
+
     return (
         <div
             ref={(ref) => { ref && connect(drag(ref)); }}
             className={`w-full rounded-lg px-1 py-0.5 transition-all ${isPreview ? "" : `cursor-grab ${selected ? "ring-2 ring-primary/40 bg-primary/5" : "hover:bg-muted/30"}`}`}
         >
-            {dataVar && (
+            {!isPreview && dataVar && (
                 <div className={`mb-0.5 ${ALIGN_MAP[align]}`}>
                     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px] font-mono">
                         <Database className="h-2.5 w-2.5" />{`{${dataVar}}`}
@@ -51,7 +57,12 @@ export function Heading({ text = "หัวข้อ", level = "h2", align = "le
                 </div>
             )}
             <Tag className={`${SIZE_MAP[level]} ${ALIGN_MAP[align]} ${COLOR_MAP[color] ?? COLOR_MAP.default} ${STYLE_MAP[textStyle] ?? STYLE_MAP.bold}`}>
-                {dataVar ? <span className="opacity-40 italic">{text}</span> : text}
+                {isPreview
+                    ? (resolvedText || text)
+                    : dataVar
+                        ? <span className="opacity-40 italic">{text}</span>
+                        : text
+                }
             </Tag>
         </div>
     );

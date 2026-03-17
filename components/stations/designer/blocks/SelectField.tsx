@@ -5,6 +5,64 @@ import { useEffect, useState } from "react";
 import { ChevronDown, Database, Hash, Loader2 } from "lucide-react";
 import { fetchApi } from "@/lib/api/config";
 import { usePreview } from "../PreviewContext";
+import { useStationContext } from "../StationContext";
+
+/** Endpoints that map to context data — selecting a value auto-fetches & stores in context */
+const CONTEXT_SOURCE: Record<string, "request" | "order"> = {
+    "/requests": "request",
+    "/orders":   "order",
+};
+
+/** Resolve dot-notation key from an object, unwrapping populated sub-objects to their name/_id */
+function resolveField(obj: Record<string, unknown>, key: string): string {
+    const val = key.split(".").reduce<unknown>((cur, part) =>
+        (cur != null && typeof cur === "object") ? (cur as Record<string, unknown>)[part] : undefined
+    , obj);
+    if (val == null) return "";
+    if (typeof val === "object" && !Array.isArray(val)) {
+        const o = val as Record<string, unknown>;
+        return String(o.name ?? o.username ?? o.title ?? o._id ?? "");
+    }
+    return String(val);
+}
+
+/**
+ * Build a human-readable label from an API record.
+ * Tries the configured labelField first, then falls back through common fields
+ * so that endpoints without a top-level "name" (e.g. /requests, /orders) still
+ * show something meaningful instead of a raw MongoDB ObjectId.
+ */
+const LABEL_FALLBACKS = [
+    "name",
+    "customer.name",   // populated customer sub-object (requests, orders)
+    "title",
+    "code",            // e.g. order code
+    "details.type",    // request details
+    "username",
+    "material.name",   // populated material sub-object
+];
+
+function buildLabel(item: Record<string, unknown>, labelField: string): string {
+    // Try the user-configured field first
+    const primary = resolveField(item, labelField);
+    if (primary) return primary;
+
+    // Walk through fallbacks (skip the one we already tried)
+    for (const key of LABEL_FALLBACKS) {
+        if (key === labelField) continue;
+        const val = resolveField(item, key);
+        if (val) return val;
+    }
+
+    // Last resort: first non-empty string/number value in the object (skip _id)
+    for (const [k, v] of Object.entries(item)) {
+        if (k === "_id" || k === "__v") continue;
+        if (typeof v === "string" && v.length > 0 && v.length < 80) return v;
+        if (typeof v === "number") return String(v);
+    }
+
+    return String(item._id ?? "—");
+}
 
 interface SelectFieldProps {
     label?:       string;
@@ -39,6 +97,8 @@ export function SelectField({
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
     const isApi     = dataSource && dataSource !== "static";
+    const { formData, setField, setRequestData, setOrderData } = useStationContext();
+    const contextType = CONTEXT_SOURCE[dataSource] ?? null;
 
     // ── Preview: fetch real API data ──────────────────────────────────────────
     const [apiItems, setApiItems] = useState<{ label: string; value: string }[]>([]);
@@ -47,12 +107,12 @@ export function SelectField({
     useEffect(() => {
         if (!isPreview || !isApi) return;
         setFetching(true);
-        fetchApi<{ success: boolean; data: Record<string, string>[] }>(dataSource)
+        fetchApi<{ success: boolean; data: Record<string, unknown>[] }>(dataSource)
             .then((res) => {
                 if (res.success && Array.isArray(res.data)) {
                     setApiItems(res.data.map((item) => ({
-                        label: item[labelField || "name"] || item.name || item._id || "—",
-                        value: item[valueField || "_id"]  || item._id  || "",
+                        label: buildLabel(item, labelField || "name"),
+                        value: resolveField(item, valueField || "_id") || String(item._id ?? ""),
                     })));
                 }
             })
@@ -63,11 +123,30 @@ export function SelectField({
     // ── Preview render ────────────────────────────────────────────────────────
     if (isPreview) {
         const staticOpts = (options ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+        const controlled = !!fieldKey;
+        const currentValue = controlled ? String(formData[fieldKey] ?? "") : undefined;
         return (
             <div className="w-full space-y-1.5">
                 {label && <label className="block text-xs font-semibold text-foreground/70">{label}</label>}
                 <div className="relative">
-                    <select className="w-full rounded-lg border bg-background px-3 py-2 text-sm appearance-none pr-8 focus:outline-none focus:ring-2 focus:ring-primary/40">
+                    <select
+                        className="w-full rounded-lg border bg-background px-3 py-2 text-sm appearance-none pr-8 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        value={controlled ? currentValue : undefined}
+                        onChange={controlled ? (e) => {
+                            const val = e.target.value;
+                            setField(fieldKey, val);
+                            // Auto-fetch full record into context so other blocks can use related fields
+                            if (contextType && val) {
+                                fetchApi<{ success: boolean; data: Record<string, unknown> }>(`${dataSource}/${val}`)
+                                    .then((res) => {
+                                        if (!res.success || !res.data) return;
+                                        if (contextType === "request") setRequestData(res.data);
+                                        if (contextType === "order")   setOrderData(res.data);
+                                    })
+                                    .catch(() => {/* non-critical, ignore */});
+                            }
+                        } : undefined}
+                    >
                         <option value="">{fetching ? "กำลังโหลด..." : placeholder}</option>
                         {isApi
                             ? apiItems.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)

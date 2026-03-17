@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ArrowLeft, LayoutTemplate, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,8 @@ import { StationTemplate } from "@/lib/types/station-designer";
 /** Backend populates templateId — can be a plain string ID or the full template object */
 type PopulatedStation = Omit<Station, "templateId"> & { templateId?: string | StationTemplate };
 import { stationsApi } from "@/lib/api/stations";
+import { ordersApi } from "@/lib/api/orders";
+import { requestsApi } from "@/lib/api/requests";
 import { Station } from "@/lib/api/types";
 import { getColorOption } from "@/lib/stations/stations-store";
 
@@ -33,14 +35,19 @@ function LoadingSpinner() {
 }
 
 export default function LiveStationPage() {
-    const params    = useParams();
-    const router    = useRouter();
-    const stationId = params.stationId as string;
+    const params        = useParams();
+    const router        = useRouter();
+    const searchParams  = useSearchParams();
+    const stationId     = params.stationId as string;
+    const orderId       = searchParams.get("orderId");
+    const requestId     = searchParams.get("requestId");
 
-    const [station,    setStation]    = useState<Station | null>(null);
-    const [template,   setTemplate]   = useState<StationTemplate | null>(null);
-    const [loading,    setLoading]    = useState(true);
-    const [noTemplate, setNoTemplate] = useState(false);
+    const [station,      setStation]      = useState<Station | null>(null);
+    const [template,     setTemplate]     = useState<StationTemplate | null>(null);
+    const [loading,      setLoading]      = useState(true);
+    const [noTemplate,   setNoTemplate]   = useState(false);
+    const [orderData,    setOrderData]    = useState<Record<string, unknown> | null>(null);
+    const [requestData,  setRequestData]  = useState<Record<string, unknown> | null>(null);
 
     useEffect(() => {
         stationsApi.getById(stationId)
@@ -70,6 +77,22 @@ export default function LiveStationPage() {
             .catch(() => { toast.error("โหลดสถานีไม่สำเร็จ"); setNoTemplate(true); })
             .finally(() => setLoading(false));
     }, [stationId]);
+
+    // Fetch order when orderId is provided
+    useEffect(() => {
+        if (!orderId) return;
+        ordersApi.getById(orderId)
+            .then((res) => { if (res.success && res.data) setOrderData(res.data as unknown as Record<string, unknown>); })
+            .catch(() => toast.error("โหลดข้อมูลออเดอร์ไม่สำเร็จ"));
+    }, [orderId]);
+
+    // Fetch request (บิล) when requestId is provided
+    useEffect(() => {
+        if (!requestId) return;
+        requestsApi.getById(requestId)
+            .then((res) => { if (res.success && res.data) setRequestData(res.data as unknown as Record<string, unknown>); })
+            .catch(() => toast.error("โหลดข้อมูลบิลไม่สำเร็จ"));
+    }, [requestId]);
 
     const color = station ? getColorOption(station.colorId) : null;
 
@@ -142,6 +165,9 @@ export default function LiveStationPage() {
                     onSave={async () => {}}
                     saving={false}
                     previewOnly
+                    stationId={stationId}
+                    initialData={orderData}
+                    initialRequestData={requestData}
                 />
             </div>
         </div>

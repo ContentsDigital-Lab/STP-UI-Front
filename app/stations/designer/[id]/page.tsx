@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { getStationTemplate, updateStationTemplate } from "@/lib/api/station-templates";
 import { StationTemplate } from "@/lib/types/station-designer";
+import { stationsApi } from "@/lib/api/stations";
 
 // ⚠️ Craft.js uses browser APIs — must disable SSR
 const DesignerCanvas = dynamic(
@@ -31,15 +32,30 @@ export default function StationDesignerEditorPage() {
     const router = useRouter();
     const id     = params.id as string;
 
-    const [template, setTemplate] = useState<StationTemplate | null>(null);
-    const [loading,  setLoading]  = useState(true);
-    const [saving,   setSaving]   = useState(false);
+    const [template,  setTemplate]  = useState<StationTemplate | null>(null);
+    const [loading,   setLoading]   = useState(true);
+    const [saving,    setSaving]    = useState(false);
+    const [stationId, setStationId] = useState<string | null>(null);
 
     useEffect(() => {
         if (!id) return;
-        getStationTemplate(id)
-            .then((t) => { setTemplate(t); setLoading(false); })
-            .catch(() => { toast.error("โหลด template ไม่สำเร็จ"); setLoading(false); });
+        Promise.all([
+            getStationTemplate(id),
+            stationsApi.getAll(),
+        ]).then(([t, stRes]) => {
+            setTemplate(t);
+            // Find the first station that uses this template
+            if (stRes.success && Array.isArray(stRes.data)) {
+                const match = stRes.data.find((s) => {
+                    const tid = typeof s.templateId === "object"
+                        ? (s.templateId as { _id: string })?._id
+                        : s.templateId;
+                    return tid === id;
+                });
+                if (match) setStationId(match._id);
+            }
+            setLoading(false);
+        }).catch(() => { toast.error("โหลด template ไม่สำเร็จ"); setLoading(false); });
     }, [id]);
 
     const handleSave = async (craftNodes: Record<string, unknown>) => {
@@ -95,6 +111,7 @@ export default function StationDesignerEditorPage() {
                     initialNodes={template.uiSchema && typeof template.uiSchema === "object" && !Array.isArray(template.uiSchema) && Object.keys(template.uiSchema).length > 0 ? template.uiSchema as Record<string, unknown> : undefined}
                     onSave={handleSave}
                     saving={saving}
+                    stationId={stationId}
                 />
             </div>
         </div>
