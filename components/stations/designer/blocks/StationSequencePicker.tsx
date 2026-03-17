@@ -2,10 +2,10 @@
 
 import { useNode } from "@craftjs/core";
 import { useRef, useState, useEffect } from "react";
-import { X, Plus, Send, CheckCircle2, Loader2, Workflow, GripVertical, RefreshCw } from "lucide-react";
-import { fetchApi } from "@/lib/api/config";
+import { X, Plus, Loader2, Workflow, GripVertical, RefreshCw } from "lucide-react";
 import { usePreview } from "../PreviewContext";
 import { useWebSocket } from "@/lib/hooks/use-socket";
+import { useStationContext } from "../StationContext";
 import { stationsApi } from "@/lib/api/stations";
 import { Station } from "@/lib/api/types";
 import { getColorOption } from "@/lib/stations/stations-store";
@@ -36,9 +36,8 @@ const PRESETS = [
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 interface StationSequencePickerProps {
-    title?:          string;
-    submitEndpoint?: string;
-    requestIdParam?: string;
+    title?:    string;
+    fieldKey?: string;   // key to write stations[] into formData (default: "stations")
 }
 
 // ── Drag-and-drop sequence list ───────────────────────────────────────────────
@@ -105,27 +104,22 @@ function DraggableSequence({
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export function StationSequencePicker({
-    title          = "กำหนดเส้นทางการผลิต",
-    submitEndpoint = "/orders",
-    requestIdParam = "id",
+    title    = "กำหนดเส้นทางการผลิต",
+    fieldKey = "stations",
 }: StationSequencePickerProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
+    const { setField } = useStationContext();
 
     const [allStations,     setAllStations]     = useState<Station[]>([]);
     const [loadingStations, setLoadingStations] = useState(false);
     const [sequence,        setSequence]        = useState<string[]>([]);
-    const [feedback,        setFeedback]        = useState<"" | "loading" | "ok" | "error">("");
 
     const loadStations = async () => {
         setLoadingStations(true);
         try {
             const res = await stationsApi.getAll();
-            if (res.success) {
-                setAllStations(res.data);
-                // Do NOT auto-populate — some stations may be skipped in this route.
-                // Users manually pick only the stations that are part of the sequence.
-            }
+            if (res.success) setAllStations(res.data);
         } finally {
             setLoadingStations(false);
         }
@@ -133,8 +127,13 @@ export function StationSequencePicker({
 
     useEffect(() => { if (isPreview) loadStations(); }, [isPreview]);
 
+    // Write sequence to formData whenever it changes
+    useEffect(() => {
+        if (isPreview) setField(fieldKey, sequence);
+    }, [sequence, fieldKey, setField, isPreview]);
+
     // Real-time station list updates via WebSocket
-    useWebSocket("station", ["station:updated", "station-template:updated"], () => {
+    useWebSocket("station", ["station:updated"], () => {
         if (isPreview) loadStations();
     });
 
@@ -148,31 +147,8 @@ export function StationSequencePicker({
         setSequence(next);
     };
 
-    const handleSubmit = async () => {
-        const requestId = new URLSearchParams(window.location.search).get(requestIdParam)
-            ?? window.location.pathname.split("/").filter(Boolean).pop();
-        setFeedback("loading");
-        try {
-            await fetchApi(submitEndpoint, { method: "POST", body: JSON.stringify({ request: requestId, stations: sequence }) });
-            setFeedback("ok");
-        } catch {
-            setFeedback("error");
-            setTimeout(() => setFeedback(""), 3000);
-        }
-    };
-
     // ── Preview render ────────────────────────────────────────────────────────
     if (isPreview) {
-        if (feedback === "ok") {
-            return (
-                <div className="w-full rounded-xl border bg-card p-10 flex flex-col items-center gap-3 text-center">
-                    <CheckCircle2 className="h-14 w-14 text-green-500" />
-                    <p className="text-base font-semibold">เปิดออเดอร์สำเร็จ!</p>
-                    <p className="text-sm text-muted-foreground">ออเดอร์ถูกสร้างพร้อมเส้นทางผลิตที่กำหนดแล้ว</p>
-                </div>
-            );
-        }
-
         if (loadingStations) {
             return (
                 <div className="w-full rounded-xl border bg-card px-5 py-10 flex flex-col items-center gap-3 text-center">
@@ -251,18 +227,14 @@ export function StationSequencePicker({
                     </div>
                 )}
 
-                {/* Submit */}
-                <div className="px-5 pb-5">
-                    {feedback === "error" && <p className="text-xs text-red-500 mb-2">เกิดข้อผิดพลาด กรุณาลองใหม่</p>}
-                    <button type="button" onClick={handleSubmit}
-                        disabled={sequence.length === 0 || feedback === "loading"}
-                        className="w-full rounded-lg bg-primary text-primary-foreground px-4 py-2.5 text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
-                        {feedback === "loading"
-                            ? <><Loader2 className="h-4 w-4 animate-spin" /> กำลังสร้างออเดอร์...</>
-                            : <><Send className="h-4 w-4" /> เปิดออเดอร์ ({sequence.length} สถานี)</>
-                        }
-                    </button>
-                </div>
+                {/* Status bar — shows how many stations selected */}
+                {sequence.length > 0 && (
+                    <div className="px-5 pb-4">
+                        <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                            ✓ เลือก {sequence.length} สถานี — กดปุ่มสร้างออเดอร์เพื่อยืนยัน
+                        </p>
+                    </div>
+                )}
             </div>
         );
     }
@@ -288,9 +260,9 @@ export function StationSequencePicker({
                         </div>
                     ))}
                 </div>
-                <div className="h-9 rounded-lg bg-primary/20 flex items-center justify-center">
-                    <span className="text-xs text-primary/60 font-medium">เปิดออเดอร์</span>
-                </div>
+                <p className="text-[10px] text-muted-foreground/40 text-center italic pt-1">
+                    เขียนลง formData[{fieldKey ?? "stations"}] → ใช้ปุ่มกดเพื่อส่ง
+                </p>
             </div>
         </div>
     );
@@ -298,5 +270,5 @@ export function StationSequencePicker({
 
 StationSequencePicker.craft = {
     displayName: "Station Sequence",
-    props: { title: "กำหนดเส้นทางการผลิต", submitEndpoint: "/orders", requestIdParam: "id" } as StationSequencePickerProps,
+    props: { title: "กำหนดเส้นทางการผลิต", fieldKey: "stations" } as StationSequencePickerProps,
 };

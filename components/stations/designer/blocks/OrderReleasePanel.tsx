@@ -77,9 +77,9 @@ export function OrderReleasePanel({
     useEffect(() => { if (isPreview) load(); }, [isPreview]);
 
     // Real-time updates via WebSocket
-    useWebSocket("order",     ["order:updated"],                              () => { if (isPreview) load(); });
-    useWebSocket("inventory", ["inventory:updated", "material:updated"],      () => { if (isPreview) load(); });
-    useWebSocket("station",   ["station:updated", "station-template:updated"],() => { if (isPreview) load(); });
+    useWebSocket("order",     ["order:updated"],                         () => { if (isPreview) load(); });
+    useWebSocket("inventory", ["inventory:updated", "material:updated"], () => { if (isPreview) load(); });
+    useWebSocket("station",   ["station:updated"],                       () => { if (isPreview) load(); });
 
     const load = async () => {
         setLoading(true);

@@ -92,6 +92,7 @@ export interface Order {
     material: string | Material;
     quantity: number;
     stations: string[];
+    currentStationIndex?: number;
     status: "pending" | "in_progress" | "completed" | "cancelled";
     claim: string;
     withdrawal: string;

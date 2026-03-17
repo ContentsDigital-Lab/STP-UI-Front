@@ -2,8 +2,9 @@ import { fetchApi } from "./config";
 import { ApiResponse, Order } from "./types";
 
 export const ordersApi = {
-    getAll: async (): Promise<ApiResponse<Order[]>> => {
-        return fetchApi<ApiResponse<Order[]>>("/orders", {
+    getAll: async (params?: { stationId?: string }): Promise<ApiResponse<Order[]>> => {
+        const qs = params?.stationId ? `?stationId=${encodeURIComponent(params.stationId)}` : "";
+        return fetchApi<ApiResponse<Order[]>>(`/orders${qs}`, {
             method: "GET",
         });
     },

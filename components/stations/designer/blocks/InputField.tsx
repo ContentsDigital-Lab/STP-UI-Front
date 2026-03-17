@@ -3,6 +3,7 @@
 import { useNode } from "@craftjs/core";
 import { Hash } from "lucide-react";
 import { usePreview } from "../PreviewContext";
+import { useStationContext } from "../StationContext";
 
 interface InputFieldProps {
     label?:        string;
@@ -24,12 +25,25 @@ export function InputField({
 }: InputFieldProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
+    const { formData, setField } = useStationContext();
 
     if (isPreview) {
+        const controlled = !!fieldKey;
+        const currentValue = controlled ? String(formData[fieldKey] ?? defaultValue ?? "") : undefined;
         return (
             <div className="w-full space-y-1.5">
                 {label && <label className="block text-xs font-semibold text-foreground/70">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>}
-                <input type={fieldType} placeholder={placeholder} defaultValue={defaultValue} className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                {controlled ? (
+                    <input
+                        type={fieldType}
+                        placeholder={placeholder}
+                        value={currentValue}
+                        onChange={(e) => setField(fieldKey, fieldType === "number" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value)}
+                        className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    />
+                ) : (
+                    <input type={fieldType} placeholder={placeholder} defaultValue={defaultValue} className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
+                )}
             </div>
         );
     }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Editor, Frame, Element, useEditor } from "@craftjs/core";
 import { BlockPalette }      from "./BlockPalette";
 import { PropertiesPanel }   from "./PropertiesPanel";
@@ -8,6 +8,7 @@ import { Toolbar, CanvasSize, CanvasAlignment } from "./Toolbar";
 import { CanvasContainer }   from "./CanvasContainer";
 import { KeyboardShortcuts } from "./KeyboardShortcuts";
 import { PreviewContext }     from "./PreviewContext";
+import { StationProvider }   from "./StationContext";
 
 // ─── Layout ──────────────────────────────────────────────────────────────────
 import { Section }           from "./blocks/Section";
@@ -44,15 +45,14 @@ interface DesignerCanvasProps {
     onSaveStatusChange?: (status: SaveStatus) => void;
     /** Start directly in preview/live mode — hides toolbar edit controls */
     previewOnly?:        boolean;
+    /** ID of the current station — used by RecordList to filter orders for this station */
+    stationId?:          string | null;
+    /** Order data to pre-populate context (e.g. from ?orderId= URL param) */
+    initialData?:        Record<string, unknown> | null;
+    /** Request (บิล) data to pre-populate context (e.g. from ?requestId= URL param) */
+    initialRequestData?: Record<string, unknown> | null;
 }
 
-const RESOLVER = {
-    CanvasContainer, Section, TwoColumns, Column,
-    Heading, Paragraph, Divider, Spacer, Badge,
-    InputField, SelectField, TextAreaField, ButtonBlock,
-    InfoCard, StatusIndicator, RecordList, RecordDetail, StationSequencePicker,
-    InventoryStockBlock, OrderReleasePanel,
-};
 
 /** Syncs Properties panel visibility with current selection — must be inside <Editor> */
 function SelectionWatcher({ onSelection }: { onSelection: (hasSelection: boolean) => void }) {
@@ -134,7 +134,17 @@ function sanitizeCraftNodes(raw: Record<string, unknown>): string | undefined {
     return "ROOT" in clean ? JSON.stringify(clean) : undefined;
 }
 
-export function DesignerCanvas({ templateName, initialNodes, onSave, saving, onSaveStatusChange, previewOnly = false }: DesignerCanvasProps) {
+export function DesignerCanvas({ templateName, initialNodes, onSave, saving, onSaveStatusChange, previewOnly = false, stationId, initialData, initialRequestData }: DesignerCanvasProps) {
+    // Keep RESOLVER inside component so Turbopack hot-reload always picks up fresh module references
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const RESOLVER = useMemo(() => ({
+        CanvasContainer, Section, TwoColumns, Column,
+        Heading, Paragraph, Divider, Spacer, Badge,
+        InputField, SelectField, TextAreaField, ButtonBlock,
+        InfoCard, StatusIndicator, RecordList, RecordDetail, StationSequencePicker,
+        InventoryStockBlock, OrderReleasePanel,
+    }), []);
+
     const [isPreview,      setIsPreview]      = useState(previewOnly);
     const [canvasSize,     setCanvasSize]     = useState<CanvasSize>({ width: 900, height: 700 });
     const [alignment,      setAlignment]      = useState<CanvasAlignment>("center");
@@ -166,6 +176,7 @@ export function DesignerCanvas({ templateName, initialNodes, onSave, saving, onS
     };
 
     return (
+        <StationProvider stationId={stationId} initialOrderData={initialData} initialRequestData={initialRequestData}>
         <PreviewContext.Provider value={isPreview}>
             <Editor resolver={RESOLVER}>
                 <EditorModeSync enabled={!isPreview} />
@@ -280,5 +291,6 @@ export function DesignerCanvas({ templateName, initialNodes, onSave, saving, onS
                 </div>
             </Editor>
         </PreviewContext.Provider>
+        </StationProvider>
     );
 }

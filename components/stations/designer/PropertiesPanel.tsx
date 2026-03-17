@@ -15,7 +15,7 @@ type FieldDef = {
     placeholder?:  string;
     suggestions?:  string[];              // combo-box suggestions
     section:       Section;
-    showWhen?:     { field: string; value: string | string[] };
+    showWhen?:     { field: string; value: string | string[] | boolean };
 };
 
 // ── Shared suggestion banks ───────────────────────────────────────────────────
@@ -24,7 +24,7 @@ const DATA_VAR_SUGGESTIONS   = ["order.status","order.quantity","order.customer.
 const ENDPOINT_SUGGESTIONS    = ["/orders","/requests","/materials","/workers","/customers","/inventories","/claims","/withdrawals","/material-logs","/notifications"];
 const NAVIGATE_TO_SUGGESTIONS = ["/production","/request","/stations","/inventory","/withdrawals","/claims","/logs","/settings"];
 const NAVIGATE_SUGGESTIONS   = ["/production","/request","/stations","/inventory","/withdrawals","/claims","/logs","/settings"];
-const LABEL_FIELD_SUGGESTIONS = ["name","username","title","type","status","position"];
+const LABEL_FIELD_SUGGESTIONS = ["name","customer.name","material.name","details.type","code","username","title","type","status","position"];
 const VALUE_FIELD_SUGGESTIONS = ["_id","name","id"];
 const CONFIRM_SUGGESTIONS    = ["ต้องการดำเนินการต่อใช่ไหม?","ยืนยันการบันทึกข้อมูล?","ต้องการส่งข้อมูลใช่ไหม?","ยืนยันการลบรายการนี้?"];
 
@@ -109,11 +109,13 @@ const FIELD_META: Record<string, Record<string, FieldDef>> = {
     },
     "Record Detail": {
         title:      { label: "ชื่อหัวข้อ",   type: "text",          section: "props", placeholder: "เช่น รายละเอียดคำขอ" },
-        endpoint:   { label: "แหล่งข้อมูล", type: "select",         section: "data",  options: ["static","/orders","/requests","/materials","/workers","/customers","/inventories","/claims","/withdrawals"], optionLabels: ["ตัวอย่าง (ไม่ต้องการ API)","รายการออเดอร์/คำสั่งผลิต","รายการคำขอ (บิล)","รายการวัสดุ","รายการพนักงาน","รายการลูกค้า","คลังสินค้า","รายการเคลม","รายการเบิกวัสดุ"] },
+        endpoint:   { label: "แหล่งข้อมูล", type: "select",         section: "data",  options: ["context","static","/orders","/requests","/materials","/workers","/customers","/inventories","/claims","/withdrawals"], optionLabels: ["จากรายการที่เลือก (RecordList)","ตัวอย่าง (ไม่ต้องการ API)","รายการออเดอร์/คำสั่งผลิต","รายการคำขอ (บิล)","รายการวัสดุ","รายการพนักงาน","รายการลูกค้า","คลังสินค้า","รายการเคลม","รายการเบิกวัสดุ"] },
+        idParam:    { label: "URL Param ของ ID", type: "text",        section: "data",  placeholder: "เช่น requestId, orderId", hint: "ชื่อ URL param ที่ใช้ระบุ ID ของรายการ — ไม่จำเป็นถ้าเลือก 'รายการออเดอร์' หรือ 'รายการคำขอ' (ใช้ข้อมูลจาก context อัตโนมัติ)", suggestions: ["requestId","orderId","id"] },
         fieldsJson: { label: "ฟิลด์ที่แสดง", type: "column-editor", section: "data"  },
     },
     "Station Sequence": {
-        title: { label: "ชื่อหัวข้อ", type: "text", section: "props", placeholder: "เช่น กำหนดเส้นทางการผลิต" },
+        title:    { label: "ชื่อหัวข้อ",              type: "text", section: "props", placeholder: "เช่น กำหนดเส้นทางการผลิต" },
+        fieldKey: { label: "ชื่อตัวแปร (ใช้ในฟอร์ม)", type: "text", section: "data",  hint: "ชื่อที่จะใช้เก็บรายการสถานีใน formData (ค่าเริ่มต้น: stations)", placeholder: "stations", suggestions: ["stations"] },
     },
     "Inventory Stock": {
         title:       { label: "ชื่อหัวข้อ",       type: "text",   section: "props", placeholder: "เช่น สต็อกวัสดุในคลัง" },
@@ -133,7 +135,9 @@ const FIELD_META: Record<string, Record<string, FieldDef>> = {
         maxRows:     { label: "จำนวนแถวสูงสุด",  type: "number",        section: "props", placeholder: "5" },
         dataSource:  { label: "แหล่งข้อมูล",     type: "select",        section: "data",  options: ["static","/orders","/requests","/materials","/workers","/customers","/inventories","/claims","/withdrawals","/material-logs","/notifications"], optionLabels: ["ตัวอย่าง (ไม่ต้องการ API)","รายการออเดอร์/คำสั่งผลิต","รายการคำขอ (บิล)","รายการวัสดุ","รายการพนักงาน","รายการลูกค้า","คลังสินค้า","รายการเคลม","รายการเบิกวัสดุ","ประวัติการใช้วัสดุ","การแจ้งเตือน"] },
         columnsJson: { label: "คอลัมน์",         type: "column-editor", section: "data" },
-        navigateTo:  { label: "คลิกแถวไปหน้า", type: "select",        section: "action", options: ["","production","request","inventory","withdrawals","claims"], optionLabels: ["ไม่มี (ไม่คลิกได้)","คำสั่งผลิต (/production)","คำขอ (/request)","คลังสินค้า (/inventory)","เบิกวัสดุ (/withdrawals)","เคลม (/claims)"], hint: "เมื่อคลิกแถว ระบบจะนำไปหน้าที่เลือก" },
+        filterByCurrentStation: { label: "เฉพาะงานของสถานีนี้", type: "toggle", section: "data", hint: "กรองเฉพาะ order ที่ปัจจุบันอยู่ที่สถานีนี้ (stations[currentStationIndex] = stationId) — ใช้ได้เมื่อแหล่งข้อมูลเป็น /orders" },
+        selectable:  { label: "คลิกแถวเพื่อเลือก", type: "toggle", section: "action", hint: "เปิดเพื่อให้คลิกแถวแล้วส่งข้อมูลไปยัง components รายละเอียด (RecordDetail) บนหน้าเดียวกัน" },
+        navigateTo:  { label: "คลิกแถวไปหน้า",    type: "select", section: "action", options: ["","production","request","inventory","withdrawals","claims"], optionLabels: ["ไม่มี (ไม่คลิกได้)","คำสั่งผลิต (/production)","คำขอ (/request)","คลังสินค้า (/inventory)","เบิกวัสดุ (/withdrawals)","เคลม (/claims)"], hint: "เมื่อคลิกแถว ระบบจะนำไปหน้าที่เลือก (ใช้ได้เมื่อปิด 'คลิกแถวเพื่อเลือก')", showWhen: { field: "selectable", value: false } },
     },
     Status: {
         label:        { label: "ชื่อหัวข้อ",       type: "text",   section: "props", placeholder: "เช่น สถานะงาน" },
@@ -152,6 +156,7 @@ const SECTION_CONFIG: Record<Section, { icon: React.ElementType; label: string; 
 function isVisible(def: FieldDef, props: Record<string, unknown>): boolean {
     if (!def.showWhen) return true;
     const { field, value } = def.showWhen;
+    if (typeof value === "boolean") return !!props[field] === value;
     const cur = String(props[field] ?? "");
     return Array.isArray(value) ? value.includes(cur) : cur === value;
 }
@@ -458,9 +463,10 @@ function TextFormatButtons({ value, onChange }: { value: string; onChange: (v: s
 }
 
 // ── Field renderer ────────────────────────────────────────────────────────────
-function Field({ label, value, fieldDef, onChange, allProps }: {
+function Field({ label, value, fieldDef, onChange, allProps, suggestionOverride }: {
     label: string; value: unknown; fieldDef: FieldDef; onChange: (v: string | number | boolean) => void;
     allProps?: Record<string, unknown>;
+    suggestionOverride?: string[];
 }) {
     const base = "w-full rounded-lg border bg-background px-2.5 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary/40 transition";
 
@@ -489,8 +495,8 @@ function Field({ label, value, fieldDef, onChange, allProps }: {
                 <textarea rows={3} value={String(value ?? "")} onChange={(e) => onChange(e.target.value)} className={`${base} resize-none`} placeholder={fieldDef.placeholder} />
             ) : fieldDef.type === "number" ? (
                 <input type="number" value={String(value ?? "")} onChange={(e) => onChange(Number(e.target.value))} className={base} />
-            ) : fieldDef.suggestions?.length ? (
-                <ComboField value={value} onChange={(v) => onChange(v)} placeholder={fieldDef.placeholder} suggestions={fieldDef.suggestions} base={base} />
+            ) : (suggestionOverride ?? fieldDef.suggestions)?.length ? (
+                <ComboField value={value} onChange={(v) => onChange(v)} placeholder={fieldDef.placeholder} suggestions={suggestionOverride ?? fieldDef.suggestions!} base={base} />
             ) : (
                 <input type="text" value={String(value ?? "")} onChange={(e) => onChange(e.target.value)} className={base} placeholder={fieldDef.placeholder} />
             )}
@@ -505,8 +511,9 @@ function Field({ label, value, fieldDef, onChange, allProps }: {
 }
 
 // ── Section renderer ──────────────────────────────────────────────────────────
-function SectionPanel({ section, fields, props, setProp }: {
+function SectionPanel({ section, fields, props, setProp, suggestionOverrides }: {
     section: Section; fields: [string, FieldDef][]; props: Record<string, unknown>; setProp: (key: string, value: string | number | boolean) => void;
+    suggestionOverrides?: Record<string, string[]>;
 }) {
     const visible = fields.filter(([, def]) => isVisible(def, props));
     if (visible.length === 0) return null;
@@ -521,7 +528,7 @@ function SectionPanel({ section, fields, props, setProp }: {
                 </div>
             )}
             {visible.map(([key, def]) => (
-                <Field key={key} label={def.label} value={props[key]} fieldDef={def} onChange={(v) => setProp(key, v)} allProps={props} />
+                <Field key={key} label={def.label} value={props[key]} fieldDef={def} onChange={(v) => setProp(key, v)} allProps={props} suggestionOverride={suggestionOverrides?.[key]} />
             ))}
         </div>
     );
@@ -552,6 +559,18 @@ export function PropertiesPanel() {
     const setProp   = (key: string, value: string | number | boolean) => {
         actions.setProp(selected, (p: Record<string, unknown>) => { p[key] = value; });
     };
+
+    // ── Scan canvas for form fields → build dynamic dataVar suggestions ────────
+    const canvasFormSuggestions: string[] = Object.values(nodes)
+        .filter((n) => ["Input Field", "Select Field", "Text Area"].includes(n.data?.displayName ?? n.data?.name ?? ""))
+        .map((n) => (n.data?.props as { fieldKey?: string } | undefined)?.fieldKey)
+        .filter((k): k is string => !!k)
+        .map((k) => `form.${k}`);
+    // merge: canvas form.* first, then static order.* suggestions (dedup)
+    const dynamicDataVarSuggestions = [
+        ...canvasFormSuggestions,
+        ...DATA_VAR_SUGGESTIONS.filter((s) => !canvasFormSuggestions.includes(s)),
+    ];
 
     const sections: Record<Section, [string, FieldDef][]> = { props: [], data: [], action: [] };
     const hasMeta = Object.keys(fieldMeta).length > 0;
@@ -587,7 +606,15 @@ export function PropertiesPanel() {
                     {sections.data.length > 0 && (
                         <>
                             <div className="px-4"><div className="border-t border-blue-200/50 dark:border-blue-800/30" /></div>
-                            <div className="px-3"><SectionPanel section="data" fields={sections.data} props={props} setProp={setProp} /></div>
+                            <div className="px-3">
+                                <SectionPanel
+                                    section="data"
+                                    fields={sections.data}
+                                    props={props}
+                                    setProp={setProp}
+                                    suggestionOverrides={{ dataVar: dynamicDataVarSuggestions }}
+                                />
+                            </div>
                         </>
                     )}
                     {sections.action.length > 0 && (
