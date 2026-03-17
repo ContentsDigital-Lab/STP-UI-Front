@@ -6,6 +6,7 @@ import { useLanguage } from "@/lib/i18n/language-context";
 import {
     LayoutDashboard,
     ClipboardList,
+    ClipboardCheck,
     Factory,
     Package,
     Settings,
@@ -30,8 +31,9 @@ export function Sidebar({ collapsed, setCollapsed, onNavigate }: SidebarProps) {
 
     const navigation = [
         { name: t.dashboard.label, href: "/",          icon: LayoutDashboard },
-        { name: t.orderRequests,   href: "/request",   icon: ClipboardList   },
-        { name: "สถานี",            href: "/stations",  icon: Factory         },
+        { name: t.orderRequests,   href: "/request",     icon: ClipboardList   },
+        { name: "คำสั่งผลิต",       href: "/production",  icon: ClipboardCheck  },
+        { name: "สถานี",            href: "/stations",    icon: Factory         },
         { name: t.inventory,       href: "/inventory", icon: Package         },
         { name: t.withdrawals,     href: "/withdrawals",        icon: ArrowDownFromLine },
         { name: t.claims,          href: "/claims",             icon: ShieldAlert     },
