@@ -90,11 +90,11 @@ export default function ProductionPage() {
 
     return (
         <>
-        <div className="space-y-6 p-6">
+        <div className="space-y-4 sm:space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="space-y-1">
-                    <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+                    <h1 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2">
                         <ClipboardCheck className="h-6 w-6 text-primary" />
                         ตรวจสอบคำสั่งผลิต
                     </h1>
@@ -129,8 +129,8 @@ export default function ProductionPage() {
             </div>
 
             {/* Filters */}
-            <div className="flex gap-2">
-                <div className="relative flex-1 max-w-sm">
+            <div className="flex flex-col sm:flex-row gap-2">
+                <div className="relative flex-1 sm:max-w-sm">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                     <Input
                         placeholder="ค้นหา รหัส, ลูกค้า, วัสดุ..."
@@ -167,6 +167,7 @@ export default function ProductionPage() {
                 </div>
             ) : (
                 <div className="rounded-xl border overflow-hidden">
+                    <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                         <thead>
                             <tr className="border-b bg-muted/30 text-xs text-muted-foreground uppercase tracking-wide">
@@ -247,6 +248,7 @@ export default function ProductionPage() {
                             ))}
                         </tbody>
                     </table>
+                    </div>
                 </div>
             )}
         </div>

@@ -216,17 +216,17 @@ export default function ClaimsPage() {
     );
 
     return (
-        <div className="space-y-6 p-6">
+        <div className="space-y-4 sm:space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="space-y-1">
-                    <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-                        <ShieldAlert className="h-6 w-6 text-primary" />
+                    <h1 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2">
+                        <ShieldAlert className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
                         รายการเคลม
                     </h1>
                     <p className="text-sm text-muted-foreground">บันทึกและติดตามการเคลมวัสดุแบบเรียลไทม์</p>
                 </div>
-                <Button onClick={() => setIsCreateOpen(true)} className="gap-2">
+                <Button onClick={() => setIsCreateOpen(true)} className="gap-2 w-full sm:w-auto">
                     <Plus className="h-4 w-4" />
                     เพิ่มรายการเคลม
                 </Button>
@@ -282,7 +282,8 @@ export default function ClaimsPage() {
             </div>
 
             {/* Table */}
-            <div className="rounded-lg border bg-card overflow-x-auto">
+            <div className="rounded-lg border bg-card overflow-hidden">
+                <div className="overflow-x-auto">
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -368,11 +369,12 @@ export default function ClaimsPage() {
                         )}
                     </TableBody>
                 </Table>
+                </div>
             </div>
 
             {/* Pagination */}
             {!isLoading && filtered.length > ITEMS_PER_PAGE && (
-                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-muted-foreground">
                     <span>แสดง {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)} จาก {filtered.length} รายการ</span>
                     <div className="flex items-center gap-2">
                         <Button variant="outline" size="icon" className="h-8 w-8" disabled={currentPage === 1} onClick={() => setCurrentPage((p) => p - 1)}>

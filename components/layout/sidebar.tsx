@@ -21,9 +21,10 @@ import { Button } from "@/components/ui/button";
 interface SidebarProps {
     collapsed: boolean;
     setCollapsed: (collapsed: boolean) => void;
+    onNavigate?: () => void;
 }
 
-export function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
+export function Sidebar({ collapsed, setCollapsed, onNavigate }: SidebarProps) {
     const pathname = usePathname();
     const { t } = useLanguage();
 
@@ -41,7 +42,7 @@ export function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
     return (
         <div
             className={cn(
-                "relative flex flex-col border-r bg-sidebar text-sidebar-foreground transition-all duration-300",
+                "relative flex h-full flex-col border-r bg-sidebar text-sidebar-foreground transition-all duration-300",
                 collapsed ? "w-[80px]" : "w-[240px]"
             )}
         >
@@ -64,13 +65,14 @@ export function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
                 )}
             </div>
 
-            <nav className="flex-1 space-y-1 p-2">
+            <nav className="flex-1 space-y-1 overflow-y-auto p-2">
                 {navigation.map((item) => {
                     const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
                     return (
                         <Link
                             key={item.href}
                             href={item.href}
+                            onClick={onNavigate}
                             className={cn(
                                 "group flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors",
                                 isActive

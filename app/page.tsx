@@ -104,7 +104,7 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="flex flex-col gap-8 max-w-[1600px] mx-auto w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-8 overflow-x-hidden">
+    <div className="flex flex-col gap-4 sm:gap-6 lg:gap-8 max-w-[1600px] mx-auto w-full overflow-x-hidden">
       {/* Welcome Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -115,18 +115,18 @@ export default function DashboardPage() {
             System Operational • All stations reporting healthy
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Badge variant="outline" className="px-3 py-1 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 font-medium rounded-lg shadow-sm">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          <Badge variant="outline" className="px-3 py-1 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 font-medium rounded-lg shadow-sm text-xs sm:text-sm">
             Last updated: Just now
           </Badge>
-          <Button className="bg-[#E8601C] hover:bg-[#E8601C]/90 text-white font-bold rounded-xl shadow-lg shadow-orange-500/20 px-6">
+          <Button className="bg-[#E8601C] hover:bg-[#E8601C]/90 text-white font-bold rounded-xl shadow-lg shadow-orange-500/20 px-4 sm:px-6 text-sm">
             Export Report
           </Button>
         </div>
       </div>
 
       {/* KPI Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
         {kpis.map((kpi, i) => (
           <Card key={i} className="border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-all rounded-3xl overflow-hidden group">
             <CardContent className="p-6">
@@ -148,7 +148,7 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
         {/* Main Chart Section */}
         <Card className="lg:col-span-2 border-slate-200 dark:border-slate-800 shadow-sm rounded-3xl overflow-hidden bg-white dark:bg-slate-900">
           <CardHeader className="flex flex-row items-center justify-between border-b border-slate-50 dark:border-slate-800 pb-6">
@@ -162,7 +162,7 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent className="pt-8">
-            <div className="h-[350px] w-full">
+            <div className="h-[250px] sm:h-[300px] lg:h-[350px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData}>
                   <defs>
@@ -242,7 +242,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Quick Navigation / Tools */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
         {[
           { icon: Package, title: "Stock Manager", desc: "Add or adjust items", link: "/inventory" },
           { icon: History, title: "Activity Logs", desc: "Detailed audit trail", link: "/inventory" },

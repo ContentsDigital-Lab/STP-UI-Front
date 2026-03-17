@@ -7,7 +7,7 @@ import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { MousePointer2, Circle, Undo2, Redo2, RotateCcw, Pen, Focus, Hand, Square, ChevronDown, Hexagon, RectangleHorizontal, Box } from 'lucide-react';
+import { MousePointer2, Circle, Undo2, Redo2, RotateCcw, Pen, Focus, Hand, Square, ChevronDown, Hexagon, RectangleHorizontal, Box, Maximize2, Minimize2 } from 'lucide-react';
 
 export type CutoutType = 'circle' | 'rectangle' | 'slot' | 'custom';
 
@@ -21,6 +21,7 @@ export interface HoleData {
     height?: number;
     length?: number;
     points?: VertexData[];
+    groupId?: string;
 }
 
 export interface VertexData {
@@ -450,6 +451,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
 
     const [activeTool, setActiveTool] = useState<'select' | 'addHole' | 'editVertex' | 'move'>('select');
     const [selectedHoleId, setSelectedHoleId] = useState<string | null>(null);
+    const [selectedHoleIds, setSelectedHoleIds] = useState<Set<string>>(new Set());
     const [holeDiameter, setHoleDiameter] = useState(20);
     const [selectedVertexIdx, setSelectedVertexIdx] = useState<number | null>(null);
     const [cutoutShape, setCutoutShape] = useState<CutoutType>('circle');
@@ -461,6 +463,9 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
     const [customDrawPoints, setCustomDrawPoints] = useState<VertexData[]>([]);
     const [show3DPreview, setShow3DPreview] = useState(true);
     const [cutoutMenuOpen, setCutoutMenuOpen] = useState(false);
+    const [previewPos, setPreviewPos] = useState<{ x: number; y: number } | null>(null);
+    const [previewExpanded, setPreviewExpanded] = useState(false);
+    const previewDragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
 
     const preview3DRef = useRef<HTMLDivElement>(null);
     const previewRendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -484,6 +489,10 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
     const resizeHoleIdRef = useRef<string | null>(null);
     const resizeAxisRef = useRef<string | undefined>(undefined);
     const isMovingGlassRef = useRef(false);
+    const isActivelyDraggingRef = useRef(false);
+    const dragRebuildTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const dragRebuildPending = useRef(false);
+    const moveAccumRef = useRef({ dx: 0, dy: 0 });
     const moveStartRef = useRef<{ x: number; y: number } | null>(null);
     const lastMouseRef = useRef({ x: 0, y: 0 });
     const panStartRef = useRef({ x: 0, y: 0 });
@@ -493,13 +502,16 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
 
     const normalizedHoles = holes.map(h => ({ ...h, type: h.type || 'circle' as CutoutType }));
     const holesRef = useRef(normalizedHoles);
-    holesRef.current = normalizedHoles;
+    if (!isActivelyDraggingRef.current) holesRef.current = normalizedHoles;
 
     const activeToolRef = useRef(activeTool);
     activeToolRef.current = activeTool;
 
     const selectedHoleIdRef = useRef(selectedHoleId);
     selectedHoleIdRef.current = selectedHoleId;
+
+    const selectedHoleIdsRef = useRef(selectedHoleIds);
+    selectedHoleIdsRef.current = selectedHoleIds;
 
     const holeDiameterRef = useRef(holeDiameter);
     holeDiameterRef.current = holeDiameter;
@@ -520,7 +532,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
     customDrawPointsRef.current = customDrawPoints;
 
     const verticesRef = useRef(internalVertices);
-    verticesRef.current = internalVertices;
+    if (!isActivelyDraggingRef.current) verticesRef.current = internalVertices;
 
     const selectedVertexIdxRef = useRef(selectedVertexIdx);
     selectedVertexIdxRef.current = selectedVertexIdx;
@@ -540,71 +552,73 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         }
     }, [onVerticesChange]);
 
-    const renderScene = useCallback(() => {
+    const renderScene = useCallback((fastMode = false) => {
         const renderer = rendererRef.current;
         const scene = sceneRef.current;
         const camera = cameraRef.current;
         if (!renderer || !scene || !camera) return;
 
-        // Dynamic infinite grid based on visible world area
-        if (gridObjRef.current) {
-            scene.remove(gridObjRef.current);
-            gridObjRef.current.geometry.dispose();
-        }
-        const topLeftWorld = new THREE.Vector3(-1, 1, 0).unproject(camera);
-        const bottomRightWorld = new THREE.Vector3(1, -1, 0).unproject(camera);
-        const gridStep = 50;
-        const pad = gridStep * 2;
-        const gLeft = Math.floor((Math.min(topLeftWorld.x, bottomRightWorld.x) - pad) / gridStep) * gridStep;
-        const gRight = Math.ceil((Math.max(topLeftWorld.x, bottomRightWorld.x) + pad) / gridStep) * gridStep;
-        const gBottom = Math.floor((Math.min(topLeftWorld.y, bottomRightWorld.y) - pad) / gridStep) * gridStep;
-        const gTop = Math.ceil((Math.max(topLeftWorld.y, bottomRightWorld.y) + pad) / gridStep) * gridStep;
-        const gridLines: THREE.Vector3[] = [];
-        for (let x = gLeft; x <= gRight; x += gridStep) {
-            gridLines.push(new THREE.Vector3(x, gBottom, -0.2), new THREE.Vector3(x, gTop, -0.2));
-        }
-        for (let y = gBottom; y <= gTop; y += gridStep) {
-            gridLines.push(new THREE.Vector3(gLeft, y, -0.2), new THREE.Vector3(gRight, y, -0.2));
-        }
-        const gridGeo = new THREE.BufferGeometry().setFromPoints(gridLines);
-        const gridMat = new THREE.LineBasicMaterial({ color: 0xeeeeee });
-        const gridObj = new THREE.LineSegments(gridGeo, gridMat);
-        gridObjRef.current = gridObj;
-        scene.add(gridObj);
-
-        const frustumWidth = camera.right - camera.left;
-        const canvasWidth = renderer.domElement.clientWidth;
-        const worldPerPixel = frustumWidth / canvasWidth;
-        const scaleFactor = worldPerPixel * 0.45;
-
-        glassGroupRef.current.traverse((obj) => {
-            if (obj instanceof THREE.Sprite && obj.userData.screenWidth) {
-                const sw = obj.userData.screenWidth * scaleFactor;
-                const sh = obj.userData.screenHeight * scaleFactor;
-                obj.scale.set(sw, sh, 1);
-
-                if (obj.userData.gapLine1 && obj.userData.gapLine2) {
-                    const p1 = obj.userData.lineP1 as THREE.Vector3;
-                    const p2 = obj.userData.lineP2 as THREE.Vector3;
-                    const dir = new THREE.Vector3().subVectors(p2, p1).normalize();
-                    const halfGap = ((obj.userData.lineDirection === 'horizontal' ? sw : sh) / 2) + 3 * scaleFactor;
-                    const spritePos = new THREE.Vector3(obj.position.x, obj.position.y, p1.z);
-
-                    const gapStart = spritePos.clone().sub(dir.clone().multiplyScalar(halfGap));
-                    const gapEnd = spritePos.clone().add(dir.clone().multiplyScalar(halfGap));
-
-                    const pos1 = obj.userData.gapLine1.geometry.attributes.position;
-                    pos1.setXYZ(0, p1.x, p1.y, p1.z);
-                    pos1.setXYZ(1, gapStart.x, gapStart.y, gapStart.z);
-                    pos1.needsUpdate = true;
-
-                    const pos2 = obj.userData.gapLine2.geometry.attributes.position;
-                    pos2.setXYZ(0, gapEnd.x, gapEnd.y, gapEnd.z);
-                    pos2.setXYZ(1, p2.x, p2.y, p2.z);
-                    pos2.needsUpdate = true;
-                }
+        if (!fastMode) {
+            // Dynamic infinite grid — skip during drag for performance
+            if (gridObjRef.current) {
+                scene.remove(gridObjRef.current);
+                gridObjRef.current.geometry.dispose();
             }
-        });
+            const topLeftWorld = new THREE.Vector3(-1, 1, 0).unproject(camera);
+            const bottomRightWorld = new THREE.Vector3(1, -1, 0).unproject(camera);
+            const gridStep = 50;
+            const pad = gridStep * 2;
+            const gLeft = Math.floor((Math.min(topLeftWorld.x, bottomRightWorld.x) - pad) / gridStep) * gridStep;
+            const gRight = Math.ceil((Math.max(topLeftWorld.x, bottomRightWorld.x) + pad) / gridStep) * gridStep;
+            const gBottom = Math.floor((Math.min(topLeftWorld.y, bottomRightWorld.y) - pad) / gridStep) * gridStep;
+            const gTop = Math.ceil((Math.max(topLeftWorld.y, bottomRightWorld.y) + pad) / gridStep) * gridStep;
+            const gridLines: THREE.Vector3[] = [];
+            for (let x = gLeft; x <= gRight; x += gridStep) {
+                gridLines.push(new THREE.Vector3(x, gBottom, -0.2), new THREE.Vector3(x, gTop, -0.2));
+            }
+            for (let y = gBottom; y <= gTop; y += gridStep) {
+                gridLines.push(new THREE.Vector3(gLeft, y, -0.2), new THREE.Vector3(gRight, y, -0.2));
+            }
+            const gridGeo = new THREE.BufferGeometry().setFromPoints(gridLines);
+            const gridMat = new THREE.LineBasicMaterial({ color: 0xeeeeee });
+            const gridObj = new THREE.LineSegments(gridGeo, gridMat);
+            gridObjRef.current = gridObj;
+            scene.add(gridObj);
+
+            const frustumWidth = camera.right - camera.left;
+            const canvasWidth = renderer.domElement.clientWidth;
+            const worldPerPixel = frustumWidth / canvasWidth;
+            const scaleFactor = worldPerPixel * 0.45;
+
+            glassGroupRef.current.traverse((obj) => {
+                if (obj instanceof THREE.Sprite && obj.userData.screenWidth) {
+                    const sw = obj.userData.screenWidth * scaleFactor;
+                    const sh = obj.userData.screenHeight * scaleFactor;
+                    obj.scale.set(sw, sh, 1);
+
+                    if (obj.userData.gapLine1 && obj.userData.gapLine2) {
+                        const p1 = obj.userData.lineP1 as THREE.Vector3;
+                        const p2 = obj.userData.lineP2 as THREE.Vector3;
+                        const dir = new THREE.Vector3().subVectors(p2, p1).normalize();
+                        const halfGap = ((obj.userData.lineDirection === 'horizontal' ? sw : sh) / 2) + 3 * scaleFactor;
+                        const spritePos = new THREE.Vector3(obj.position.x, obj.position.y, p1.z);
+
+                        const gapStart = spritePos.clone().sub(dir.clone().multiplyScalar(halfGap));
+                        const gapEnd = spritePos.clone().add(dir.clone().multiplyScalar(halfGap));
+
+                        const pos1 = obj.userData.gapLine1.geometry.attributes.position;
+                        pos1.setXYZ(0, p1.x, p1.y, p1.z);
+                        pos1.setXYZ(1, gapStart.x, gapStart.y, gapStart.z);
+                        pos1.needsUpdate = true;
+
+                        const pos2 = obj.userData.gapLine2.geometry.attributes.position;
+                        pos2.setXYZ(0, gapEnd.x, gapEnd.y, gapEnd.z);
+                        pos2.setXYZ(1, p2.x, p2.y, p2.z);
+                        pos2.needsUpdate = true;
+                    }
+                }
+            });
+        }
 
         renderer.render(scene, camera);
     }, []);
@@ -708,7 +722,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         const verts = verticesRef.current;
         const bb = getBoundingBox(verts);
 
-        // Glass panel shape from vertices
+        // Glass panel shape from vertices — use CSG to avoid triangulation artifacts with overlapping holes
         const glassShape = new THREE.Shape();
         glassShape.moveTo(verts[0].x, verts[0].y);
         for (let i = 1; i < verts.length; i++) {
@@ -716,21 +730,57 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         }
         glassShape.closePath();
 
-        holesRef.current.forEach(h => {
-            glassShape.holes.push(makeClippedCutoutPath(h, bb));
-        });
-
         const extrudeSettings = { depth: 3, bevelEnabled: false };
-        const glassGeo = new THREE.ExtrudeGeometry(glassShape, extrudeSettings);
         const glassMat = new THREE.MeshPhongMaterial({
             color: 0xadd8e6,
             transparent: true,
             opacity: 0.45,
             side: THREE.DoubleSide,
         });
-        const mesh = new THREE.Mesh(glassGeo, glassMat);
-        glassMeshRef.current = mesh;
-        group.add(mesh);
+
+        let glassMesh: THREE.Mesh;
+        const useCSG = !isActivelyDraggingRef.current && holesRef.current.length > 0;
+
+        if (useCSG) {
+            // Accurate CSG subtraction — used when not dragging
+            const csgEvaluator = new Evaluator();
+            const glassGeo = new THREE.ExtrudeGeometry(glassShape, extrudeSettings);
+            let currentBrush: Brush = new Brush(glassGeo, glassMat);
+            currentBrush.updateMatrixWorld(true);
+
+            for (const h of holesRef.current) {
+                const cutPath = makeCutoutPath(h);
+                const cutShape = new THREE.Shape();
+                const pts = cutPath.getPoints(48);
+                cutShape.moveTo(pts[0].x, pts[0].y);
+                for (let i = 1; i < pts.length; i++) cutShape.lineTo(pts[i].x, pts[i].y);
+                cutShape.closePath();
+
+                const cutGeo = new THREE.ExtrudeGeometry(cutShape, { depth: 7, bevelEnabled: false });
+                const cutBrush = new Brush(cutGeo, glassMat);
+                cutBrush.position.set(0, 0, -2);
+                cutBrush.updateMatrixWorld(true);
+
+                try {
+                    currentBrush = csgEvaluator.evaluate(currentBrush, cutBrush, SUBTRACTION);
+                } catch { /* fallback: skip failed cutout */ }
+                cutGeo.dispose();
+            }
+            currentBrush.material = glassMat;
+            glassMesh = currentBrush;
+        } else if (holesRef.current.length > 0) {
+            // Fast Shape.holes path — used during active dragging
+            holesRef.current.forEach(h => {
+                glassShape.holes.push(makeClippedCutoutPath(h, bb));
+            });
+            const glassGeo = new THREE.ExtrudeGeometry(glassShape, extrudeSettings);
+            glassMesh = new THREE.Mesh(glassGeo, glassMat);
+        } else {
+            const glassGeo = new THREE.ExtrudeGeometry(glassShape, extrudeSettings);
+            glassMesh = new THREE.Mesh(glassGeo, glassMat);
+        }
+        glassMeshRef.current = glassMesh;
+        group.add(glassMesh);
 
         // Glass border
         const borderPoints = verts.map(v => new THREE.Vector3(v.x, v.y, 3.1));
@@ -790,8 +840,9 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
 
         // Cutout visual markers
         holesRef.current.forEach(h => {
-            const isSelected = h.id === selectedHoleIdRef.current;
-            const ringColor = isSelected ? 0xE8601C : 0xd44800;
+            const isSelected = h.id === selectedHoleIdRef.current || selectedHoleIdsRef.current.has(h.id);
+            const isGrouped = !!h.groupId;
+            const ringColor = isSelected ? 0xE8601C : isGrouped ? 0x6366f1 : 0xd44800;
 
             const outlinePoints = getCutoutOutlinePoints(h, 3.2);
             const ringMat = new THREE.LineBasicMaterial({ color: ringColor, linewidth: 2 });
@@ -852,7 +903,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
 
             // Horizontal line from right edge to hole at hole's Y level (two segments with gap)
             const holeDimMatH = new THREE.LineBasicMaterial({ color: 0xcc8855 });
-            const dimEdgeXH = bb.maxX + 30;
+            const dimEdgeXH = bb.maxX + 50;
             const hLineP1 = new THREE.Vector3(h.x, h.y, 3.2);
             const hLineP2 = new THREE.Vector3(dimEdgeXH, h.y, 3.2);
             const hLineMid = new THREE.Vector3((h.x + bb.maxX) / 2, h.y, 3.2);
@@ -873,7 +924,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         // Chained vertical dimensions on right side (between consecutive holes)
         if (holesRef.current.length > 0) {
             const holeDimMat = new THREE.LineBasicMaterial({ color: 0xcc8855 });
-            const dimEdgeX = bb.maxX + 30;
+            const dimEdgeX = bb.maxX + 50;
             const tick = 4;
             const sortedHoles = [...holesRef.current].sort((a, b) => a.y - b.y);
             const yPoints = [bb.minY, ...sortedHoles.map(h => h.y)];
@@ -1046,10 +1097,57 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Re-render when glass props change
+    // Re-render when glass props change (skip during active drag — refs are updated directly)
     useEffect(() => {
-        buildGlassScene();
-    }, [width, height, holes, selectedHoleId, internalVertices, activeTool, selectedVertexIdx, customDrawPoints, isDrawingCustom, buildGlassScene]);
+        if (!isActivelyDraggingRef.current) buildGlassScene();
+    }, [width, height, holes, selectedHoleId, selectedHoleIds, internalVertices, activeTool, selectedVertexIdx, customDrawPoints, isDrawingCustom, buildGlassScene]);
+
+    // Keyboard shortcuts: Cmd+G to group, Cmd+Shift+G to ungroup, Escape to deselect, Delete to remove
+    useEffect(() => {
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                setSelectedHoleId(null);
+                setSelectedHoleIds(new Set());
+                return;
+            }
+            if ((e.key === 'Delete' || e.key === 'Backspace') && !e.metaKey && !e.ctrlKey) {
+                handleDeleteSelected();
+                return;
+            }
+            // Cmd+G: group selected holes
+            if ((e.metaKey || e.ctrlKey) && e.key === 'g' && !e.shiftKey) {
+                e.preventDefault();
+                const sel = selectedHoleIdsRef.current;
+                if (sel.size < 2) return;
+                const groupId = `grp-${Date.now()}`;
+                pushUndo();
+                const updated = holesRef.current.map(h =>
+                    sel.has(h.id) ? { ...h, groupId } : h
+                );
+                onHolesChange(updated);
+                return;
+            }
+            // Cmd+Shift+G: ungroup selected holes
+            if ((e.metaKey || e.ctrlKey) && e.key === 'g' && e.shiftKey) {
+                e.preventDefault();
+                const sel = selectedHoleIdsRef.current;
+                const singleSel = selectedHoleIdRef.current;
+                if (sel.size === 0 && !singleSel) return;
+                pushUndo();
+                // Find which groupId(s) to ungroup
+                const idsToUngroup = sel.size > 0 ? sel : new Set(singleSel ? [singleSel] : []);
+                const groupIds = new Set(holesRef.current.filter(h => idsToUngroup.has(h.id) && h.groupId).map(h => h.groupId!));
+                const updated = holesRef.current.map(h =>
+                    h.groupId && groupIds.has(h.groupId) ? { ...h, groupId: undefined } : h
+                );
+                onHolesChange(updated);
+                setSelectedHoleIds(new Set());
+                return;
+            }
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [holes, selectedHoleId, selectedHoleIds, activeTool, internalVertices]);
 
     // Mouse handlers
     useEffect(() => {
@@ -1208,6 +1306,38 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             }
 
             const hitId = findHoleAtPos(pos.x, pos.y);
+            const isMetaClick = e.metaKey || e.ctrlKey;
+
+            if (hitId && isMetaClick) {
+                // Cmd+Click: toggle multi-select
+                setSelectedHoleIds(prev => {
+                    const next = new Set(prev);
+                    // Also include current single-selected hole in multi-select
+                    if (selectedHoleIdRef.current && !next.has(selectedHoleIdRef.current)) {
+                        next.add(selectedHoleIdRef.current);
+                    }
+                    if (next.has(hitId)) next.delete(hitId);
+                    else next.add(hitId);
+                    return next;
+                });
+                setSelectedHoleId(hitId);
+                return;
+            }
+
+            if (hitId) {
+                const hitHole = holesRef.current.find(h => h.id === hitId);
+                if (hitHole?.groupId) {
+                    // Auto-select all group members
+                    const groupMembers = holesRef.current.filter(h => h.groupId === hitHole.groupId).map(h => h.id);
+                    setSelectedHoleIds(new Set(groupMembers));
+                } else if (!selectedHoleIdsRef.current.has(hitId)) {
+                    // Only clear multi-select if clicking a hole NOT in the current selection
+                    setSelectedHoleIds(new Set());
+                }
+            } else {
+                setSelectedHoleIds(new Set());
+            }
+
             setSelectedHoleId(hitId);
             if (hitId) {
                 pushUndo();
@@ -1218,6 +1348,27 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         };
 
         const onMouseMove = (e: MouseEvent) => {
+            if (isDraggingRef.current || isMovingGlassRef.current || isResizingHoleRef.current) {
+                isActivelyDraggingRef.current = true;
+            }
+
+            const throttledRebuild = () => {
+                if (dragRebuildTimer.current) {
+                    dragRebuildPending.current = true;
+                    return;
+                }
+                buildGlassScene();
+                renderScene();
+                dragRebuildTimer.current = setTimeout(() => {
+                    dragRebuildTimer.current = null;
+                    if (dragRebuildPending.current) {
+                        dragRebuildPending.current = false;
+                        buildGlassScene();
+                        renderScene();
+                    }
+                }, 30);
+            };
+
             if (isPanningRef.current) {
                 const cam = cameraRef.current!;
                 const rect = canvas.getBoundingClientRect();
@@ -1244,14 +1395,15 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             if (isMovingGlassRef.current && moveStartRef.current) {
                 const pos = getWorldPos(e.clientX, e.clientY);
                 if (!pos) return;
-                const dx = Math.round(pos.x - moveStartRef.current.x);
-                const dy = Math.round(pos.y - moveStartRef.current.y);
-                if (dx === 0 && dy === 0) return;
-                const newVerts = verticesRef.current.map(v => ({ x: v.x + dx, y: v.y + dy }));
-                const newHoles = holesRef.current.map(h => ({ ...h, x: h.x + dx, y: h.y + dy }));
-                setVertices(newVerts);
-                onHolesChange(newHoles);
+                const dx = pos.x - moveStartRef.current.x;
+                const dy = pos.y - moveStartRef.current.y;
+                if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) return;
+                glassGroupRef.current.position.x += dx;
+                glassGroupRef.current.position.y += dy;
+                moveAccumRef.current.dx += dx;
+                moveAccumRef.current.dy += dy;
                 moveStartRef.current = { x: pos.x, y: pos.y };
+                renderScene(true);
                 return;
             }
 
@@ -1259,11 +1411,9 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 const pos = getWorldPos(e.clientX, e.clientY);
                 if (!pos) return;
                 const newVerts = [...verticesRef.current];
-                newVerts[dragVertexIdxRef.current] = {
-                    x: Math.round(pos.x),
-                    y: Math.round(pos.y),
-                };
-                setVertices(newVerts);
+                newVerts[dragVertexIdxRef.current] = { x: pos.x, y: pos.y };
+                verticesRef.current = newVerts;
+                throttledRebuild();
                 return;
             }
 
@@ -1274,28 +1424,23 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 if (!hole) return;
                 const axis = resizeAxisRef.current;
 
-                const updated = holesRef.current.map(h => {
+                holesRef.current = holesRef.current.map(h => {
                     if (h.id !== resizeHoleIdRef.current) return h;
                     if (h.type === 'rectangle') {
-                        const w = h.width || 100;
-                        const ht = h.height || 60;
-                        if (axis === 'right') return { ...h, width: Math.max(10, Math.round((pos.x - h.x) * 2)) };
-                        if (axis === 'left') return { ...h, width: Math.max(10, Math.round((h.x - pos.x) * 2)) };
-                        if (axis === 'top') return { ...h, height: Math.max(10, Math.round((pos.y - h.y) * 2)) };
-                        if (axis === 'bottom') return { ...h, height: Math.max(10, Math.round((h.y - pos.y) * 2)) };
+                        if (axis === 'right') return { ...h, width: Math.max(10, (pos.x - h.x) * 2) };
+                        if (axis === 'left') return { ...h, width: Math.max(10, (h.x - pos.x) * 2) };
+                        if (axis === 'top') return { ...h, height: Math.max(10, (pos.y - h.y) * 2) };
+                        if (axis === 'bottom') return { ...h, height: Math.max(10, (h.y - pos.y) * 2) };
                         if (axis?.startsWith('t') || axis?.startsWith('b')) {
-                            const newW = Math.max(10, Math.round(Math.abs(pos.x - h.x) * 2));
-                            const newH = Math.max(10, Math.round(Math.abs(pos.y - h.y) * 2));
-                            return { ...h, width: newW, height: newH };
+                            return { ...h, width: Math.max(10, Math.abs(pos.x - h.x) * 2), height: Math.max(10, Math.abs(pos.y - h.y) * 2) };
                         }
                         return h;
                     } else if (h.type === 'slot') {
                         if (axis?.startsWith('length')) {
-                            const newLen = Math.max(h.width || 20, Math.round(Math.abs(pos.x - h.x) * 2 + (h.width || 20)));
-                            return { ...h, length: newLen };
+                            return { ...h, length: Math.max(h.width || 20, Math.abs(pos.x - h.x) * 2 + (h.width || 20)) };
                         }
                         if (axis?.startsWith('width')) {
-                            const newW = Math.max(5, Math.round(Math.abs(pos.y - h.y) * 2));
+                            const newW = Math.max(5, Math.abs(pos.y - h.y) * 2);
                             return { ...h, width: newW, length: Math.max(newW, h.length || 80) };
                         }
                         return h;
@@ -1303,17 +1448,17 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                         const ptIdx = parseInt(axis.split('-')[1]);
                         if (h.points && ptIdx < h.points.length) {
                             const newPoints = [...h.points];
-                            newPoints[ptIdx] = { x: Math.round(pos.x - h.x), y: Math.round(pos.y - h.y) };
+                            newPoints[ptIdx] = { x: pos.x - h.x, y: pos.y - h.y };
                             return { ...h, points: newPoints };
                         }
                         return h;
                     } else {
                         const dx = pos.x - h.x;
                         const dy = pos.y - h.y;
-                        return { ...h, diameter: Math.max(5, Math.round(Math.sqrt(dx * dx + dy * dy) * 2)) };
+                        return { ...h, diameter: Math.max(5, Math.sqrt(dx * dx + dy * dy) * 2) };
                     }
                 });
-                onHolesChange(updated);
+                throttledRebuild();
                 return;
             }
 
@@ -1322,12 +1467,28 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 if (!pos) return;
                 const bb = getBoundingBox(verticesRef.current);
                 const dragMargin = Math.max(bb.width, bb.height) * 0.15;
-                const clampedX = Math.max(bb.minX - dragMargin, Math.min(bb.maxX + dragMargin, Math.round(pos.x)));
-                const clampedY = Math.max(bb.minY - dragMargin, Math.min(bb.maxY + dragMargin, Math.round(pos.y)));
-                const updated = holesRef.current.map(h =>
-                    h.id === dragHoleIdRef.current ? { ...h, x: clampedX, y: clampedY } : h
-                );
-                onHolesChange(updated);
+
+                const draggedHole = holesRef.current.find(h => h.id === dragHoleIdRef.current);
+                if (!draggedHole) return;
+
+                const dx = pos.x - draggedHole.x;
+                const dy = pos.y - draggedHole.y;
+
+                // Determine which holes to move: multi-selected, or grouped, or just the one
+                const multiSel = selectedHoleIdsRef.current;
+                const draggedGroup = draggedHole.groupId;
+                const shouldMove = (h: HoleData) =>
+                    h.id === dragHoleIdRef.current ||
+                    multiSel.has(h.id) ||
+                    (draggedGroup && h.groupId === draggedGroup);
+
+                holesRef.current = holesRef.current.map(h => {
+                    if (!shouldMove(h)) return h;
+                    const newX = Math.max(bb.minX - dragMargin, Math.min(bb.maxX + dragMargin, h.x + dx));
+                    const newY = Math.max(bb.minY - dragMargin, Math.min(bb.maxY + dragMargin, h.y + dy));
+                    return { ...h, x: newX, y: newY };
+                });
+                throttledRebuild();
             }
 
             // Cursor hints
@@ -1360,6 +1521,8 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         };
 
         const onMouseUp = () => {
+            const wasDragging = isActivelyDraggingRef.current;
+            const wasMovingGlass = isMovingGlassRef.current;
             isPanningRef.current = false;
             isDraggingRef.current = false;
             isResizingHoleRef.current = false;
@@ -1369,6 +1532,46 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             moveStartRef.current = null;
             dragHoleIdRef.current = null;
             dragVertexIdxRef.current = null;
+            isActivelyDraggingRef.current = false;
+
+            // Clear any pending throttle timer
+            if (dragRebuildTimer.current) {
+                clearTimeout(dragRebuildTimer.current);
+                dragRebuildTimer.current = null;
+            }
+            dragRebuildPending.current = false;
+
+            if (wasMovingGlass) {
+                // Bake the visual offset into actual coordinates
+                const adx = moveAccumRef.current.dx;
+                const ady = moveAccumRef.current.dy;
+                glassGroupRef.current.position.set(0, 0, 0);
+                moveAccumRef.current = { dx: 0, dy: 0 };
+
+                const snappedVerts = verticesRef.current.map(v => ({ x: Math.round(v.x + adx), y: Math.round(v.y + ady) }));
+                const snappedHoles = holesRef.current.map(h => ({ ...h, x: Math.round(h.x + adx), y: Math.round(h.y + ady) }));
+                verticesRef.current = snappedVerts;
+                holesRef.current = snappedHoles;
+                setVertices(snappedVerts);
+                onHolesChange(snappedHoles);
+            } else if (wasDragging) {
+                // Snap to whole mm on release and sync to React state
+                const snappedHoles = holesRef.current.map(h => ({
+                    ...h,
+                    x: Math.round(h.x),
+                    y: Math.round(h.y),
+                    ...(h.diameter ? { diameter: Math.round(h.diameter) } : {}),
+                    ...(h.width ? { width: Math.round(h.width) } : {}),
+                    ...(h.height ? { height: Math.round(h.height) } : {}),
+                    ...(h.length ? { length: Math.round(h.length) } : {}),
+                    ...(h.points ? { points: h.points.map(p => ({ x: Math.round(p.x), y: Math.round(p.y) })) } : {}),
+                }));
+                holesRef.current = snappedHoles;
+                onHolesChange(snappedHoles);
+                const snappedVerts = verticesRef.current.map(v => ({ x: Math.round(v.x), y: Math.round(v.y) }));
+                verticesRef.current = snappedVerts;
+                setVertices(snappedVerts);
+            }
             if (activeToolRef.current === 'move') {
                 canvas.style.cursor = 'grab';
             } else if (activeToolRef.current === 'editVertex') {
@@ -1432,6 +1635,13 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             setSelectedVertexIdx(null);
             return;
         }
+        if (selectedHoleIds.size > 0) {
+            pushUndo();
+            onHolesChange(holes.filter(h => !selectedHoleIds.has(h.id)));
+            setSelectedHoleId(null);
+            setSelectedHoleIds(new Set());
+            return;
+        }
         if (!selectedHoleId) return;
         pushUndo();
         onHolesChange(holes.filter(h => h.id !== selectedHoleId));
@@ -1448,6 +1658,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         onHolesChange(prev.holes);
         setVertices(prev.vertices);
         setSelectedHoleId(null);
+        setSelectedHoleIds(new Set());
         setSelectedVertexIdx(null);
     };
 
@@ -1461,6 +1672,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         onHolesChange(next.holes);
         setVertices(next.vertices);
         setSelectedHoleId(null);
+        setSelectedHoleIds(new Set());
         setSelectedVertexIdx(null);
     };
 
@@ -1469,6 +1681,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         onHolesChange([]);
         setVertices(getDefaultVertices(width, height));
         setSelectedHoleId(null);
+        setSelectedHoleIds(new Set());
         setSelectedVertexIdx(null);
     };
 
@@ -1590,12 +1803,14 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             scene.add(mesh);
         }
 
-        // Ground shadow plane
         const groundGeo = new THREE.PlaneGeometry(bb3.width * 2, bb3.height * 2);
-        const groundMat = new THREE.MeshBasicMaterial({ color: 0xf0f0f0, transparent: true, opacity: 0.3 });
-        const ground = new THREE.Mesh(groundGeo, groundMat);
-        ground.position.set(0, 0, -depthScale / 2 - 1);
-        scene.add(ground);
+        const groundMat = new THREE.MeshBasicMaterial({ color: 0xf0f0f0, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false });
+        const groundBack = new THREE.Mesh(groundGeo, groundMat);
+        groundBack.position.set(0, 0, -depthScale / 2 - 10);
+        scene.add(groundBack);
+        const groundFront = new THREE.Mesh(groundGeo, groundMat);
+        groundFront.position.set(0, 0, depthScale / 2 + 10);
+        scene.add(groundFront);
 
         // Camera framing — only on first build so user's orbit position is preserved
         if (!preview3DInitRef.current) {
@@ -1638,13 +1853,13 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         scene.background = new THREE.Color(0xf8fafc);
         previewSceneRef.current = scene;
 
-        const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 10000);
+        const camera = new THREE.PerspectiveCamera(45, w / h, 5, 10000);
         previewCameraRef.current = camera;
 
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.08;
-        controls.enablePan = true;
+        controls.enablePan = false;
         controls.minDistance = 50;
         controls.maxDistance = 5000;
         previewControlsRef.current = controls;
@@ -1773,7 +1988,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 <Button
                     variant={activeTool === 'move' ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => { setActiveTool('move'); setSelectedHoleId(null); setSelectedVertexIdx(null); setCutoutMenuOpen(false); }}
+                    onClick={() => { setActiveTool('move'); setSelectedHoleId(null); setSelectedHoleIds(new Set()); setSelectedVertexIdx(null); setCutoutMenuOpen(false); }}
                     className={`gap-1.5 rounded-xl text-xs font-bold h-9 ${activeTool === 'move' ? 'bg-[#6366f1] text-white' : ''}`}
                 >
                     <Hand className="h-3.5 w-3.5" />
@@ -1782,7 +1997,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 <Button
                     variant={activeTool === 'editVertex' ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => { setActiveTool('editVertex'); setSelectedHoleId(null); setCutoutMenuOpen(false); }}
+                    onClick={() => { setActiveTool('editVertex'); setSelectedHoleId(null); setSelectedHoleIds(new Set()); setCutoutMenuOpen(false); }}
                     className={`gap-1.5 rounded-xl text-xs font-bold h-9 ${activeTool === 'editVertex' ? 'bg-[#22aa44] text-white' : ''}`}
                 >
                     <Pen className="h-3.5 w-3.5" />
@@ -1891,18 +2106,77 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
 
                 {/* 3D Preview Panel */}
                 {show3DPreview && (
-                    <div className="absolute top-3 right-3 z-10 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden" style={{ width: 320, height: 240 }}>
-                        <div className="flex items-center justify-between px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+                    <div
+                        onMouseDown={(e) => { e.stopPropagation(); if (e.button === 1) e.preventDefault(); }}
+                        onMouseMove={(e) => e.stopPropagation()}
+                        onMouseUp={(e) => e.stopPropagation()}
+                        onWheel={(e) => e.stopPropagation()}
+                        onPointerDown={(e) => { e.stopPropagation(); if (e.button === 1) e.preventDefault(); }}
+                        onPointerMove={(e) => e.stopPropagation()}
+                        onPointerUp={(e) => e.stopPropagation()}
+                        className="absolute z-10 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden transition-all duration-200"
+                        style={previewExpanded
+                            ? { inset: 12 }
+                            : {
+                                width: 320,
+                                height: 240,
+                                ...(previewPos
+                                    ? { left: previewPos.x, top: previewPos.y }
+                                    : { top: 12, right: 12 }),
+                            }
+                        }
+                    >
+                        <div
+                            className="flex items-center justify-between px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 select-none"
+                            style={{ cursor: previewExpanded ? 'default' : 'grab' }}
+                            onMouseDown={(e) => {
+                                if (previewExpanded) return;
+                                e.preventDefault();
+                                const panel = e.currentTarget.parentElement!;
+                                const rect = panel.getBoundingClientRect();
+                                const parentRect = panel.parentElement!.getBoundingClientRect();
+                                previewDragRef.current = {
+                                    startX: e.clientX,
+                                    startY: e.clientY,
+                                    origX: rect.left - parentRect.left,
+                                    origY: rect.top - parentRect.top,
+                                };
+                                const onMove = (ev: MouseEvent) => {
+                                    if (!previewDragRef.current) return;
+                                    const dx = ev.clientX - previewDragRef.current.startX;
+                                    const dy = ev.clientY - previewDragRef.current.startY;
+                                    const newX = Math.max(0, Math.min(parentRect.width - 320, previewDragRef.current.origX + dx));
+                                    const newY = Math.max(0, Math.min(parentRect.height - 240, previewDragRef.current.origY + dy));
+                                    setPreviewPos({ x: newX, y: newY });
+                                };
+                                const onUp = () => {
+                                    previewDragRef.current = null;
+                                    document.removeEventListener('mousemove', onMove);
+                                    document.removeEventListener('mouseup', onUp);
+                                };
+                                document.addEventListener('mousemove', onMove);
+                                document.addEventListener('mouseup', onUp);
+                            }}
+                        >
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                                 <Box className="h-3 w-3" />
                                 3D Preview
                             </span>
-                            <button
-                                onClick={() => setShow3DPreview(false)}
-                                className="text-slate-400 hover:text-slate-600 text-xs font-bold"
-                            >
-                                ✕
-                            </button>
+                            <div className="flex items-center gap-1">
+                                <button
+                                    onClick={() => setPreviewExpanded(v => !v)}
+                                    className="text-slate-400 hover:text-slate-600 p-0.5 rounded transition-colors"
+                                    title={previewExpanded ? 'Minimize' : 'Maximize'}
+                                >
+                                    {previewExpanded ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
+                                </button>
+                                <button
+                                    onClick={() => { setShow3DPreview(false); setPreviewExpanded(false); }}
+                                    className="text-slate-400 hover:text-slate-600 text-xs font-bold"
+                                >
+                                    ✕
+                                </button>
+                            </div>
                         </div>
                         <div ref={preview3DRef} className="w-full" style={{ height: 'calc(100% - 28px)' }} />
                     </div>
@@ -1910,10 +2184,14 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             </div>
 
             {/* Status bar */}
-            <div className="flex items-center justify-between px-3 py-1.5 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">
-                <span>{Math.round(bb.width)} × {Math.round(bb.height)} mm</span>
+            <div className="flex items-center justify-between px-3 py-1.5 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 text-[10px] font-bold text-slate-400 tracking-wider shrink-0">
                 <span>{holes.length} cutout{holes.length !== 1 ? 's' : ''}</span>
-                <span>Scroll to zoom • Alt+Drag to pan</span>
+                <span className="flex items-center gap-6">
+                    <span className="uppercase">Cutout Hotkeys:</span>
+                    <span>Ctrl+Click multi-select</span>
+                    <span>Ctrl+G group</span>
+                    <span>Ctrl+Shift+G ungroup</span>
+                </span>
             </div>
         </div>
     );

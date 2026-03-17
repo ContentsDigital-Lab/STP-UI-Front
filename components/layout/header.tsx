@@ -53,21 +53,21 @@ export function Header({ onMenuClick, title }: HeaderProps) {
     };
 
     return (
-        <header className="sticky top-0 z-10 flex h-16 flex-shrink-0 items-center gap-x-4 border-b bg-background px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
-            <Button variant="ghost" size="icon" className="-m-2.5 p-2.5 text-foreground lg:hidden" onClick={onMenuClick}>
+        <header className="sticky top-0 z-10 flex h-14 sm:h-16 flex-shrink-0 items-center gap-x-2 sm:gap-x-4 border-b bg-background px-3 shadow-sm sm:px-4 md:px-6 lg:px-8">
+            <Button variant="ghost" size="icon" className="-m-1.5 p-2 text-foreground lg:hidden" onClick={onMenuClick}>
                 <span className="sr-only">Open sidebar</span>
-                <Menu className="h-6 w-6" aria-hidden="true" />
+                <Menu className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden="true" />
             </Button>
 
-            <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
-                <div className="flex flex-1 items-center">
-                    <h1 className="text-xl font-semibold font-sans text-foreground">{title || t.dashboard.label}</h1>
+            <div className="flex flex-1 gap-x-2 sm:gap-x-4 self-stretch lg:gap-x-6">
+                <div className="flex flex-1 items-center min-w-0">
+                    <h1 className="text-base sm:text-xl font-semibold font-sans text-foreground truncate">{title || t.dashboard.label}</h1>
                 </div>
-                <div className="flex items-center gap-x-4 lg:gap-x-6">
+                <div className="flex items-center gap-x-2 sm:gap-x-4 lg:gap-x-6">
                     <Button
                         variant="ghost"
                         onClick={() => setLang(lang === "th" ? "en" : "th")}
-                        className="rounded-full bg-muted/50 hover:bg-muted font-bold px-3 flex items-center gap-1.5"
+                        className="rounded-full bg-muted/50 hover:bg-muted font-bold px-2 sm:px-3 flex items-center gap-1 sm:gap-1.5"
                         title={t.language}
                     >
                         <Globe className="h-4 w-4 text-primary" />

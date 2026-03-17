@@ -187,13 +187,13 @@ export default function UsersManagementPage() {
     return (
         <div className="flex flex-col gap-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-foreground">User Management</h1>
-                    <p className="text-muted-foreground">Manage user accounts and roles.</p>
+                <div className="min-w-0">
+                    <h1 className="text-xl sm:text-3xl font-bold tracking-tight text-foreground">User Management</h1>
+                    <p className="text-muted-foreground text-sm">Manage user accounts and roles.</p>
                 </div>
                 <Button
                     onClick={() => setIsCreateModalOpen(true)}
-                    className="gap-2 bg-[#1B4B9A] hover:bg-[#1B4B9A]/90 text-white"
+                    className="gap-2 bg-[#1B4B9A] hover:bg-[#1B4B9A]/90 text-white w-full sm:w-auto shrink-0"
                 >
                     <Plus className="h-4 w-4" />
                     New User
@@ -225,7 +225,8 @@ export default function UsersManagementPage() {
                 </div>
             </div>
 
-            <div className="rounded-md border bg-card">
+            <div className="rounded-md border bg-card overflow-hidden">
+                <div className="overflow-x-auto">
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -283,6 +284,7 @@ export default function UsersManagementPage() {
                         )}
                     </TableBody>
                 </Table>
+                </div>
             </div>
 
             <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
