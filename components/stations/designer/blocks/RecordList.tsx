@@ -97,6 +97,9 @@ interface RecordListProps {
     filterByCurrentStation?: boolean;   // only show orders where stations[currentStationIndex] === current stationId
     showQrColumn?:           boolean;   // show QR code popup button per row (uses row.code or row._id)
     showWorkOrderColumn?:    boolean;   // show ใบงาน link button per row → /production/{_id}/print
+    /** @deprecated use showAllRequests to opt-out */
+    hideProcessedRequests?:  boolean;
+    showAllRequests?:        boolean;   // opt-out: when true, show all requests including processed ones
 }
 
 // ── WebSocket room mapping ────────────────────────────────────────────────────
@@ -160,12 +163,13 @@ export function RecordList({
     filterByCurrentStation  = false,
     showQrColumn            = false,
     showWorkOrderColumn     = false,
+    showAllRequests         = false,
 }: RecordListProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
     const router    = useRouter();
     const [qrRow, setQrRow] = useState<{ code: string; orderId: string } | null>(null);
-    const { selectedRecord, setSelectedRecord, stationId } = useStationContext();
+    const { selectedRecord, setSelectedRecord, stationId, refreshCounter } = useStationContext();
     const isApi     = dataSource && dataSource !== "static";
     // PropertiesPanel stores "production" (no slash) — normalise to "/production"
     const navPath   = navigateTo ? (navigateTo.startsWith("/") ? navigateTo : `/${navigateTo}`) : "";
@@ -189,8 +193,32 @@ export function RecordList({
         const url = (shouldFilterStation && dataSource === "/orders")
             ? `/orders?stationId=${encodeURIComponent(stationId!)}`
             : dataSource;
-        fetchApi<{ success: boolean; data: Record<string, unknown>[] }>(url)
-            .then((res) => { if (res.success) setRows(res.data ?? []); else setError("โหลดข้อมูลไม่สำเร็จ"); })
+
+        // Auto-filter processed requests unless user explicitly opts out
+        const shouldHideProcessed = dataSource === "/requests" && !showAllRequests;
+
+        const fetchMain = fetchApi<{ success: boolean; data: Record<string, unknown>[] }>(url);
+        const fetchOrders = shouldHideProcessed
+            ? fetchApi<{ success: boolean; data: Record<string, unknown>[] }>("/orders")
+            : Promise.resolve(null);
+
+        Promise.all([fetchMain, fetchOrders])
+            .then(([mainRes, ordersRes]) => {
+                if (!mainRes.success) { setError("โหลดข้อมูลไม่สำเร็จ"); return; }
+                let data = mainRes.data ?? [];
+                if (shouldHideProcessed && ordersRes?.success) {
+                    // Build set of request IDs that already have an order
+                    const processedRequestIds = new Set<string>(
+                        (ordersRes.data ?? []).map((o) => {
+                            const req = o.request;
+                            if (!req) return null;
+                            return typeof req === "string" ? req : (req as Record<string, unknown>)._id as string;
+                        }).filter(Boolean) as string[]
+                    );
+                    data = data.filter((r) => !processedRequestIds.has(r._id as string));
+                }
+                setRows(data);
+            })
             .catch(() => setError("ยังไม่มีข้อมูลจาก API — ลองใช้งานจริงเพื่อดูข้อมูล"))
             .finally(() => setFetching(false));
     };
@@ -199,7 +227,7 @@ export function RecordList({
         if (!isPreview) return;
         loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isPreview, dataSource, isApi, shouldFilterStation, stationId]);
+    }, [isPreview, dataSource, isApi, shouldFilterStation, stationId, refreshCounter, showAllRequests]);
 
     // Real-time updates via WebSocket
     const wsConfig = DATASOURCE_WS[dataSource] ?? { room: "_noop", events: [] };
@@ -209,8 +237,8 @@ export function RecordList({
 
     const filtered = rows
         .filter((r) => {
-            // Client-side fallback filter (for non-orders endpoints, or in case server ignores stationId param)
-            if (shouldFilterStation) {
+            // Client-side station filter — only applies to /orders (requests don't have stations[])
+            if (shouldFilterStation && dataSource === "/orders") {
                 const stations = r.stations;
                 const idx      = typeof r.currentStationIndex === "number" ? r.currentStationIndex : 0;
                 if (!Array.isArray(stations)) return false;
@@ -420,6 +448,7 @@ RecordList.craft = {
         showHeader:  true,
         selectable:              false,
         filterByCurrentStation:  false,
+        showAllRequests:         false,
         showQrColumn:            false,
         showWorkOrderColumn:     false,
     } as RecordListProps,

@@ -70,17 +70,20 @@ const FIELD_META: Record<string, Record<string, FieldDef>> = {
         placeholder:  { label: "ข้อความใบ้ในช่อง",           type: "text",   section: "props", placeholder: "เช่น กรอกชื่อลูกค้า..." },
         fieldType:    { label: "ประเภทข้อมูล",                type: "select", section: "props", options: ["text","number","date","email","tel"], optionLabels: ["ข้อความ","ตัวเลข","วันที่","อีเมล","เบอร์โทร"] },
         required:     { label: "บังคับกรอก",                  type: "toggle", section: "props" },
-        fieldKey:     { label: "ชื่อตัวแปร (ใช้ในฟอร์ม)",   type: "text",   section: "data", hint: "ชื่อที่จะใช้ระบุข้อมูลในช่องนี้เมื่อส่งฟอร์ม", placeholder: "เช่น customerName", suggestions: FIELD_KEY_SUGGESTIONS },
+        fieldKey:     { label: "ชื่อตัวแปร",                  type: "text",   section: "data", hint: "ชื่อสำหรับข้อมูลในช่องนี้ — ใช้เมื่อกดปุ่มส่งข้อมูล เช่น ถ้าตั้งเป็น 'customerName' ข้อมูลจะถูกส่งในชื่อ customerName", placeholder: "เช่น customerName", suggestions: FIELD_KEY_SUGGESTIONS },
         defaultValue: { label: "ค่าเริ่มต้น",                type: "text",   section: "data", placeholder: "ค่าที่แสดงอยู่แล้วเมื่อเปิดหน้า" },
     },
     "Select Field": {
         label:       { label: "ชื่อช่องเลือก",            type: "text",   section: "props", placeholder: "เช่น เลือกวัสดุ" },
         placeholder: { label: "ข้อความตอนยังไม่เลือก",    type: "text",   section: "props", placeholder: "เช่น -- เลือก --" },
-        fieldKey:    { label: "ชื่อตัวแปร (ใช้ในฟอร์ม)", type: "text",   section: "data", hint: "ชื่อที่จะใช้ระบุข้อมูลที่เลือกเมื่อส่งฟอร์ม", placeholder: "เช่น materialId", suggestions: FIELD_KEY_SUGGESTIONS },
+        fieldKey:    { label: "ชื่อตัวแปร",               type: "text",   section: "data", hint: "ชื่อสำหรับสิ่งที่เลือก — ใช้เมื่อกดปุ่มส่งข้อมูล เช่น ตั้งเป็น 'material' ค่าที่เลือกจะถูกส่งในชื่อ material", placeholder: "เช่น material", suggestions: FIELD_KEY_SUGGESTIONS },
         dataSource:  { label: "ดึงตัวเลือกมาจาก",        type: "select", section: "data", options: ["static","/materials","/workers","/customers","/orders","/inventories","/requests","/claims","/withdrawals"], optionLabels: ["กำหนดเอง","รายการวัสดุ","รายการพนักงาน","รายการลูกค้า","รายการออเดอร์","คลังสินค้า","รายการคำขอ (บิล)","รายการเคลม","รายการเบิกวัสดุ"] },
         options:     { label: "รายการตัวเลือก",           type: "text",   section: "data", hint: "พิมพ์ตัวเลือกแต่ละอัน คั่นด้วยเครื่องหมายจุลภาค (,)", placeholder: "ตัวเลือก A, ตัวเลือก B, ตัวเลือก C", showWhen: { field: "dataSource", value: "static" } },
-        labelField:  { label: "แสดงข้อความจากฟิลด์",    type: "text",   section: "data", hint: "ฟิลด์ที่จะนำมาแสดงเป็นชื่อตัวเลือก (ค่าเริ่มต้น: name)", placeholder: "name", suggestions: LABEL_FIELD_SUGGESTIONS, showWhen: { field: "dataSource", value: ["/materials","/workers","/customers","/orders","/inventories","/requests","/claims","/withdrawals"] } },
-        valueField:  { label: "ค่าที่ส่งเป็นฟิลด์",    type: "text",   section: "data", hint: "ฟิลด์ที่จะใช้เป็นค่าเมื่อเลือก (ค่าเริ่มต้น: _id)", placeholder: "_id", suggestions: VALUE_FIELD_SUGGESTIONS, showWhen: { field: "dataSource", value: ["/materials","/workers","/customers","/orders","/inventories","/requests","/claims","/withdrawals"] } },
+        labelField:      { label: "แสดงชื่อจากฟิลด์",    type: "text",   section: "data", hint: "ระบุว่าจะนำฟิลด์ไหนมาเป็นชื่อที่แสดงในรายการ เช่น 'name' คือแสดงชื่อ, 'details.type' คือแสดงประเภท", placeholder: "name", suggestions: LABEL_FIELD_SUGGESTIONS, showWhen: { field: "dataSource", value: ["/materials","/workers","/customers","/orders","/inventories","/requests","/claims","/withdrawals"] } },
+        valueField:      { label: "ค่าที่จะส่งเมื่อเลือก", type: "text",  section: "data", hint: "ฟิลด์ที่จะส่งออกไปเมื่อเลือก — ปกติใช้ '_id' (รหัสของรายการ) เพื่อให้ระบบรู้ว่าเลือกอะไร", placeholder: "_id", suggestions: VALUE_FIELD_SUGGESTIONS, showWhen: { field: "dataSource", value: ["/materials","/workers","/customers","/orders","/inventories","/requests","/claims","/withdrawals"] } },
+        showAllRequests: { label: "แสดงบิลที่ออกออเดอร์แล้วด้วย", type: "toggle", section: "data", hint: "ปกติจะซ่อนบิลที่ออกออเดอร์ไปแล้ว — เปิดตรงนี้ถ้าต้องการเห็นบิลทุกใบ", showWhen: { field: "dataSource", value: "/requests" } },
+        linkedSource: { label: "กรองตามรายการอื่น", type: "select", section: "data", options: ["","/requests","/orders"], optionLabels: ["ไม่กรอง","รายการคำขอ (บิล)","รายการออเดอร์"], hint: "ใช้เพื่อให้ตัวเลือกตรงกับรายการที่แสดงอยู่ เช่น เลือก 'รายการคำขอ (บิล)' + ฟิลด์เชื่อมโยง 'customer' → จะแสดงเฉพาะลูกค้าที่มีบิลค้างอยู่" },
+        linkedField:  { label: "ฟิลด์ที่เชื่อมกัน", type: "text", section: "data", hint: "ชื่อฟิลด์ในรายการด้านบนที่บอกว่าเชื่อมกับอะไร เช่น บิลมีฟิลด์ 'customer' → ใส่ customer เพื่อกรองเฉพาะลูกค้าที่มีบิลนั้น", placeholder: "เช่น customer", suggestions: ["customer","material","worker","assignedTo"], showWhen: { field: "linkedSource", value: ["/requests","/orders"] } },
     },
     "Text Area": {
         label:       { label: "ชื่อช่องข้อความ",         type: "text",   section: "props", placeholder: "เช่น หมายเหตุ" },
@@ -95,10 +98,10 @@ const FIELD_META: Record<string, Record<string, FieldDef>> = {
         fullWidth: { label: "ยืดเต็มความกว้าง", type: "toggle", section: "props" },
         align:     { label: "ตำแหน่งปุ่ม",      type: "select", section: "props", options: ["left","center","right"], optionLabels: ["ชิดซ้าย","ตรงกลาง","ชิดขวา"] },
         action:         { label: "เมื่อกดปุ่มจะ...", type: "select", section: "action", options: ["none","submit-form","navigate","api-call","show-confirm"], optionLabels: ["ไม่มีการกระทำ","ส่งข้อมูลฟอร์ม","ไปยังหน้าอื่น","เรียกใช้ API","แสดงการยืนยันก่อน"] },
-        actionEndpoint: { label: "ส่งข้อมูลไปที่ (URL ปลายทาง)", type: "text",   section: "action", hint: "เช่น /orders — ถามทีมเทคนิคหากไม่แน่ใจ", placeholder: "เช่น /orders", suggestions: ENDPOINT_SUGGESTIONS, showWhen: { field: "action", value: ["submit-form","api-call"] } },
-        actionMethod:   { label: "ประเภทการส่งข้อมูล",           type: "select", section: "action", options: ["POST","PATCH","PUT","DELETE","GET"], optionLabels: ["เพิ่มข้อมูลใหม่","แก้ไขข้อมูล","แทนที่ข้อมูลทั้งหมด","ลบข้อมูล","ดึงข้อมูล"], showWhen: { field: "action", value: ["submit-form","api-call"] } },
-        navigateTo:     { label: "ลิงก์หน้าที่ต้องการไป",       type: "text",   section: "action", hint: "พิมพ์ URL หน้าที่ต้องการ เช่น /production", placeholder: "เช่น /production", suggestions: NAVIGATE_SUGGESTIONS, showWhen: { field: "action", value: "navigate" } },
-        confirmText:    { label: "ข้อความถามยืนยัน",            type: "text",   section: "action", hint: "ข้อความที่จะแสดงก่อนดำเนินการ", placeholder: "เช่น ต้องการดำเนินการต่อใช่ไหม?", suggestions: CONFIRM_SUGGESTIONS, showWhen: { field: "action", value: "show-confirm" } },
+        actionEndpoint: { label: "ส่งข้อมูลไปที่", type: "text",   section: "action", hint: "URL ที่ต้องการส่งข้อมูลไป เช่น '/orders' คือสร้างออเดอร์ใหม่ — ถามทีมเทคนิคถ้าไม่แน่ใจ", placeholder: "เช่น /orders", suggestions: ENDPOINT_SUGGESTIONS, showWhen: { field: "action", value: ["submit-form","api-call"] } },
+        actionMethod:   { label: "ประเภทการกระทำ",           type: "select", section: "action", options: ["POST","PATCH","PUT","DELETE","GET"], optionLabels: ["สร้างข้อมูลใหม่ (POST)","แก้ไขบางส่วน (PATCH)","แทนที่ทั้งหมด (PUT)","ลบข้อมูล (DELETE)","ดึงข้อมูล (GET)"], showWhen: { field: "action", value: ["submit-form","api-call"] } },
+        navigateTo:     { label: "หน้าที่ต้องการไป",       type: "text",   section: "action", hint: "URL ของหน้าที่จะเปิด เช่น '/production' คือหน้าคำสั่งผลิต", placeholder: "เช่น /production", suggestions: NAVIGATE_SUGGESTIONS, showWhen: { field: "action", value: "navigate" } },
+        confirmText:    { label: "ข้อความถามยืนยัน",            type: "text",   section: "action", hint: "กล่องข้อความที่จะถามก่อนดำเนินการ", placeholder: "เช่น ต้องการดำเนินการต่อใช่ไหม?", suggestions: CONFIRM_SUGGESTIONS, showWhen: { field: "action", value: "show-confirm" } },
     },
     "Info Card": {
         title:       { label: "ชื่อการ์ด",      type: "text",     section: "props", placeholder: "เช่น ข้อมูลออเดอร์" },
@@ -115,7 +118,11 @@ const FIELD_META: Record<string, Record<string, FieldDef>> = {
     },
     "Station Sequence": {
         title:    { label: "ชื่อหัวข้อ",              type: "text", section: "props", placeholder: "เช่น กำหนดเส้นทางการผลิต" },
-        fieldKey: { label: "ชื่อตัวแปร (ใช้ในฟอร์ม)", type: "text", section: "data",  hint: "ชื่อที่จะใช้เก็บรายการสถานีใน formData (ค่าเริ่มต้น: stations)", placeholder: "stations", suggestions: ["stations"] },
+        fieldKey: { label: "ชื่อตัวแปร", type: "text", section: "data",  hint: "ชื่อที่ใช้เก็บรายการสถานีที่เลือก — ค่าเริ่มต้นคือ 'stations' ไม่ต้องเปลี่ยนถ้าไม่มีเหตุผลพิเศษ", placeholder: "stations", suggestions: ["stations"] },
+    },
+    "Station History": {
+        title:   { label: "ชื่อหัวข้อ",        type: "text",   section: "props", placeholder: "เช่น ประวัติการผลิต" },
+        maxRows: { label: "จำนวนรายการสูงสุด", type: "number", section: "props", placeholder: "20" },
     },
     "Inventory Stock": {
         title:       { label: "ชื่อหัวข้อ",       type: "text",   section: "props", placeholder: "เช่น สต็อกวัสดุในคลัง" },
@@ -135,11 +142,12 @@ const FIELD_META: Record<string, Record<string, FieldDef>> = {
         maxRows:     { label: "จำนวนแถวสูงสุด",  type: "number",        section: "props", placeholder: "5" },
         dataSource:  { label: "แหล่งข้อมูล",     type: "select",        section: "data",  options: ["static","/orders","/requests","/materials","/workers","/customers","/inventories","/claims","/withdrawals","/material-logs","/notifications"], optionLabels: ["ตัวอย่าง (ไม่ต้องการ API)","รายการออเดอร์/คำสั่งผลิต","รายการคำขอ (บิล)","รายการวัสดุ","รายการพนักงาน","รายการลูกค้า","คลังสินค้า","รายการเคลม","รายการเบิกวัสดุ","ประวัติการใช้วัสดุ","การแจ้งเตือน"] },
         columnsJson: { label: "คอลัมน์",         type: "column-editor", section: "data" },
-        filterByCurrentStation: { label: "เฉพาะงานของสถานีนี้", type: "toggle", section: "data", hint: "กรองเฉพาะ order ที่ปัจจุบันอยู่ที่สถานีนี้ (stations[currentStationIndex] = stationId) — ใช้ได้เมื่อแหล่งข้อมูลเป็น /orders" },
-        selectable:           { label: "คลิกแถวเพื่อเลือก",  type: "toggle", section: "action", hint: "เปิดเพื่อให้คลิกแถวแล้วส่งข้อมูลไปยัง components รายละเอียด (RecordDetail) บนหน้าเดียวกัน" },
-        navigateTo:           { label: "คลิกแถวไปหน้า",     type: "select", section: "action", options: ["","production","request","inventory","withdrawals","claims"], optionLabels: ["ไม่มี (ไม่คลิกได้)","คำสั่งผลิต (/production)","คำขอ (/request)","คลังสินค้า (/inventory)","เบิกวัสดุ (/withdrawals)","เคลม (/claims)"], hint: "เมื่อคลิกแถว ระบบจะนำไปหน้าที่เลือก (ใช้ได้เมื่อปิด 'คลิกแถวเพื่อเลือก')", showWhen: { field: "selectable", value: false } },
-        showQrColumn:         { label: "แสดงปุ่ม QR Code",   type: "toggle", section: "action", hint: "เพิ่มไอคอน QR ในแต่ละแถว — กดแล้วเห็น QR code ของออเดอร์นั้น" },
-        showWorkOrderColumn:  { label: "แสดงปุ่มใบงาน",      type: "toggle", section: "action", hint: "เพิ่มปุ่ม 📄 ในแต่ละแถว — กดแล้วเปิดหน้าใบงาน /production/{id}/print" },
+        filterByCurrentStation: { label: "เฉพาะงานของสถานีนี้", type: "toggle", section: "data", hint: "แสดงเฉพาะออเดอร์ที่กำลังรอดำเนินการในสถานีนี้อยู่ — ใช้ได้กับรายการออเดอร์เท่านั้น ไม่มีผลกับรายการบิล" },
+        selectable:           { label: "คลิกแถวเพื่อดูรายละเอียด",  type: "toggle", section: "action", hint: "เมื่อเปิด: กดที่แถวในรายการจะแสดงรายละเอียดในกล่อง 'รายละเอียด' (RecordDetail) ที่วางไว้ในหน้าเดียวกัน" },
+        navigateTo:           { label: "คลิกแถวเพื่อเปิดหน้า", type: "select", section: "action", options: ["","production","request","inventory","withdrawals","claims"], optionLabels: ["ไม่มี (คลิกไม่ได้)","คำสั่งผลิต","คำขอ / บิล","คลังสินค้า","เบิกวัสดุ","เคลม"], hint: "เมื่อกดแถว ระบบจะเปิดหน้าที่เลือกไว้ (ต้องปิด 'คลิกแถวเพื่อดูรายละเอียด' ก่อน)", showWhen: { field: "selectable", value: false } },
+        showAllRequests:      { label: "แสดงบิลที่ออกออเดอร์แล้วด้วย", type: "toggle", section: "data", hint: "ปกติจะซ่อนบิลที่ออกออเดอร์ไปแล้ว — เปิดตรงนี้ถ้าต้องการดูบิลทุกใบรวมที่ทำไปแล้ว" },
+        showQrColumn:         { label: "แสดงปุ่ม QR Code",   type: "toggle", section: "action", hint: "ใส่ปุ่ม QR ในแต่ละแถว — กดเพื่อดู QR code ของออเดอร์นั้น (ใช้สำหรับสแกนที่โรงงาน)" },
+        showWorkOrderColumn:  { label: "แสดงปุ่มใบงาน",      type: "toggle", section: "action", hint: "ใส่ปุ่มในแต่ละแถว — กดเพื่อเปิดใบงาน (หน้าสำหรับพิมพ์ QR และรายการชิ้นงาน)" },
     },
     Status: {
         label:        { label: "ชื่อหัวข้อ",       type: "text",   section: "props", placeholder: "เช่น สถานะงาน" },
@@ -504,9 +512,10 @@ function Field({ label, value, fieldDef, onChange, allProps, suggestionOverride 
             )}
 
             {fieldDef.hint && (
-                <p className="text-[10px] text-muted-foreground/70 flex items-start gap-1">
-                    <HelpCircle className="h-3 w-3 shrink-0 mt-0.5" />{fieldDef.hint}
-                </p>
+                <div className="flex items-start gap-1.5 rounded-md bg-muted/40 px-2.5 py-2 mt-1">
+                    <HelpCircle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-muted-foreground/60" />
+                    <p className="text-xs text-muted-foreground leading-relaxed">{fieldDef.hint}</p>
+                </div>
             )}
         </div>
     );

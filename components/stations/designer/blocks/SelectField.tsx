@@ -65,13 +65,17 @@ function buildLabel(item: Record<string, unknown>, labelField: string): string {
 }
 
 interface SelectFieldProps {
-    label?:       string;
-    placeholder?: string;
-    fieldKey?:    string;
-    dataSource?:  string;
-    labelField?:  string;
-    valueField?:  string;
-    options?:     string;
+    label?:           string;
+    placeholder?:     string;
+    fieldKey?:        string;
+    dataSource?:      string;
+    labelField?:      string;
+    valueField?:      string;
+    options?:         string;
+    showAllRequests?: boolean;  // opt-out: when true, show all requests including processed ones
+    /** Cross-filter: only show items whose _id appears in this source's `linkedField` */
+    linkedSource?:    string;   // e.g. "/requests"
+    linkedField?:     string;   // e.g. "customer" — field in linkedSource that links to this dataSource
 }
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -93,6 +97,9 @@ export function SelectField({
     labelField = "name",
     valueField = "_id",
     options = "ตัวเลือก 1, ตัวเลือก 2",
+    showAllRequests = false,
+    linkedSource = "",
+    linkedField = "",
 }: SelectFieldProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
@@ -107,18 +114,83 @@ export function SelectField({
     useEffect(() => {
         if (!isPreview || !isApi) return;
         setFetching(true);
-        fetchApi<{ success: boolean; data: Record<string, unknown>[] }>(dataSource)
-            .then((res) => {
-                if (res.success && Array.isArray(res.data)) {
-                    setApiItems(res.data.map((item) => ({
-                        label: buildLabel(item, labelField || "name"),
-                        value: resolveField(item, valueField || "_id") || String(item._id ?? ""),
-                    })));
+
+        const shouldHideProcessed = dataSource === "/requests" && !showAllRequests;
+        const hasLinked = !!linkedSource && !!linkedField;
+
+        // Fetch linked source (e.g. /requests) to get allowed IDs for cross-filtering
+        const fetchLinked = hasLinked
+            ? fetchApi<{ success: boolean; data: Record<string, unknown>[] }>(linkedSource)
+            : Promise.resolve(null);
+
+        // If main source is /requests, also fetch /orders to filter processed ones
+        const fetchOrders = shouldHideProcessed
+            ? fetchApi<{ success: boolean; data: Record<string, unknown>[] }>("/orders")
+            : Promise.resolve(null);
+
+        // Also fetch /orders if linkedSource is /requests (to filter processed from linked set)
+        const fetchOrdersForLinked = (hasLinked && linkedSource === "/requests" && !showAllRequests)
+            ? fetchApi<{ success: boolean; data: Record<string, unknown>[] }>("/orders")
+            : Promise.resolve(null);
+
+        Promise.all([
+            fetchApi<{ success: boolean; data: Record<string, unknown>[] }>(dataSource),
+            fetchOrders,
+            fetchLinked,
+            fetchOrdersForLinked,
+        ])
+            .then(([mainRes, ordersRes, linkedRes, ordersForLinkedRes]) => {
+                if (!mainRes.success || !Array.isArray(mainRes.data)) return;
+                let data = mainRes.data;
+
+                // Filter processed requests from main source
+                if (shouldHideProcessed && ordersRes?.success) {
+                    const processedIds = new Set<string>(
+                        (ordersRes.data ?? []).map((o) => {
+                            const req = o.request;
+                            if (!req) return null;
+                            return typeof req === "string" ? req : (req as Record<string, unknown>)._id as string;
+                        }).filter(Boolean) as string[]
+                    );
+                    data = data.filter((r) => !processedIds.has(r._id as string));
                 }
+
+                // Cross-filter: only keep items whose _id appears in linkedSource.linkedField
+                if (hasLinked && linkedRes?.success) {
+                    let linkedItems = linkedRes.data ?? [];
+
+                    // If linkedSource is /requests, also remove processed ones from the linked set
+                    if (linkedSource === "/requests" && !showAllRequests && ordersForLinkedRes?.success) {
+                        const processedIds = new Set<string>(
+                            (ordersForLinkedRes.data ?? []).map((o) => {
+                                const req = o.request;
+                                if (!req) return null;
+                                return typeof req === "string" ? req : (req as Record<string, unknown>)._id as string;
+                            }).filter(Boolean) as string[]
+                        );
+                        linkedItems = linkedItems.filter((r) => !processedIds.has(r._id as string));
+                    }
+
+                    // Extract allowed IDs from linkedField (handles populated objects)
+                    const allowedIds = new Set<string>(
+                        linkedItems.map((item) => {
+                            const val = item[linkedField];
+                            if (!val) return null;
+                            return typeof val === "string" ? val : (val as Record<string, unknown>)._id as string;
+                        }).filter(Boolean) as string[]
+                    );
+
+                    data = data.filter((item) => allowedIds.has(item._id as string));
+                }
+
+                setApiItems(data.map((item) => ({
+                    label: buildLabel(item, labelField || "name"),
+                    value: resolveField(item, valueField || "_id") || String(item._id ?? ""),
+                })));
             })
             .catch(() => setApiItems([]))
             .finally(() => setFetching(false));
-    }, [isPreview, dataSource, labelField, valueField, isApi]);
+    }, [isPreview, dataSource, labelField, valueField, isApi, showAllRequests, linkedSource, linkedField]);
 
     // ── Preview render ────────────────────────────────────────────────────────
     if (isPreview) {
@@ -208,6 +280,7 @@ SelectField.craft = {
     props: {
         label: "เลือกตัวเลือก", placeholder: "-- เลือก --",
         fieldKey: "", dataSource: "static", labelField: "name", valueField: "_id",
-        options: "ตัวเลือก 1, ตัวเลือก 2",
+        options: "ตัวเลือก 1, ตัวเลือก 2", showAllRequests: false,
+        linkedSource: "", linkedField: "",
     } as SelectFieldProps,
 };

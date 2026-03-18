@@ -34,6 +34,7 @@ import { StatusIndicator }        from "./blocks/StatusIndicator";
 import { RecordList }             from "./blocks/RecordList";
 import { RecordDetail }           from "./blocks/RecordDetail";
 import { StationSequencePicker }  from "./blocks/StationSequencePicker";
+import { StationHistory }         from "./blocks/StationHistory";
 import { InventoryStockBlock }    from "./blocks/InventoryStockBlock";
 import { OrderReleasePanel }      from "./blocks/OrderReleasePanel";
 
@@ -141,7 +142,7 @@ export function DesignerCanvas({ templateName, initialNodes, onSave, saving, onS
         CanvasContainer, Section, TwoColumns, Column,
         Heading, Paragraph, Divider, Spacer, Badge,
         InputField, SelectField, TextAreaField, ButtonBlock,
-        InfoCard, StatusIndicator, RecordList, RecordDetail, StationSequencePicker,
+        InfoCard, StatusIndicator, RecordList, RecordDetail, StationSequencePicker, StationHistory,
         InventoryStockBlock, OrderReleasePanel,
     }), []);
 

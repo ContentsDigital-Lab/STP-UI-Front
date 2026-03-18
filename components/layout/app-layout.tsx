@@ -84,6 +84,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     <main className="flex-1 overflow-y-auto lg:overflow-hidden bg-muted/30">
                         {children}
                     </main>
+                ) : /^\/stations\/designer\/.+/.test(pathname) ? (
+                    /* Template editor — needs full height, no padding/max-width/scroll */
+                    <main className="flex-1 overflow-hidden">
+                        {children}
+                    </main>
                 ) : (
                     <main className="flex-1 overflow-y-auto bg-muted/30 p-3 sm:p-4 md:p-6 lg:p-8">
                         <div className="mx-auto max-w-7xl">

@@ -28,6 +28,12 @@ export interface StationContextValue {
      *   "form.notes"            → formData.notes
      */
     resolveVar: (path: string) => string;
+    /**
+     * Incremented by ButtonBlock after a successful API call.
+     * RecordList depends on this to re-fetch data automatically.
+     */
+    refreshCounter: number;
+    triggerRefresh: () => void;
 }
 
 const StationContext = createContext<StationContextValue>({
@@ -44,6 +50,8 @@ const StationContext = createContext<StationContextValue>({
     selectedRecord:    null,
     setSelectedRecord: () => {},
     resolveVar:        () => "",
+    refreshCounter:    0,
+    triggerRefresh:    () => {},
 });
 
 export const useStationContext = () => useContext(StationContext);
@@ -64,6 +72,9 @@ export function StationProvider({
     const [orderData,       setOrderData]       = useState<Record<string, unknown> | null>(initialOrderData   ?? null);
     const [requestData,     setRequestData]     = useState<Record<string, unknown> | null>(initialRequestData ?? null);
     const [selectedRecord,  setSelectedRecord]  = useState<Record<string, unknown> | null>(null);
+    const [refreshCounter,  setRefreshCounter]  = useState(0);
+
+    const triggerRefresh = useCallback(() => setRefreshCounter((n) => n + 1), []);
 
     const orderId   = orderData   ? (orderData._id   as string ?? null) : null;
     const requestId = requestData ? (requestData._id as string ?? null) : null;
@@ -115,6 +126,7 @@ export function StationProvider({
             requestData, setRequestData, requestId,
             selectedRecord, setSelectedRecord,
             resolveVar,
+            refreshCounter, triggerRefresh,
         }}>
             {children}
         </StationContext.Provider>

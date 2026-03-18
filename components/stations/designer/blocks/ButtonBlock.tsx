@@ -56,7 +56,7 @@ export function ButtonBlock({
     const [feedback, setFeedback] = useState<"" | "ok" | "loading" | "error">("");
     const [errorMsg, setErrorMsg] = useState("");
     const actionCfg  = action && action !== "none" ? ACTION_CONFIG[action] : null;
-    const { formData, resetForm, orderId, requestId, requestData, orderData } = useStationContext();
+    const { formData, resetForm, orderId, requestId, requestData, orderData, triggerRefresh } = useStationContext();
     const { query } = useEditor();
 
     // ── Preview click handler ─────────────────────────────────────────────────
@@ -114,6 +114,7 @@ export function ButtonBlock({
                 }
                 setFeedback("ok");
                 resetForm();
+                triggerRefresh();
                 setTimeout(() => setFeedback(""), 2500);
             } catch (err: unknown) {
                 setErrorMsg(err instanceof Error ? err.message : "เกิดข้อผิดพลาด");
@@ -176,6 +177,7 @@ export function ButtonBlock({
                     return;
                 }
                 setFeedback("ok");
+                triggerRefresh();
                 setTimeout(() => setFeedback(""), 2500);
             } catch (err: unknown) {
                 setErrorMsg(err instanceof Error ? err.message : "เกิดข้อผิดพลาด");

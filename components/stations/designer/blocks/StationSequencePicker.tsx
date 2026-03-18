@@ -109,7 +109,7 @@ export function StationSequencePicker({
 }: StationSequencePickerProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
-    const { setField } = useStationContext();
+    const { setField, stationId } = useStationContext();
 
     const [allStations,     setAllStations]     = useState<Station[]>([]);
     const [loadingStations, setLoadingStations] = useState(false);
@@ -168,7 +168,7 @@ export function StationSequencePicker({
             );
         }
 
-        const available = allStations.filter((s) => !sequence.includes(s._id));
+        const available = allStations.filter((s) => !sequence.includes(s._id) && s._id !== stationId);
         return (
             <div className="w-full rounded-xl border bg-card overflow-hidden">
                 {/* Header */}
