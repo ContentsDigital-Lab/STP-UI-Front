@@ -5,7 +5,7 @@ import {
     Columns2, Columns3, Columns4, Type, AlignLeft, Minus, MoveVertical,
     Tag, TextCursorInput, ChevronDown, FileText,
     MousePointerClick, CreditCard, Activity, LayoutPanelLeft, Table2, ClipboardList, Workflow,
-    Boxes, PackageSearch, History,
+    Boxes, PackageSearch, History, ScanLine,
 } from "lucide-react";
 import { ReactElement } from "react";
 
@@ -29,6 +29,7 @@ import { StationSequencePicker }  from "./blocks/StationSequencePicker";
 import { StationHistory }         from "./blocks/StationHistory";
 import { InventoryStockBlock }    from "./blocks/InventoryStockBlock";
 import { OrderReleasePanel }      from "./blocks/OrderReleasePanel";
+import { QrScanBlock }            from "./blocks/QrScanBlock";
 
 interface PaletteItem {
     label: string;
@@ -69,6 +70,7 @@ const PALETTE: PaletteGroup[] = [
             { label: "Select",   icon: <ChevronDown className="h-4 w-4" />,     element: <SelectField />,   bg: "bg-purple-500" },
             { label: "Textarea", icon: <FileText className="h-4 w-4" />,        element: <TextAreaField />, bg: "bg-purple-500" },
             { label: "Button",   icon: <MousePointerClick className="h-4 w-4" />, element: <ButtonBlock />, bg: "bg-orange-500" },
+            { label: "QR Scan",  icon: <ScanLine className="h-4 w-4" />,          element: <QrScanBlock />,  bg: "bg-violet-600" },
         ],
     },
     {

@@ -124,6 +124,15 @@ const FIELD_META: Record<string, Record<string, FieldDef>> = {
         title:   { label: "ชื่อหัวข้อ",        type: "text",   section: "props", placeholder: "เช่น ประวัติการผลิต" },
         maxRows: { label: "จำนวนรายการสูงสุด", type: "number", section: "props", placeholder: "20" },
     },
+    "QR Scan": {
+        label:          { label: "ข้อความกำกับ",           type: "text",   section: "props", placeholder: "เช่น สแกน QR ออเดอร์" },
+        placeholder:    { label: "ข้อความในช่องกรอก",      type: "text",   section: "props", placeholder: "วาง QR หรือพิมพ์รหัส แล้วกด Enter..." },
+        dataSource:     { label: "แหล่งข้อมูล",             type: "select", section: "data",  options: ["/orders", "/requests"], optionLabels: ["รายการออเดอร์", "รายการคำขอ (บิล)"], hint: "บล็อกจะค้นหาข้อมูลจากแหล่งนี้เมื่อสแกน QR สำเร็จ — ใช้ '/orders' สำหรับออเดอร์ หรือ '/requests' สำหรับบิล" },
+        enableCamera:   { label: "เปิดกล้อง",               type: "toggle", section: "props", hint: "เมื่อเปิด จะมีปุ่มกล้องให้กดสแกน QR ด้วยกล้องโทรศัพท์หรือเว็บแคม" },
+        autoAction:     { label: "การกระทำอัตโนมัติ",       type: "select", section: "data",  options: ["none", "patch"], optionLabels: ["ไม่มี", "ส่ง PATCH อัตโนมัติ"], hint: "เมื่อสแกนสำเร็จ — 'ส่ง PATCH' จะส่งข้อมูลใน 'ข้อมูล JSON' ไปยัง PATCH /orders/{id} โดยอัตโนมัติ" },
+        autoActionBody: { label: "ข้อมูล JSON (PATCH body)", type: "text",   section: "data",  placeholder: '{"status":"in_progress"}', hint: "ข้อมูลที่จะส่งไปใน PATCH — ใช้เมื่อเลือก 'ส่ง PATCH อัตโนมัติ' เช่น {\"status\":\"in_progress\"}" },
+        successMessage: { label: "ข้อความเมื่อสำเร็จ",      type: "text",   section: "props", placeholder: "โหลดข้อมูลสำเร็จ!" },
+    },
     "Inventory Stock": {
         title:       { label: "ชื่อหัวข้อ",       type: "text",   section: "props", placeholder: "เช่น สต็อกวัสดุในคลัง" },
         maxItems:    { label: "จำนวนสูงสุด",      type: "number", section: "props", placeholder: "8" },
