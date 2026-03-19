@@ -129,6 +129,7 @@ export interface Withdrawal {
 
 export interface Claim {
     _id: string;
+    claimNumber?: string;
     order: string | Order;
     source: "customer" | "worker";
     material: string | Material;
