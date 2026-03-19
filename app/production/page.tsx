@@ -1,20 +1,20 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
     ClipboardList, Search, RefreshCw, ChevronDown, ChevronRight,
-    AlertCircle, User, Package, ArrowRight, SlidersHorizontal,
-    CalendarDays, Printer, QrCode, X, CheckCheck,
+    AlertCircle, User, Package, ArrowRight,
+    CalendarDays, Printer, QrCode, X, CheckCheck, Wifi, WifiOff,
 } from "lucide-react";
 import { QrCodeModal } from "@/components/qr/QrCodeModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ordersApi } from "@/lib/api/orders";
 import { requestsApi } from "@/lib/api/requests";
 import { stationsApi } from "@/lib/api/stations";
 import { getColorOption } from "@/lib/stations/stations-store";
+import { useWebSocket } from "@/lib/hooks/use-socket";
 import { Order, OrderRequest, Station } from "@/lib/api/types";
 
 // ── status config ─────────────────────────────────────────────────────────────
@@ -25,6 +25,8 @@ const ORDER_STATUS = {
     cancelled:   { label: "ยกเลิก",    cls: "text-red-500 dark:text-red-400",      dot: "bg-red-400"    },
 } as const;
 type StatusKey = keyof typeof ORDER_STATUS;
+
+const SOCKET_EVENTS = ["order:updated", "order:created", "order:deleted", "request:updated"];
 
 const COLOR_STORAGE_KEY = "std_station_colors";
 function loadColorMap(): Record<string, string> {
@@ -161,11 +163,10 @@ export default function ProductionPage() {
     const [colorMap,  setColorMap]  = useState<Record<string, string>>({});
     const [loading,   setLoading]   = useState(true);
     const [search,    setSearch]    = useState("");
-    const [statusFilter, setStatusFilter] = useState<"all" | StatusKey>("all");
     const [expanded,  setExpanded]  = useState<Set<string>>(new Set());
     const [qrTarget,  setQrTarget]  = useState<{ code: string; label: string; url: string } | null>(null);
 
-    const load = async () => {
+    const load = useCallback(async () => {
         setLoading(true);
         try {
             const [oRes, rRes, sRes] = await Promise.all([
@@ -180,8 +181,13 @@ export default function ProductionPage() {
         } finally {
             setLoading(false);
         }
-    };
-    useEffect(() => { load(); }, []);
+    }, []);
+    useEffect(() => { load(); }, [load]);
+
+    // Real-time updates via WebSocket
+    const { status: wsStatus } = useWebSocket("production", SOCKET_EVENTS, () => {
+        load();
+    });
 
     const stationMap = useMemo(() => new Map(stations.map(s => [s._id, s])), [stations]);
 
@@ -207,22 +213,32 @@ export default function ProductionPage() {
         );
     }, [orders, requests]);
 
-    // Apply search + filter
-    const filtered = useMemo(() => bills.filter(b => {
-        const q = search.toLowerCase();
-        if (q) {
-            const hit =
-                b.customer.toLowerCase().includes(q) ||
-                b.id.toLowerCase().includes(q) ||
-                b.orders.some(o =>
-                    (o.code ?? "").toLowerCase().includes(q) ||
-                    getName(o.material).toLowerCase().includes(q)
-                );
-            if (!hit) return false;
-        }
-        if (statusFilter !== "all" && !b.orders.some(o => o.status === statusFilter)) return false;
-        return true;
-    }), [bills, search, statusFilter]);
+    // Apply search — ครอบคลุมทุก field
+    const filtered = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        if (!q) return bills;
+        return bills.filter(b => {
+            // bill-level fields
+            if (b.customer.toLowerCase().includes(q)) return true;
+            if (b.id.toLowerCase().includes(q)) return true;
+            if (b.id.slice(-6).toLowerCase().includes(q)) return true;
+            if (fmtDate(b.request?.deadline).toLowerCase().includes(q)) return true;
+            // order-level fields
+            return b.orders.some(o =>
+                (o.code ?? "").toLowerCase().includes(q) ||
+                o._id.toLowerCase().includes(q) ||
+                o._id.slice(-6).toLowerCase().includes(q) ||
+                getName(o.material).toLowerCase().includes(q) ||
+                getName(o.customer).toLowerCase().includes(q) ||
+                getName(o.assignedTo).toLowerCase().includes(q) ||
+                (ORDER_STATUS[o.status as StatusKey]?.label ?? "").toLowerCase().includes(q) ||
+                (o.stations ?? []).some(sid => {
+                    const st = stationMap.get(sid);
+                    return st?.name?.toLowerCase().includes(q);
+                })
+            );
+        });
+    }, [bills, search, stationMap]);
 
     const toggle = (id: string) => setExpanded(prev => {
         const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n;
@@ -247,10 +263,19 @@ export default function ProductionPage() {
                     </h1>
                     <p className="text-sm text-muted-foreground mt-0.5">ติดตามสถานะบิล ออเดอร์ และสถานีการผลิต</p>
                 </div>
-                <Button variant="outline" size="sm" className="gap-1.5 self-start sm:self-auto" onClick={load}>
-                    <RefreshCw className="h-3.5 w-3.5" />
-                    รีเฟรช
-                </Button>
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                    <span className={`flex items-center gap-1 text-xs ${wsStatus === "open" ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}`}>
+                        {wsStatus === "open"
+                            ? <Wifi className="h-3.5 w-3.5" />
+                            : <WifiOff className="h-3.5 w-3.5" />
+                        }
+                        <span className="hidden sm:inline">{wsStatus === "open" ? "Live" : "ออฟไลน์"}</span>
+                    </span>
+                    <Button variant="outline" size="sm" className="gap-1.5" onClick={load} disabled={loading}>
+                        <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+                        รีเฟรช
+                    </Button>
+                </div>
             </div>
 
             {/* Summary cards */}
@@ -271,45 +296,32 @@ export default function ProductionPage() {
                 ))}
             </div>
 
-            {/* Search + Filter */}
-            <div className="flex flex-col sm:flex-row gap-2">
-                <div className="relative flex-1 sm:max-w-sm">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                    <Input
-                        placeholder="ค้นหา ลูกค้า, รหัสออเดอร์, วัสดุ..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="pl-8 pr-8 h-9"
-                    />
-                    {search && (
-                        <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                            <X className="h-3.5 w-3.5" />
-                        </button>
-                    )}
-                </div>
-                <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
-                    <SelectTrigger className="h-9 w-44">
-                        <SlidersHorizontal className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">ทุกสถานะ</SelectItem>
-                        {(Object.keys(ORDER_STATUS) as StatusKey[]).map(k => (
-                            <SelectItem key={k} value={k}>{ORDER_STATUS[k].label}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+            {/* Search */}
+            <div className="relative w-full">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                    placeholder="ค้นหา ลูกค้า, รหัสบิล, รหัสออเดอร์, วัสดุ, สถานี, สถานะ, ผู้รับผิดชอบ..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-10 pr-10 h-10 w-full"
+                />
+                {search && (
+                    <button
+                        onClick={() => setSearch("")}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                        <X className="h-4 w-4" />
+                    </button>
+                )}
             </div>
 
             {/* Result hint */}
-            {!loading && (search || statusFilter !== "all") && (
+            {!loading && search && (
                 <p className="text-xs text-muted-foreground -mt-2">
-                    แสดง {filtered.length} จาก {bills.length} บิล
-                    {search && ` · "${search}"`}
-                    {statusFilter !== "all" && ` · ${ORDER_STATUS[statusFilter].label}`}
+                    พบ {filtered.length} จาก {bills.length} บิล · ค้นหา &ldquo;{search}&rdquo;
                     {" · "}
-                    <button className="text-primary underline underline-offset-2" onClick={() => { setSearch(""); setStatusFilter("all"); }}>
-                        ล้างตัวกรอง
+                    <button className="text-primary underline underline-offset-2" onClick={() => setSearch("")}>
+                        ล้าง
                     </button>
                 </p>
             )}
@@ -330,9 +342,7 @@ export default function ProductionPage() {
                 <div className="space-y-3">
                     {filtered.map((bill) => {
                         const isOpen = expanded.has(bill.id);
-                        const visibleOrders = statusFilter !== "all"
-                            ? bill.orders.filter(o => o.status === statusFilter)
-                            : bill.orders;
+                        const visibleOrders = bill.orders;
 
                         // Collect unique station ids across all orders in this bill
                         const allStationIds = Array.from(

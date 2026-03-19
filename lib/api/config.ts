@@ -47,9 +47,16 @@ export async function fetchApi<T>(
 
         if (data.errors) {
             const details = Array.isArray(data.errors)
-                ? data.errors.map((e: any) => e.message || e).join(", ")
+                ? data.errors.map((e: { path?: string[]; message?: string } | string) => {
+                    if (typeof e === "string") return e;
+                    const path = Array.isArray(e.path) && e.path.length > 0 ? `[${e.path.join(".")}]` : "";
+                    const msg  = e.message ?? String(e);
+                    return path ? `${path} ${msg}` : msg;
+                }).join(", ")
                 : typeof data.errors === "object"
-                    ? Object.values(data.errors).flat().join(", ")
+                    ? Object.entries(data.errors as Record<string, unknown>)
+                        .map(([k, v]) => `[${k}] ${Array.isArray(v) ? v.join(", ") : String(v)}`)
+                        .join(", ")
                     : String(data.errors);
             errorMessage += `: ${details}`;
         }

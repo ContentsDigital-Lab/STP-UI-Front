@@ -4,8 +4,9 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import dynamic from "next/dynamic";
 import {
     Trash2, Type, Variable, QrCode, Square, Minus, Save, Tag,
-    Undo2, Redo2, ZoomIn, ZoomOut, Copy, Clipboard, ImageIcon,
+    Undo2, Redo2, ZoomIn, ZoomOut, Copy, Clipboard, ImageIcon, Eye,
 } from "lucide-react";
+import StickerPreviewModal from "./StickerPreviewModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -295,6 +296,7 @@ export default function StickerDesignerPage() {
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [zoom, setZoom] = useState(2.5);
     const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+    const [showPreview, setShowPreview] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // ── History (undo/redo) ──
@@ -504,7 +506,8 @@ export default function StickerDesignerPage() {
     };
 
     return (
-        // fill the remaining page height (layout already has padding)
+        <>
+        {/* fill the remaining page height (layout already has padding) */}
         <div className="flex flex-col gap-3" style={{ height: "calc(100vh - 7rem)" }}>
             {/* Header */}
             <div className="flex items-center justify-between shrink-0">
@@ -551,6 +554,10 @@ export default function StickerDesignerPage() {
 
                     <div className="w-px h-6 bg-border mx-1" />
 
+                    <Button variant="outline" onClick={() => setShowPreview(true)} className="gap-2 h-8">
+                        <Eye className="h-4 w-4" />
+                        ตัวอย่าง
+                    </Button>
                     <Button onClick={handleSave} className="gap-2 h-8">
                         <Save className="h-4 w-4" />
                         บันทึก
@@ -655,5 +662,13 @@ export default function StickerDesignerPage() {
                 </div>
             </div>
         </div>
+
+        {showPreview && (
+            <StickerPreviewModal
+                template={{ width: canvasW, height: canvasH, elements }}
+                onClose={() => setShowPreview(false)}
+            />
+        )}
+        </>
     );
 }

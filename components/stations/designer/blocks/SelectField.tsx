@@ -89,6 +89,19 @@ const SOURCE_LABEL: Record<string, string> = {
     "/claims":       "รายการเคลม",
 };
 
+/**
+ * Auto-map dataSource → fieldKey so admins don't need to manually configure it.
+ * Explicit fieldKey prop still overrides this.
+ */
+const AUTO_FIELD_KEY: Record<string, string> = {
+    "/customers":   "customer",
+    "/materials":   "material",
+    "/workers":     "assignedTo",
+    "/requests":    "request",
+    "/orders":      "order",
+    "/inventories": "inventory",
+};
+
 export function SelectField({
     label = "เลือกตัวเลือก",
     placeholder = "-- เลือก --",
@@ -106,6 +119,9 @@ export function SelectField({
     const isApi     = dataSource && dataSource !== "static";
     const { formData, setField, setRequestData, setOrderData } = useStationContext();
     const contextType = CONTEXT_SOURCE[dataSource] ?? null;
+
+    // Auto-derive fieldKey from dataSource if not explicitly set — no manual config needed
+    const effectiveKey = fieldKey || AUTO_FIELD_KEY[dataSource] || "";
 
     // ── Preview: fetch real API data ──────────────────────────────────────────
     const [apiItems, setApiItems] = useState<{ label: string; value: string }[]>([]);
@@ -195,8 +211,8 @@ export function SelectField({
     // ── Preview render ────────────────────────────────────────────────────────
     if (isPreview) {
         const staticOpts = (options ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-        const controlled = !!fieldKey;
-        const currentValue = controlled ? String(formData[fieldKey] ?? "") : undefined;
+        const controlled = !!effectiveKey;
+        const currentValue = controlled ? String(formData[effectiveKey] ?? "") : undefined;
         return (
             <div className="w-full space-y-1.5">
                 {label && <label className="block text-xs font-semibold text-foreground/70">{label}</label>}
@@ -206,7 +222,7 @@ export function SelectField({
                         value={controlled ? currentValue : undefined}
                         onChange={controlled ? (e) => {
                             const val = e.target.value;
-                            setField(fieldKey, val);
+                            setField(effectiveKey, val);
                             // Auto-fetch full record into context so other blocks can use related fields
                             if (contextType && val) {
                                 fetchApi<{ success: boolean; data: Record<string, unknown> }>(`${dataSource}/${val}`)
@@ -241,11 +257,12 @@ export function SelectField({
             ref={(ref) => { ref && connect(drag(ref)); }}
             className={`w-full rounded-xl border-2 p-3 space-y-1.5 cursor-grab transition-all ${selected ? "border-primary bg-primary/5" : "border-slate-200 dark:border-slate-700 hover:border-primary/30 bg-card"}`}
         >
-            {(fieldKey || isApi) && (
+            {(effectiveKey || isApi) && (
                 <div className="flex flex-wrap items-center gap-1 mb-1">
-                    {fieldKey && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px] font-mono font-medium">
-                            <Hash className="h-2.5 w-2.5" />{fieldKey}
+                    {effectiveKey && (
+                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-medium ${fieldKey ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300" : "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"}`}>
+                            <Hash className="h-2.5 w-2.5" />{effectiveKey}
+                            {!fieldKey && <span className="font-sans font-normal opacity-70">(auto)</span>}
                         </span>
                     )}
                     {isApi && (

@@ -2,8 +2,8 @@
 
 import dynamic from "next/dynamic";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
-import { ArrowLeft, LayoutTemplate, Settings2 } from "lucide-react";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { ArrowLeft, LayoutTemplate, Settings2, Bell, Package, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { getStationTemplate } from "@/lib/api/station-templates";
@@ -14,8 +14,10 @@ type PopulatedStation = Omit<Station, "templateId"> & { templateId?: string | St
 import { stationsApi } from "@/lib/api/stations";
 import { ordersApi } from "@/lib/api/orders";
 import { requestsApi } from "@/lib/api/requests";
-import { Station } from "@/lib/api/types";
+import { Station, Order, Customer, Material } from "@/lib/api/types";
 import { getColorOption } from "@/lib/stations/stations-store";
+import { useWebSocket } from "@/lib/hooks/use-socket";
+import { playNotificationSound } from "@/lib/notification-sounds";
 
 // ⚠️ Craft.js uses browser APIs — disable SSR
 const DesignerCanvas = dynamic(
@@ -34,6 +36,47 @@ function LoadingSpinner() {
     );
 }
 
+// ─── New job toast ────────────────────────────────────────────────────────────
+
+function NewJobToast({ order, stationName, toastId }: {
+    order: Order;
+    stationName: string;
+    toastId: string | number;
+}) {
+    const customerName = typeof order.customer === "object"
+        ? (order.customer as Customer).name
+        : (order.customer ?? "—");
+    const materialName = typeof order.material === "object"
+        ? (order.material as Material).name
+        : (order.material ?? "—");
+
+    return (
+        <div className="flex items-start gap-3 bg-background border-2 border-blue-500/40 rounded-2xl shadow-2xl p-4 w-80">
+            <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-500 shrink-0 animate-pulse">
+                <Bell className="h-5 w-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-blue-500 uppercase tracking-wider">มีงานใหม่เข้าสถานี!</p>
+                <p className="font-bold text-sm text-foreground mt-0.5 flex items-center gap-1.5">
+                    <Package className="h-3.5 w-3.5 shrink-0" />
+                    {order.code ? `#${order.code}` : `…${order._id.slice(-6)}`}
+                </p>
+                <p className="text-xs text-muted-foreground truncate mt-0.5">{customerName}</p>
+                <p className="text-xs text-muted-foreground truncate">{materialName} × {order.quantity}</p>
+                <p className="text-[10px] text-blue-400 font-medium mt-1">📍 {stationName}</p>
+            </div>
+            <button
+                onClick={() => toast.dismiss(toastId)}
+                className="shrink-0 text-muted-foreground hover:text-foreground transition-colors mt-0.5"
+            >
+                <X className="h-4 w-4" />
+            </button>
+        </div>
+    );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function LiveStationPage() {
     const params        = useParams();
     const router        = useRouter();
@@ -49,6 +92,55 @@ export default function LiveStationPage() {
     const [orderData,    setOrderData]    = useState<Record<string, unknown> | null>(null);
     const [requestData,  setRequestData]  = useState<Record<string, unknown> | null>(null);
 
+    // ── Track known orders at this station to detect new arrivals ─────────────
+    const knownOrderIdsRef = useRef<Set<string>>(new Set());
+    const stationRef       = useRef<Station | null>(null);
+    useEffect(() => { stationRef.current = station; }, [station]);
+
+    // Seed known orders on mount — so we don't notify about existing work
+    useEffect(() => {
+        ordersApi.getAll({ stationId }).then(res => {
+            if (res.success && res.data) {
+                (res.data as Order[]).forEach(o => knownOrderIdsRef.current.add(o._id));
+            }
+        }).catch(() => {/* ignore — worst case we notify once on mount */});
+    }, [stationId]);
+
+    // ── Websocket: detect orders newly assigned to this station ───────────────
+    const handleOrderEvent = useCallback(async (event: string) => {
+        if (event !== "order:updated") return;
+
+        try {
+            const res = await ordersApi.getAll({ stationId });
+            if (!res.success || !res.data) return;
+            const orders = res.data as Order[];
+
+            for (const order of orders) {
+                if (knownOrderIdsRef.current.has(order._id)) continue;
+
+                // 🆕 New order at this station!
+                knownOrderIdsRef.current.add(order._id);
+                playNotificationSound("high").catch(() => {});
+
+                const name = stationRef.current?.name ?? "สถานีนี้";
+                const toastId = `job-${order._id}`;
+                toast.custom(
+                    (id) => <NewJobToast order={order} stationName={name} toastId={id} />,
+                    { id: toastId, duration: 12000, position: "top-right" },
+                );
+            }
+
+            // Remove orders that left this station
+            const currentIds = new Set(orders.map(o => o._id));
+            for (const id of knownOrderIdsRef.current) {
+                if (!currentIds.has(id)) knownOrderIdsRef.current.delete(id);
+            }
+        } catch { /* ignore */ }
+    }, [stationId]);
+
+    useWebSocket("order", ["order:updated"], handleOrderEvent);
+
+    // ── Load station + template ────────────────────────────────────────────────
     useEffect(() => {
         stationsApi.getById(stationId)
             .then((res) => {
@@ -61,13 +153,11 @@ export default function LiveStationPage() {
                     return;
                 }
 
-                // Backend populates templateId — may already be the full template object
                 if (typeof found.templateId === "object" && "_id" in found.templateId) {
                     setTemplate(found.templateId as StationTemplate);
                     return;
                 }
 
-                // Fallback: plain string ID — fetch separately
                 return getStationTemplate(found.templateId as string)
                     .then((t) => {
                         if (t) setTemplate(t);
@@ -78,7 +168,6 @@ export default function LiveStationPage() {
             .finally(() => setLoading(false));
     }, [stationId]);
 
-    // Fetch order when orderId is provided
     useEffect(() => {
         if (!orderId) return;
         ordersApi.getById(orderId)
@@ -86,7 +175,6 @@ export default function LiveStationPage() {
             .catch(() => toast.error("โหลดข้อมูลออเดอร์ไม่สำเร็จ"));
     }, [orderId]);
 
-    // Fetch request (บิล) when requestId is provided
     useEffect(() => {
         if (!requestId) return;
         requestsApi.getById(requestId)
@@ -119,14 +207,7 @@ export default function LiveStationPage() {
         </div>
     );
 
-    if (loading) {
-        return (
-            <div className="flex h-full flex-col">
-                {header}
-                <LoadingSpinner />
-            </div>
-        );
-    }
+    if (loading) return <div className="flex h-full flex-col">{header}<LoadingSpinner /></div>;
 
     if (noTemplate || !template) {
         return (
@@ -142,12 +223,10 @@ export default function LiveStationPage() {
                     </div>
                     <div className="flex gap-2">
                         <Button variant="outline" onClick={() => router.push("/stations")}>
-                            <ArrowLeft className="h-4 w-4 mr-1.5" />
-                            กลับ
+                            <ArrowLeft className="h-4 w-4 mr-1.5" />กลับ
                         </Button>
                         <Button onClick={() => router.push("/stations")} className="gap-2">
-                            <Settings2 className="h-4 w-4" />
-                            แก้ไขสถานี
+                            <Settings2 className="h-4 w-4" />แก้ไขสถานี
                         </Button>
                     </div>
                 </div>

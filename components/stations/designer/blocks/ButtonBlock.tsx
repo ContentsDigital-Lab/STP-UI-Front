@@ -38,6 +38,53 @@ interface ButtonBlockProps {
 
 const ALIGN_MAP = { left: "justify-start", center: "justify-center", right: "justify-end" };
 
+/** Thai display names for common API field keys */
+const FIELD_LABEL: Record<string, string> = {
+    customer:  "ลูกค้า",
+    material:  "วัสดุ",
+    quantity:  "จำนวน",
+    stations:  "สถานี",
+    request:   "บิล/คำขอ",
+    order:     "ออเดอร์",
+    date:      "วันที่",
+    assignedTo:"ผู้รับผิดชอบ",
+    priority:  "ลำดับความสำคัญ",
+};
+
+/**
+ * Parse Zod/backend error messages to extract field names.
+ * Supports: "[request] expected string" and "Invalid input: ..."
+ */
+function extractMissingFields(msg: string): string[] {
+    const found: string[] = [];
+    // Match [fieldName] patterns from our updated fetchApi
+    const bracketRe = /\[([^\]]+)\]/g;
+    let m: RegExpExecArray | null;
+    while ((m = bracketRe.exec(msg)) !== null) {
+        found.push(m[1]);
+    }
+    return found;
+}
+
+/** Convert raw backend/Zod error strings into user-friendly Thai messages */
+function toFriendlyError(msg: string): string {
+    if (!msg) return "เกิดข้อผิดพลาด กรุณาลองใหม่";
+    const fields = extractMissingFields(msg);
+    if (fields.length > 0) {
+        const thaiNames = fields.map((f) => FIELD_LABEL[f] ?? f);
+        return `ข้อมูลที่ขาด: ${thaiNames.join(", ")} — กรุณากรอกให้ครบ`;
+    }
+    if (msg.includes("Validation failed") || msg.includes("Invalid input") || msg.includes("received undefined"))
+        return "ข้อมูลไม่ครบถ้วน กรุณาตรวจสอบฟอร์ม";
+    if (msg.includes("401") || msg.toLowerCase().includes("unauthorized"))
+        return "ไม่มีสิทธิ์ดำเนินการ กรุณาเข้าสู่ระบบใหม่";
+    if (msg.includes("404") || msg.toLowerCase().includes("not found"))
+        return "ไม่พบข้อมูลที่ต้องการ";
+    if (msg.includes("500") || msg.toLowerCase().includes("server"))
+        return "เซิร์ฟเวอร์มีปัญหา กรุณาลองใหม่ภายหลัง";
+    return msg;
+}
+
 export function ButtonBlock({
     label = "ปุ่มกด",
     variant = "primary",
@@ -107,9 +154,9 @@ export function ButtonBlock({
                     body: JSON.stringify(formData),
                 });
                 if (res.success === false) {
-                    setErrorMsg((res as { message?: string }).message ?? "เกิดข้อผิดพลาด");
+                    setErrorMsg(toFriendlyError((res as { message?: string }).message ?? ""));
                     setFeedback("error");
-                    setTimeout(() => setFeedback(""), 3000);
+                    setTimeout(() => setFeedback(""), 5000);
                     return;
                 }
                 setFeedback("ok");
@@ -117,72 +164,111 @@ export function ButtonBlock({
                 triggerRefresh();
                 setTimeout(() => setFeedback(""), 2500);
             } catch (err: unknown) {
-                setErrorMsg(err instanceof Error ? err.message : "เกิดข้อผิดพลาด");
+                setErrorMsg(toFriendlyError(err instanceof Error ? err.message : ""));
                 setFeedback("error");
-                setTimeout(() => setFeedback(""), 3000);
+                setTimeout(() => setFeedback(""), 5000);
             }
             return;
         }
         if (action === "api-call" && actionEndpoint) {
+            // ── Pre-flight: scan canvas for empty linked fields ───────────────
+            const AUTO_FIELD_KEY: Record<string, string> = {
+                "/customers": "customer", "/materials": "material", "/workers": "assignedTo",
+                "/requests": "request",   "/orders": "order",       "/inventories": "inventory",
+            };
+            const allNodes = query.getSerializedNodes();
+            type FormNode = { label: string; fieldKey: string };
+            const formNodes: FormNode[] = Object.values(allNodes)
+                .filter((n) => n.displayName === "Input Field" || n.displayName === "Select Field")
+                .map((n) => {
+                    const props = n.props as Record<string, unknown>;
+                    const explicitKey = String(props.fieldKey ?? "");
+                    const dataSource  = String(props.dataSource ?? "");
+                    const autoKey     = AUTO_FIELD_KEY[dataSource] ?? "";
+                    return {
+                        label:    String(props.label ?? "ช่อง"),
+                        fieldKey: explicitKey || autoKey,  // mirrors SelectField's effectiveKey
+                    };
+                });
+
+            // Fields that have a fieldKey but are currently empty in formData
+            const emptyLinked = formNodes.filter((f) => f.fieldKey && !formData[f.fieldKey]);
+            if (emptyLinked.length > 0) {
+                setErrorMsg(`กรุณากรอกข้อมูลในช่อง: ${emptyLinked.map((f) => f.label).join(", ")}`);
+                setFeedback("error");
+                setTimeout(() => setFeedback(""), 6000);
+                return;
+            }
+
+            // Helper: extract _id from a populated object or plain string
+            const extractId = (v: unknown): string | undefined => {
+                if (!v) return undefined;
+                if (typeof v === "string") return v;
+                if (typeof v === "object") return (v as Record<string, unknown>)._id as string | undefined;
+                return undefined;
+            };
+
+            // Build body outside try so catch can access it for diagnostics
+            const autoFields: Record<string, unknown> = {};
+            if (!formData.customer) {
+                const src = requestData ?? orderData;
+                const cid = extractId(src?.customer);
+                if (cid) autoFields.customer = cid;
+            }
+            if (!formData.material) {
+                const src = requestData ?? orderData;
+                const mid = extractId(src?.material);
+                if (mid) autoFields.material = mid;
+            }
+
+            const body: Record<string, unknown> = {
+                ...autoFields,
+                ...formData,
+                ...(requestId ? { request: requestId } : {}),
+                ...(orderId   ? { order:   orderId   } : {}),
+            };
+
             setFeedback("loading");
             setErrorMsg("");
+            console.log("[ButtonBlock] api-call body:", body);
+
+            /** Classify form nodes into user-fillable empties vs unlinked (no fieldKey) */
+            const diagnoseFormNodes = () => {
+                const emptyLinked  = formNodes.filter((f) => f.fieldKey && !body[f.fieldKey]);  // has key, value missing → user forgot
+                const unlinked     = formNodes.filter((f) => !f.fieldKey);                      // no key → admin config problem
+                return { emptyLinked, unlinked };
+            };
+
+            const buildErrorMsg = (rawMsg: string) => {
+                const { emptyLinked, unlinked } = diagnoseFormNodes();
+                if (emptyLinked.length > 0)
+                    return `กรุณากรอกข้อมูลในช่อง: ${emptyLinked.map((f) => f.label).join(", ")}`;
+                if (unlinked.length > 0 && (rawMsg.includes("Validation failed") || rawMsg.includes("Invalid input") || rawMsg.includes("received undefined")))
+                    return `ฟอร์มมีช่องที่ยังไม่ได้ตั้งค่า (${unlinked.map((f) => f.label).join(", ")}) — กรุณาติดต่อผู้ดูแลระบบ`;
+                return toFriendlyError(rawMsg);
+            };
+
             try {
-                // Helper: extract _id from a populated object or plain string
-                const extractId = (v: unknown): string | undefined => {
-                    if (!v) return undefined;
-                    if (typeof v === "string") return v;
-                    if (typeof v === "object") return (v as Record<string, unknown>)._id as string | undefined;
-                    return undefined;
-                };
-
-                // Auto-derive commonly required order fields from requestData / orderData
-                // when the user hasn't explicitly added a form field for them.
-                const autoFields: Record<string, unknown> = {};
-                if (!formData.customer) {
-                    const src = requestData ?? orderData;
-                    const cid = extractId(src?.customer);
-                    if (cid) autoFields.customer = cid;
-                }
-                if (!formData.material) {
-                    const src = requestData ?? orderData;
-                    const mid = extractId(src?.material);
-                    if (mid) autoFields.material = mid;
-                }
-
-                const body = {
-                    ...autoFields,   // auto-derived fields first (lowest priority)
-                    ...formData,     // explicit form fields override auto-derived
-                    ...(requestId ? { request: requestId } : {}),
-                    ...(orderId   ? { order:   orderId   } : {}),
-                };
-
-                // Dev debug: log body so misconfigured fieldKeys are easy to spot
-                if (process.env.NODE_ENV !== "production") {
-                    console.log("[ButtonBlock] api-call body:", body);
-                }
                 const res = await fetchApi<{ success: boolean; message?: string }>(actionEndpoint, {
                     method: actionMethod || "POST",
                     body: JSON.stringify(body),
                 });
                 if (res.success === false) {
-                    const msg = (res as { message?: string }).message ?? "เกิดข้อผิดพลาด";
-                    // Show which form fields are present to help debug missing fields
-                    const sentKeys = Object.keys(body).filter((k) => (body as Record<string, unknown>)[k] !== undefined && (body as Record<string, unknown>)[k] !== "");
-                    const missingHint = sentKeys.length > 0
-                        ? ` (ส่ง: ${sentKeys.join(", ")})`
-                        : " (ไม่มีข้อมูลในฟอร์ม)";
-                    setErrorMsg(msg + missingHint);
+                    const rawMsg = (res as { message?: string }).message ?? "";
+                    setErrorMsg(buildErrorMsg(rawMsg));
                     setFeedback("error");
-                    setTimeout(() => setFeedback(""), 5000);
+                    setTimeout(() => setFeedback(""), 8000);
                     return;
                 }
                 setFeedback("ok");
                 triggerRefresh();
                 setTimeout(() => setFeedback(""), 2500);
             } catch (err: unknown) {
-                setErrorMsg(err instanceof Error ? err.message : "เกิดข้อผิดพลาด");
+                const rawMsg = err instanceof Error ? err.message : "";
+                console.warn("[ButtonBlock] api-call error:", rawMsg, "body keys:", Object.keys(body));
+                setErrorMsg(buildErrorMsg(rawMsg));
                 setFeedback("error");
-                setTimeout(() => setFeedback(""), 3000);
+                setTimeout(() => setFeedback(""), 8000);
             }
             return;
         }
@@ -197,7 +283,7 @@ export function ButtonBlock({
     if (isPreview) {
         return (
             <div className={`w-full flex ${alignClass}`}>
-                <div className="flex flex-col items-stretch" style={fullWidth ? { width: "100%" } : {}}>
+                <div className="flex flex-col items-stretch gap-1.5" style={fullWidth ? { width: "100%" } : {}}>
                     <button
                         onClick={handlePreviewClick}
                         disabled={feedback === "loading"}
@@ -208,17 +294,22 @@ export function ButtonBlock({
                         ) : feedback === "ok" ? (
                             <><CheckCircle2 className="h-4 w-4" /> สำเร็จ</>
                         ) : feedback === "error" ? (
-                            <><AlertCircle className="h-4 w-4" /> {errorMsg || "ผิดพลาด"}</>
+                            <><AlertCircle className="h-4 w-4" /> {label}</>
                         ) : (
                             label
                         )}
                     </button>
-                    {action !== "none" && actionCfg && feedback === "" && (
-                        <p className="text-[10px] text-muted-foreground mt-1 text-center">
-                            {action === "navigate" && navigateTo ? `→ ${navigateTo}` : ""}
-                            {(action === "submit-form" || action === "api-call") && actionEndpoint ? `${actionMethod} ${actionEndpoint}` : ""}
-                            {action === "show-confirm" ? "แสดงการยืนยัน" : ""}
-                        </p>
+                    {feedback === "error" && errorMsg && (
+                        <div className={`flex items-start gap-2 text-xs text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2 ${fullWidth ? "w-full" : ""}`}>
+                            <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                            <span>{errorMsg}</span>
+                        </div>
+                    )}
+                    {feedback === "ok" && (
+                        <div className={`flex items-center gap-2 text-xs text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 rounded-lg px-3 py-2 ${fullWidth ? "w-full" : ""}`}>
+                            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                            <span>ดำเนินการสำเร็จ</span>
+                        </div>
                     )}
                 </div>
             </div>
