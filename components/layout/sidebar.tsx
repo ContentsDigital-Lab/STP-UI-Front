@@ -76,18 +76,19 @@ export function Sidebar({ collapsed, setCollapsed, onNavigate }: SidebarProps) {
                             href={item.href}
                             onClick={onNavigate}
                             className={cn(
-                                "group flex items-center rounded-md px-3 py-2 text-sm font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors",
+                                "group flex items-center rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors",
                                 isActive
-                                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                                    : "text-sidebar-foreground/80",
+                                    ? "bg-sidebar-accent text-sidebar-accent-foreground font-semibold"
+                                    : "text-sidebar-foreground/70 hover:text-sidebar-accent-foreground",
                                 collapsed ? "justify-center" : "justify-start"
                             )}
                             title={collapsed ? item.name : undefined}
                         >
                             <item.icon
                                 className={cn(
-                                    "flex-shrink-0",
-                                    collapsed ? "h-6 w-6" : "h-5 w-5 mr-3"
+                                    "flex-shrink-0 transition-colors",
+                                    collapsed ? "h-5 w-5" : "h-5 w-5 mr-3",
+                                    isActive ? "opacity-100" : "opacity-70 group-hover:opacity-100"
                                 )}
                                 aria-hidden="true"
                             />
@@ -102,15 +103,15 @@ export function Sidebar({ collapsed, setCollapsed, onNavigate }: SidebarProps) {
                     variant="ghost"
                     size="icon"
                     onClick={() => setCollapsed(!collapsed)}
-                    className="text-sidebar-foreground/60 hover:text-sidebar-foreground w-full flex justify-center h-10"
-                    title={collapsed ? "Expand" : "Collapse"}
+                    className="text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 w-full flex justify-center h-9 rounded-lg transition-colors"
+                    title={collapsed ? "ขยาย" : "ย่อ"}
                 >
                     {collapsed ? (
-                        <ChevronRight className="h-5 w-5" />
+                        <ChevronRight className="h-4 w-4" />
                     ) : (
                         <div className="flex items-center gap-2 w-full justify-center">
-                            <ChevronLeft className="h-5 w-5" />
-                            <span className="text-sm font-medium">Collapse</span>
+                            <ChevronLeft className="h-4 w-4" />
+                            <span className="text-xs font-medium">ย่อเมนู</span>
                         </div>
                     )}
                 </Button>
