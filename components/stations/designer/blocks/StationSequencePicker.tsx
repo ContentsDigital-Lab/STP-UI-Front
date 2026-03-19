@@ -125,7 +125,7 @@ export function StationSequencePicker({
         }
     };
 
-    useEffect(() => { if (isPreview) loadStations(); }, [isPreview]);
+    useEffect(() => { loadStations(); }, [isPreview]);
 
     // Write sequence to formData whenever it changes
     useEffect(() => {
@@ -134,7 +134,7 @@ export function StationSequencePicker({
 
     // Real-time station list updates via WebSocket
     useWebSocket("station", ["station:updated"], () => {
-        if (isPreview) loadStations();
+        loadStations();
     });
 
     const addStation    = (id: string) => { if (!sequence.includes(id)) setSequence([...sequence, id]); };
@@ -249,21 +249,46 @@ export function StationSequencePicker({
             <div className="flex items-center gap-2 px-4 py-2.5 bg-muted/30 border-b">
                 <Workflow className="h-3.5 w-3.5 text-muted-foreground/60" />
                 <p className="text-xs font-semibold text-foreground/70">{title}</p>
+                {loadingStations && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground ml-auto" />}
+                {allStations.length > 0 && <span className="ml-auto text-[10px] text-muted-foreground">{allStations.length} สถานี</span>}
             </div>
-            <div className="p-4 space-y-2 opacity-60 pointer-events-none">
-                <div className="space-y-1">
-                    {[1, 2, 3].map((i) => (
-                        <div key={i} className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2">
-                            <GripVertical className="h-3.5 w-3.5 text-muted-foreground/20" />
-                            <span className="text-[10px] text-muted-foreground/30 w-4 font-mono">{i}</span>
-                            <div className="h-3 w-20 rounded-full bg-muted animate-none" />
-                        </div>
-                    ))}
+            {allStations.length > 0 ? (
+                <div className="p-4 space-y-2">
+                    <div className="space-y-1">
+                        {allStations.slice(0, 5).map((s, i) => {
+                            const color = getColorOption(s.colorId);
+                            return (
+                                <div key={s._id} className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2">
+                                    <GripVertical className="h-3.5 w-3.5 text-muted-foreground/20" />
+                                    <span className="text-[10px] text-muted-foreground/50 w-4 font-mono">{i + 1}</span>
+                                    <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${color.cls}`}>{s.name}</span>
+                                </div>
+                            );
+                        })}
+                        {allStations.length > 5 && (
+                            <p className="text-[10px] text-muted-foreground/50 text-center">+{allStations.length - 5} สถานีเพิ่มเติม</p>
+                        )}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground/40 text-center italic pt-1">
+                        เขียนลง formData[{fieldKey ?? "stations"}] → ใช้ปุ่มกดเพื่อส่ง
+                    </p>
                 </div>
-                <p className="text-[10px] text-muted-foreground/40 text-center italic pt-1">
-                    เขียนลง formData[{fieldKey ?? "stations"}] → ใช้ปุ่มกดเพื่อส่ง
-                </p>
-            </div>
+            ) : (
+                <div className="p-4 space-y-2 opacity-60 pointer-events-none">
+                    <div className="space-y-1">
+                        {[1, 2, 3].map((i) => (
+                            <div key={i} className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2">
+                                <GripVertical className="h-3.5 w-3.5 text-muted-foreground/20" />
+                                <span className="text-[10px] text-muted-foreground/30 w-4 font-mono">{i}</span>
+                                <div className="h-3 w-20 rounded-full bg-muted animate-none" />
+                            </div>
+                        ))}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground/40 text-center italic pt-1">
+                        เขียนลง formData[{fieldKey ?? "stations"}] → ใช้ปุ่มกดเพื่อส่ง
+                    </p>
+                </div>
+            )}
         </div>
     );
 }

@@ -365,11 +365,7 @@ export function QrScanBlock({
     return (
         <div
             ref={(ref) => { ref && connect(drag(ref)); }}
-            className={`w-full rounded-xl border-2 p-3 space-y-1.5 cursor-grab transition-all ${
-                selected
-                    ? "border-primary bg-primary/5"
-                    : "border-slate-200 dark:border-slate-700 hover:border-primary/30 bg-card"
-            }`}
+            className={`w-full cursor-grab transition-all rounded-xl p-1 ${selected ? "ring-2 ring-primary/30" : "hover:ring-1 hover:ring-primary/20"}`}
         >
             {/* Badge row */}
             <div className="flex flex-wrap items-center gap-1 mb-1">

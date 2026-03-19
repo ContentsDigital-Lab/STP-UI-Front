@@ -141,14 +141,13 @@ export function RecordDetail({
     };
 
     useEffect(() => {
-        if (!isPreview) return;
         loadData();
     }, [isPreview, endpoint, idParam, contextRecord]);
 
     // Real-time updates via WebSocket
     const wsConfig = ENDPOINT_WS[endpoint] ?? { room: "_noop", events: [] };
     useWebSocket(wsConfig.room, wsConfig.events, () => {
-        if (isPreview) loadData();
+        loadData();
     });
 
     // ── Preview render ────────────────────────────────────────────────────────
@@ -174,6 +173,7 @@ export function RecordDetail({
     }
 
     // ── Design mode render ────────────────────────────────────────────────────
+    const designData = record ?? SAMPLE_DATA;
     return (
         <div
             ref={(ref) => { ref && connect(drag(ref)); }}
@@ -182,16 +182,19 @@ export function RecordDetail({
         >
             <div className="flex items-center justify-between px-4 py-2.5 bg-muted/30 border-b">
                 <p className="text-xs font-semibold text-foreground/70">{title}</p>
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 text-[10px]">
-                    <Database className="h-2.5 w-2.5" />
-                    {endpoint === "context" ? "จากรายการที่เลือก" : `${endpoint}/{${idParam}}`}
-                </span>
+                <div className="flex items-center gap-1.5">
+                    {fetching && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 text-[10px]">
+                        <Database className="h-2.5 w-2.5" />
+                        {endpoint === "context" ? "จากรายการที่เลือก" : `${endpoint}/{${idParam}}`}
+                    </span>
+                </div>
             </div>
-            <div className="p-4 grid grid-cols-2 gap-x-4 gap-y-3 opacity-60">
+            <div className="p-4 grid grid-cols-2 gap-x-4 gap-y-3">
                 {fields.map((f, i) => (
                     <div key={i} className={f.span === 2 ? "col-span-2" : "col-span-1"}>
                         <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-0.5">{f.label}</p>
-                        <div className="h-4 rounded bg-muted/60 w-3/4" />
+                        <FieldValue field={f} value={resolveValue(designData, f.key)} />
                     </div>
                 ))}
             </div>

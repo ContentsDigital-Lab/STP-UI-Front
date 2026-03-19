@@ -2,7 +2,7 @@
 
 import { useNode } from "@craftjs/core";
 import { useEffect, useState } from "react";
-import { Boxes, Search, CheckCircle2, AlertTriangle, XCircle, RefreshCw, Package } from "lucide-react";
+import { Boxes, Search, CheckCircle2, AlertTriangle, XCircle, RefreshCw, Package, Loader2 } from "lucide-react";
 import { usePreview } from "../PreviewContext";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { inventoriesApi } from "@/lib/api/inventories";
@@ -66,11 +66,11 @@ export function InventoryStockBlock({
     const [loading, setLoading]         = useState(false);
     const [search,  setSearch]          = useState("");
 
-    useEffect(() => { if (isPreview) loadData(); }, [isPreview]);
+    useEffect(() => { loadData(); }, [isPreview]);
 
     // Real-time updates via WebSocket
     useWebSocket("inventory", ["inventory:updated", "material:updated"], () => {
-        if (isPreview) loadData();
+        loadData();
     });
 
     const loadData = async () => {
@@ -105,6 +105,7 @@ export function InventoryStockBlock({
 
     // ── Design mode ────────────────────────────────────────────────────────────
     if (!isPreview) {
+        const hasRealData = filtered.length > 0;
         return (
             <div
                 ref={(ref) => { ref && connect(drag(ref)); }}
@@ -114,16 +115,45 @@ export function InventoryStockBlock({
                 <div className="flex items-center gap-2 px-4 py-3 bg-muted/30 border-b border-border/50">
                     <Boxes className="h-4 w-4 text-emerald-600" />
                     <span className="text-sm font-semibold">{title}</span>
+                    {loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
                     <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full bg-muted border text-muted-foreground">
-                        {stockFilter === "all" ? "ทั้งหมด" : stockFilter === "low" ? "สต็อกต่ำ" : "หมดสต็อก"}
+                        {hasRealData ? `${filtered.length} รายการ` : stockFilter === "all" ? "ทั้งหมด" : stockFilter === "low" ? "สต็อกต่ำ" : "หมดสต็อก"}
                     </span>
                 </div>
                 <div className="p-3 grid grid-cols-2 gap-2">
-                    {SAMPLE_ITEMS.map((item, i) => {
+                    {hasRealData ? filtered.map(inv => {
+                        const mat     = getMat(inv.material as unknown as Material);
+                        const name    = getName(inv.material as unknown as Material);
+                        const specs   = getSpecs(inv.material as unknown as Material);
+                        const unit    = mat?.unit ?? "ชิ้น";
+                        const reorder = mat?.reorderPoint ?? 0;
+                        const s       = getStatus(inv);
+                        const pct     = Math.min(100, reorder > 0 ? (inv.quantity / (reorder * 2)) * 100 : (inv.quantity > 0 ? 100 : 0));
+                        return (
+                            <div key={inv._id} className="rounded-lg border bg-background p-2.5 space-y-1.5">
+                                <div className="flex items-start justify-between gap-1">
+                                    <p className="text-xs font-medium leading-tight line-clamp-2">{name}</p>
+                                    {STATUS_ICON[s]}
+                                </div>
+                                {specs && <p className="text-[10px] text-muted-foreground">{specs}</p>}
+                                <div className="flex items-center justify-between">
+                                    <span className={`text-xs font-bold ${STATUS_TEXT[s]}`}>{inv.quantity} {unit}</span>
+                                    <div className="flex items-center gap-1">
+                                        <span className={`text-[9px] px-1 py-0.5 rounded ${inv.stockType === "Raw" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" : "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300"}`}>{inv.stockType}</span>
+                                        {inv.location && <span className="text-[9px] text-muted-foreground">{inv.location}</span>}
+                                    </div>
+                                </div>
+                                <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
+                                    <div className={`h-full rounded-full ${STATUS_BAR[s]}`} style={{ width: `${pct}%` }} />
+                                </div>
+                                {reorder > 0 && <p className="text-[9px] text-muted-foreground">จุดสั่ง: {reorder} {unit}</p>}
+                            </div>
+                        );
+                    }) : SAMPLE_ITEMS.map((item, i) => {
                         const s = stockLevel(item.qty, item.reorder);
                         const pct = Math.min(100, item.reorder > 0 ? (item.qty / (item.reorder * 2)) * 100 : (item.qty > 0 ? 100 : 0));
                         return (
-                            <div key={i} className="rounded-lg border bg-background p-2.5 space-y-1.5">
+                            <div key={i} className="rounded-lg border bg-background p-2.5 space-y-1.5 opacity-60">
                                 <div className="flex items-start justify-between gap-1">
                                     <p className="text-xs font-medium leading-tight">{item.name}</p>
                                     {STATUS_ICON[s]}

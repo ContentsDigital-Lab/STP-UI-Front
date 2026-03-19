@@ -20,13 +20,17 @@ export interface ColumnDef {
     width?: "auto" | "sm" | "md" | "lg";
 }
 
-const DEFAULT_COLUMNS: ColumnDef[] = [
-    { key: "name",   label: "ชื่อรายการ",  type: "text",   width: "lg" },
-    { key: "status", label: "สถานะ",       type: "status", width: "md" },
-    { key: "amount", label: "จำนวน",       type: "number", width: "sm" },
-];
+const EMPTY_COLUMNS: ColumnDef[] = [];
+const EMPTY_COLUMNS_STR = JSON.stringify(EMPTY_COLUMNS);
 
-const DEFAULT_COLUMNS_STR = JSON.stringify(DEFAULT_COLUMNS);
+const STATIC_DEFAULT_COLUMNS: ColumnDef[] = [
+    { key: "id",     label: "รหัส",   type: "text",     width: "sm" },
+    { key: "name",   label: "รายการ", type: "text",     width: "lg" },
+    { key: "status", label: "สถานะ",  type: "status",   width: "md" },
+    { key: "amount", label: "จำนวน",  type: "number",   width: "sm" },
+    { key: "price",  label: "ราคา",   type: "currency", width: "sm" },
+];
+const STATIC_DEFAULT_COLUMNS_STR = JSON.stringify(STATIC_DEFAULT_COLUMNS);
 
 // Sample rows for preview/design
 const SAMPLE_ROWS = [
@@ -153,7 +157,7 @@ function QrPopup({ code, orderId, onClose }: { code: string; orderId: string; on
 export function RecordList({
     label        = "รายการข้อมูล",
     dataSource   = "static",
-    columnsJson  = DEFAULT_COLUMNS_STR,
+    columnsJson  = STATIC_DEFAULT_COLUMNS_STR,
     idField      = "_id",
     navigateTo   = "",
     maxRows      = 5,
@@ -175,7 +179,7 @@ export function RecordList({
     const navPath   = navigateTo ? (navigateTo.startsWith("/") ? navigateTo : `/${navigateTo}`) : "";
 
     const columns: ColumnDef[] = (() => {
-        try { return JSON.parse(columnsJson); } catch { return DEFAULT_COLUMNS; }
+        try { return JSON.parse(columnsJson); } catch { return EMPTY_COLUMNS; }
     })();
 
     // ── Preview: fetch & search ───────────────────────────────────────────────
@@ -224,7 +228,6 @@ export function RecordList({
     };
 
     useEffect(() => {
-        if (!isPreview) return;
         loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isPreview, dataSource, isApi, shouldFilterStation, stationId, refreshCounter, showAllRequests]);
@@ -232,7 +235,7 @@ export function RecordList({
     // Real-time updates via WebSocket
     const wsConfig = DATASOURCE_WS[dataSource] ?? { room: "_noop", events: [] };
     useWebSocket(wsConfig.room, wsConfig.events, () => {
-        if (isPreview && isApi) loadData();
+        if (isApi) loadData();
     });
 
     const filtered = rows
@@ -285,89 +288,95 @@ export function RecordList({
                         <AlertCircle className="h-3.5 w-3.5 shrink-0" />{error}
                     </div>
                 )}
-                {/* Column headers */}
-                <div className="flex items-center gap-4 px-4 py-2 bg-muted/20 border-b text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                    {columns.map((c, ci) => (
-                        <span key={`phdr-${ci}`} className={WIDTH_MAP[c.width ?? "auto"]}>{c.label}</span>
-                    ))}
-                    {(showQrColumn || showWorkOrderColumn) && <span className="w-auto shrink-0">จัดการ</span>}
-                    {navPath && <span className="w-4" />}
-                </div>
-                {/* Rows */}
-                {fetching ? (
-                    <div className="flex items-center justify-center py-8 text-muted-foreground gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        <span className="text-sm">กำลังโหลด...</span>
-                    </div>
-                ) : filtered.length === 0 ? (
-                    <div className="py-8 text-center text-sm text-muted-foreground">ไม่มีข้อมูล</div>
+                {columns.length === 0 ? (
+                    <div className="py-8 text-center text-sm text-muted-foreground">เลือกคอลัมน์ที่ต้องการแสดง</div>
                 ) : (
-                    <div className="divide-y">
-                        {filtered.map((row, i) => {
-                            const rowId = String(row[idField] ?? i);
-                            const isSelected = selectable && selectedRecord && String(selectedRecord[idField] ?? "") === rowId;
-                            const clickable  = selectable || !!navPath;
-                            const rowCls = `flex items-center gap-4 px-4 py-3 transition-colors ${
-                                isSelected
-                                    ? "bg-primary/10 border-l-2 border-primary"
-                                    : clickable
-                                        ? "hover:bg-muted/30 cursor-pointer group"
-                                        : ""
-                            }`;
+                    <>
+                        {/* Column headers */}
+                        <div className="flex items-center gap-4 px-4 py-2 bg-muted/20 border-b text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                            {columns.map((c, ci) => (
+                                <span key={`phdr-${ci}`} className={WIDTH_MAP[c.width ?? "auto"]}>{c.label}</span>
+                            ))}
+                            {(showQrColumn || showWorkOrderColumn) && <span className="w-auto shrink-0">จัดการ</span>}
+                            {navPath && <span className="w-4" />}
+                        </div>
+                        {/* Rows */}
+                        {fetching ? (
+                            <div className="flex items-center justify-center py-8 text-muted-foreground gap-2">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <span className="text-sm">กำลังโหลด...</span>
+                            </div>
+                        ) : filtered.length === 0 ? (
+                            <div className="py-8 text-center text-sm text-muted-foreground">ไม่มีข้อมูล</div>
+                        ) : (
+                            <div className="divide-y">
+                                {filtered.map((row, i) => {
+                                    const rowId = String(row[idField] ?? i);
+                                    const isSelected = selectable && selectedRecord && String(selectedRecord[idField] ?? "") === rowId;
+                                    const clickable  = selectable || !!navPath;
+                                    const rowCls = `flex items-center gap-4 px-4 py-3 transition-colors ${
+                                        isSelected
+                                            ? "bg-primary/10 border-l-2 border-primary"
+                                            : clickable
+                                                ? "hover:bg-muted/30 cursor-pointer group"
+                                                : ""
+                                    }`;
 
-                            const handleClick = selectable
-                                ? () => setSelectedRecord(isSelected ? null : row)
-                                : undefined;
+                                    const handleClick = selectable
+                                        ? () => setSelectedRecord(isSelected ? null : row)
+                                        : undefined;
 
-                            const rowObjId = String(row._id ?? row[idField] ?? i);
-                            const rowCode  = String(row.code ?? rowObjId.slice(-6).toUpperCase());
+                                    const rowObjId = String(row._id ?? row[idField] ?? i);
+                                    const rowCode  = String(row.code ?? rowObjId.slice(-6).toUpperCase());
 
-                            const inner = (
-                                <>
-                                    {columns.map((c, ci) => (
-                                        <span key={`pcell-${i}-${ci}`} className={`${WIDTH_MAP[c.width ?? "auto"]} min-w-0`}>
-                                            <CellValue col={c} value={resolveValue(row, c.key)} />
-                                        </span>
-                                    ))}
-                                    {/* QR + ใบงาน action buttons */}
-                                    {(showQrColumn || showWorkOrderColumn) && (
-                                        <div className="flex items-center gap-1 ml-auto shrink-0" onClick={(e) => e.stopPropagation()}>
-                                            {showQrColumn && (
-                                                <button
-                                                    type="button"
-                                                    title={`QR #${rowCode}`}
-                                                    onClick={() => setQrRow({ code: rowCode, orderId: rowObjId })}
-                                                    className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-                                                >
-                                                    <QrCode className="h-4 w-4" />
-                                                </button>
+                                    const inner = (
+                                        <>
+                                            {columns.map((c, ci) => (
+                                                <span key={`pcell-${i}-${ci}`} className={`${WIDTH_MAP[c.width ?? "auto"]} min-w-0`}>
+                                                    <CellValue col={c} value={resolveValue(row, c.key)} />
+                                                </span>
+                                            ))}
+                                            {/* QR + ใบงาน action buttons */}
+                                            {(showQrColumn || showWorkOrderColumn) && (
+                                                <div className="flex items-center gap-1 ml-auto shrink-0" onClick={(e) => e.stopPropagation()}>
+                                                    {showQrColumn && (
+                                                        <button
+                                                            type="button"
+                                                            title={`QR #${rowCode}`}
+                                                            onClick={() => setQrRow({ code: rowCode, orderId: rowObjId })}
+                                                            className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                                                        >
+                                                            <QrCode className="h-4 w-4" />
+                                                        </button>
+                                                    )}
+                                                    {showWorkOrderColumn && (
+                                                        <button
+                                                            type="button"
+                                                            title="ดูใบงาน"
+                                                            onClick={() => router.push(`/production/${rowObjId}/print`)}
+                                                            className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                                                        >
+                                                            <FileText className="h-4 w-4" />
+                                                        </button>
+                                                    )}
+                                                </div>
                                             )}
-                                            {showWorkOrderColumn && (
-                                                <button
-                                                    type="button"
-                                                    title="ดูใบงาน"
-                                                    onClick={() => router.push(`/production/${rowObjId}/print`)}
-                                                    className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-                                                >
-                                                    <FileText className="h-4 w-4" />
-                                                </button>
+                                            {navPath && !selectable && (
+                                                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-muted-foreground shrink-0 transition-colors" />
                                             )}
-                                        </div>
-                                    )}
-                                    {navPath && !selectable && (
-                                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-muted-foreground shrink-0 transition-colors" />
-                                    )}
-                                    {isSelected && (
-                                        <span className="ml-auto shrink-0 text-[10px] font-medium text-primary">เลือกแล้ว</span>
-                                    )}
-                                </>
-                            );
+                                            {isSelected && (
+                                                <span className="ml-auto shrink-0 text-[10px] font-medium text-primary">เลือกแล้ว</span>
+                                            )}
+                                        </>
+                                    );
 
-                            return navPath && !selectable
-                                ? <a key={rowId} href={`${navPath}/${rowId}`} className={rowCls}>{inner}</a>
-                                : <div key={rowId} className={rowCls} onClick={handleClick}>{inner}</div>;
-                        })}
-                    </div>
+                                    return navPath && !selectable
+                                        ? <a key={rowId} href={`${navPath}/${rowId}`} className={rowCls}>{inner}</a>
+                                        : <div key={rowId} className={rowCls} onClick={handleClick}>{inner}</div>;
+                                })}
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
             {/* QR popup */}
@@ -384,53 +393,78 @@ export function RecordList({
                 ${selected ? "border-primary ring-2 ring-primary/20" : "border-slate-200 dark:border-slate-700 hover:border-primary/30"}`}
         >
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-2.5 bg-muted/30 border-b">
-                <div className="flex items-center gap-2">
-                    <p className="text-xs font-semibold text-foreground/70">{label}</p>
-                    {isApi && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 text-[10px] font-medium">
-                            <Database className="h-2.5 w-2.5" />{SOURCE_LABEL[dataSource] ?? dataSource}
-                        </span>
-                    )}
+            {showHeader && (
+                <div className="flex items-center justify-between px-4 py-2.5 bg-muted/30 border-b">
+                    <div className="flex items-center gap-2">
+                        <p className="text-xs font-semibold text-foreground/70">{label}</p>
+                        {isApi && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 text-[10px] font-medium">
+                                <Database className="h-2.5 w-2.5" />{SOURCE_LABEL[dataSource] ?? dataSource}
+                            </span>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                        {fetching
+                            ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                            : <span className="text-[10px] text-muted-foreground">{isApi && filtered.length > 0 ? `${filtered.length} รายการ` : `max ${maxRows} แถว`}</span>
+                        }
+                    </div>
                 </div>
-                <div className="flex items-center gap-1.5">
-                    {navPath && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-[10px]">
-                            <ExternalLink className="h-2.5 w-2.5" />{navPath}
-                        </span>
-                    )}
-                    <span className="text-[10px] text-muted-foreground/50">max {maxRows} แถว</span>
+            )}
+            {/* Search */}
+            {showSearch && (
+                <div className="px-4 py-2 border-b">
+                    <input
+                        placeholder="ค้นหา..."
+                        className="w-full rounded-lg border bg-background px-3 py-1.5 text-sm pointer-events-none"
+                        readOnly
+                    />
                 </div>
-            </div>
+            )}
 
-            {/* Column headers */}
-            <div className="flex items-center gap-3 px-4 py-1.5 bg-muted/10 border-b text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
-                {columns.map((c, ci) => (
-                    <span key={`hdr-${ci}`} className={`${WIDTH_MAP[c.width ?? "auto"]} flex items-center gap-1`}>
-                        <Hash className="h-2 w-2 opacity-40" />{c.label}
-                        <span className="opacity-30 font-normal normal-case">({c.type ?? "text"})</span>
-                    </span>
-                ))}
-            </div>
-
-            {/* Sample rows (design time) */}
-            <div className="divide-y opacity-60">
-                {SAMPLE_ROWS.slice(0, Math.min(3, maxRows)).map((row, i) => (
-                    <div key={i} className="flex items-center gap-3 px-4 py-2">
+            {columns.length === 0 ? (
+                <div className="px-4 py-6 text-center">
+                    <p className="text-sm text-muted-foreground/50">เลือกคอลัมน์ที่ต้องการแสดงจาก Properties</p>
+                </div>
+            ) : (
+                <>
+                    {/* Column headers */}
+                    <div className="flex items-center gap-3 px-4 py-1.5 bg-muted/10 border-b text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
                         {columns.map((c, ci) => (
-                            <span key={`cell-${i}-${ci}`} className={`${WIDTH_MAP[c.width ?? "auto"]} min-w-0`}>
-                                <CellValue col={c} value={resolveValue(row as Record<string, unknown>, c.key)} />
+                            <span key={`hdr-${ci}`} className={`${WIDTH_MAP[c.width ?? "auto"]} flex items-center gap-1`}>
+                                <Hash className="h-2 w-2 opacity-40" />{c.label}
+                                <span className="opacity-30 font-normal normal-case">({c.type ?? "text"})</span>
                             </span>
                         ))}
-                        {navPath && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/30 shrink-0" />}
                     </div>
-                ))}
-            </div>
-            <div className="px-4 py-1.5 text-[10px] text-muted-foreground/40 italic border-t">
-                {isApi
-                    ? `ดึงข้อมูลจริงจาก ${SOURCE_LABEL[dataSource] ?? dataSource}${dataSource === "/orders" ? " · กรองเฉพาะงานสถานีนี้อัตโนมัติ" : ""}`
-                    : "ตัวอย่างข้อมูล — เลือกแหล่งข้อมูลเพื่อใช้ข้อมูลจริง"}
-            </div>
+
+                    {/* Data rows (live or sample fallback) */}
+                    {fetching ? (
+                        <div className="flex items-center justify-center py-6 text-muted-foreground gap-2">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span className="text-[10px]">กำลังโหลด...</span>
+                        </div>
+                    ) : (
+                        <div className="divide-y">
+                            {(isApi && filtered.length > 0 ? filtered : SAMPLE_ROWS.slice(0, Math.min(3, maxRows))).map((row, i) => (
+                                <div key={i} className="flex items-center gap-3 px-4 py-2">
+                                    {columns.map((c, ci) => (
+                                        <span key={`cell-${i}-${ci}`} className={`${WIDTH_MAP[c.width ?? "auto"]} min-w-0`}>
+                                            <CellValue col={c} value={resolveValue(row as Record<string, unknown>, c.key)} />
+                                        </span>
+                                    ))}
+                                    {navPath && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/30 shrink-0" />}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    <div className="px-4 py-1.5 text-[10px] text-muted-foreground/40 italic border-t">
+                        {isApi
+                            ? `ดึงข้อมูลจริงจาก ${SOURCE_LABEL[dataSource] ?? dataSource}${dataSource === "/orders" ? " · กรองเฉพาะงานสถานีนี้อัตโนมัติ" : ""}`
+                            : "ตัวอย่างข้อมูล — เลือกแหล่งข้อมูลเพื่อใช้ข้อมูลจริง"}
+                    </div>
+                </>
+            )}
         </div>
     );
 }
@@ -440,7 +474,7 @@ RecordList.craft = {
     props: {
         label:       "รายการข้อมูล",
         dataSource:  "static",
-        columnsJson: DEFAULT_COLUMNS_STR,
+        columnsJson: STATIC_DEFAULT_COLUMNS_STR,
         idField:     "_id",
         navigateTo:  "",
         maxRows:     5,

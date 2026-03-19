@@ -123,12 +123,12 @@ export function SelectField({
     // Auto-derive fieldKey from dataSource if not explicitly set — no manual config needed
     const effectiveKey = fieldKey || AUTO_FIELD_KEY[dataSource] || "";
 
-    // ── Preview: fetch real API data ──────────────────────────────────────────
+    // ── Fetch real API data ────────────────────────────────────────────────────
     const [apiItems, setApiItems] = useState<{ label: string; value: string }[]>([]);
     const [fetching, setFetching] = useState(false);
 
     useEffect(() => {
-        if (!isPreview || !isApi) return;
+        if (!isApi) return;
         setFetching(true);
 
         const shouldHideProcessed = dataSource === "/requests" && !showAllRequests;
@@ -206,7 +206,7 @@ export function SelectField({
             })
             .catch(() => setApiItems([]))
             .finally(() => setFetching(false));
-    }, [isPreview, dataSource, labelField, valueField, isApi, showAllRequests, linkedSource, linkedField]);
+    }, [dataSource, labelField, valueField, isApi, showAllRequests, linkedSource, linkedField]);
 
     // ── Preview render ────────────────────────────────────────────────────────
     if (isPreview) {
@@ -231,7 +231,7 @@ export function SelectField({
                                         if (contextType === "request") setRequestData(res.data);
                                         if (contextType === "order")   setOrderData(res.data);
                                     })
-                                    .catch(() => {/* non-critical, ignore */});
+                                    .catch(() => {});
                             }
                         } : undefined}
                     >
@@ -255,7 +255,7 @@ export function SelectField({
     return (
         <div
             ref={(ref) => { ref && connect(drag(ref)); }}
-            className={`w-full rounded-xl border-2 p-3 space-y-1.5 cursor-grab transition-all ${selected ? "border-primary bg-primary/5" : "border-slate-200 dark:border-slate-700 hover:border-primary/30 bg-card"}`}
+            className={`w-full cursor-grab transition-all rounded-xl p-1 ${selected ? "ring-2 ring-primary/30" : "hover:ring-1 hover:ring-primary/20"}`}
         >
             {(effectiveKey || isApi) && (
                 <div className="flex flex-wrap items-center gap-1 mb-1">

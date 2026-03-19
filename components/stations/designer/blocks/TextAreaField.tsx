@@ -23,46 +23,33 @@ export function TextAreaField({
     const isPreview = usePreview();
     const { formData, setField } = useStationContext();
 
-    if (isPreview) {
-        const controlled = !!fieldKey;
-        return (
-            <div className="w-full space-y-1.5">
-                {label && <label className="block text-xs font-semibold text-foreground/70">{label}</label>}
-                {controlled ? (
-                    <textarea
-                        rows={rows}
-                        placeholder={placeholder}
-                        value={String(formData[fieldKey] ?? "")}
-                        onChange={(e) => setField(fieldKey, e.target.value)}
-                        className="w-full rounded-lg border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/40"
-                    />
-                ) : (
-                    <textarea rows={rows} placeholder={placeholder} className="w-full rounded-lg border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/40" />
-                )}
-            </div>
-        );
-    }
+    const controlled = !!fieldKey;
+
+    const content = (
+        <div className="w-full space-y-1.5">
+            {label && <label className="block text-xs font-semibold text-foreground/70">{label}</label>}
+            {isPreview && controlled ? (
+                <textarea
+                    rows={rows}
+                    placeholder={placeholder}
+                    value={String(formData[fieldKey] ?? "")}
+                    onChange={(e) => setField(fieldKey, e.target.value)}
+                    className="w-full rounded-lg border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/40"
+                />
+            ) : (
+                <textarea rows={rows} placeholder={placeholder} className="w-full rounded-lg border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/40" readOnly={!isPreview} />
+            )}
+        </div>
+    );
+
+    if (isPreview) return content;
 
     return (
         <div
             ref={(ref) => { ref && connect(drag(ref)); }}
-            className={`w-full rounded-xl border-2 p-3 space-y-1.5 cursor-grab transition-all ${selected ? "border-primary bg-primary/5" : "border-slate-200 dark:border-slate-700 hover:border-primary/30 bg-card"}`}
+            className={`w-full cursor-grab transition-all rounded-xl p-1 ${selected ? "ring-2 ring-primary/30" : "hover:ring-1 hover:ring-primary/20"}`}
         >
-            {/* Binding badge */}
-            {fieldKey && (
-                <div className="mb-1">
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px] font-mono font-medium">
-                        <Hash className="h-2.5 w-2.5" />{fieldKey}
-                    </span>
-                </div>
-            )}
-            <label className="block text-xs font-semibold text-foreground/70">{label}</label>
-            <div
-                className="w-full rounded-lg border border-muted bg-background px-3 py-2 text-sm text-muted-foreground/50 pointer-events-none"
-                style={{ minHeight: `${rows * 1.75}rem` }}
-            >
-                {placeholder}
-            </div>
+            <div className="pointer-events-none">{content}</div>
         </div>
     );
 }

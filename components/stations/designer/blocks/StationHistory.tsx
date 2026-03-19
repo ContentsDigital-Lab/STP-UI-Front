@@ -73,13 +73,12 @@ export function StationHistory({
     };
 
     useEffect(() => {
-        if (!isPreview) return;
         loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isPreview, stationId, maxRows, refreshCounter]);
 
     useWebSocket("order", ["order:updated", "order:created"], () => {
-        if (isPreview) loadData();
+        loadData();
     });
 
     // ── Preview render ────────────────────────────────────────────────────────
@@ -175,24 +174,55 @@ export function StationHistory({
             <div className="flex items-center gap-2 px-4 py-2.5 bg-muted/30 border-b">
                 <History className="h-3.5 w-3.5 text-muted-foreground/60" />
                 <p className="text-xs font-semibold text-foreground/70">{title}</p>
+                {fetching && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground ml-auto" />}
+                {rows.length > 0 && <span className="ml-auto text-[10px] text-muted-foreground">{rows.length} รายการ</span>}
             </div>
-            <div className="p-4 space-y-2 opacity-50 pointer-events-none">
-                {[1, 2, 3].map((i) => (
-                    <div key={i} className="flex items-center gap-3 rounded-lg border bg-card px-3 py-2.5">
-                        <div className="flex-1 space-y-1.5">
-                            <div className="flex gap-2">
-                                <div className="h-3 w-14 rounded bg-muted" />
-                                <div className="h-3 w-16 rounded-full bg-blue-100 dark:bg-blue-900/30" />
+            {rows.length > 0 ? (
+                <div className="divide-y">
+                    {rows.slice(0, 5).map((o) => {
+                        const code = o.code ?? o._id.slice(-6).toUpperCase();
+                        const isCompleted = o.status === "completed";
+                        return (
+                            <div key={o._id} className="px-4 py-2.5 flex items-center gap-3">
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs font-mono font-semibold">{code}</span>
+                                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                                            isCompleted
+                                                ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+                                                : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                                        }`}>
+                                            {isCompleted ? "เสร็จ" : `สถานีที่ ${(o.currentStationIndex ?? 0) + 1}`}
+                                        </span>
+                                    </div>
+                                    <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                                        {getName(o.customer)} · {getName(o.material)}
+                                    </p>
+                                </div>
+                                <span className="text-[10px] text-muted-foreground/50 shrink-0">{fmtDate(o.updatedAt)}</span>
                             </div>
-                            <div className="h-2.5 w-28 rounded bg-muted/60" />
+                        );
+                    })}
+                </div>
+            ) : (
+                <div className="p-4 space-y-2 opacity-50 pointer-events-none">
+                    {[1, 2, 3].map((i) => (
+                        <div key={i} className="flex items-center gap-3 rounded-lg border bg-card px-3 py-2.5">
+                            <div className="flex-1 space-y-1.5">
+                                <div className="flex gap-2">
+                                    <div className="h-3 w-14 rounded bg-muted" />
+                                    <div className="h-3 w-16 rounded-full bg-blue-100 dark:bg-blue-900/30" />
+                                </div>
+                                <div className="h-2.5 w-28 rounded bg-muted/60" />
+                            </div>
+                            <div className="h-2.5 w-20 rounded bg-muted/40" />
                         </div>
-                        <div className="h-2.5 w-20 rounded bg-muted/40" />
-                    </div>
-                ))}
-                <p className="text-[10px] text-muted-foreground/40 text-center italic pt-1">
-                    แสดงออเดอร์ที่ผ่านสถานีนี้แล้ว (สูงสุด {maxRows} รายการ)
-                </p>
-            </div>
+                    ))}
+                    <p className="text-[10px] text-muted-foreground/40 text-center italic pt-1">
+                        แสดงออเดอร์ที่ผ่านสถานีนี้แล้ว (สูงสุด {maxRows} รายการ)
+                    </p>
+                </div>
+            )}
         </div>
     );
 }

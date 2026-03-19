@@ -57,7 +57,6 @@ const FIELD_LABEL: Record<string, string> = {
  */
 function extractMissingFields(msg: string): string[] {
     const found: string[] = [];
-    // Match [fieldName] patterns from our updated fetchApi
     const bracketRe = /\[([^\]]+)\]/g;
     let m: RegExpExecArray | null;
     while ((m = bracketRe.exec(msg)) !== null) {
@@ -103,7 +102,7 @@ export function ButtonBlock({
     const [feedback, setFeedback] = useState<"" | "ok" | "loading" | "error">("");
     const [errorMsg, setErrorMsg] = useState("");
     const actionCfg  = action && action !== "none" ? ACTION_CONFIG[action] : null;
-    const { formData, resetForm, orderId, requestId, requestData, orderData, triggerRefresh } = useStationContext();
+    const { formData, resetForm, orderId, requestId, requestData, orderData, selectedRecord, triggerRefresh } = useStationContext();
     const { query } = useEditor();
 
     // ── Preview click handler ─────────────────────────────────────────────────
@@ -120,7 +119,6 @@ export function ButtonBlock({
             return;
         }
         if (action === "submit-form") {
-            // validate required fields on canvas before calling API
             const allNodes = query.getSerializedNodes();
             const requiredFields = Object.values(allNodes)
                 .filter((n) => n.displayName === "Input Field" && (n.props as Record<string, unknown>)?.required && (n.props as Record<string, unknown>)?.fieldKey)
@@ -139,7 +137,6 @@ export function ButtonBlock({
                 return;
             }
 
-            // submit-form always PATCHes the current order with formData
             if (!orderId) {
                 setErrorMsg("ไม่พบ orderId — กรุณาเปิดหน้านี้ผ่าน ?orderId=...");
                 setFeedback("error");
@@ -187,7 +184,7 @@ export function ButtonBlock({
                     const autoKey     = AUTO_FIELD_KEY[dataSource] ?? "";
                     return {
                         label:    String(props.label ?? "ช่อง"),
-                        fieldKey: explicitKey || autoKey,  // mirrors SelectField's effectiveKey
+                        fieldKey: explicitKey || autoKey,
                     };
                 });
 
@@ -208,34 +205,70 @@ export function ButtonBlock({
                 return undefined;
             };
 
-            // Build body outside try so catch can access it for diagnostics
-            const autoFields: Record<string, unknown> = {};
-            if (!formData.customer) {
-                const src = requestData ?? orderData;
-                const cid = extractId(src?.customer);
-                if (cid) autoFields.customer = cid;
-            }
-            if (!formData.material) {
-                const src = requestData ?? orderData;
-                const mid = extractId(src?.material);
-                if (mid) autoFields.material = mid;
+            // Normalise legacy / misnamed field keys so the API gets the right names
+            const normalized: Record<string, unknown> = { ...formData };
+            const fieldMap: Record<string, string> = {
+                customerName: "customer",
+                materialId:   "material",
+            };
+            for (const [wrong, right] of Object.entries(fieldMap)) {
+                if (wrong in normalized && !(right in normalized)) {
+                    normalized[right] = normalized[wrong];
+                }
+                delete normalized[wrong];
             }
 
+            // Strip empty / null / undefined values so they don't override auto-fill
+            for (const k of Object.keys(normalized)) {
+                const v = normalized[k];
+                if (v === "" || v === null || v === undefined) delete normalized[k];
+            }
+
+            // Ensure ObjectIds — if the form captured a populated object, extract _id
+            for (const k of ["customer", "material"]) {
+                if (normalized[k]) normalized[k] = extractId(normalized[k]) ?? normalized[k];
+            }
+
+            // Auto-derive commonly required fields from context data
+            const autoFields: Record<string, unknown> = {};
+            const src = requestData ?? orderData ?? selectedRecord;
+            if (src) {
+                const details = src.details as Record<string, unknown> | undefined;
+                if (!normalized.customer) {
+                    const cid = extractId(src.customer);
+                    if (cid) autoFields.customer = cid;
+                }
+                if (!normalized.material) {
+                    const mid = extractId(src.material);
+                    if (mid) autoFields.material = mid;
+                }
+                if (normalized.quantity == null) {
+                    const qty = src.quantity ?? details?.quantity;
+                    if (qty != null) autoFields.quantity = qty;
+                }
+                if (!requestId && !orderId && src._id && details && !autoFields.material) {
+                    autoFields.request = src._id;
+                }
+            }
+
+            // Build body outside try so catch can access it for diagnostics
             const body: Record<string, unknown> = {
                 ...autoFields,
-                ...formData,
+                ...normalized,
                 ...(requestId ? { request: requestId } : {}),
                 ...(orderId   ? { order:   orderId   } : {}),
             };
 
             setFeedback("loading");
             setErrorMsg("");
-            console.log("[ButtonBlock] api-call body:", body);
+            if (process.env.NODE_ENV !== "production") {
+                console.log("[ButtonBlock] api-call body:", body);
+            }
 
             /** Classify form nodes into user-fillable empties vs unlinked (no fieldKey) */
             const diagnoseFormNodes = () => {
-                const emptyLinked  = formNodes.filter((f) => f.fieldKey && !body[f.fieldKey]);  // has key, value missing → user forgot
-                const unlinked     = formNodes.filter((f) => !f.fieldKey);                      // no key → admin config problem
+                const emptyLinked  = formNodes.filter((f) => f.fieldKey && !body[f.fieldKey]);
+                const unlinked     = formNodes.filter((f) => !f.fieldKey);
                 return { emptyLinked, unlinked };
             };
 
@@ -279,64 +312,55 @@ export function ButtonBlock({
 
     const alignClass = ALIGN_MAP[align] ?? "justify-start";
 
-    // ── Preview render ────────────────────────────────────────────────────────
-    if (isPreview) {
-        return (
-            <div className={`w-full flex ${alignClass}`}>
-                <div className="flex flex-col items-stretch gap-1.5" style={fullWidth ? { width: "100%" } : {}}>
-                    <button
-                        onClick={handlePreviewClick}
-                        disabled={feedback === "loading"}
-                        className={`rounded-lg font-semibold transition-all ${VARIANT_MAP[variant] ?? VARIANT_MAP.primary} ${SIZE_MAP[size]} ${fullWidth ? "w-full" : ""} ${feedback === "ok" ? "!bg-green-500 !text-white !border-green-500" : ""} ${feedback === "error" ? "!bg-red-500 !text-white !border-red-500" : ""} disabled:opacity-70 flex items-center justify-center gap-2`}
-                    >
-                        {feedback === "loading" ? (
-                            <><Loader2 className="h-4 w-4 animate-spin" /> กำลังส่ง...</>
-                        ) : feedback === "ok" ? (
-                            <><CheckCircle2 className="h-4 w-4" /> สำเร็จ</>
-                        ) : feedback === "error" ? (
-                            <><AlertCircle className="h-4 w-4" /> {label}</>
-                        ) : (
-                            label
-                        )}
-                    </button>
-                    {feedback === "error" && errorMsg && (
-                        <div className={`flex items-start gap-2 text-xs text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2 ${fullWidth ? "w-full" : ""}`}>
-                            <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                            <span>{errorMsg}</span>
-                        </div>
+    const content = (
+        <div className={`w-full flex ${alignClass}`}>
+            <div className="flex flex-col items-stretch gap-1.5" style={fullWidth ? { width: "100%" } : {}}>
+                <button
+                    onClick={isPreview ? handlePreviewClick : undefined}
+                    disabled={!isPreview || feedback === "loading"}
+                    className={`rounded-lg font-semibold transition-all ${VARIANT_MAP[variant] ?? VARIANT_MAP.primary} ${SIZE_MAP[size]} ${fullWidth ? "w-full" : ""} ${feedback === "ok" ? "!bg-green-500 !text-white !border-green-500" : ""} ${feedback === "error" ? "!bg-red-500 !text-white !border-red-500" : ""} disabled:opacity-70 flex items-center justify-center gap-2`}
+                >
+                    {feedback === "loading" ? (
+                        <><Loader2 className="h-4 w-4 animate-spin" /> กำลังส่ง...</>
+                    ) : feedback === "ok" ? (
+                        <><CheckCircle2 className="h-4 w-4" /> สำเร็จ</>
+                    ) : feedback === "error" ? (
+                        <><AlertCircle className="h-4 w-4" /> {label}</>
+                    ) : (
+                        label
                     )}
-                    {feedback === "ok" && (
-                        <div className={`flex items-center gap-2 text-xs text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 rounded-lg px-3 py-2 ${fullWidth ? "w-full" : ""}`}>
-                            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                            <span>ดำเนินการสำเร็จ</span>
-                        </div>
-                    )}
-                </div>
+                </button>
+                {feedback === "error" && errorMsg && (
+                    <div className={`flex items-start gap-2 text-xs text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2 ${fullWidth ? "w-full" : ""}`}>
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                        <span>{errorMsg}</span>
+                    </div>
+                )}
+                {feedback === "ok" && (
+                    <div className={`flex items-center gap-2 text-xs text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 rounded-lg px-3 py-2 ${fullWidth ? "w-full" : ""}`}>
+                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                        <span>ดำเนินการสำเร็จ</span>
+                    </div>
+                )}
+                {action !== "none" && actionCfg && feedback === "" && (
+                    <p className="text-[10px] text-muted-foreground mt-1 text-center">
+                        {action === "navigate" && navigateTo ? `→ ${navigateTo}` : ""}
+                        {(action === "submit-form" || action === "api-call") && actionEndpoint ? `${actionMethod} ${actionEndpoint}` : ""}
+                        {action === "show-confirm" ? "แสดงการยืนยัน" : ""}
+                    </p>
+                )}
             </div>
-        );
-    }
+        </div>
+    );
 
-    // ── Design mode render ────────────────────────────────────────────────────
+    if (isPreview) return content;
+
     return (
         <div
             ref={(ref) => { ref && connect(drag(ref)); }}
-            className={`w-full flex ${alignClass} cursor-grab rounded-xl p-1.5 transition-all ${selected ? "ring-2 ring-primary/40 bg-primary/5" : "hover:bg-muted/20"}`}
+            className={`w-full cursor-grab rounded-xl p-1 transition-all ${selected ? "ring-2 ring-primary/30" : "hover:ring-1 hover:ring-primary/20"}`}
         >
-            <div className="flex flex-col gap-1 items-stretch" style={fullWidth ? { width: "100%" } : {}}>
-                {actionCfg && (
-                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium self-start ${actionCfg.color}`}>
-                        <Zap className="h-2.5 w-2.5" />
-                        {action === "submit-form" ? `PATCH /orders/:orderId` : ""}
-                        {action === "navigate"    && navigateTo      ? `ไปยัง ${navigateTo}` : ""}
-                        {action === "api-call"    && actionEndpoint  ? `${actionMethod} ${actionEndpoint}` : ""}
-                        {action === "show-confirm"                   ? `ยืนยัน` : ""}
-                        {!actionEndpoint && !navigateTo && action !== "show-confirm" ? actionCfg.label : ""}
-                    </span>
-                )}
-                <button className={`rounded-lg font-semibold transition-colors pointer-events-none ${VARIANT_MAP[variant] ?? VARIANT_MAP.primary} ${SIZE_MAP[size]} ${fullWidth ? "w-full" : ""}`}>
-                    {label}
-                </button>
-            </div>
+            <div className="pointer-events-none">{content}</div>
         </div>
     );
 }
