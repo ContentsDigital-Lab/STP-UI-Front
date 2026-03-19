@@ -122,114 +122,73 @@ export function QrScanBlock({
         handleScan(raw);
     }
 
-    // ── Preview render ────────────────────────────────────────────────────────
-    if (isPreview) {
-        return (
-            <div className="w-full space-y-2">
-                {label && (
-                    <label className="block text-xs font-semibold text-foreground/70">{label}</label>
-                )}
+    const content = (
+        <div className="w-full space-y-2">
+            {label && (
+                <label className="block text-xs font-semibold text-foreground/70">{label}</label>
+            )}
 
-                {/* Input row */}
-                <div className="flex items-center gap-2">
-                    <div className="relative flex-1">
-                        <ScanLine className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50 pointer-events-none" />
-                        <input
-                            ref={inputRef}
-                            type="text"
-                            placeholder={placeholder}
-                            onKeyDown={handleKeyDown}
-                            disabled={scanStatus === "loading"}
-                            autoComplete="off"
-                            className="w-full rounded-lg border bg-background pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60"
-                        />
-                        {scanStatus === "loading" && (
-                            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />
-                        )}
-                    </div>
-
-                    {/* Camera button */}
-                    {enableCamera && (
-                        <button
-                            onClick={() => setShowCamera(true)}
-                            disabled={scanStatus === "loading"}
-                            title="สแกนด้วยกล้อง"
-                            className="shrink-0 rounded-lg border border-input bg-background px-3 py-2.5 hover:bg-muted transition-colors disabled:opacity-60"
-                        >
-                            <Camera className="h-4 w-4 text-muted-foreground" />
-                        </button>
+            {/* Input row */}
+            <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                    <ScanLine className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50 pointer-events-none" />
+                    <input
+                        ref={isPreview ? inputRef : undefined}
+                        type="text"
+                        placeholder={placeholder}
+                        onKeyDown={isPreview ? handleKeyDown : undefined}
+                        disabled={!isPreview || scanStatus === "loading"}
+                        autoComplete="off"
+                        readOnly={!isPreview}
+                        className="w-full rounded-lg border bg-background pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60"
+                    />
+                    {scanStatus === "loading" && (
+                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />
                     )}
                 </div>
 
-                {/* Feedback */}
-                {scanStatus === "success" && (
-                    <div className="flex items-center gap-1.5 text-emerald-600 text-xs">
-                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                        <span>{message}</span>
-                    </div>
-                )}
-                {scanStatus === "error" && (
-                    <div className="flex items-center gap-1.5 text-red-500 text-xs">
-                        <XCircle className="h-3.5 w-3.5 shrink-0" />
-                        <span>{message}</span>
-                    </div>
-                )}
-
-                {/* Camera modal */}
-                {showCamera && (
-                    <CameraScanModal
-                        onScan={handleCameraScan}
-                        onClose={() => setShowCamera(false)}
-                    />
+                {enableCamera && (
+                    <button
+                        onClick={isPreview ? () => setShowCamera(true) : undefined}
+                        disabled={!isPreview || scanStatus === "loading"}
+                        title="สแกนด้วยกล้อง"
+                        className="shrink-0 rounded-lg border border-input bg-background px-3 py-2.5 hover:bg-muted transition-colors disabled:opacity-60"
+                    >
+                        <Camera className="h-4 w-4 text-muted-foreground" />
+                    </button>
                 )}
             </div>
-        );
-    }
 
-    // ── Design mode render ────────────────────────────────────────────────────
+            {scanStatus === "success" && (
+                <div className="flex items-center gap-1.5 text-emerald-600 text-xs">
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                    <span>{message}</span>
+                </div>
+            )}
+            {scanStatus === "error" && (
+                <div className="flex items-center gap-1.5 text-red-500 text-xs">
+                    <XCircle className="h-3.5 w-3.5 shrink-0" />
+                    <span>{message}</span>
+                </div>
+            )}
+
+            {isPreview && showCamera && (
+                <CameraScanModal
+                    onScan={handleCameraScan}
+                    onClose={() => setShowCamera(false)}
+                />
+            )}
+        </div>
+    );
+
+    if (isPreview) return content;
+
     return (
         <div
             ref={(ref) => { ref && connect(drag(ref)); }}
-            className={`w-full rounded-xl border-2 p-3 space-y-1.5 cursor-grab transition-all ${
-                selected
-                    ? "border-primary bg-primary/5"
-                    : "border-slate-200 dark:border-slate-700 hover:border-primary/30 bg-card"
-            }`}
+            className={`w-full cursor-grab transition-all rounded-xl p-1 ${selected ? "ring-2 ring-primary/30" : "hover:ring-1 hover:ring-primary/20"}`}
         >
-            {/* Badge row */}
-            <div className="flex flex-wrap items-center gap-1 mb-1">
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 text-[10px] font-medium">
-                    <ScanLine className="h-2.5 w-2.5" />
-                    QR Scan
-                </span>
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-mono">
-                    <Hash className="h-2.5 w-2.5" />{dataSource}
-                </span>
-                {autoAction === "patch" && (
-                    <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-[10px] font-medium">
-                        auto-patch
-                    </span>
-                )}
-            </div>
-
-            <label className="block text-xs font-semibold text-foreground/70">{label}</label>
-
-            {/* Fake input preview */}
-            <div className="flex items-center gap-2 pointer-events-none">
-                <div className="flex-1 rounded-lg border border-muted bg-background px-3 py-2.5 text-sm text-muted-foreground/40 flex items-center gap-2">
-                    <ScanLine className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate">{placeholder}</span>
-                </div>
-                {enableCamera && (
-                    <div className="shrink-0 rounded-lg border border-muted bg-background px-3 py-2.5">
-                        <Camera className="h-4 w-4 text-muted-foreground/40" />
-                    </div>
-                )}
-            </div>
-
-            <p className="text-[10px] text-violet-500 dark:text-violet-400">
-                📷 รองรับกล้อง + เครื่องสแกน (Barcode Gun)
-            </p>
+            <div className="pointer-events-none">{content}</div>
         </div>
     );
 }

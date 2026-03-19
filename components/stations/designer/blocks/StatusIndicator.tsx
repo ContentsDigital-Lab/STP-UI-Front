@@ -88,81 +88,42 @@ export function StatusIndicator({
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
 
-    // ── Preview render ─────────────────────────────────────────────────────────
-    if (isPreview) {
-        if (displayMode === "list") {
-            return (
-                <div className="w-full rounded-xl border bg-card overflow-hidden">
-                    {label && <div className="px-4 py-2 border-b bg-muted/30"><p className="text-xs font-semibold text-muted-foreground">{label}</p></div>}
-                    <div className="divide-y">
-                        {SAMPLE_LIST.map((row) => (
-                            <div key={row.id} className="flex items-center justify-between px-4 py-2.5">
-                                <div>
-                                    <p className="text-sm font-medium text-foreground">{row.name}</p>
-                                    <p className="text-[11px] text-muted-foreground">#{row.id}</p>
-                                </div>
-                                {renderStatus(displayStyle, row.status)}
-                            </div>
-                        ))}
-                    </div>
-                    {dataVar && (
-                        <div className="px-4 py-1.5 border-t bg-blue-50/40 dark:bg-blue-950/20">
-                            <p className="text-[10px] text-blue-600 dark:text-blue-400 font-mono">{`{${dataVar}}`} — แสดงข้อมูลจริงเมื่อใช้งาน</p>
+    const content = displayMode === "list" ? (
+        <div className="w-full rounded-xl border bg-card overflow-hidden">
+            {label && <div className="px-4 py-2 border-b bg-muted/30"><p className="text-xs font-semibold text-muted-foreground">{label}</p></div>}
+            <div className="divide-y">
+                {SAMPLE_LIST.map((row) => (
+                    <div key={row.id} className="flex items-center justify-between px-4 py-2.5">
+                        <div>
+                            <p className="text-sm font-medium text-foreground">{row.name}</p>
+                            <p className="text-[11px] text-muted-foreground">#{row.id}</p>
                         </div>
-                    )}
-                </div>
-            );
-        }
-        return (
-            <div className="w-full rounded-xl border bg-card p-4 space-y-2">
-                {label && <p className="text-xs font-semibold text-muted-foreground">{label}</p>}
-                {renderStatus(displayStyle, "in_progress")}
-                {dataVar && <p className="text-[10px] text-blue-600 dark:text-blue-400 font-mono">{`{${dataVar}}`}</p>}
+                        {renderStatus(displayStyle, row.status)}
+                    </div>
+                ))}
             </div>
-        );
-    }
+            {dataVar && (
+                <div className="px-4 py-1.5 border-t bg-blue-50/40 dark:bg-blue-950/20">
+                    <p className="text-[10px] text-blue-600 dark:text-blue-400 font-mono">{`{${dataVar}}`} — แสดงข้อมูลจริงเมื่อใช้งาน</p>
+                </div>
+            )}
+        </div>
+    ) : (
+        <div className="w-full rounded-xl border bg-card p-4 space-y-2">
+            {label && <p className="text-xs font-semibold text-muted-foreground">{label}</p>}
+            {renderStatus(displayStyle, "in_progress")}
+            {dataVar && <p className="text-[10px] text-blue-600 dark:text-blue-400 font-mono">{`{${dataVar}}`}</p>}
+        </div>
+    );
 
-    // ── Design mode render ─────────────────────────────────────────────────────
+    if (isPreview) return content;
+
     return (
         <div
             ref={(ref) => { ref && connect(drag(ref)); }}
-            className={`w-full rounded-xl border-2 cursor-grab transition-all ${selected ? "border-primary ring-2 ring-primary/20" : "border-slate-200 dark:border-slate-700 hover:border-primary/30"}`}
+            className={`w-full cursor-grab transition-all rounded-xl ${selected ? "ring-2 ring-primary/30" : "hover:ring-1 hover:ring-primary/20"}`}
         >
-            {/* Header */}
-            <div className="flex items-center justify-between px-4 pt-3 pb-2">
-                <p className="text-xs font-semibold text-muted-foreground">{label}</p>
-                {dataVar && (
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px] font-mono">
-                        <Database className="h-2.5 w-2.5" />{`{${dataVar}}`}
-                    </span>
-                )}
-            </div>
-
-            {/* Style preview */}
-            {displayMode === "list" ? (
-                <div className="border-t divide-y">
-                    {(["pending","in_progress","completed","error"] as const).slice(0, 3).map((s) => (
-                        <div key={s} className="flex items-center justify-between px-4 py-2">
-                            <span className="text-xs text-muted-foreground/60 font-mono">item...</span>
-                            {renderStatus(displayStyle, s)}
-                        </div>
-                    ))}
-                    <div className="px-4 py-1.5 text-[10px] text-muted-foreground/40 italic">
-                        {dataVar ? `แสดงข้อมูลจาก {${dataVar}}` : "ตัวอย่างรายการ"}
-                    </div>
-                </div>
-            ) : (
-                <div className="px-4 pb-3">
-                    <div className="flex flex-wrap gap-1.5">
-                        {(["pending","in_progress","completed","error"] as const).map((s) => (
-                            <div key={s} className="opacity-60">{renderStatus(displayStyle, s)}</div>
-                        ))}
-                    </div>
-                    <p className="text-[10px] text-muted-foreground/40 mt-1.5 italic">
-                        {dataVar ? `แสดงสถานะจาก {${dataVar}}` : "ตัวอย่างรูปแบบสถานะ"}
-                    </p>
-                </div>
-            )}
+            {content}
         </div>
     );
 }

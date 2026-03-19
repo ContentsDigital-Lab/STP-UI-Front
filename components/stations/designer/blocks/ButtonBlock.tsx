@@ -56,7 +56,7 @@ export function ButtonBlock({
     const [feedback, setFeedback] = useState<"" | "ok" | "loading" | "error">("");
     const [errorMsg, setErrorMsg] = useState("");
     const actionCfg  = action && action !== "none" ? ACTION_CONFIG[action] : null;
-    const { formData, resetForm, orderId, requestId, requestData, orderData, triggerRefresh } = useStationContext();
+    const { formData, resetForm, orderId, requestId, requestData, orderData, selectedRecord, triggerRefresh } = useStationContext();
     const { query } = useEditor();
 
     // ── Preview click handler ─────────────────────────────────────────────────
@@ -135,23 +135,59 @@ export function ButtonBlock({
                     return undefined;
                 };
 
-                // Auto-derive commonly required order fields from requestData / orderData
-                // when the user hasn't explicitly added a form field for them.
-                const autoFields: Record<string, unknown> = {};
-                if (!formData.customer) {
-                    const src = requestData ?? orderData;
-                    const cid = extractId(src?.customer);
-                    if (cid) autoFields.customer = cid;
+                // Normalise legacy / misnamed field keys so the API gets the right names
+                const normalized: Record<string, unknown> = { ...formData };
+                const fieldMap: Record<string, string> = {
+                    customerName: "customer",
+                    materialId:   "material",
+                };
+                for (const [wrong, right] of Object.entries(fieldMap)) {
+                    if (wrong in normalized && !(right in normalized)) {
+                        normalized[right] = normalized[wrong];
+                    }
+                    delete normalized[wrong];
                 }
-                if (!formData.material) {
-                    const src = requestData ?? orderData;
-                    const mid = extractId(src?.material);
-                    if (mid) autoFields.material = mid;
+
+                // Strip empty / null / undefined values so they don't override auto-fill
+                for (const k of Object.keys(normalized)) {
+                    const v = normalized[k];
+                    if (v === "" || v === null || v === undefined) delete normalized[k];
+                }
+
+                // Ensure ObjectIds — if the form captured a populated object, extract _id
+                for (const k of ["customer", "material"]) {
+                    if (normalized[k]) normalized[k] = extractId(normalized[k]) ?? normalized[k];
+                }
+
+                // Auto-derive commonly required order fields from context data
+                const autoFields: Record<string, unknown> = {};
+                const src = requestData ?? orderData ?? selectedRecord;
+                if (src) {
+                    const details = src.details as Record<string, unknown> | undefined;
+
+                    if (!normalized.customer) {
+                        const cid = extractId(src.customer);
+                        if (cid) autoFields.customer = cid;
+                    }
+                    if (!normalized.material) {
+                        const mid = extractId(src.material);
+                        if (mid) autoFields.material = mid;
+                    }
+                    if (normalized.quantity == null) {
+                        const qty = src.quantity ?? details?.quantity;
+                        if (qty != null) autoFields.quantity = qty;
+                    }
+                    // If the source is a request, link it and inherit its nested fields
+                    if (!requestId && !orderId && src._id) {
+                        if (details && !autoFields.material) {
+                            autoFields.request = src._id;
+                        }
+                    }
                 }
 
                 const body = {
-                    ...autoFields,   // auto-derived fields first (lowest priority)
-                    ...formData,     // explicit form fields override auto-derived
+                    ...autoFields,
+                    ...normalized,
                     ...(requestId ? { request: requestId } : {}),
                     ...(orderId   ? { order:   orderId   } : {}),
                 };
@@ -193,59 +229,43 @@ export function ButtonBlock({
 
     const alignClass = ALIGN_MAP[align] ?? "justify-start";
 
-    // ── Preview render ────────────────────────────────────────────────────────
-    if (isPreview) {
-        return (
-            <div className={`w-full flex ${alignClass}`}>
-                <div className="flex flex-col items-stretch" style={fullWidth ? { width: "100%" } : {}}>
-                    <button
-                        onClick={handlePreviewClick}
-                        disabled={feedback === "loading"}
-                        className={`rounded-lg font-semibold transition-all ${VARIANT_MAP[variant] ?? VARIANT_MAP.primary} ${SIZE_MAP[size]} ${fullWidth ? "w-full" : ""} ${feedback === "ok" ? "!bg-green-500 !text-white !border-green-500" : ""} ${feedback === "error" ? "!bg-red-500 !text-white !border-red-500" : ""} disabled:opacity-70 flex items-center justify-center gap-2`}
-                    >
-                        {feedback === "loading" ? (
-                            <><Loader2 className="h-4 w-4 animate-spin" /> กำลังส่ง...</>
-                        ) : feedback === "ok" ? (
-                            <><CheckCircle2 className="h-4 w-4" /> สำเร็จ</>
-                        ) : feedback === "error" ? (
-                            <><AlertCircle className="h-4 w-4" /> {errorMsg || "ผิดพลาด"}</>
-                        ) : (
-                            label
-                        )}
-                    </button>
-                    {action !== "none" && actionCfg && feedback === "" && (
-                        <p className="text-[10px] text-muted-foreground mt-1 text-center">
-                            {action === "navigate" && navigateTo ? `→ ${navigateTo}` : ""}
-                            {(action === "submit-form" || action === "api-call") && actionEndpoint ? `${actionMethod} ${actionEndpoint}` : ""}
-                            {action === "show-confirm" ? "แสดงการยืนยัน" : ""}
-                        </p>
+    const content = (
+        <div className={`w-full flex ${alignClass}`}>
+            <div className="flex flex-col items-stretch" style={fullWidth ? { width: "100%" } : {}}>
+                <button
+                    onClick={isPreview ? handlePreviewClick : undefined}
+                    disabled={!isPreview || feedback === "loading"}
+                    className={`rounded-lg font-semibold transition-all ${VARIANT_MAP[variant] ?? VARIANT_MAP.primary} ${SIZE_MAP[size]} ${fullWidth ? "w-full" : ""} ${feedback === "ok" ? "!bg-green-500 !text-white !border-green-500" : ""} ${feedback === "error" ? "!bg-red-500 !text-white !border-red-500" : ""} disabled:opacity-70 flex items-center justify-center gap-2`}
+                >
+                    {feedback === "loading" ? (
+                        <><Loader2 className="h-4 w-4 animate-spin" /> กำลังส่ง...</>
+                    ) : feedback === "ok" ? (
+                        <><CheckCircle2 className="h-4 w-4" /> สำเร็จ</>
+                    ) : feedback === "error" ? (
+                        <><AlertCircle className="h-4 w-4" /> {errorMsg || "ผิดพลาด"}</>
+                    ) : (
+                        label
                     )}
-                </div>
+                </button>
+                {action !== "none" && actionCfg && feedback === "" && (
+                    <p className="text-[10px] text-muted-foreground mt-1 text-center">
+                        {action === "navigate" && navigateTo ? `→ ${navigateTo}` : ""}
+                        {(action === "submit-form" || action === "api-call") && actionEndpoint ? `${actionMethod} ${actionEndpoint}` : ""}
+                        {action === "show-confirm" ? "แสดงการยืนยัน" : ""}
+                    </p>
+                )}
             </div>
-        );
-    }
+        </div>
+    );
 
-    // ── Design mode render ────────────────────────────────────────────────────
+    if (isPreview) return content;
+
     return (
         <div
             ref={(ref) => { ref && connect(drag(ref)); }}
-            className={`w-full flex ${alignClass} cursor-grab rounded-xl p-1.5 transition-all ${selected ? "ring-2 ring-primary/40 bg-primary/5" : "hover:bg-muted/20"}`}
+            className={`w-full cursor-grab rounded-xl p-1 transition-all ${selected ? "ring-2 ring-primary/30" : "hover:ring-1 hover:ring-primary/20"}`}
         >
-            <div className="flex flex-col gap-1 items-stretch" style={fullWidth ? { width: "100%" } : {}}>
-                {actionCfg && (
-                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium self-start ${actionCfg.color}`}>
-                        <Zap className="h-2.5 w-2.5" />
-                        {action === "submit-form" ? `PATCH /orders/:orderId` : ""}
-                        {action === "navigate"    && navigateTo      ? `ไปยัง ${navigateTo}` : ""}
-                        {action === "api-call"    && actionEndpoint  ? `${actionMethod} ${actionEndpoint}` : ""}
-                        {action === "show-confirm"                   ? `ยืนยัน` : ""}
-                        {!actionEndpoint && !navigateTo && action !== "show-confirm" ? actionCfg.label : ""}
-                    </span>
-                )}
-                <button className={`rounded-lg font-semibold transition-colors pointer-events-none ${VARIANT_MAP[variant] ?? VARIANT_MAP.primary} ${SIZE_MAP[size]} ${fullWidth ? "w-full" : ""}`}>
-                    {label}
-                </button>
-            </div>
+            <div className="pointer-events-none">{content}</div>
         </div>
     );
 }

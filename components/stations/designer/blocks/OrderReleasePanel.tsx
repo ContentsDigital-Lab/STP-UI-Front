@@ -4,7 +4,7 @@ import { useNode } from "@craftjs/core";
 import { useEffect, useState } from "react";
 import {
     ClipboardList, Package, CheckCircle2, AlertTriangle, XCircle,
-    ChevronDown, ChevronUp, RefreshCw, Save, QrCode, Rocket,
+    ChevronDown, ChevronUp, RefreshCw, Save, QrCode, Rocket, Loader2,
 } from "lucide-react";
 import { QrCodeModal } from "@/components/qr/QrCodeModal";
 import { usePreview } from "../PreviewContext";
@@ -74,12 +74,12 @@ export function OrderReleasePanel({
     const [releasing,   setReleasing]   = useState<string | null>(null);
     const [qrTarget,    setQrTarget]    = useState<{ code: string; label: string; url: string } | null>(null);
 
-    useEffect(() => { if (isPreview) load(); }, [isPreview]);
+    useEffect(() => { load(); }, [isPreview]);
 
     // Real-time updates via WebSocket
-    useWebSocket("order",     ["order:updated"],                         () => { if (isPreview) load(); });
-    useWebSocket("inventory", ["inventory:updated", "material:updated"], () => { if (isPreview) load(); });
-    useWebSocket("station",   ["station:updated"],                       () => { if (isPreview) load(); });
+    useWebSocket("order",     ["order:updated"],                         () => { load(); });
+    useWebSocket("inventory", ["inventory:updated", "material:updated"], () => { load(); });
+    useWebSocket("station",   ["station:updated"],                       () => { load(); });
 
     const load = async () => {
         setLoading(true);
@@ -154,6 +154,7 @@ export function OrderReleasePanel({
 
     // ── Design mode ────────────────────────────────────────────────────────────
     if (!isPreview) {
+        const designItems = orders.length > 0 ? orders : null;
         return (
             <div
                 ref={(ref) => { ref && connect(drag(ref)); }}
@@ -163,15 +164,43 @@ export function OrderReleasePanel({
                 <div className="flex items-center gap-2 px-4 py-3 bg-muted/30 border-b border-border/50">
                     <ClipboardList className="h-4 w-4 text-violet-600" />
                     <span className="text-sm font-semibold">{title}</span>
-                    <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full bg-muted border text-muted-foreground">
-                        รอ/กำลังดำเนินการ
+                    {loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground ml-auto" />}
+                    <span className={`${loading ? "" : "ml-auto"} text-[10px] px-2 py-0.5 rounded-full bg-muted border text-muted-foreground`}>
+                        {designItems ? `${designItems.length} รายการ` : "รอ/กำลังดำเนินการ"}
                     </span>
                 </div>
                 <div className="divide-y divide-border/30">
-                    {SAMPLE.map(row => {
+                    {designItems ? designItems.map(order => {
+                        const mId    = matId(order.material);
+                        const mName  = matName(order.material);
+                        const stock  = showStockCheck ? getStock(mId) : -1;
+                        const s      = showStockCheck ? stockStatus(stock, order.quantity) : "ok";
+                        const curSt  = assignments[order._id] ?? [];
+                        return (
+                            <div key={order._id} className="px-4 py-3 flex items-center gap-3">
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-1.5 mb-0.5">
+                                        <span className="text-xs font-mono text-muted-foreground">{order.code ?? order._id.slice(-6)}</span>
+                                        {showStockCheck && STOCK_ICON[s]}
+                                    </div>
+                                    <p className="text-xs text-foreground/70 truncate">{mName}</p>
+                                    <p className="text-[11px] text-muted-foreground">
+                                        ต้องการ {order.quantity} {matUnit(order.material)}
+                                        {showStockCheck && stock >= 0 && <> | สต็อก <span className={STOCK_TEXT[s]}>{stock}</span></>}
+                                    </p>
+                                </div>
+                                <div className="flex flex-wrap gap-1 justify-end max-w-[120px]">
+                                    {curSt.length > 0
+                                        ? <span className="px-1.5 py-0.5 rounded text-[10px] bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 font-medium">{curSt.length} สถานี</span>
+                                        : <span className="text-[10px] text-muted-foreground/50 italic">ยังไม่กำหนด</span>
+                                    }
+                                </div>
+                            </div>
+                        );
+                    }) : SAMPLE.map(row => {
                         const s = row.stock >= row.qty ? "ok" : row.stock > 0 ? "low" : "out";
                         return (
-                            <div key={row.id} className="px-4 py-3 flex items-center gap-3">
+                            <div key={row.id} className="px-4 py-3 flex items-center gap-3 opacity-60">
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-1.5 mb-0.5">
                                         <span className="text-xs font-mono text-muted-foreground">{row.id}</span>
@@ -182,14 +211,6 @@ export function OrderReleasePanel({
                                         ต้องการ {row.qty} | สต็อก{" "}
                                         <span className={STOCK_TEXT[s]}>{row.stock}</span>
                                     </p>
-                                </div>
-                                <div className="flex flex-wrap gap-1 justify-end max-w-[120px]">
-                                    {row.stations.length > 0
-                                        ? row.stations.map(st => (
-                                            <span key={st} className="px-1.5 py-0.5 rounded text-[10px] bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 font-medium">{st}</span>
-                                        ))
-                                        : <span className="text-[10px] text-muted-foreground/50 italic">ยังไม่กำหนด</span>
-                                    }
                                 </div>
                             </div>
                         );
