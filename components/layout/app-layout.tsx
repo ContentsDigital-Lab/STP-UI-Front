@@ -90,8 +90,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                         {children}
                     </main>
                 ) : (
-                    <main className="flex-1 overflow-y-auto bg-muted/30 p-3 sm:p-4 md:p-6 lg:p-8">
-                        <div className="mx-auto max-w-7xl">
+                    <main className="flex-1 overflow-y-auto bg-muted/30 p-3 sm:p-4 md:p-6">
+                        <div className="w-full">
                             {children}
                         </div>
                     </main>

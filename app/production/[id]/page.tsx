@@ -3,55 +3,208 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
-    ArrowLeft, CheckCircle2, XCircle, Loader2, Clock,
-    User, Package, Calendar, MapPin, Hash, ChevronUp,
-    ChevronDown, Plus, X, Save, AlertCircle, Factory,
-    GripVertical, Info, Printer,
+    ArrowLeft, Loader2, AlertCircle, Factory,
+    User, Package, Calendar, MapPin, Hash, Clock,
+    Printer, Info, CheckCheck, ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ordersApi } from "@/lib/api/orders";
 import { requestsApi } from "@/lib/api/requests";
-import { Order, OrderRequest, Customer, Worker, Material } from "@/lib/api/types";
+import { stationsApi } from "@/lib/api/stations";
+import { getColorOption } from "@/lib/stations/stations-store";
+import { Order, OrderRequest, Station } from "@/lib/api/types";
 
-// ── predefined production stations ───────────────────────────────────────────
-const STATION_OPTIONS = [
-    { id: "cutting",    label: "ตัดกระจก",       color: "bg-blue-500"   },
-    { id: "grinding",   label: "เจียระนาย",       color: "bg-purple-500" },
-    { id: "drilling",   label: "เจาะ",             color: "bg-orange-500" },
-    { id: "tempering",  label: "อบ/เทมเปอร์",     color: "bg-red-500"    },
-    { id: "laminating", label: "ลามิเนต",          color: "bg-teal-500"   },
-    { id: "coating",    label: "เคลือบ",           color: "bg-indigo-500" },
-    { id: "framing",    label: "ใส่กรอบ",          color: "bg-yellow-600" },
-    { id: "inspection", label: "ตรวจสอบคุณภาพ",   color: "bg-green-500"  },
-    { id: "packing",    label: "บรรจุ",            color: "bg-slate-500"  },
-    { id: "delivery",   label: "จัดส่ง",           color: "bg-cyan-500"   },
-] as const;
+// ── color storage ─────────────────────────────────────────────────────────────
+const COLOR_STORAGE_KEY = "std_station_colors";
+function loadColorMap(): Record<string, string> {
+    if (typeof window === "undefined") return {};
+    try { return JSON.parse(localStorage.getItem(COLOR_STORAGE_KEY) ?? "{}"); } catch { return {}; }
+}
 
-type StationId = typeof STATION_OPTIONS[number]["id"];
-
-const STATUS_LABELS: Record<string, string> = {
-    pending:     "รอตรวจสอบ",
-    in_progress: "กำลังผลิต",
-    completed:   "เสร็จแล้ว",
-    cancelled:   "ยกเลิก",
-};
+// ── status config ─────────────────────────────────────────────────────────────
+const ORDER_STATUS = {
+    pending:     { label: "รอตรวจสอบ", cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
+    in_progress: { label: "กำลังผลิต", cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"    },
+    completed:   { label: "เสร็จแล้ว", cls: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"},
+    cancelled:   { label: "ยกเลิก",    cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"        },
+} as const;
 
 // ── helpers ───────────────────────────────────────────────────────────────────
-function getStr(v: string | { name: string } | null | undefined, field: "name" | "_id" = "name") {
+function getStr(v: string | { name: string } | null | undefined): string {
     if (!v) return "—";
-    if (typeof v === "object") return (v as Record<string, string>)[field] ?? "—";
-    return v;
+    return typeof v === "object" ? (v as { name: string }).name : v;
 }
 
 function InfoRow({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
     return (
         <div className="flex items-start gap-3 py-2.5 border-b last:border-0">
-            <div className="p-1.5 rounded-lg bg-muted/50 text-muted-foreground mt-0.5">
+            <div className="p-1.5 rounded-lg bg-muted/50 text-muted-foreground mt-0.5 shrink-0">
                 <Icon className="h-3.5 w-3.5" />
             </div>
             <div className="flex-1 min-w-0">
                 <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-semibold">{label}</p>
-                <p className="text-sm text-foreground mt-0.5">{value}</p>
+                <p className="text-sm text-foreground mt-0.5 break-words">{value}</p>
+            </div>
+        </div>
+    );
+}
+
+const fmtDate = (d?: string) =>
+    d ? new Date(d).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" }) : "—";
+
+// ── station journey ───────────────────────────────────────────────────────────
+function StationJourney({
+    order, stationMap, colorMap,
+}: {
+    order: Order;
+    stationMap: Map<string, Station>;
+    colorMap: Record<string, string>;
+}) {
+    const stationIds  = order.stations ?? [];
+    const currentIdx  = order.currentStationIndex ?? 0;
+    const isDone      = order.status === "completed";
+    const isCancelled = order.status === "cancelled";
+
+    if (!stationIds.length) {
+        return (
+            <div className="rounded-xl border-2 border-dashed border-muted-foreground/20 p-6 text-center">
+                <Factory className="h-8 w-8 mx-auto text-muted-foreground/20 mb-2" />
+                <p className="text-xs text-muted-foreground">ยังไม่ได้กำหนดสถานี</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-1">
+            {stationIds.map((sid, idx) => {
+                const station  = stationMap.get(sid);
+                const colorId  = colorMap[sid] ?? station?.colorId ?? "sky";
+                const color    = getColorOption(colorId);
+                const isPast   = isDone || idx < currentIdx;
+                const isCur    = !isDone && !isCancelled && idx === currentIdx;
+                const isFuture = !isDone && !isCancelled && idx > currentIdx;
+
+                return (
+                    <div key={sid} className="flex items-stretch gap-3">
+                        {/* Left: dot + line */}
+                        <div className="flex flex-col items-center w-6 shrink-0">
+                            {/* Connector line above */}
+                            <div className={`w-px flex-1 mb-1 ${idx === 0 ? "opacity-0" : isPast || isCur ? "bg-border" : "bg-border/30"}`} />
+                            {/* Dot */}
+                            <div
+                                className={`rounded-full shrink-0 flex items-center justify-center transition-all ${
+                                    isCancelled ? "w-2.5 h-2.5 bg-muted" :
+                                    isCur       ? "w-4 h-4 ring-2 ring-offset-2 shadow-sm" :
+                                    isPast      ? "w-3 h-3" :
+                                                  "w-2.5 h-2.5 border-2 bg-background"
+                                }`}
+                                style={{
+                                    backgroundColor: isCancelled ? undefined : (isFuture ? undefined : color.swatch),
+                                    borderColor:     isFuture ? color.swatch : undefined,
+                                    ...(isCur ? { ringColor: color.swatch } : {}),
+                                    ...(isCur ? { boxShadow: `0 0 0 2px white, 0 0 0 4px ${color.swatch}` } : {}),
+                                }}
+                            />
+                            {/* Connector line below */}
+                            <div className={`w-px flex-1 mt-1 ${idx === stationIds.length - 1 ? "opacity-0" : isPast ? "bg-border" : "bg-border/30"}`} />
+                        </div>
+
+                        {/* Right: station info */}
+                        <div className={`flex-1 py-1.5 min-w-0 ${idx === stationIds.length - 1 ? "" : ""}`}>
+                            <div className={`flex items-center gap-2 ${isCur ? "pb-1" : ""}`}>
+                                <span
+                                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium transition-all ${
+                                        isCancelled ? "bg-muted text-muted-foreground" :
+                                        isFuture    ? "bg-muted/40 text-muted-foreground/60" :
+                                                      color.cls
+                                    }`}
+                                >
+                                    {station?.name ?? sid}
+                                </span>
+                                {isCur && (
+                                    <span className="text-[10px] text-muted-foreground font-medium animate-pulse">← ปัจจุบัน</span>
+                                )}
+                                {isPast && !isDone && (
+                                    <CheckCheck className="h-3 w-3 text-green-500" />
+                                )}
+                                {isDone && (
+                                    <CheckCheck className="h-3 w-3 text-green-500" />
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+// ── orders in same bill ───────────────────────────────────────────────────────
+function BillOrderList({
+    orders, currentOrderId, stationMap, colorMap, onSelect,
+}: {
+    orders: Order[];
+    currentOrderId: string;
+    stationMap: Map<string, Station>;
+    colorMap: Record<string, string>;
+    onSelect: (id: string) => void;
+}) {
+    if (orders.length <= 1) return null;
+
+    return (
+        <div className="rounded-xl border bg-card p-4 space-y-2">
+            <h2 className="text-sm font-semibold flex items-center gap-2">
+                <Factory className="h-4 w-4 text-muted-foreground" />
+                ออเดอร์ในบิลเดียวกัน
+                <span className="ml-auto text-xs text-muted-foreground font-normal">{orders.length} รายการ</span>
+            </h2>
+            <div className="divide-y">
+                {orders.map((o) => {
+                    const isCurrent = o._id === currentOrderId;
+                    const cfg = ORDER_STATUS[o.status as keyof typeof ORDER_STATUS] ?? ORDER_STATUS.pending;
+                    const curStation = (() => {
+                        if (o.status === "completed") return null;
+                        if (!o.stations?.length) return null;
+                        const sid = o.stations[o.currentStationIndex ?? 0];
+                        const st  = stationMap.get(sid);
+                        const colorId = colorMap[sid] ?? st?.colorId ?? "sky";
+                        const color   = getColorOption(colorId);
+                        return { name: st?.name ?? sid, color };
+                    })();
+
+                    return (
+                        <button
+                            key={o._id}
+                            className={`w-full flex items-center gap-3 py-2.5 text-left hover:bg-muted/20 transition-colors rounded px-1 -mx-1 ${isCurrent ? "pointer-events-none" : ""}`}
+                            onClick={() => !isCurrent && onSelect(o._id)}
+                        >
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                    <span className={`font-mono text-xs font-bold ${isCurrent ? "text-primary" : ""}`}>
+                                        #{o.code ?? o._id.slice(-6).toUpperCase()}
+                                    </span>
+                                    {isCurrent && (
+                                        <span className="text-[10px] text-primary font-medium">← กำลังดูอยู่</span>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                    {curStation && (
+                                        <span
+                                            className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${curStation.color.cls}`}
+                                        >
+                                            <span className="h-1 w-1 rounded-full" style={{ backgroundColor: curStation.color.swatch }} />
+                                            {curStation.name}
+                                        </span>
+                                    )}
+                                    <span className={`text-[10px] font-medium ${cfg.cls.split(" ").slice(1).join(" ")}`}>
+                                        {cfg.label}
+                                    </span>
+                                </div>
+                            </div>
+                            {!isCurrent && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />}
+                        </button>
+                    );
+                })}
             </div>
         </div>
     );
@@ -59,38 +212,53 @@ function InfoRow({ icon: Icon, label, value }: { icon: React.ElementType; label:
 
 // ── main page ─────────────────────────────────────────────────────────────────
 export default function ProductionDetailPage() {
-    const { id } = useParams<{ id: string }>();
-    const router = useRouter();
+    const { id }   = useParams<{ id: string }>();
+    const router   = useRouter();
 
-    const [order,    setOrder]    = useState<Order | null>(null);
-    const [request,  setRequest]  = useState<OrderRequest | null>(null);
-    const [loading,  setLoading]  = useState(true);
-    const [saving,   setSaving]   = useState(false);
-    const [saved,    setSaved]    = useState(false);
-    const [error,    setError]    = useState<string | null>(null);
+    const [order,      setOrder]      = useState<Order | null>(null);
+    const [request,    setRequest]    = useState<OrderRequest | null>(null);
+    const [billOrders, setBillOrders] = useState<Order[]>([]);
+    const [stations,   setStations]   = useState<Station[]>([]);
+    const [colorMap,   setColorMap]   = useState<Record<string, string>>({});
+    const [loading,    setLoading]    = useState(true);
+    const [error,      setError]      = useState<string | null>(null);
 
-    // station sequence editor state
-    const [sequence, setSequence] = useState<StationId[]>([]);
+    const stationMap = new Map(stations.map(s => [s._id, s]));
 
     const load = useCallback(async () => {
         setLoading(true);
         setError(null);
         try {
-            const res = await ordersApi.getById(id);
-            if (!res.success) { setError(res.message); return; }
-            const o = res.data;
+            const [oRes, sRes] = await Promise.all([
+                ordersApi.getById(id),
+                stationsApi.getAll(),
+            ]);
+            if (!oRes.success) { setError(oRes.message); return; }
+            const o = oRes.data;
             setOrder(o);
-            // init sequence from saved stations
-            if (o.stations?.length) {
-                setSequence(o.stations.filter((s): s is StationId =>
-                    STATION_OPTIONS.some((opt) => opt.id === s)
-                ));
-            }
+            if (sRes.success) setStations(sRes.data ?? []);
+            setColorMap(loadColorMap());
+
             // load linked request
-            const reqId = o.request && typeof o.request === "object" ? (o.request as OrderRequest)._id : o.request;
+            const reqId = o.request && typeof o.request === "object"
+                ? (o.request as OrderRequest)._id
+                : o.request as string;
             if (reqId) {
                 const rr = await requestsApi.getById(reqId).catch(() => null);
-                if (rr?.success) setRequest(rr.data);
+                if (rr?.success) {
+                    setRequest(rr.data);
+                    // load all orders to find siblings in same bill
+                    const allRes = await ordersApi.getAll();
+                    if (allRes.success) {
+                        const siblings = (allRes.data ?? []).filter(x => {
+                            const xReqId = x.request && typeof x.request === "object"
+                                ? (x.request as OrderRequest)._id
+                                : x.request as string;
+                            return xReqId === reqId;
+                        });
+                        setBillOrders(siblings);
+                    }
+                }
             }
         } finally {
             setLoading(false);
@@ -98,45 +266,6 @@ export default function ProductionDetailPage() {
     }, [id]);
 
     useEffect(() => { load(); }, [load]);
-
-    // ── sequence helpers ───────────────────────────────────────────────────
-    const addStation = (sid: StationId) => {
-        if (!sequence.includes(sid)) setSequence((p) => [...p, sid]);
-    };
-    const removeStation = (idx: number) => setSequence((p) => p.filter((_, i) => i !== idx));
-    const moveUp   = (idx: number) => setSequence((p) => { const a = [...p]; [a[idx-1], a[idx]] = [a[idx], a[idx-1]]; return a; });
-    const moveDown = (idx: number) => setSequence((p) => { const a = [...p]; [a[idx], a[idx+1]] = [a[idx+1], a[idx]]; return a; });
-
-    // ── status change ──────────────────────────────────────────────────────
-    const changeStatus = async (newStatus: Order["status"]) => {
-        if (!order) return;
-        setSaving(true);
-        try {
-            const res = await ordersApi.update(order._id, { status: newStatus });
-            if (res.success) setOrder((o) => o ? { ...o, status: newStatus } : o);
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    // ── save station sequence ──────────────────────────────────────────────
-    const saveSequence = async () => {
-        if (!order) return;
-        setSaving(true);
-        setSaved(false);
-        try {
-            const res = await ordersApi.update(order._id, { stations: sequence });
-            if (res.success) {
-                setOrder((o) => o ? { ...o, stations: sequence } : o);
-                setSaved(true);
-                setTimeout(() => setSaved(false), 2000);
-            }
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    const fmtDate = (d?: string) => d ? new Date(d).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" }) : "—";
 
     if (loading) return (
         <div className="flex items-center justify-center h-64">
@@ -151,207 +280,142 @@ export default function ProductionDetailPage() {
         </div>
     );
 
-    const available = STATION_OPTIONS.filter((s) => !sequence.includes(s.id));
+    const statusCfg = ORDER_STATUS[order.status as keyof typeof ORDER_STATUS] ?? ORDER_STATUS.pending;
 
     return (
-        <div className="p-6 max-w-5xl mx-auto space-y-6">
+        <div className="space-y-6">
+
             {/* Back + title */}
             <div className="flex items-center gap-3">
                 <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => router.back()}>
                     <ArrowLeft className="h-4 w-4" />
                 </Button>
-                <div className="flex-1">
-                    <h1 className="text-xl font-bold flex items-center gap-2">
-                        <Factory className="h-5 w-5 text-primary" />
-                        คำสั่งผลิต #{order.code ?? order._id.slice(-6).toUpperCase()}
-                    </h1>
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <h1 className="text-xl font-bold flex items-center gap-2">
+                            <Factory className="h-5 w-5 text-primary shrink-0" />
+                            คำสั่งผลิต #{order.code ?? order._id.slice(-6).toUpperCase()}
+                        </h1>
+                        <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusCfg.cls}`}>
+                            {statusCfg.label}
+                        </span>
+                    </div>
                     <p className="text-xs text-muted-foreground">สร้างเมื่อ {fmtDate(order.createdAt)}</p>
                 </div>
-                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => router.push(`/production/${id}/print`)}>
+                <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={() => router.push(`/production/${id}/print`)}>
                     <Printer className="h-4 w-4" />
                     พิมพ์ใบงาน
                 </Button>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* ── Left: order info + request (bill) details ─────────── */}
+
+                {/* ── Left ────────────────────────────────────────────── */}
                 <div className="space-y-4">
-                    {/* Order status card */}
-                    <div className="rounded-xl border bg-card p-4 space-y-4">
-                        <div className="flex items-center justify-between">
-                            <h2 className="text-sm font-semibold">สถานะคำสั่งผลิต</h2>
-                            <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                                order.status === "pending"     ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
-                                order.status === "in_progress" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" :
-                                order.status === "completed"   ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" :
-                                                                  "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                            }`}>
-                                {STATUS_LABELS[order.status]}
-                            </span>
-                        </div>
-
-                        {/* Action buttons by current status */}
-                        <div className="flex flex-wrap gap-2">
-                            {order.status === "pending" && (
-                                <>
-                                    <Button
-                                        size="sm"
-                                        className="gap-1.5 bg-green-600 hover:bg-green-700 text-white"
-                                        disabled={saving || sequence.length === 0}
-                                        onClick={() => changeStatus("in_progress")}
-                                        title={sequence.length === 0 ? "กำหนดสถานีก่อนอนุมัติ" : ""}
-                                    >
-                                        <CheckCircle2 className="h-3.5 w-3.5" />
-                                        อนุมัติ & เริ่มผลิต
-                                    </Button>
-                                    <Button size="sm" variant="outline" className="gap-1.5 text-red-600 hover:text-red-700 hover:bg-red-50" disabled={saving} onClick={() => changeStatus("cancelled")}>
-                                        <XCircle className="h-3.5 w-3.5" />
-                                        ปฏิเสธ
-                                    </Button>
-                                </>
-                            )}
-                            {order.status === "in_progress" && (
-                                <Button size="sm" className="gap-1.5 bg-green-600 hover:bg-green-700 text-white" disabled={saving} onClick={() => changeStatus("completed")}>
-                                    <CheckCircle2 className="h-3.5 w-3.5" />
-                                    ทำเครื่องหมายเสร็จแล้ว
-                                </Button>
-                            )}
-                            {(order.status === "completed" || order.status === "cancelled") && (
-                                <p className="text-xs text-muted-foreground italic">คำสั่งผลิตนี้ปิดแล้ว</p>
-                            )}
-                        </div>
-
-                        {order.status === "pending" && sequence.length === 0 && (
-                            <p className="text-xs text-amber-600 flex items-center gap-1">
-                                <Info className="h-3.5 w-3.5" />
-                                กรุณากำหนดลำดับสถานีก่อนอนุมัติ
-                            </p>
-                        )}
-                    </div>
 
                     {/* Order details */}
                     <div className="rounded-xl border bg-card p-4">
                         <h2 className="text-sm font-semibold mb-2">ข้อมูลออเดอร์</h2>
-                        <InfoRow icon={User}     label="ลูกค้า"       value={getStr(order.customer)} />
-                        <InfoRow icon={Package}  label="วัสดุ"        value={getStr(order.material)} />
-                        <InfoRow icon={Hash}     label="จำนวน"        value={`${order.quantity} ชิ้น`} />
-                        <InfoRow icon={User}     label="มอบหมายให้"   value={getStr(order.assignedTo)} />
-                        <InfoRow icon={Clock}    label="ความสำคัญ"    value={`P${order.priority}`} />
+                        <InfoRow icon={User}     label="ลูกค้า"      value={getStr(order.customer)} />
+                        <InfoRow icon={Package}  label="วัสดุ"       value={getStr(order.material)} />
+                        <InfoRow icon={Hash}     label="จำนวน"       value={`${order.quantity} ชิ้น`} />
+                        <InfoRow icon={User}     label="มอบหมายให้"  value={getStr(order.assignedTo)} />
+                        <InfoRow icon={Clock}    label="ความสำคัญ"   value={`P${order.priority}`} />
                     </div>
 
-                    {/* Request (bill) details */}
+                    {/* Bill (request) details */}
                     {request && (
                         <div className="rounded-xl border bg-card p-4">
                             <h2 className="text-sm font-semibold mb-2 flex items-center gap-2">
                                 <Info className="h-4 w-4 text-muted-foreground" />
-                                ข้อมูลบิล (Order Request)
+                                ข้อมูลบิล
                             </h2>
-                            <InfoRow icon={Package}  label="ประเภทสินค้า"    value={request.details?.type ?? "—"} />
-                            <InfoRow icon={Hash}     label="จำนวน (บิล)"     value={`${request.details?.quantity ?? "—"} ชิ้น`} />
-                            <InfoRow icon={Hash}     label="ราคาประมาณ"      value={`฿${(request.details?.estimatedPrice ?? 0).toLocaleString()}`} />
-                            <InfoRow icon={Calendar} label="กำหนดส่ง"        value={fmtDate(request.deadline)} />
-                            <InfoRow icon={MapPin}   label="สถานที่ส่ง"      value={request.deliveryLocation ?? "—"} />
+                            <InfoRow icon={Package}  label="ประเภทสินค้า"  value={request.details?.type ?? "—"} />
+                            <InfoRow icon={Hash}     label="จำนวน (บิล)"   value={`${request.details?.quantity ?? "—"} ชิ้น`} />
+                            <InfoRow icon={Hash}     label="ราคาประมาณ"    value={`฿${(request.details?.estimatedPrice ?? 0).toLocaleString()}`} />
+                            <InfoRow icon={Calendar} label="กำหนดส่ง"      value={fmtDate(request.deadline)} />
+                            <InfoRow icon={MapPin}   label="สถานที่ส่ง"    value={request.deliveryLocation ?? "—"} />
                         </div>
                     )}
+
+                    {/* Sibling orders in same bill */}
+                    <BillOrderList
+                        orders={billOrders}
+                        currentOrderId={order._id}
+                        stationMap={stationMap}
+                        colorMap={colorMap}
+                        onSelect={(newId) => router.push(`/production/${newId}`)}
+                    />
                 </div>
 
-                {/* ── Right: station sequence editor ────────────────────── */}
+                {/* ── Right: station journey ───────────────────────────── */}
                 <div className="space-y-4">
                     <div className="rounded-xl border bg-card p-4 space-y-4">
                         <div className="flex items-center justify-between">
                             <h2 className="text-sm font-semibold flex items-center gap-2">
                                 <Factory className="h-4 w-4 text-primary" />
-                                ลำดับสถานีการผลิต
+                                เส้นทางสถานีการผลิต
                             </h2>
-                            <Button
-                                size="sm"
-                                disabled={saving}
-                                onClick={saveSequence}
-                                className={`h-8 gap-1.5 ${saved ? "bg-green-600 hover:bg-green-700" : ""}`}
-                            >
-                                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : saved ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Save className="h-3.5 w-3.5" />}
-                                {saved ? "บันทึกแล้ว" : "บันทึก"}
-                            </Button>
-                        </div>
-
-                        {/* Current sequence */}
-                        {sequence.length === 0 ? (
-                            <div className="rounded-lg border-2 border-dashed border-muted-foreground/20 p-6 text-center">
-                                <Factory className="h-8 w-8 mx-auto text-muted-foreground/20 mb-2" />
-                                <p className="text-xs text-muted-foreground">ยังไม่ได้กำหนดสถานี</p>
-                                <p className="text-[11px] text-muted-foreground/60 mt-1">เลือกสถานีจากรายการด้านล่าง</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-1.5">
-                                {sequence.map((sid, idx) => {
-                                    const opt = STATION_OPTIONS.find((s) => s.id === sid)!;
-                                    return (
-                                        <div key={sid} className="flex items-center gap-2 rounded-lg border bg-background p-2.5 group">
-                                            <GripVertical className="h-4 w-4 text-muted-foreground/30 shrink-0" />
-                                            <span className={`h-2 w-2 rounded-full shrink-0 ${opt.color}`} />
-                                            <span className="flex-1 text-sm font-medium">
-                                                <span className="text-muted-foreground text-xs mr-1.5">{idx + 1}.</span>
-                                                {opt.label}
-                                            </span>
-                                            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button disabled={idx === 0} onClick={() => moveUp(idx)} className="p-1 rounded hover:bg-muted disabled:opacity-30">
-                                                    <ChevronUp className="h-3.5 w-3.5" />
-                                                </button>
-                                                <button disabled={idx === sequence.length - 1} onClick={() => moveDown(idx)} className="p-1 rounded hover:bg-muted disabled:opacity-30">
-                                                    <ChevronDown className="h-3.5 w-3.5" />
-                                                </button>
-                                                <button onClick={() => removeStation(idx)} className="p-1 rounded hover:bg-red-100 hover:text-red-600 text-muted-foreground">
-                                                    <X className="h-3.5 w-3.5" />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-
-                        {/* Flow arrow visual */}
-                        {sequence.length > 1 && (
-                            <div className="flex items-center gap-1 overflow-x-auto pb-1">
-                                {sequence.map((sid, idx) => {
-                                    const opt = STATION_OPTIONS.find((s) => s.id === sid)!;
-                                    return (
-                                        <div key={sid} className="flex items-center gap-1 shrink-0">
-                                            <span className={`px-2 py-0.5 rounded-full text-white text-[10px] font-medium ${opt.color}`}>
-                                                {opt.label}
-                                            </span>
-                                            {idx < sequence.length - 1 && (
-                                                <span className="text-muted-foreground/40 text-xs">→</span>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-
-                        {/* Available stations to add */}
-                        <div className="pt-2 border-t">
-                            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                                เพิ่มสถานี
-                            </p>
-                            {available.length === 0 ? (
-                                <p className="text-xs text-muted-foreground italic">เลือกทุกสถานีแล้ว</p>
-                            ) : (
-                                <div className="flex flex-wrap gap-1.5">
-                                    {available.map((opt) => (
-                                        <button
-                                            key={opt.id}
-                                            onClick={() => addStation(opt.id)}
-                                            className="flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs hover:border-primary/40 hover:bg-muted/30 transition-colors"
-                                        >
-                                            <span className={`h-2 w-2 rounded-full ${opt.color}`} />
-                                            {opt.label}
-                                            <Plus className="h-3 w-3 text-muted-foreground" />
-                                        </button>
-                                    ))}
-                                </div>
+                            {order.stations?.length > 0 && (
+                                <span className="text-xs text-muted-foreground">
+                                    {order.status === "completed"
+                                        ? `ผ่านทั้งหมด ${order.stations.length} สถานี`
+                                        : `${(order.currentStationIndex ?? 0) + 1} / ${order.stations.length} สถานี`
+                                    }
+                                </span>
                             )}
                         </div>
+
+                        <StationJourney
+                            order={order}
+                            stationMap={stationMap}
+                            colorMap={colorMap}
+                        />
+
+                        {/* Summary row if done */}
+                        {order.status === "completed" && (
+                            <div className="flex items-center gap-2 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-3 py-2">
+                                <CheckCheck className="h-4 w-4 text-green-600 shrink-0" />
+                                <span className="text-sm text-green-700 dark:text-green-400 font-medium">
+                                    คำสั่งผลิตนี้เสร็จสมบูรณ์แล้ว
+                                </span>
+                            </div>
+                        )}
+
+                        {/* Compact station chips */}
+                        {order.stations?.length > 0 && (
+                            <div className="pt-2 border-t">
+                                <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-semibold mb-2">
+                                    สถานีทั้งหมด
+                                </p>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {order.stations.map((sid, idx) => {
+                                        const station = stationMap.get(sid);
+                                        const colorId = colorMap[sid] ?? station?.colorId ?? "sky";
+                                        const color   = getColorOption(colorId);
+                                        const isDone  = order.status === "completed" || idx < (order.currentStationIndex ?? 0);
+                                        const isCur   = order.status !== "completed" && idx === (order.currentStationIndex ?? 0);
+                                        return (
+                                            <span
+                                                key={sid}
+                                                className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium border transition-all ${
+                                                    order.status === "cancelled" ? "bg-muted text-muted-foreground border-transparent opacity-40" :
+                                                    isCur   ? `${color.cls} border-current shadow-sm` :
+                                                    isDone  ? `${color.cls} border-transparent opacity-70` :
+                                                              "bg-muted/30 text-muted-foreground border-transparent opacity-50"
+                                                }`}
+                                            >
+                                                <span
+                                                    className="h-1.5 w-1.5 rounded-full shrink-0"
+                                                    style={{ backgroundColor: order.status === "cancelled" ? undefined : color.swatch }}
+                                                />
+                                                {station?.name ?? sid}
+                                            </span>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { UserCog, ShieldAlert, Users, Bell } from "lucide-react";
+import { UserCog, ShieldAlert, Users, Bell, Tag } from "lucide-react";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/lib/auth/auth-context";
 
@@ -82,6 +82,24 @@ export default function SettingsPage() {
                         </CardHeader>
                     </Card>
                 </Link>
+
+                {hasUserManagementAccess ? (
+                    <Link href="/settings/sticker" className="block h-full cursor-pointer transition-transform hover:scale-[1.02]">
+                        <Card className="h-full shadow-sm hover:shadow-md transition-shadow bg-card/60 backdrop-blur-sm border-muted/50 border-primary/20">
+                            <CardHeader>
+                                <div className="flex items-center gap-2 mb-2">
+                                    <div className="p-2 bg-violet-500/10 rounded-lg text-violet-500">
+                                        <Tag className="h-6 w-6" />
+                                    </div>
+                                    <CardTitle className="text-xl">ออกแบบสติ๊กเกอร์</CardTitle>
+                                </div>
+                                <CardDescription>
+                                    ออกแบบ template สติ๊กเกอร์ QR สำหรับพิมพ์ติดออเดอร์ในการผลิต
+                                </CardDescription>
+                            </CardHeader>
+                        </Card>
+                    </Link>
+                ) : null}
             </div>
         </div>
     );
