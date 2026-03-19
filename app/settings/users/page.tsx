@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/auth-context";
 import { workersApi } from "@/lib/api/workers";
-import { Worker } from "@/lib/api/types";
+import { ordersApi } from "@/lib/api/orders";
+import { Worker, Order } from "@/lib/api/types";
 import {
     Table,
     TableBody,
@@ -53,6 +54,8 @@ export default function UsersManagementPage() {
     const [isDeleteOpen, setIsDeleteOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [deletingWorker, setDeletingWorker] = useState<Worker | null>(null);
+    const [deleteError, setDeleteError] = useState("");
+    const [linkedOrders, setLinkedOrders] = useState<Order[]>([]);
 
     // Create modal state
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -134,12 +137,16 @@ export default function UsersManagementPage() {
 
     const handleDeleteClick = (worker: Worker) => {
         setDeletingWorker(worker);
+        setDeleteError("");
+        setLinkedOrders([]);
         setIsDeleteOpen(true);
     };
 
     const handleConfirmDelete = async () => {
         if (!deletingWorker) return;
         setIsDeleting(true);
+        setDeleteError("");
+        setLinkedOrders([]);
         try {
             const response = await workersApi.delete(deletingWorker._id);
             if (response.success) {
@@ -147,8 +154,26 @@ export default function UsersManagementPage() {
                 setIsDeleteOpen(false);
                 setDeletingWorker(null);
             }
-        } catch (error) {
-            console.error("Failed to delete user:", error);
+        } catch (error: any) {
+            const msg = error.message || "Failed to delete user";
+            setDeleteError(msg);
+
+            if (msg.toLowerCase().includes("referenced by")) {
+                try {
+                    const ordersRes = await ordersApi.getAll();
+                    if (ordersRes.success && ordersRes.data) {
+                        const workerId = deletingWorker._id;
+                        const matched = ordersRes.data.filter((o) => {
+                            const assignee = typeof o.assignedTo === "object" ? o.assignedTo?._id : o.assignedTo;
+                            const historyMatch = o.stationHistory?.some((h) => h.completedBy === workerId);
+                            return assignee === workerId || historyMatch;
+                        });
+                        setLinkedOrders(matched);
+                    }
+                } catch {
+                    // ignore — the main error message is enough
+                }
+            }
         } finally {
             setIsDeleting(false);
         }
@@ -435,7 +460,7 @@ export default function UsersManagementPage() {
                 </DialogContent>
             </Dialog>
 
-            <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+            <Dialog open={isDeleteOpen} onOpenChange={(open) => { setIsDeleteOpen(open); if (!open) { setDeleteError(""); setLinkedOrders([]); } }}>
                 <DialogContent className="sm:max-w-[400px]">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 text-red-600">
@@ -446,12 +471,37 @@ export default function UsersManagementPage() {
                             This action cannot be undone. This will permanently delete the user account.
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="py-4">
+                    <div className="py-4 space-y-3">
                         <div className="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-950/50">
                             <p className="text-sm text-red-800 dark:text-red-300">
                                 You are about to delete <span className="font-semibold">{deletingWorker?.name}</span> ({deletingWorker?.username}).
                             </p>
                         </div>
+                        {deleteError && (
+                            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/50">
+                                <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                                    {deleteError}
+                                </p>
+                                {linkedOrders.length > 0 && (
+                                    <div className="mt-2 space-y-1">
+                                        <p className="text-xs font-medium text-amber-700 dark:text-amber-400">Linked orders:</p>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {linkedOrders.map((o) => (
+                                                <span
+                                                    key={o._id}
+                                                    className="inline-flex items-center rounded-md bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900 dark:bg-amber-900/50 dark:text-amber-200"
+                                                >
+                                                    {o.orderNumber || o._id}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                                    Please reassign or remove the linked order(s) before deleting this user.
+                                </p>
+                            </div>
+                        )}
                     </div>
                     <DialogFooter>
                         <Button
@@ -461,14 +511,16 @@ export default function UsersManagementPage() {
                         >
                             Cancel
                         </Button>
-                        <Button
-                            onClick={handleConfirmDelete}
-                            disabled={isDeleting}
-                            className="bg-red-600 hover:bg-red-700 text-white"
-                        >
-                            {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Delete
-                        </Button>
+                        {!deleteError && (
+                            <Button
+                                onClick={handleConfirmDelete}
+                                disabled={isDeleting}
+                                className="bg-red-600 hover:bg-red-700 text-white"
+                            >
+                                {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Delete
+                            </Button>
+                        )}
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
