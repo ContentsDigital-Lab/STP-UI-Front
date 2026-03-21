@@ -7,17 +7,37 @@ import type { StickerElement, ImageElement } from "./page";
 
 // ─── Snap threshold (canvas pixels, before zoom) ─────────────────────────────
 const SNAP = 6;
+// ─── Stage padding so transformer handles are never clipped at edges ──────────
+const PAD = 56;
+const ROT_SNAPS = [0, 90, 180, 270];
+const ROT_SNAP_TOLERANCE = 8; // degrees
+const SNAP_ANGLES = new Set(ROT_SNAPS);
+
+// ─── Rotation label (shown during rotate, like Canva) ────────────────────────
+interface RotLabel { angle: number; cx: number; cy: number; snapped: boolean; }
+
+function isRotating(node: Konva.Node) {
+    return Math.abs(node.scaleX() - 1) < 0.005 && Math.abs(node.scaleY() - 1) < 0.005;
+}
+function normaliseAngle(a: number) { return Math.round(((a % 360) + 360) % 360); }
+function isSnapped(a: number) {
+    return ROT_SNAPS.some(s => {
+        const d = Math.abs(((a - s + 360) % 360));
+        return d < 3 || d > 357;
+    });
+}
 
 // ─── QR placeholder ───────────────────────────────────────────────────────────
-
-function QrPlaceholderImage({ id, x, y, width, height, value, isSelected, onSelect, onChange }: {
-    id: string; x: number; y: number; width: number; height: number; value: string;
+function QrPlaceholderImage({ id, x, y, width, height, rotation, value, isSelected, onSelect, onChange, onRotating, onRotateEnd }: {
+    id: string; x: number; y: number; width: number; height: number; rotation?: number; value: string;
     isSelected: boolean;
     onSelect: () => void;
-    onChange: (patch: { x?: number; y?: number; width?: number; height?: number }) => void;
+    onChange: (patch: { x?: number; y?: number; width?: number; height?: number; rotation?: number }) => void;
+    onRotating: (label: RotLabel) => void;
+    onRotateEnd: () => void;
 }) {
     const imgRef = useRef<Konva.Image>(null);
-    const trRef = useRef<Konva.Transformer>(null);
+    const trRef  = useRef<Konva.Transformer>(null);
 
     const imgEl = useRef<HTMLCanvasElement | null>(null);
     if (!imgEl.current) {
@@ -58,6 +78,7 @@ function QrPlaceholderImage({ id, x, y, width, height, value, isSelected, onSele
                 id={id}
                 image={imgEl.current!}
                 x={x} y={y} width={width} height={height}
+                rotation={rotation ?? 0}
                 draggable
                 onClick={onSelect} onTap={onSelect}
                 onDragEnd={e => onChange({ x: e.target.x(), y: e.target.y() })}
@@ -65,28 +86,47 @@ function QrPlaceholderImage({ id, x, y, width, height, value, isSelected, onSele
                     const node = imgRef.current!;
                     onChange({
                         x: node.x(), y: node.y(),
+                        rotation: node.rotation(),
                         width: Math.round(node.width() * node.scaleX()),
                         height: Math.round(node.height() * node.scaleY()),
                     });
                     node.scaleX(1); node.scaleY(1);
+                    onRotateEnd();
                 }}
             />
-            {isSelected && <Transformer ref={trRef} keepRatio boundBoxFunc={(_, nb) => nb} />}
+            {isSelected && (
+                <Transformer
+                    ref={trRef}
+                    keepRatio
+                    rotationSnaps={ROT_SNAPS}
+                    rotationSnapTolerance={ROT_SNAP_TOLERANCE}
+                    boundBoxFunc={(_, nb) => nb}
+                    onTransform={() => {
+                        const node = imgRef.current!;
+                        if (!isRotating(node)) return;
+                        const a = normaliseAngle(node.rotation());
+                        const rect = node.getClientRect();
+                        onRotating({ angle: a, cx: rect.x + rect.width / 2, cy: rect.y + rect.height / 2, snapped: isSnapped(a) });
+                    }}
+                    onTransformEnd={onRotateEnd}
+                />
+            )}
         </>
     );
 }
 
 // ─── Image element ────────────────────────────────────────────────────────────
-
-function ImageNode({ el, isSelected, onSelect, onChange }: {
+function ImageNode({ el, isSelected, onSelect, onChange, onRotating, onRotateEnd }: {
     el: ImageElement;
     isSelected: boolean;
     onSelect: () => void;
     onChange: (updated: StickerElement) => void;
+    onRotating: (label: RotLabel) => void;
+    onRotateEnd: () => void;
 }) {
     const [htmlImg, setHtmlImg] = useState<HTMLImageElement | null>(null);
     const imgRef = useRef<Konva.Image>(null);
-    const trRef = useRef<Konva.Transformer>(null);
+    const trRef  = useRef<Konva.Transformer>(null);
 
     useEffect(() => {
         const img = new window.Image();
@@ -110,6 +150,7 @@ function ImageNode({ el, isSelected, onSelect, onChange }: {
                 id={el.id}
                 image={htmlImg}
                 x={el.x} y={el.y} width={el.width} height={el.height}
+                rotation={el.rotation ?? 0}
                 draggable
                 onClick={onSelect} onTap={onSelect}
                 onDragEnd={e => onChange({ ...el, x: e.target.x(), y: e.target.y() } as StickerElement)}
@@ -117,27 +158,46 @@ function ImageNode({ el, isSelected, onSelect, onChange }: {
                     const node = imgRef.current!;
                     onChange({
                         ...el, x: node.x(), y: node.y(),
+                        rotation: node.rotation(),
                         width: Math.round(el.width * node.scaleX()),
                         height: Math.round(el.height * node.scaleY()),
                     } as StickerElement);
                     node.scaleX(1); node.scaleY(1);
+                    onRotateEnd();
                 }}
             />
-            {isSelected && <Transformer ref={trRef} keepRatio boundBoxFunc={(_, nb) => nb} />}
+            {isSelected && (
+                <Transformer
+                    ref={trRef}
+                    keepRatio
+                    rotationSnaps={ROT_SNAPS}
+                    rotationSnapTolerance={ROT_SNAP_TOLERANCE}
+                    boundBoxFunc={(_, nb) => nb}
+                    onTransform={() => {
+                        const node = imgRef.current!;
+                        if (!isRotating(node)) return;
+                        const a = normaliseAngle(node.rotation());
+                        const rect = node.getClientRect();
+                        onRotating({ angle: a, cx: rect.x + rect.width / 2, cy: rect.y + rect.height / 2, snapped: isSnapped(a) });
+                    }}
+                    onTransformEnd={onRotateEnd}
+                />
+            )}
         </>
     );
 }
 
 // ─── Generic draggable element ────────────────────────────────────────────────
-
-function ElementNode({ el, isSelected, onSelect, onChange }: {
+function ElementNode({ el, isSelected, onSelect, onChange, onRotating, onRotateEnd }: {
     el: StickerElement;
     isSelected: boolean;
     onSelect: () => void;
     onChange: (updated: StickerElement) => void;
+    onRotating: (label: RotLabel) => void;
+    onRotateEnd: () => void;
 }) {
     const shapeRef = useRef<Konva.Node>(null);
-    const trRef = useRef<Konva.Transformer>(null);
+    const trRef    = useRef<Konva.Transformer>(null);
 
     useEffect(() => {
         if (isSelected && trRef.current && shapeRef.current) {
@@ -152,38 +212,58 @@ function ElementNode({ el, isSelected, onSelect, onChange }: {
     const handleTransformEnd = () => {
         const node = shapeRef.current!;
         const sx = node.scaleX(), sy = node.scaleY();
+        const rot = node.rotation();
         node.scaleX(1); node.scaleY(1);
         if (el.type === "rect") {
-            onChange({ ...el, x: node.x(), y: node.y(), width: Math.round((el as { width: number }).width * sx), height: Math.round((el as { height: number }).height * sy) } as StickerElement);
+            onChange({ ...el, x: node.x(), y: node.y(), rotation: rot, width: Math.round((el as { width: number }).width * sx), height: Math.round((el as { height: number }).height * sy) } as StickerElement);
         } else {
-            onChange({ ...el, x: node.x(), y: node.y() } as StickerElement);
+            onChange({ ...el, x: node.x(), y: node.y(), rotation: rot } as StickerElement);
         }
+        onRotateEnd();
+    };
+
+    const handleTransform = () => {
+        const node = shapeRef.current!;
+        if (!isRotating(node)) return;
+        const a = normaliseAngle(node.rotation());
+        const rect = node.getClientRect();
+        onRotating({ angle: a, cx: rect.x + rect.width / 2, cy: rect.y + rect.height / 2, snapped: isSnapped(a) });
     };
 
     const common = { id: el.id, draggable: true, onClick: onSelect, onTap: onSelect, onDragEnd: handleDragEnd, onTransformEnd: handleTransformEnd };
+
+    // Transformer props shared
+    const trProps = {
+        ref: trRef,
+        rotationSnaps: ROT_SNAPS,
+        rotationSnapTolerance: ROT_SNAP_TOLERANCE,
+        boundBoxFunc: (_: unknown, nb: { x: number; y: number; width: number; height: number; rotation: number }) => nb,
+        onTransform: handleTransform,
+        onTransformEnd: onRotateEnd,
+    };
 
     if (el.type === "text" || el.type === "dynamic") {
         const fontStyle = [el.italic ? "italic" : "", el.bold ? "bold" : ""].filter(Boolean).join(" ") || "normal";
         return (
             <>
-                <Text ref={shapeRef as React.RefObject<Konva.Text>} {...common} x={el.x} y={el.y} text={el.text} fontSize={el.fontSize} fill={el.fill} fontStyle={fontStyle} fontFamily="'Prompt', sans-serif" />
-                {isSelected && <Transformer ref={trRef} enabledAnchors={["middle-left", "middle-right"]} boundBoxFunc={(_, nb) => nb} />}
+                <Text ref={shapeRef as React.RefObject<Konva.Text>} {...common} x={el.x} y={el.y} rotation={el.rotation ?? 0} text={el.text} fontSize={el.fontSize} fill={el.fill} fontStyle={fontStyle} fontFamily="'Prompt', sans-serif" />
+                {isSelected && <Transformer {...trProps} enabledAnchors={["middle-left", "middle-right"]} />}
             </>
         );
     }
     if (el.type === "rect") {
         return (
             <>
-                <Rect ref={shapeRef as React.RefObject<Konva.Rect>} {...common} x={el.x} y={el.y} width={el.width} height={el.height} fill={el.fill === "transparent" ? "" : el.fill} stroke={el.stroke} strokeWidth={el.strokeWidth} />
-                {isSelected && <Transformer ref={trRef} boundBoxFunc={(_, nb) => nb} />}
+                <Rect ref={shapeRef as React.RefObject<Konva.Rect>} {...common} x={el.x} y={el.y} rotation={el.rotation ?? 0} width={el.width} height={el.height} fill={el.fill === "transparent" ? "" : el.fill} stroke={el.stroke} strokeWidth={el.strokeWidth} />
+                {isSelected && <Transformer {...trProps} />}
             </>
         );
     }
     if (el.type === "line") {
         return (
             <>
-                <Line ref={shapeRef as React.RefObject<Konva.Line>} {...common} x={el.x} y={el.y} points={el.points} stroke={el.stroke} strokeWidth={el.strokeWidth} hitStrokeWidth={10} />
-                {isSelected && <Transformer ref={trRef} enabledAnchors={["middle-left", "middle-right"]} boundBoxFunc={(_, nb) => nb} />}
+                <Line ref={shapeRef as React.RefObject<Konva.Line>} {...common} x={el.x} y={el.y} rotation={el.rotation ?? 0} points={el.points} stroke={el.stroke} strokeWidth={el.strokeWidth} hitStrokeWidth={10} />
+                {isSelected && <Transformer {...trProps} enabledAnchors={["middle-left", "middle-right"]} />}
             </>
         );
     }
@@ -191,7 +271,6 @@ function ElementNode({ el, isSelected, onSelect, onChange }: {
 }
 
 // ─── Main Canvas ──────────────────────────────────────────────────────────────
-
 interface StickerCanvasProps {
     width: number;
     height: number;
@@ -206,9 +285,14 @@ interface StickerCanvasProps {
 export default function StickerCanvas({
     width, height, zoom = 1, elements, selectedId, onSelect, onChange,
 }: StickerCanvasProps) {
-    const [guides, setGuides] = useState<{ v: number[]; h: number[] }>({ v: [], h: [] });
+    const [guides,   setGuides]   = useState<{ v: number[]; h: number[] }>({ v: [], h: [] });
+    const [rotLabel, setRotLabel] = useState<RotLabel | null>(null);
+    const [mousePos, setMousePos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
     const elsRef = useRef(elements);
     useEffect(() => { elsRef.current = elements; }, [elements]);
+
+    const handleRotating = useCallback((label: RotLabel) => setRotLabel(label), []);
+    const handleRotateEnd = useCallback(() => setRotLabel(null), []);
 
     // ── Compute snap position + active guide lines ──────────────────────────
     const computeSnap = useCallback((node: Konva.Node) => {
@@ -221,19 +305,14 @@ export default function StickerCanvas({
         const xOff = elW > 0 ? [0, elW / 2, elW] : [0];
         const yOff = elH > 0 ? [0, elH / 2, elH] : [0];
 
-        // Guide positions: canvas edges + center + other elements' edges + centers
         const gxSet = new Set([0, width / 2, width]);
         const gySet = new Set([0, height / 2, height]);
         for (const el of elsRef.current) {
             if (el.id === dragId) continue;
             const w = "width" in el ? (el as { width: number }).width : 0;
             const h = "height" in el ? (el as { height: number }).height : 0;
-            gxSet.add(el.x);
-            gxSet.add(el.x + w / 2);
-            gxSet.add(el.x + w);
-            gySet.add(el.y);
-            gySet.add(el.y + h / 2);
-            gySet.add(el.y + h);
+            gxSet.add(el.x); gxSet.add(el.x + w / 2); gxSet.add(el.x + w);
+            gySet.add(el.y); gySet.add(el.y + h / 2); gySet.add(el.y + h);
         }
 
         let snapX = nx, bestDX = SNAP + 1;
@@ -266,7 +345,6 @@ export default function StickerCanvas({
 
     const handleStageDragMove = useCallback((e: Konva.KonvaEventObject<DragEvent>) => {
         const node = e.target;
-        // Ignore stage-level drag (shouldn't happen) and nodes without an element id
         if (!elsRef.current.find(el => el.id === node.id())) return;
         const snap = computeSnap(node);
         node.position({ x: snap.x, y: snap.y });
@@ -277,16 +355,24 @@ export default function StickerCanvas({
         setGuides({ v: [], h: [] });
     }, []);
 
-    // Guide line style (compensate for zoom so lines stay 1px visually)
     const gStroke = "#6366f1";
     const gW = 1 / zoom;
     const gDash = [4 / zoom, 4 / zoom];
 
+    const badgeLeft = mousePos.x + 14;
+    const badgeTop  = mousePos.y + 14;
+
     return (
-        <div style={{ boxShadow: "0 4px 24px rgba(0,0,0,0.18)", borderRadius: 4, background: "#fff" }}>
+        <div
+            style={{ position: "relative", display: "inline-block" }}
+            onMouseMove={e => {
+                const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+                setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+            }}
+        >
             <Stage
-                width={Math.round(width * zoom)}
-                height={Math.round(height * zoom)}
+                width={Math.round((width + PAD * 2) * zoom)}
+                height={Math.round((height + PAD * 2) * zoom)}
                 scaleX={zoom}
                 scaleY={zoom}
                 onMouseDown={e => { if (e.target === e.target.getStage()) onSelect(null); }}
@@ -294,17 +380,21 @@ export default function StickerCanvas({
                 onDragMove={handleStageDragMove}
                 onDragEnd={handleStageDragEnd}
             >
-                {/* Elements layer */}
-                <Layer>
-                    <Rect x={0} y={0} width={width} height={height} fill="white" />
+                <Layer x={PAD} y={PAD}>
+                    {/* White sticker area with shadow */}
+                    <Rect x={0} y={0} width={width} height={height} fill="white"
+                        shadowColor="rgba(0,0,0,0.18)" shadowBlur={24} shadowOffsetX={0} shadowOffsetY={4} />
                     {elements.map(el =>
                         el.type === "qr" ? (
                             <QrPlaceholderImage
                                 key={el.id} id={el.id}
-                                x={el.x} y={el.y} width={el.width} height={el.height} value={el.value}
+                                x={el.x} y={el.y} width={el.width} height={el.height}
+                                rotation={el.rotation ?? 0} value={el.value}
                                 isSelected={selectedId === el.id}
                                 onSelect={() => onSelect(el.id)}
                                 onChange={patch => onChange({ ...el, ...patch } as StickerElement)}
+                                onRotating={handleRotating}
+                                onRotateEnd={handleRotateEnd}
                             />
                         ) : el.type === "image" ? (
                             <ImageNode
@@ -312,6 +402,8 @@ export default function StickerCanvas({
                                 isSelected={selectedId === el.id}
                                 onSelect={() => onSelect(el.id)}
                                 onChange={onChange}
+                                onRotating={handleRotating}
+                                onRotateEnd={handleRotateEnd}
                             />
                         ) : (
                             <ElementNode
@@ -319,14 +411,16 @@ export default function StickerCanvas({
                                 isSelected={selectedId === el.id}
                                 onSelect={() => onSelect(el.id)}
                                 onChange={onChange}
+                                onRotating={handleRotating}
+                                onRotateEnd={handleRotateEnd}
                             />
                         )
                     )}
                 </Layer>
 
-                {/* Alignment guide lines — non-interactive, always on top */}
+                {/* Alignment guide lines */}
                 {(guides.v.length > 0 || guides.h.length > 0) && (
-                    <Layer listening={false}>
+                    <Layer x={PAD} y={PAD} listening={false}>
                         {guides.v.map((x, i) => (
                             <Line key={`v${i}`} points={[x, -10, x, height + 10]} stroke={gStroke} strokeWidth={gW} dash={gDash} />
                         ))}
@@ -336,6 +430,30 @@ export default function StickerCanvas({
                     </Layer>
                 )}
             </Stage>
+
+            {/* ── Rotation angle badge (shown while rotating, like Canva) ── */}
+            {rotLabel && (
+                <div
+                    style={{
+                        position: "absolute",
+                        left: badgeLeft,
+                        top: badgeTop,
+                        pointerEvents: "none",
+                        zIndex: 20,
+                        transition: "background-color 0.1s",
+                    }}
+                    className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full shadow-lg text-xs font-mono font-semibold select-none ${
+                        rotLabel.snapped
+                            ? "bg-violet-600 text-white"
+                            : "bg-slate-800/90 text-white"
+                    }`}
+                >
+                    {rotLabel.angle}°
+                    {rotLabel.snapped && (
+                        <span className="ml-0.5 text-violet-200 text-[10px]">✦</span>
+                    )}
+                </div>
+            )}
         </div>
     );
 }

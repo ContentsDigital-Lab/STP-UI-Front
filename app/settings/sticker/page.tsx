@@ -18,7 +18,7 @@ const StickerCanvas = dynamic(() => import("./StickerCanvas"), { ssr: false });
 
 export type ElementType = "text" | "dynamic" | "qr" | "rect" | "line" | "image";
 
-interface BaseElement { id: string; type: ElementType; x: number; y: number; }
+interface BaseElement { id: string; type: ElementType; x: number; y: number; rotation?: number; }
 interface TextElement extends BaseElement {
     type: "text" | "dynamic";
     text: string; fontSize: number; fill: string; bold: boolean; italic: boolean;
