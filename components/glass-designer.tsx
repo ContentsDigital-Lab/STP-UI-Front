@@ -362,6 +362,14 @@ function getCutoutBounds(h: HoleData): { minX: number; minY: number; maxX: numbe
     }
 }
 
+function getCutoutSnapValues(h: HoleData): { xs: number[]; ys: number[] } {
+    const b = getCutoutBounds(h);
+    return {
+        xs: [h.x, b.minX, b.maxX],
+        ys: [h.y, b.minY, b.maxY],
+    };
+}
+
 function makeClippedCutoutPath(h: HoleData, glassBB: { minX: number; minY: number; maxX: number; maxY: number }, eps = 0.01): THREE.Path {
     const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
     const lo = { x: glassBB.minX + eps, y: glassBB.minY + eps };
@@ -499,6 +507,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
     const camStartRef = useRef({ cx: 0, cy: 0 });
 
     const gridObjRef = useRef<THREE.LineSegments | null>(null);
+    const alignGuidesRef = useRef<THREE.Object3D[]>([]);
 
     const normalizedHoles = holes.map(h => ({ ...h, type: h.type || 'circle' as CutoutType }));
     const holesRef = useRef(normalizedHoles);
@@ -1102,7 +1111,10 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         if (!isActivelyDraggingRef.current) buildGlassScene();
     }, [width, height, holes, selectedHoleId, selectedHoleIds, internalVertices, activeTool, selectedVertexIdx, customDrawPoints, isDrawingCustom, buildGlassScene]);
 
-    // Keyboard shortcuts: Cmd+G to group, Cmd+Shift+G to ungroup, Escape to deselect, Delete to remove
+    // Clipboard for copy/paste cutouts
+    const clipboardRef = useRef<HoleData[]>([]);
+
+    // Keyboard shortcuts: Cmd+G to group, Cmd+Shift+G to ungroup, Cmd+C copy, Cmd+V paste, Escape to deselect, Delete to remove
     useEffect(() => {
         const onKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
@@ -1112,6 +1124,40 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             }
             if ((e.key === 'Delete' || e.key === 'Backspace') && !e.metaKey && !e.ctrlKey) {
                 handleDeleteSelected();
+                return;
+            }
+            // Cmd+C: copy selected cutouts
+            if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
+                const sel = selectedHoleIdsRef.current;
+                const singleSel = selectedHoleIdRef.current;
+                const idsToSelect = sel.size > 0 ? sel : new Set(singleSel ? [singleSel] : []);
+                if (idsToSelect.size === 0) return;
+                clipboardRef.current = holesRef.current
+                    .filter(h => idsToSelect.has(h.id))
+                    .map(h => ({ ...h }));
+                return;
+            }
+            // Cmd+V: paste copied cutouts with offset
+            if ((e.metaKey || e.ctrlKey) && e.key === 'v') {
+                if (clipboardRef.current.length === 0) return;
+                e.preventDefault();
+                pushUndo();
+                const offset = 20;
+                const newGroupId = clipboardRef.current.length > 1 ? `grp-${Date.now()}` : undefined;
+                const pasted = clipboardRef.current.map(h => ({
+                    ...h,
+                    id: `h_${Date.now()}_${holeCounter++}`,
+                    x: h.x + offset,
+                    y: h.y + offset,
+                    groupId: newGroupId ?? h.groupId,
+                    points: h.points ? h.points.map(p => ({ ...p })) : undefined,
+                }));
+                onHolesChange([...holesRef.current, ...pasted]);
+                const pastedIds = new Set(pasted.map(h => h.id));
+                setSelectedHoleIds(pastedIds);
+                setSelectedHoleId(pasted.length === 1 ? pasted[0].id : null);
+                // Update clipboard to the new copies so successive pastes keep offsetting
+                clipboardRef.current = pasted.map(h => ({ ...h }));
                 return;
             }
             // Cmd+G: group selected holes
@@ -1134,7 +1180,6 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 const singleSel = selectedHoleIdRef.current;
                 if (sel.size === 0 && !singleSel) return;
                 pushUndo();
-                // Find which groupId(s) to ungroup
                 const idsToUngroup = sel.size > 0 ? sel : new Set(singleSel ? [singleSel] : []);
                 const groupIds = new Set(holesRef.current.filter(h => idsToUngroup.has(h.id) && h.groupId).map(h => h.groupId!));
                 const updated = holesRef.current.map(h =>
@@ -1471,10 +1516,9 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 const draggedHole = holesRef.current.find(h => h.id === dragHoleIdRef.current);
                 if (!draggedHole) return;
 
-                const dx = pos.x - draggedHole.x;
-                const dy = pos.y - draggedHole.y;
+                let dx = pos.x - draggedHole.x;
+                let dy = pos.y - draggedHole.y;
 
-                // Determine which holes to move: multi-selected, or grouped, or just the one
                 const multiSel = selectedHoleIdsRef.current;
                 const draggedGroup = draggedHole.groupId;
                 const shouldMove = (h: HoleData) =>
@@ -1482,12 +1526,99 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                     multiSel.has(h.id) ||
                     (draggedGroup && h.groupId === draggedGroup);
 
+                // Alignment snapping against non-moving cutouts
+                const SNAP_THRESHOLD = 5;
+                const otherHoles = holesRef.current.filter(h => !shouldMove(h));
+                if (otherHoles.length > 0) {
+                    let bestSnapDx = Infinity;
+                    let bestSnapDy = Infinity;
+                    for (const mh of holesRef.current) {
+                        if (!shouldMove(mh)) continue;
+                        const tentative = { ...mh, x: mh.x + dx, y: mh.y + dy };
+                        const mSnap = getCutoutSnapValues(tentative);
+                        for (const oh of otherHoles) {
+                            const oSnap = getCutoutSnapValues(oh);
+                            for (const mx of mSnap.xs) {
+                                for (const ox of oSnap.xs) {
+                                    const diff = ox - mx;
+                                    if (Math.abs(diff) < SNAP_THRESHOLD && Math.abs(diff) < Math.abs(bestSnapDx)) {
+                                        bestSnapDx = diff;
+                                    }
+                                }
+                            }
+                            for (const my of mSnap.ys) {
+                                for (const oy of oSnap.ys) {
+                                    const diff = oy - my;
+                                    if (Math.abs(diff) < SNAP_THRESHOLD && Math.abs(diff) < Math.abs(bestSnapDy)) {
+                                        bestSnapDy = diff;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (Math.abs(bestSnapDx) < SNAP_THRESHOLD) dx += bestSnapDx;
+                    if (Math.abs(bestSnapDy) < SNAP_THRESHOLD) dy += bestSnapDy;
+                }
+
                 holesRef.current = holesRef.current.map(h => {
                     if (!shouldMove(h)) return h;
                     const newX = Math.max(bb.minX - dragMargin, Math.min(bb.maxX + dragMargin, h.x + dx));
                     const newY = Math.max(bb.minY - dragMargin, Math.min(bb.maxY + dragMargin, h.y + dy));
                     return { ...h, x: newX, y: newY };
                 });
+
+                // Draw alignment guide lines
+                const scene = sceneRef.current;
+                if (scene) {
+                    for (const g of alignGuidesRef.current) scene.remove(g);
+                    alignGuidesRef.current = [];
+
+                    const guideMat = new THREE.LineBasicMaterial({ color: 0x22cc66 });
+                    const movedHoles = holesRef.current.filter(h => shouldMove(h));
+                    const drawnGuides = new Set<string>();
+
+                    for (const mh of movedHoles) {
+                        const mSnap = getCutoutSnapValues(mh);
+                        const mBounds = getCutoutBounds(mh);
+                        for (const oh of otherHoles) {
+                            const oSnap = getCutoutSnapValues(oh);
+                            const oBounds = getCutoutBounds(oh);
+
+                            for (const my of mSnap.ys) {
+                                for (const oy of oSnap.ys) {
+                                    if (Math.abs(my - oy) < 1) {
+                                        const key = `h-${Math.round(oy)}`;
+                                        if (drawnGuides.has(key)) continue;
+                                        drawnGuides.add(key);
+                                        const minX = Math.min(mBounds.minX, oBounds.minX) - 30;
+                                        const maxX = Math.max(mBounds.maxX, oBounds.maxX) + 30;
+                                        const pts = [new THREE.Vector3(minX, oy, 5), new THREE.Vector3(maxX, oy, 5)];
+                                        const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), guideMat);
+                                        scene.add(line);
+                                        alignGuidesRef.current.push(line);
+                                    }
+                                }
+                            }
+
+                            for (const mx of mSnap.xs) {
+                                for (const ox of oSnap.xs) {
+                                    if (Math.abs(mx - ox) < 1) {
+                                        const key = `v-${Math.round(ox)}`;
+                                        if (drawnGuides.has(key)) continue;
+                                        drawnGuides.add(key);
+                                        const minY = Math.min(mBounds.minY, oBounds.minY) - 30;
+                                        const maxY = Math.max(mBounds.maxY, oBounds.maxY) + 30;
+                                        const pts = [new THREE.Vector3(ox, minY, 5), new THREE.Vector3(ox, maxY, 5)];
+                                        const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), guideMat);
+                                        scene.add(line);
+                                        alignGuidesRef.current.push(line);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 throttledRebuild();
             }
 
@@ -1533,6 +1664,13 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             dragHoleIdRef.current = null;
             dragVertexIdxRef.current = null;
             isActivelyDraggingRef.current = false;
+
+            // Clear alignment guides
+            const scn = sceneRef.current;
+            if (scn) {
+                for (const g of alignGuidesRef.current) scn.remove(g);
+                alignGuidesRef.current = [];
+            }
 
             // Clear any pending throttle timer
             if (dragRebuildTimer.current) {
@@ -2189,6 +2327,8 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 <span className="flex items-center gap-6">
                     <span className="uppercase">Cutout Hotkeys:</span>
                     <span>Ctrl+Click multi-select</span>
+                    <span>Ctrl+C copy</span>
+                    <span>Ctrl+V paste</span>
                     <span>Ctrl+G group</span>
                     <span>Ctrl+Shift+G ungroup</span>
                 </span>
