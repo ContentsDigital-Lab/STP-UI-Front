@@ -11,11 +11,12 @@ import { QrCodeModal } from "@/components/qr/QrCodeModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ordersApi } from "@/lib/api/orders";
+import { panesApi } from "@/lib/api/panes";
 import { requestsApi } from "@/lib/api/requests";
 import { stationsApi } from "@/lib/api/stations";
 import { getColorOption } from "@/lib/stations/stations-store";
 import { useWebSocket } from "@/lib/hooks/use-socket";
-import { Order, OrderRequest, Station } from "@/lib/api/types";
+import { Order, OrderRequest, Station, Pane } from "@/lib/api/types";
 
 // ── status config ─────────────────────────────────────────────────────────────
 const ORDER_STATUS = {
@@ -161,10 +162,26 @@ export default function ProductionPage() {
     const [requests,  setRequests]  = useState<OrderRequest[]>([]);
     const [stations,  setStations]  = useState<Station[]>([]);
     const [colorMap,  setColorMap]  = useState<Record<string, string>>({});
+    const [paneMap,   setPaneMap]   = useState<Map<string, Pane[]>>(new Map());
     const [loading,   setLoading]   = useState(true);
     const [search,    setSearch]    = useState("");
     const [expanded,  setExpanded]  = useState<Set<string>>(new Set());
+    const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
     const [qrTarget,  setQrTarget]  = useState<{ code: string; label: string; url: string } | null>(null);
+
+    const loadPanes = useCallback(async () => {
+        const pRes = await panesApi.getAll({ limit: 100 }).catch(() => null);
+        if (pRes?.success) {
+            const map = new Map<string, Pane[]>();
+            for (const p of pRes.data ?? []) {
+                const oid = typeof p.order === "string" ? p.order : (p.order as Order)?._id;
+                if (!oid) continue;
+                if (!map.has(oid)) map.set(oid, []);
+                map.get(oid)!.push(p);
+            }
+            setPaneMap(map);
+        }
+    }, []);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -178,14 +195,14 @@ export default function ProductionPage() {
             if (rRes.success) setRequests(rRes.data ?? []);
             if (sRes.success) setStations(sRes.data ?? []);
             setColorMap(loadColorMap());
+            await loadPanes();
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [loadPanes]);
     useEffect(() => { load(); }, [load]);
 
-    // Real-time updates via WebSocket
-    const { status: wsStatus } = useWebSocket("production", SOCKET_EVENTS, () => {
+    const { status: wsStatus } = useWebSocket("production", [...SOCKET_EVENTS, "pane:updated"], () => {
         load();
     });
 
@@ -241,6 +258,9 @@ export default function ProductionPage() {
     }, [bills, search, stationMap]);
 
     const toggle = (id: string) => setExpanded(prev => {
+        const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n;
+    });
+    const toggleOrder = (id: string) => setExpandedOrders(prev => {
         const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n;
     });
 
@@ -402,20 +422,31 @@ export default function ProductionPage() {
                                     </div>
 
                                     {/* Stats */}
-                                    <div className="hidden sm:flex items-center gap-4 shrink-0 text-xs text-muted-foreground mr-1">
-                                        <div className="text-center">
-                                            <p className="text-base font-bold text-foreground leading-tight">{bill.orders.length}</p>
-                                            <p>ออเดอร์</p>
-                                        </div>
-                                        <div className="text-center">
-                                            <p className="text-base font-bold text-foreground leading-tight">{bill.totalGlass}</p>
-                                            <p>กระจก</p>
-                                        </div>
-                                        <div className="text-center">
-                                            <p className="text-base font-bold text-green-600 leading-tight">{bill.completedOrders}</p>
-                                            <p>เสร็จ</p>
-                                        </div>
-                                    </div>
+                                    {(() => {
+                                        const billPanes = bill.orders.flatMap(o => paneMap.get(o._id) ?? []);
+                                        const panesDone = billPanes.filter(p => p.currentStatus === "completed").length;
+                                        const hasPanes  = billPanes.length > 0;
+                                        return (
+                                            <div className="hidden sm:flex items-center gap-4 shrink-0 text-xs text-muted-foreground mr-1">
+                                                <div className="text-center">
+                                                    <p className="text-base font-bold text-foreground leading-tight">{bill.orders.length}</p>
+                                                    <p>ออเดอร์</p>
+                                                </div>
+                                                <div className="text-center">
+                                                    <p className="text-base font-bold text-foreground leading-tight">
+                                                        {hasPanes ? billPanes.length : bill.totalGlass}
+                                                    </p>
+                                                    <p>กระจก</p>
+                                                </div>
+                                                <div className="text-center">
+                                                    <p className={`text-base font-bold leading-tight ${panesDone > 0 && panesDone === billPanes.length ? "text-green-600" : panesDone > 0 ? "text-blue-600" : "text-green-600"}`}>
+                                                        {hasPanes ? panesDone : bill.completedOrders}
+                                                    </p>
+                                                    <p>เสร็จ</p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
                                 </button>
 
                                 {/* ── Order rows ── */}
@@ -434,25 +465,47 @@ export default function ProductionPage() {
                                             <p className="px-8 py-4 text-sm text-muted-foreground italic">ไม่มีออเดอร์ในสถานะนี้</p>
                                         ) : visibleOrders.map((order) => {
                                             const cfg = ORDER_STATUS[order.status as StatusKey] ?? ORDER_STATUS.pending;
+                                            const orderPanes = paneMap.get(order._id) ?? [];
+                                            const isOrderOpen = expandedOrders.has(order._id);
 
                                             return (
+                                                <div key={order._id}>
                                                 <div
-                                                    key={order._id}
                                                     className="px-4 sm:px-8 py-3 flex items-center gap-2 hover:bg-muted/20 cursor-pointer transition-colors group"
-                                                    onClick={() => router.push(`/production/${order._id}`)}
+                                                    onClick={() => orderPanes.length > 0 ? toggleOrder(order._id) : router.push(`/production/${order._id}`)}
                                                 >
+                                                    {/* Expand indicator */}
+                                                    {orderPanes.length > 0 && (
+                                                        <span className="shrink-0 text-muted-foreground/50">
+                                                            {isOrderOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                                                        </span>
+                                                    )}
+
                                                     {/* Code */}
                                                     <span className="w-24 shrink-0 font-mono text-xs font-bold">
                                                         #{order.code ?? order._id.slice(-6).toUpperCase()}
                                                     </span>
 
-                                                    {/* Material */}
+                                                    {/* Material + pane progress */}
                                                     <div className="w-36 shrink-0 hidden sm:block min-w-0">
                                                         <div className="flex items-center gap-1 text-sm truncate">
                                                             <Package className="h-3 w-3 text-muted-foreground/50 shrink-0" />
                                                             <span className="truncate text-xs">{getName(order.material)}</span>
                                                         </div>
-                                                        <span className="text-xs text-muted-foreground">{order.quantity} ชิ้น</span>
+                                                        {(() => {
+                                                            if (orderPanes.length > 0) {
+                                                                const done = orderPanes.filter(p => p.currentStatus === "completed").length;
+                                                                return (
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <span className="text-xs text-muted-foreground">{order.quantity} ชิ้น</span>
+                                                                        <span className={`text-[10px] font-medium ${done === orderPanes.length ? "text-green-600" : "text-blue-600"}`}>
+                                                                            ({done}/{orderPanes.length})
+                                                                        </span>
+                                                                    </div>
+                                                                );
+                                                            }
+                                                            return <span className="text-xs text-muted-foreground">{order.quantity} ชิ้น</span>;
+                                                        })()}
                                                     </div>
 
                                                     {/* Current station badge */}
@@ -506,18 +559,74 @@ export default function ProductionPage() {
                                                                 <QrCode className="h-3.5 w-3.5" />
                                                             </button>
                                                         )}
-                                                        <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/30 group-hover:text-muted-foreground transition-colors" />
+                                                        <button
+                                                            type="button"
+                                                            title="ดูรายละเอียด"
+                                                            onClick={(e) => { e.stopPropagation(); router.push(`/production/${order._id}`); }}
+                                                            className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors opacity-0 group-hover:opacity-100"
+                                                        >
+                                                            <ArrowRight className="h-3.5 w-3.5" />
+                                                        </button>
                                                     </div>
+                                                </div>
+
+                                                {/* Inline pane list */}
+                                                {isOrderOpen && orderPanes.length > 0 && (
+                                                    <div className="pl-12 sm:pl-16 pr-4 sm:pr-8 pb-3 space-y-1">
+                                                        <div className="flex items-center gap-2 mb-2">
+                                                            <Package className="h-3 w-3 text-muted-foreground/50" />
+                                                            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">กระจกแต่ละชิ้น</span>
+                                                            <span className="text-[10px] text-muted-foreground">{orderPanes.length} ชิ้น</span>
+                                                        </div>
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
+                                                            {orderPanes.map(pane => {
+                                                                const pSt = {
+                                                                    pending:     { label: "รอ",       dot: "bg-amber-400",  text: "text-amber-600" },
+                                                                    in_progress: { label: "กำลังทำ",  dot: "bg-blue-500",   text: "text-blue-600" },
+                                                                    completed:   { label: "เสร็จ",    dot: "bg-green-500",  text: "text-green-600" },
+                                                                }[pane.currentStatus] ?? { label: pane.currentStatus, dot: "bg-gray-400", text: "text-gray-500" };
+                                                                const stName = (() => {
+                                                                    if (pane.currentStation === "queue") return "คิว";
+                                                                    if (pane.currentStation === "ready") return "พร้อมส่ง";
+                                                                    if (pane.currentStation === "defected") return "ชำรุด";
+                                                                    const st = stationMap.get(pane.currentStation);
+                                                                    return st?.name ?? pane.currentStation;
+                                                                })();
+                                                                return (
+                                                                    <div key={pane._id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/30 border border-border/50">
+                                                                        <span className="font-mono text-[11px] font-bold shrink-0">{pane.paneNumber}</span>
+                                                                        <span className={`flex items-center gap-1 text-[10px] font-medium ${pSt.text}`}>
+                                                                            <span className={`h-1.5 w-1.5 rounded-full ${pSt.dot}`} />
+                                                                            {pSt.label}
+                                                                        </span>
+                                                                        {pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0) && (
+                                                                            <span className="text-[10px] text-muted-foreground">
+                                                                                {pane.dimensions.width}×{pane.dimensions.height}
+                                                                            </span>
+                                                                        )}
+                                                                        <span className="ml-auto text-[10px] text-muted-foreground truncate">{stName}</span>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                )}
                                                 </div>
                                             );
                                         })}
 
                                         {/* Mobile summary */}
-                                        <div className="sm:hidden px-4 py-2 flex gap-4 text-xs text-muted-foreground bg-muted/10">
-                                            <span>{bill.orders.length} ออเดอร์</span>
-                                            <span>{bill.totalGlass} กระจก</span>
-                                            <span className="text-green-600">{bill.completedOrders} เสร็จแล้ว</span>
-                                        </div>
+                                        {(() => {
+                                            const bp = bill.orders.flatMap(o => paneMap.get(o._id) ?? []);
+                                            const bd = bp.filter(p => p.currentStatus === "completed").length;
+                                            return (
+                                                <div className="sm:hidden px-4 py-2 flex gap-4 text-xs text-muted-foreground bg-muted/10">
+                                                    <span>{bill.orders.length} ออเดอร์</span>
+                                                    <span>{bp.length > 0 ? bp.length : bill.totalGlass} กระจก</span>
+                                                    <span className="text-green-600">{bp.length > 0 ? bd : bill.completedOrders} เสร็จแล้ว</span>
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
                                 )}
                             </div>

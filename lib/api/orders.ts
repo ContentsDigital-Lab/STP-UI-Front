@@ -2,9 +2,13 @@ import { fetchApi } from "./config";
 import { ApiResponse, Order } from "./types";
 
 export const ordersApi = {
-    getAll: async (params?: { stationId?: string }): Promise<ApiResponse<Order[]>> => {
-        const qs = params?.stationId ? `?stationId=${encodeURIComponent(params.stationId)}` : "";
-        return fetchApi<ApiResponse<Order[]>>(`/orders${qs}`, {
+    getAll: async (params?: { stationId?: string; limit?: number }): Promise<ApiResponse<Order[]>> => {
+        const qs = new URLSearchParams();
+        if (params?.stationId) qs.set("stationId", params.stationId);
+        if (params?.limit) qs.set("limit", String(params.limit));
+        else qs.set("limit", "100");
+        const query = qs.toString();
+        return fetchApi<ApiResponse<Order[]>>(`/orders${query ? `?${query}` : ""}`, {
             method: "GET",
         });
     },

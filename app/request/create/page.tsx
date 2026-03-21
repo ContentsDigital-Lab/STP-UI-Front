@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { GlassDesigner, HoleData, VertexData } from "@/components/glass-designer";
+import { panesApi } from "@/lib/api/panes";
 import { requestsApi } from "@/lib/api/requests";
 import { customersApi } from "@/lib/api/customers";
 import { workersApi } from "@/lib/api/workers";
@@ -245,7 +246,31 @@ export default function CreateBillPage() {
         try {
             const res = await requestsApi.create(payload);
             if (res.success) {
-                toast.success(lang === 'th' ? 'สร้างคำสั่งซื้อสำเร็จ' : 'Order request created successfully');
+                const requestId = res.data._id;
+                const qty = Math.max(1, formData.quantity);
+                const thicknessMm = parseFloat(formData.thickness) || 0;
+
+                let panesCreated = 0;
+                for (let i = 0; i < qty; i++) {
+                    try {
+                        await panesApi.create({
+                            request: requestId,
+                            dimensions: { width: glassWidth, height: glassHeight, thickness: thicknessMm },
+                            glassTypeLabel: glassSpec,
+                        } as Record<string, unknown>);
+                        panesCreated++;
+                    } catch (paneErr) {
+                        console.error(`[CreateBill] Failed to create pane ${i + 1}/${qty}:`, paneErr);
+                    }
+                }
+
+                if (panesCreated > 0) {
+                    toast.success(lang === 'th'
+                        ? `สร้างคำสั่งซื้อสำเร็จ — สร้างกระจก ${panesCreated} ชิ้น`
+                        : `Order created — ${panesCreated} panes created`);
+                } else {
+                    toast.success(lang === 'th' ? 'สร้างคำสั่งซื้อสำเร็จ' : 'Order request created successfully');
+                }
                 router.push("/request");
             }
         } catch (err) {

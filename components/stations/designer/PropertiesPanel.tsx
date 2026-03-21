@@ -21,7 +21,7 @@ type FieldDef = {
 // ── Shared suggestion banks ───────────────────────────────────────────────────
 const FIELD_KEY_SUGGESTIONS = ["customer","material","quantity","notes","deadline","status","description","price","orderId","requestId","workerId","email","phone","address","remark","type"];
 const DATA_VAR_SUGGESTIONS   = ["order.status","order.quantity","order.customer.name","order.material.name","order.priority","order.assignedTo.name","request.details.type","request.details.estimatedPrice","request.deadline","request.deliveryLocation","request.customer.name"];
-const ENDPOINT_SUGGESTIONS    = ["/orders","/requests","/materials","/workers","/customers","/inventories","/claims","/withdrawals","/material-logs","/notifications"];
+const ENDPOINT_SUGGESTIONS    = ["/orders","/requests","/panes","/materials","/workers","/customers","/inventories","/claims","/withdrawals","/material-logs","/notifications"];
 const NAVIGATE_TO_SUGGESTIONS = ["/production","/request","/stations","/inventory","/withdrawals","/claims","/logs","/settings"];
 const NAVIGATE_SUGGESTIONS   = ["/production","/request","/stations","/inventory","/withdrawals","/claims","/logs","/settings"];
 const LABEL_FIELD_SUGGESTIONS = ["name","customer.name","material.name","details.type","code","username","title","type","status","position"];
@@ -77,7 +77,7 @@ const FIELD_META: Record<string, Record<string, FieldDef>> = {
         label:       { label: "ชื่อช่องเลือก",            type: "text",   section: "props", placeholder: "เช่น เลือกวัสดุ" },
         placeholder: { label: "ข้อความตอนยังไม่เลือก",    type: "text",   section: "props", placeholder: "เช่น -- เลือก --" },
         fieldKey:    { label: "ชื่อตัวแปร",               type: "text",   section: "data", hint: "ชื่อสำหรับสิ่งที่เลือก — ใช้เมื่อกดปุ่มส่งข้อมูล เช่น ตั้งเป็น 'material' ค่าที่เลือกจะถูกส่งในชื่อ material", placeholder: "เช่น material", suggestions: FIELD_KEY_SUGGESTIONS },
-        dataSource:  { label: "ดึงตัวเลือกมาจาก",        type: "select", section: "data", options: ["static","/materials","/workers","/customers","/orders","/inventories","/requests","/claims","/withdrawals"], optionLabels: ["กำหนดเอง","รายการวัสดุ","รายการพนักงาน","รายการลูกค้า","รายการออเดอร์","คลังสินค้า","รายการคำขอ (บิล)","รายการเคลม","รายการเบิกวัสดุ"] },
+        dataSource:  { label: "ดึงตัวเลือกมาจาก",        type: "select", section: "data", options: ["static","/materials","/workers","/customers","/orders","/panes","/inventories","/requests","/claims","/withdrawals"], optionLabels: ["กำหนดเอง","รายการวัสดุ","รายการพนักงาน","รายการลูกค้า","รายการออเดอร์","รายการกระจก (Pane)","คลังสินค้า","รายการคำขอ (บิล)","รายการเคลม","รายการเบิกวัสดุ"] },
         options:     { label: "รายการตัวเลือก",           type: "text",   section: "data", hint: "พิมพ์ตัวเลือกแต่ละอัน คั่นด้วยเครื่องหมายจุลภาค (,)", placeholder: "ตัวเลือก A, ตัวเลือก B, ตัวเลือก C", showWhen: { field: "dataSource", value: "static" } },
         labelField:      { label: "แสดงชื่อจากฟิลด์",    type: "text",   section: "data", hint: "ระบุว่าจะนำฟิลด์ไหนมาเป็นชื่อที่แสดงในรายการ เช่น 'name' คือแสดงชื่อ, 'details.type' คือแสดงประเภท", placeholder: "name", suggestions: LABEL_FIELD_SUGGESTIONS, showWhen: { field: "dataSource", value: ["/materials","/workers","/customers","/orders","/inventories","/requests","/claims","/withdrawals"] } },
         valueField:      { label: "ค่าที่จะส่งเมื่อเลือก", type: "text",  section: "data", hint: "ฟิลด์ที่จะส่งออกไปเมื่อเลือก — ปกติใช้ '_id' (รหัสของรายการ) เพื่อให้ระบบรู้ว่าเลือกอะไร", placeholder: "_id", suggestions: VALUE_FIELD_SUGGESTIONS, showWhen: { field: "dataSource", value: ["/materials","/workers","/customers","/orders","/inventories","/requests","/claims","/withdrawals"] } },
@@ -112,7 +112,7 @@ const FIELD_META: Record<string, Record<string, FieldDef>> = {
     },
     "Record Detail": {
         title:      { label: "ชื่อหัวข้อ",   type: "text",          section: "props", placeholder: "เช่น รายละเอียดคำขอ" },
-        endpoint:   { label: "แหล่งข้อมูล", type: "select",         section: "data",  options: ["context","static","/orders","/requests","/materials","/workers","/customers","/inventories","/claims","/withdrawals"], optionLabels: ["จากรายการที่เลือก (RecordList)","ตัวอย่าง (ไม่ต้องการ API)","รายการออเดอร์/คำสั่งผลิต","รายการคำขอ (บิล)","รายการวัสดุ","รายการพนักงาน","รายการลูกค้า","คลังสินค้า","รายการเคลม","รายการเบิกวัสดุ"] },
+        endpoint:   { label: "แหล่งข้อมูล", type: "select",         section: "data",  options: ["context","static","/orders","/requests","/panes","/materials","/workers","/customers","/inventories","/claims","/withdrawals"], optionLabels: ["จากรายการที่เลือก (RecordList)","ตัวอย่าง (ไม่ต้องการ API)","รายการออเดอร์/คำสั่งผลิต","รายการคำขอ (บิล)","รายการกระจก (Pane)","รายการวัสดุ","รายการพนักงาน","รายการลูกค้า","คลังสินค้า","รายการเคลม","รายการเบิกวัสดุ"] },
         idParam:    { label: "URL Param ของ ID", type: "text",        section: "data",  placeholder: "เช่น requestId, orderId", hint: "ชื่อ URL param ที่ใช้ระบุ ID ของรายการ — ไม่จำเป็นถ้าเลือก 'รายการออเดอร์' หรือ 'รายการคำขอ' (ใช้ข้อมูลจาก context อัตโนมัติ)", suggestions: ["requestId","orderId","id"] },
         fieldsJson: { label: "ฟิลด์ที่แสดง", type: "column-editor", section: "data"  },
     },
@@ -127,7 +127,7 @@ const FIELD_META: Record<string, Record<string, FieldDef>> = {
     "QR Scan": {
         label:          { label: "ข้อความกำกับ",           type: "text",   section: "props", placeholder: "เช่น สแกน QR ออเดอร์" },
         placeholder:    { label: "ข้อความในช่องกรอก",      type: "text",   section: "props", placeholder: "วาง QR หรือพิมพ์รหัส แล้วกด Enter..." },
-        dataSource:     { label: "แหล่งข้อมูล",             type: "select", section: "data",  options: ["/orders", "/requests"], optionLabels: ["รายการออเดอร์", "รายการคำขอ (บิล)"], hint: "บล็อกจะค้นหาข้อมูลจากแหล่งนี้เมื่อสแกน QR สำเร็จ — ใช้ '/orders' สำหรับออเดอร์ หรือ '/requests' สำหรับบิล" },
+        dataSource:     { label: "แหล่งข้อมูล",             type: "select", section: "data",  options: ["/orders", "/requests", "/panes"], optionLabels: ["รายการออเดอร์", "รายการคำขอ (บิล)", "รายการกระจก (Pane)"], hint: "บล็อกจะค้นหาข้อมูลจากแหล่งนี้เมื่อสแกน QR สำเร็จ — ใช้ '/orders' สำหรับออเดอร์, '/requests' สำหรับบิล, หรือ '/panes' สำหรับกระจก" },
         enableCamera:   { label: "เปิดกล้อง",               type: "toggle", section: "props", hint: "เมื่อเปิด จะมีปุ่มกล้องให้กดสแกน QR ด้วยกล้องโทรศัพท์หรือเว็บแคม" },
         autoAction:     { label: "การกระทำอัตโนมัติ",       type: "select", section: "data",  options: ["none", "patch"], optionLabels: ["ไม่มี", "ส่ง PATCH อัตโนมัติ"], hint: "เมื่อสแกนสำเร็จ — 'ส่ง PATCH' จะส่งข้อมูลใน 'ข้อมูล JSON' ไปยัง PATCH /orders/{id} โดยอัตโนมัติ" },
         autoActionBody: { label: "ข้อมูล JSON (PATCH body)", type: "text",   section: "data",  placeholder: '{"status":"in_progress"}', hint: "ข้อมูลที่จะส่งไปใน PATCH — ใช้เมื่อเลือก 'ส่ง PATCH อัตโนมัติ' เช่น {\"status\":\"in_progress\"}" },
@@ -149,7 +149,7 @@ const FIELD_META: Record<string, Record<string, FieldDef>> = {
         showHeader:  { label: "แสดงหัวรายการ",    type: "toggle",        section: "props" },
         showSearch:  { label: "แสดงช่องค้นหา",   type: "toggle",        section: "props" },
         maxRows:     { label: "จำนวนแถวสูงสุด",  type: "number",        section: "props", placeholder: "5" },
-        dataSource:  { label: "แหล่งข้อมูล",     type: "select",        section: "data",  options: ["static","/orders","/requests","/materials","/workers","/customers","/inventories","/claims","/withdrawals","/material-logs","/notifications"], optionLabels: ["ตัวอย่าง (ไม่ต้องการ API)","รายการออเดอร์/คำสั่งผลิต","รายการคำขอ (บิล)","รายการวัสดุ","รายการพนักงาน","รายการลูกค้า","คลังสินค้า","รายการเคลม","รายการเบิกวัสดุ","ประวัติการใช้วัสดุ","การแจ้งเตือน"] },
+        dataSource:  { label: "แหล่งข้อมูล",     type: "select",        section: "data",  options: ["static","/orders","/requests","/panes","/materials","/workers","/customers","/inventories","/claims","/withdrawals","/material-logs","/notifications"], optionLabels: ["ตัวอย่าง (ไม่ต้องการ API)","รายการออเดอร์/คำสั่งผลิต","รายการคำขอ (บิล)","รายการกระจก (Pane)","รายการวัสดุ","รายการพนักงาน","รายการลูกค้า","คลังสินค้า","รายการเคลม","รายการเบิกวัสดุ","ประวัติการใช้วัสดุ","การแจ้งเตือน"] },
         columnsJson: { label: "คอลัมน์",         type: "column-editor", section: "data" },
         filterByCurrentStation: { label: "เฉพาะงานของสถานีนี้", type: "toggle", section: "data", hint: "แสดงเฉพาะออเดอร์ที่กำลังรอดำเนินการในสถานีนี้อยู่ — ใช้ได้กับรายการออเดอร์เท่านั้น ไม่มีผลกับรายการบิล" },
         selectable:           { label: "คลิกแถวเพื่อดูรายละเอียด",  type: "toggle", section: "action", hint: "เมื่อเปิด: กดที่แถวในรายการจะแสดงรายละเอียดในกล่อง 'รายละเอียด' (RecordDetail) ที่วางไว้ในหน้าเดียวกัน" },

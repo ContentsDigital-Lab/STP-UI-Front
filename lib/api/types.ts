@@ -110,6 +110,46 @@ export interface Order {
     updatedAt: string;
 }
 
+export type PaneStation = "queue" | "cutting" | "edging" | "tempering" | "laminating" | "assembly" | "qc" | "ready" | "defected";
+
+export interface PaneEdgeTask {
+    side: string;
+    edgeProfile: string;
+    machineType: string;
+    status: "pending" | "in_progress" | "completed";
+}
+
+export interface Pane {
+    _id: string;
+    paneNumber: string;
+    qrCode: string;
+    request?: string | OrderRequest;
+    order?: string | Order;
+    currentStation: PaneStation;
+    currentStatus: "pending" | "in_progress" | "completed";
+    routing: string[];
+    customRouting: boolean;
+    dimensions: { width: number; height: number; thickness: number };
+    glassType: string;
+    glassTypeLabel: string;
+    processes: string[];
+    edgeTasks: PaneEdgeTask[];
+    withdrawal?: string;
+    remakeOf?: string;
+    startedAt?: string;
+    completedAt?: string;
+    deliveredAt?: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface PaginatedResponse<T> {
+    success: boolean;
+    message: string;
+    data: T[];
+    pagination: { page: number; limit: number; total: number; totalPages: number };
+}
+
 export interface LoginData {
     token: string;
     worker: Worker;

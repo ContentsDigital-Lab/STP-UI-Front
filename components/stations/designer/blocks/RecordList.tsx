@@ -2,14 +2,22 @@
 
 import { useNode } from "@craftjs/core";
 import { useEffect, useState } from "react";
-import { Database, ChevronRight, Loader2, AlertCircle, Hash, ExternalLink, QrCode, FileText } from "lucide-react";
+import { Database, ChevronRight, ChevronDown, Loader2, AlertCircle, Hash, ExternalLink, QrCode, FileText, Package } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { fetchApi } from "@/lib/api/config";
+import { panesApi } from "@/lib/api/panes";
+import { Pane } from "@/lib/api/types";
 import { usePreview } from "../PreviewContext";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { useStationContext } from "../StationContext";
 import { STATUS_CONFIG } from "./StatusIndicator";
+
+const PANE_STATUS_CFG: Record<string, { label: string; dot: string; text: string }> = {
+    pending:     { label: "รอ",      dot: "bg-amber-400", text: "text-amber-600" },
+    in_progress: { label: "กำลังทำ", dot: "bg-blue-500",  text: "text-blue-600" },
+    completed:   { label: "เสร็จ",   dot: "bg-green-500", text: "text-green-600" },
+};
 
 // ── Column definition ─────────────────────────────────────────────────────────
 // Stored as JSON string in props so Craft.js can serialize it
@@ -110,6 +118,7 @@ interface RecordListProps {
 const DATASOURCE_WS: Record<string, { room: string; events: string[] }> = {
     "/orders":           { room: "order",      events: ["order:updated"]                              },
     "/requests":         { room: "request",    events: ["request:updated"]                            },
+    "/panes":            { room: "pane",       events: ["pane:updated"]                               },
     "/claims":           { room: "claim",      events: ["claim:updated"]                              },
     "/withdrawals":      { room: "withdrawal", events: ["withdrawal:updated"]                         },
     "/inventories":      { room: "inventory",  events: ["inventory:updated", "material:updated"]      },
@@ -127,6 +136,7 @@ const SOURCE_LABEL: Record<string, string> = {
     "/workers":           "รายการพนักงาน",
     "/customers":         "รายการลูกค้า",
     "/inventories":       "คลังสินค้า",
+    "/panes":             "รายการกระจกแต่ละชิ้น (Pane)",
     "/claims":            "รายการเคลม",
     "/withdrawals":       "รายการเบิกวัสดุ",
     "/material-logs":     "ประวัติการใช้วัสดุ",
@@ -173,6 +183,10 @@ export function RecordList({
     const isPreview = usePreview();
     const router    = useRouter();
     const [qrRow, setQrRow] = useState<{ code: string; orderId: string } | null>(null);
+    const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
+    const [rowPanes, setRowPanes] = useState<Pane[]>([]);
+    const [rowPanesLoading, setRowPanesLoading] = useState(false);
+    const [showAllPanes, setShowAllPanes] = useState(false);
     const { selectedRecord, setSelectedRecord, stationId, refreshCounter } = useStationContext();
     const isApi     = dataSource && dataSource !== "static";
     // PropertiesPanel stores "production" (no slash) — normalise to "/production"
@@ -188,8 +202,8 @@ export function RecordList({
     const [error,    setError]    = useState("");
     const [query,    setQuery]    = useState("");
 
-    // Auto-filter: when fetching /orders inside a station context, pass stationId server-side
-    const shouldFilterStation = (filterByCurrentStation || (dataSource === "/orders" && !!stationId)) && !!stationId;
+    // Auto-filter: when fetching /orders or /panes inside a station context, pass stationId server-side
+    const shouldFilterStation = (filterByCurrentStation || (dataSource === "/orders" && !!stationId) || (dataSource === "/panes" && !!stationId)) && !!stationId;
 
     const loadData = () => {
         if (!isApi) { setRows(SAMPLE_ROWS); return; }
@@ -240,7 +254,6 @@ export function RecordList({
 
     const filtered = rows
         .filter((r) => {
-            // Client-side station filter — only applies to /orders (requests don't have stations[])
             if (shouldFilterStation && dataSource === "/orders") {
                 const stations = r.stations;
                 const idx      = typeof r.currentStationIndex === "number" ? r.currentStationIndex : 0;
@@ -251,10 +264,38 @@ export function RecordList({
                     : current;
                 if (String(currentId) !== stationId) return false;
             }
+            // Pane station filtering via currentStation field
+            if (shouldFilterStation && dataSource === "/panes") {
+                const paneStation = r.currentStation;
+                if (paneStation && String(paneStation) !== stationId) return false;
+            }
             if (!query) return true;
             return columns.some((c) => String(r[c.key] ?? "").toLowerCase().includes(query.toLowerCase()));
         })
         .slice(0, maxRows);
+
+    const canShowPanes = dataSource === "/orders" || dataSource === "/requests";
+
+    const toggleRowPanes = (row: Record<string, unknown>) => {
+        const rid = String(row._id ?? row[idField] ?? "");
+        if (expandedRowId === rid) {
+            setExpandedRowId(null);
+            setRowPanes([]);
+            setShowAllPanes(false);
+            return;
+        }
+        setExpandedRowId(rid);
+        setRowPanes([]);
+        setRowPanesLoading(true);
+        setShowAllPanes(false);
+        const params: { order?: string; request?: string; limit: number } = { limit: 100 };
+        if (dataSource === "/orders") params.order = rid;
+        else params.request = rid;
+        panesApi.getAll(params)
+            .then(res => setRowPanes(res.success ? res.data ?? [] : []))
+            .catch(() => setRowPanes([]))
+            .finally(() => setRowPanesLoading(false));
+    };
 
     // ── Preview render ────────────────────────────────────────────────────────
     if (isPreview) {
@@ -370,9 +411,77 @@ export function RecordList({
                                         </>
                                     );
 
-                                    return navPath && !selectable
-                                        ? <a key={rowId} href={`${navPath}/${rowId}`} className={rowCls}>{inner}</a>
-                                        : <div key={rowId} className={rowCls} onClick={handleClick}>{inner}</div>;
+                                    const isExpanded = expandedRowId === rowObjId;
+                                    const PANE_PEEK = 3;
+                                    const visiblePanes = showAllPanes ? rowPanes : rowPanes.slice(0, PANE_PEEK);
+
+                                    const handleRowClick = () => {
+                                        if (selectable) setSelectedRecord(isSelected ? null : row);
+                                        if (canShowPanes) toggleRowPanes(row);
+                                    };
+
+                                    const rowEl = navPath && !selectable && !canShowPanes
+                                        ? <a key={`row-${rowId}`} href={`${navPath}/${rowId}`} className={rowCls}>{inner}</a>
+                                        : <div key={`row-${rowId}`} className={`${rowCls} ${canShowPanes ? "hover:bg-muted/30 cursor-pointer" : ""}`} onClick={handleRowClick}>{inner}</div>;
+
+                                    return (
+                                        <div key={rowId}>
+                                            {rowEl}
+                                            {isExpanded && canShowPanes && (
+                                                <div className="px-6 py-2 bg-muted/10 border-b space-y-1.5">
+                                                    {rowPanesLoading ? (
+                                                        <div className="flex items-center gap-2 py-2 text-muted-foreground">
+                                                            <Loader2 className="h-3 w-3 animate-spin" />
+                                                            <span className="text-[11px]">กำลังโหลดกระจก...</span>
+                                                        </div>
+                                                    ) : rowPanes.length === 0 ? (
+                                                        <p className="text-[11px] text-muted-foreground py-1">ยังไม่มีกระจก</p>
+                                                    ) : (
+                                                        <>
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <Package className="h-3 w-3 text-primary" />
+                                                                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">กระจกแต่ละชิ้น</span>
+                                                                <span className="text-[10px] text-muted-foreground ml-auto">
+                                                                    {rowPanes.filter(p => p.currentStatus === "completed").length}/{rowPanes.length} เสร็จ
+                                                                </span>
+                                                            </div>
+                                                            {visiblePanes.map(pane => {
+                                                                const st = PANE_STATUS_CFG[pane.currentStatus] ?? { label: pane.currentStatus, dot: "bg-gray-400", text: "text-gray-500" };
+                                                                return (
+                                                                    <div key={pane._id} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-background border border-border/50">
+                                                                        <span className="font-mono text-[11px] font-bold shrink-0">{pane.paneNumber}</span>
+                                                                        <span className={`flex items-center gap-1 text-[10px] font-medium ${st.text}`}>
+                                                                            <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />
+                                                                            {st.label}
+                                                                        </span>
+                                                                        {pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0) && (
+                                                                            <span className="text-[10px] text-muted-foreground">
+                                                                                {pane.dimensions.width}×{pane.dimensions.height}
+                                                                                {pane.dimensions.thickness > 0 && ` (${pane.dimensions.thickness}mm)`}
+                                                                            </span>
+                                                                        )}
+                                                                        <span className="ml-auto text-[10px] text-muted-foreground">{pane.currentStation}</span>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                            {rowPanes.length > PANE_PEEK && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setShowAllPanes(v => !v)}
+                                                                    className="w-full flex items-center justify-center gap-1 py-1 rounded-lg text-[11px] font-medium text-primary hover:bg-primary/5 transition-colors"
+                                                                >
+                                                                    {showAllPanes
+                                                                        ? <><ChevronDown className="h-3 w-3" /> แสดงน้อยลง</>
+                                                                        : <><ChevronRight className="h-3 w-3" /> แสดงทั้งหมด ({rowPanes.length} ชิ้น)</>
+                                                                    }
+                                                                </button>
+                                                            )}
+                                                        </>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
                                 })}
                             </div>
                         )}

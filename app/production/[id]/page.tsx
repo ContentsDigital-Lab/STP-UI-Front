@@ -9,10 +9,12 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ordersApi } from "@/lib/api/orders";
+import { panesApi } from "@/lib/api/panes";
 import { requestsApi } from "@/lib/api/requests";
 import { stationsApi } from "@/lib/api/stations";
+import { useWebSocket } from "@/lib/hooks/use-socket";
 import { getColorOption } from "@/lib/stations/stations-store";
-import { Order, OrderRequest, Station } from "@/lib/api/types";
+import { Order, OrderRequest, Station, Pane } from "@/lib/api/types";
 
 // ── color storage ─────────────────────────────────────────────────────────────
 const COLOR_STORAGE_KEY = "std_station_colors";
@@ -219,11 +221,17 @@ export default function ProductionDetailPage() {
     const [request,    setRequest]    = useState<OrderRequest | null>(null);
     const [billOrders, setBillOrders] = useState<Order[]>([]);
     const [stations,   setStations]   = useState<Station[]>([]);
+    const [panes,      setPanes]      = useState<Pane[]>([]);
     const [colorMap,   setColorMap]   = useState<Record<string, string>>({});
     const [loading,    setLoading]    = useState(true);
     const [error,      setError]      = useState<string | null>(null);
 
     const stationMap = new Map(stations.map(s => [s._id, s]));
+
+    const loadPanes = useCallback(async () => {
+        const pRes = await panesApi.getAll({ order: id, limit: 100 }).catch(() => null);
+        if (pRes?.success) setPanes(pRes.data ?? []);
+    }, [id]);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -238,8 +246,8 @@ export default function ProductionDetailPage() {
             setOrder(o);
             if (sRes.success) setStations(sRes.data ?? []);
             setColorMap(loadColorMap());
+            await loadPanes();
 
-            // load linked request
             const reqId = o.request && typeof o.request === "object"
                 ? (o.request as OrderRequest)._id
                 : o.request as string;
@@ -247,7 +255,6 @@ export default function ProductionDetailPage() {
                 const rr = await requestsApi.getById(reqId).catch(() => null);
                 if (rr?.success) {
                     setRequest(rr.data);
-                    // load all orders to find siblings in same bill
                     const allRes = await ordersApi.getAll();
                     if (allRes.success) {
                         const siblings = (allRes.data ?? []).filter(x => {
@@ -263,9 +270,11 @@ export default function ProductionDetailPage() {
         } finally {
             setLoading(false);
         }
-    }, [id]);
+    }, [id, loadPanes]);
 
     useEffect(() => { load(); }, [load]);
+
+    useWebSocket("pane", ["pane:updated"], () => { loadPanes(); });
 
     if (loading) return (
         <div className="flex items-center justify-center h-64">
@@ -372,7 +381,6 @@ export default function ProductionDetailPage() {
                             colorMap={colorMap}
                         />
 
-                        {/* Summary row if done */}
                         {order.status === "completed" && (
                             <div className="flex items-center gap-2 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-3 py-2">
                                 <CheckCheck className="h-4 w-4 text-green-600 shrink-0" />
@@ -382,7 +390,6 @@ export default function ProductionDetailPage() {
                             </div>
                         )}
 
-                        {/* Compact station chips */}
                         {order.stations?.length > 0 && (
                             <div className="pt-2 border-t">
                                 <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-semibold mb-2">
@@ -419,6 +426,75 @@ export default function ProductionDetailPage() {
                     </div>
                 </div>
             </div>
+
+            {/* ── Pane list ─────────────────────────────────────────── */}
+            {panes.length > 0 && (
+                <div className="rounded-xl border bg-card p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                        <h2 className="text-sm font-semibold flex items-center gap-2">
+                            <Package className="h-4 w-4 text-primary" />
+                            กระจกแต่ละชิ้น (Panes)
+                        </h2>
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground">
+                                {panes.filter(p => p.currentStatus === "completed").length}/{panes.length} เสร็จ
+                            </span>
+                            <div className="w-20 h-1.5 rounded-full bg-muted overflow-hidden">
+                                <div
+                                    className="h-full rounded-full bg-green-500 transition-all"
+                                    style={{ width: `${(panes.filter(p => p.currentStatus === "completed").length / panes.length) * 100}%` }}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                        {panes.map((pane) => {
+                            const stCfg = {
+                                pending:     { label: "รอ",       dot: "bg-amber-400",  text: "text-amber-600 dark:text-amber-400" },
+                                in_progress: { label: "กำลังทำ",  dot: "bg-blue-500",   text: "text-blue-600 dark:text-blue-400"   },
+                                completed:   { label: "เสร็จ",    dot: "bg-green-500",  text: "text-green-600 dark:text-green-400" },
+                            }[pane.currentStatus] ?? { label: pane.currentStatus, dot: "bg-gray-400", text: "text-gray-500" };
+
+                            const stationName = (() => {
+                                if (pane.currentStation === "queue") return "คิว";
+                                if (pane.currentStation === "ready") return "พร้อมส่ง";
+                                if (pane.currentStation === "defected") return "ชำรุด";
+                                const st = stationMap.get(pane.currentStation);
+                                return st?.name ?? pane.currentStation;
+                            })();
+
+                            return (
+                                <div
+                                    key={pane._id}
+                                    className="flex items-center gap-3 rounded-lg border px-3 py-2.5 hover:bg-muted/20 transition-colors"
+                                >
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-mono font-bold">{pane.paneNumber}</span>
+                                            <span className={`flex items-center gap-1 text-[10px] font-medium ${stCfg.text}`}>
+                                                <span className={`h-1.5 w-1.5 rounded-full ${stCfg.dot}`} />
+                                                {stCfg.label}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                            <span className="text-[11px] text-muted-foreground">สถานี: {stationName}</span>
+                                            {pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0) && (
+                                                <span className="text-[10px] text-muted-foreground/60">
+                                                    {pane.dimensions.width}x{pane.dimensions.height}
+                                                    {pane.dimensions.thickness > 0 && `x${pane.dimensions.thickness}`}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    {pane.currentStatus === "completed" && (
+                                        <CheckCheck className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
