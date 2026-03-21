@@ -48,7 +48,7 @@ export function Sidebar({ collapsed, setCollapsed, onNavigate }: SidebarProps) {
                 collapsed ? "w-[80px]" : "w-[240px]"
             )}
         >
-            <div className="flex h-16 xl:h-20 items-center justify-between px-4 border-b">
+            <div className="flex shrink-0 h-14 sm:h-16 xl:h-20 items-center justify-between px-4 border-b">
                 {!collapsed && (
                     <Link href="/" className="flex items-center justify-center w-full overflow-hidden">
                         <img
@@ -76,9 +76,9 @@ export function Sidebar({ collapsed, setCollapsed, onNavigate }: SidebarProps) {
                             href={item.href}
                             onClick={onNavigate}
                             className={cn(
-                                "group flex items-center rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all duration-200 border-r-[4px] border-transparent",
+                                "group flex items-center rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground dark:hover:bg-[#E8601C]/10 dark:hover:text-[#E8601C] transition-all duration-200 border-r-[4px] border-transparent",
                                 isActive
-                                    ? "bg-sidebar-accent text-sidebar-accent-foreground dark:text-[#E8601C] font-semibold border-sidebar-primary dark:border-[#E8601C]"
+                                    ? "bg-sidebar-accent text-sidebar-accent-foreground dark:bg-[#E8601C]/10 dark:text-[#E8601C] font-semibold border-sidebar-primary dark:border-[#E8601C]"
                                     : "text-sidebar-foreground/70",
                                 collapsed ? "justify-center" : "justify-start"
                             )}

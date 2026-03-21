@@ -53,7 +53,7 @@ export function Header({ onMenuClick, title }: HeaderProps) {
     };
 
     return (
-        <header className="sticky top-0 z-10 flex h-14 sm:h-16 flex-shrink-0 items-center gap-x-2 sm:gap-x-4 border-b bg-background px-3 shadow-sm sm:px-4 md:px-6 lg:px-8">
+        <header className="sticky top-0 z-10 flex shrink-0 h-14 sm:h-16 xl:h-20 items-center gap-x-2 sm:gap-x-4 border-b bg-background px-3 shadow-sm sm:px-4 md:px-6 lg:px-8">
             <Button variant="ghost" size="icon" className="-m-1.5 p-2 text-foreground lg:hidden" onClick={onMenuClick}>
                 <span className="sr-only">Open sidebar</span>
                 <Menu className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden="true" />
