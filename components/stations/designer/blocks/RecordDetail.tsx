@@ -2,8 +2,10 @@
 
 import { useNode } from "@craftjs/core";
 import { useEffect, useState } from "react";
-import { Database, Loader2, AlertCircle } from "lucide-react";
+import { Database, Loader2, AlertCircle, Package, ChevronDown, ChevronRight } from "lucide-react";
 import { fetchApi } from "@/lib/api/config";
+import { panesApi } from "@/lib/api/panes";
+import { Pane } from "@/lib/api/types";
 import { usePreview } from "../PreviewContext";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { useStationContext } from "../StationContext";
@@ -90,6 +92,113 @@ const ENDPOINT_WS: Record<string, { room: string; events: string[] }> = {
     "/station-templates":{ room: "station",    events: ["station:updated", "station-template:updated"] },
 };
 
+// ── Pane list for record detail ───────────────────────────────────────────────
+const PANE_PREVIEW_COUNT = 3;
+const PANE_STATUS: Record<string, { label: string; dot: string; text: string }> = {
+    pending:     { label: "รอ",      dot: "bg-amber-400", text: "text-amber-600" },
+    in_progress: { label: "กำลังทำ", dot: "bg-blue-500",  text: "text-blue-600" },
+    completed:   { label: "เสร็จ",   dot: "bg-green-500", text: "text-green-600" },
+};
+
+function PaneListSection({ record, endpoint }: { record: Record<string, unknown> | null; endpoint: string }) {
+    const [panes, setPanes] = useState<Pane[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [showAll, setShowAll] = useState(false);
+
+    const isRequestEndpoint = endpoint === "/requests" || endpoint === "context" || endpoint.startsWith("/requests/");
+    const isOrderEndpoint = endpoint === "/orders" || endpoint.startsWith("/orders/");
+
+    useEffect(() => {
+        if (!record) { setPanes([]); return; }
+        const id = record._id as string | undefined;
+        if (!id) { setPanes([]); return; }
+        setLoading(true);
+        setShowAll(false);
+        const params: { request?: string; order?: string; limit: number } = { limit: 100 };
+        if (isRequestEndpoint) params.request = id;
+        else if (isOrderEndpoint) params.order = id;
+        else { setPanes([]); setLoading(false); return; }
+        panesApi.getAll(params)
+            .then(res => setPanes(res.success ? res.data ?? [] : []))
+            .catch(() => setPanes([]))
+            .finally(() => setLoading(false));
+    }, [record, endpoint, isRequestEndpoint, isOrderEndpoint]);
+
+    useWebSocket("pane", ["pane:updated"], () => {
+        if (!record?._id) return;
+        const id = record._id as string;
+        const params: { request?: string; order?: string; limit: number } = { limit: 100 };
+        if (isRequestEndpoint) params.request = id;
+        else if (isOrderEndpoint) params.order = id;
+        else return;
+        panesApi.getAll(params)
+            .then(res => setPanes(res.success ? res.data ?? [] : []))
+            .catch(() => {});
+    });
+
+    if (!isRequestEndpoint && !isOrderEndpoint) return null;
+    if (loading) return (
+        <div className="px-5 py-3 border-t flex items-center gap-2 text-muted-foreground">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <span className="text-xs">กำลังโหลดกระจก...</span>
+        </div>
+    );
+    if (panes.length === 0) return null;
+
+    const visible = showAll ? panes : panes.slice(0, PANE_PREVIEW_COUNT);
+    const hasMore = panes.length > PANE_PREVIEW_COUNT;
+    const done = panes.filter(p => p.currentStatus === "completed").length;
+
+    return (
+        <div className="border-t">
+            <div className="px-5 py-2.5 flex items-center justify-between bg-muted/20">
+                <div className="flex items-center gap-2">
+                    <Package className="h-3.5 w-3.5 text-primary" />
+                    <span className="text-xs font-semibold">กระจกแต่ละชิ้น</span>
+                    <span className="text-[10px] text-muted-foreground">{panes.length} ชิ้น</span>
+                </div>
+                <span className="text-[10px] text-muted-foreground">
+                    {done}/{panes.length} เสร็จ
+                </span>
+            </div>
+            <div className="px-5 py-2 space-y-1.5">
+                {visible.map(pane => {
+                    const st = PANE_STATUS[pane.currentStatus] ?? { label: pane.currentStatus, dot: "bg-gray-400", text: "text-gray-500" };
+                    return (
+                        <div key={pane._id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/30 border border-border/50">
+                            <span className="font-mono text-[11px] font-bold shrink-0">{pane.paneNumber}</span>
+                            <span className={`flex items-center gap-1 text-[10px] font-medium ${st.text}`}>
+                                <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />
+                                {st.label}
+                            </span>
+                            {pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0) && (
+                                <span className="text-[10px] text-muted-foreground">
+                                    {pane.dimensions.width}×{pane.dimensions.height}
+                                    {pane.dimensions.thickness > 0 && ` (${pane.dimensions.thickness}mm)`}
+                                </span>
+                            )}
+                            <span className="ml-auto text-[10px] text-muted-foreground">{pane.currentStation}</span>
+                        </div>
+                    );
+                })}
+                {hasMore && (
+                    <button
+                        type="button"
+                        onClick={() => setShowAll(v => !v)}
+                        className="w-full flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-medium text-primary hover:bg-primary/5 transition-colors"
+                    >
+                        {showAll ? (
+                            <><ChevronDown className="h-3 w-3" /> แสดงน้อยลง</>
+                        ) : (
+                            <><ChevronRight className="h-3 w-3" /> แสดงทั้งหมด ({panes.length} ชิ้น)</>
+                        )}
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+}
+
 // ── Props ─────────────────────────────────────────────────────────────────────
 interface RecordDetailProps {
     title?:      string;
@@ -107,7 +216,7 @@ export function RecordDetail({
 }: RecordDetailProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
-    const { orderData, requestData, selectedRecord } = useStationContext();
+    const { orderData, requestData, paneData, selectedRecord } = useStationContext();
 
     const fields: DetailField[] = (() => {
         try { return JSON.parse(fieldsJson); } catch { return DEFAULT_FIELDS; }
@@ -123,6 +232,7 @@ export function RecordDetail({
         endpoint === "context"                                               ? selectedRecord :
         (endpoint === "/requests" || endpoint.startsWith("/requests/"))      ? requestData    :
         (endpoint === "/orders"   || endpoint.startsWith("/orders/"))        ? orderData      :
+        (endpoint === "/panes"    || endpoint.startsWith("/panes/"))         ? paneData       :
         null;
 
     const record = contextRecord ?? fetched;
@@ -168,6 +278,7 @@ export function RecordDetail({
                         </div>
                     ))}
                 </div>
+                {contextRecord && <PaneListSection record={contextRecord} endpoint={endpoint} />}
             </div>
         );
     }

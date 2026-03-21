@@ -15,6 +15,7 @@ import {
     UserCheck,
     ChevronLeft,
     ChevronRight,
+    ChevronDown,
     MoreHorizontal,
     Edit3,
     Trash2,
@@ -59,10 +60,11 @@ import {
     Sheet,
     SheetContent,
 } from "@/components/ui/sheet";
+import { panesApi } from "@/lib/api/panes";
 import { requestsApi } from "@/lib/api/requests";
 import { customersApi } from "@/lib/api/customers";
 import { workersApi } from "@/lib/api/workers";
-import { OrderRequest, Customer, Worker } from "@/lib/api/types";
+import { OrderRequest, Customer, Worker, Pane } from "@/lib/api/types";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { toast } from "sonner";
 
@@ -79,6 +81,9 @@ export default function OrderRequestsPage() {
 
     const [selectedRequest, setSelectedRequest] = useState<OrderRequest | null>(null);
     const [isDetailOpen, setIsDetailOpen] = useState(false);
+    const [detailPanes, setDetailPanes] = useState<Pane[]>([]);
+    const [panesLoading, setPanesLoading] = useState(false);
+    const [showAllPanes, setShowAllPanes] = useState(false);
 
     // Filters
     const [searchQuery, setSearchQuery] = useState("");
@@ -282,6 +287,18 @@ export default function OrderRequestsPage() {
     const openDetails = (req: OrderRequest) => {
         setSelectedRequest(req);
         setIsDetailOpen(true);
+        setDetailPanes([]);
+        setPanesLoading(true);
+        setShowAllPanes(false);
+        panesApi.getAll({ limit: 100 }).then(res => {
+            if (res.success) {
+                const requestPanes = (res.data ?? []).filter(p => {
+                    const pReq = typeof p.request === "string" ? p.request : (p.request as { _id?: string })?._id;
+                    return pReq === req._id;
+                });
+                setDetailPanes(requestPanes);
+            }
+        }).catch(() => {}).finally(() => setPanesLoading(false));
     };
 
     const openEditDialog = (req: OrderRequest) => {
@@ -808,6 +825,76 @@ export default function OrderRequestsPage() {
                                             </div>
                                         </div>
                                     </div>
+                                </div>
+
+                                {/* Panes */}
+                                <div className="px-8 pb-8 space-y-4">
+                                    <div className="flex items-center gap-2">
+                                        <Package className="h-4 w-4 text-[#E8601C]" />
+                                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em]">
+                                            {lang === 'th' ? 'กระจกแต่ละชิ้น' : 'Individual Panes'}
+                                        </h3>
+                                        {detailPanes.length > 0 && (
+                                            <span className="ml-auto text-xs font-bold text-slate-400">{detailPanes.length} {lang === 'th' ? 'ชิ้น' : 'pcs'}</span>
+                                        )}
+                                    </div>
+                                    {panesLoading ? (
+                                        <div className="space-y-2">
+                                            {[1, 2, 3].map(i => <Skeleton key={i} className="h-14 rounded-2xl" />)}
+                                        </div>
+                                    ) : detailPanes.length === 0 ? (
+                                        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 text-center">
+                                            <p className="text-xs text-slate-400">{lang === 'th' ? 'ยังไม่มีกระจก' : 'No panes yet'}</p>
+                                        </div>
+                                    ) : (() => {
+                                        const PANE_PEEK = 3;
+                                        const visible = showAllPanes ? detailPanes : detailPanes.slice(0, PANE_PEEK);
+                                        const hasMore = detailPanes.length > PANE_PEEK;
+                                        return (
+                                        <div className="space-y-2">
+                                            {visible.map(pane => {
+                                                const stCfg = {
+                                                    pending:     { label: lang === 'th' ? 'รอ' : 'Pending',       dot: 'bg-amber-400' },
+                                                    in_progress: { label: lang === 'th' ? 'กำลังทำ' : 'In Progress', dot: 'bg-blue-500' },
+                                                    completed:   { label: lang === 'th' ? 'เสร็จ' : 'Done',        dot: 'bg-green-500' },
+                                                }[pane.currentStatus] ?? { label: pane.currentStatus, dot: 'bg-gray-400' };
+                                                return (
+                                                    <div key={pane._id} className="bg-white dark:bg-slate-900 px-4 py-3 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center gap-3">
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-xs font-mono font-bold text-slate-900 dark:text-white">{pane.paneNumber}</span>
+                                                                <span className="flex items-center gap-1 text-[10px] font-medium text-slate-500">
+                                                                    <span className={`h-1.5 w-1.5 rounded-full ${stCfg.dot}`} />
+                                                                    {stCfg.label}
+                                                                </span>
+                                                            </div>
+                                                            {pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0) && (
+                                                                <p className="text-[10px] text-slate-400 mt-0.5">
+                                                                    {pane.dimensions.width}×{pane.dimensions.height}
+                                                                    {pane.dimensions.thickness > 0 && ` (${pane.dimensions.thickness}mm)`}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                        <span className="text-[10px] text-slate-400 font-medium shrink-0">{pane.currentStation}</span>
+                                                    </div>
+                                                );
+                                            })}
+                                            {hasMore && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowAllPanes(v => !v)}
+                                                    className="w-full flex items-center justify-center gap-1.5 py-2 rounded-2xl text-xs font-bold text-[#1B4B9A] dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/20 transition-colors"
+                                                >
+                                                    {showAllPanes ? (
+                                                        <><ChevronDown className="h-3.5 w-3.5" /> {lang === 'th' ? 'แสดงน้อยลง' : 'Show less'}</>
+                                                    ) : (
+                                                        <><ChevronRight className="h-3.5 w-3.5" /> {lang === 'th' ? `แสดงทั้งหมด (${detailPanes.length} ชิ้น)` : `Show all (${detailPanes.length} pcs)`}</>
+                                                    )}
+                                                </button>
+                                            )}
+                                        </div>
+                                        );
+                                    })()}
                                 </div>
 
                                 {/* Panel Footer */}

@@ -4,34 +4,22 @@ import { createContext, useContext, useState, useCallback, type ReactNode } from
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface StationContextValue {
-    /** ID of the current station (from URL /stations/[stationId]) */
     stationId:      string | null;
-    /** Form fields written by InputField / SelectField / TextAreaField / StationSequencePicker */
     formData:       Record<string, unknown>;
     setField:       (key: string, value: unknown) => void;
     resetForm:      () => void;
-    /** Current order data — populated when ?orderId= is in URL */
     orderData:      Record<string, unknown> | null;
     setOrderData:   (data: Record<string, unknown> | null) => void;
     orderId:        string | null;
-    /** Current request (บิล) data — populated when ?requestId= is in URL */
     requestData:    Record<string, unknown> | null;
     setRequestData: (data: Record<string, unknown> | null) => void;
     requestId:      string | null;
-    /** Row selected by clicking in a RecordList — shared with RecordDetail */
+    paneData:       Record<string, unknown> | null;
+    setPaneData:    (data: Record<string, unknown> | null) => void;
+    paneId:         string | null;
     selectedRecord:    Record<string, unknown> | null;
     setSelectedRecord: (record: Record<string, unknown> | null) => void;
-    /**
-     * Resolve a dotted path against orderData / requestData / formData.
-     *   "order.customer.name"   → orderData.customer.name
-     *   "request.customer.name" → requestData.customer.name
-     *   "form.notes"            → formData.notes
-     */
     resolveVar: (path: string) => string;
-    /**
-     * Incremented by ButtonBlock after a successful API call.
-     * RecordList depends on this to re-fetch data automatically.
-     */
     refreshCounter: number;
     triggerRefresh: () => void;
 }
@@ -47,6 +35,9 @@ const StationContext = createContext<StationContextValue>({
     requestData:       null,
     setRequestData:    () => {},
     requestId:         null,
+    paneData:          null,
+    setPaneData:       () => {},
+    paneId:            null,
     selectedRecord:    null,
     setSelectedRecord: () => {},
     resolveVar:        () => "",
@@ -71,6 +62,7 @@ export function StationProvider({
     const [formData,        setFormData]        = useState<Record<string, unknown>>({});
     const [orderData,       setOrderData]       = useState<Record<string, unknown> | null>(initialOrderData   ?? null);
     const [requestData,     setRequestData]     = useState<Record<string, unknown> | null>(initialRequestData ?? null);
+    const [paneData,        setPaneData]        = useState<Record<string, unknown> | null>(null);
     const [selectedRecord,  setSelectedRecord]  = useState<Record<string, unknown> | null>(null);
     const [refreshCounter,  setRefreshCounter]  = useState(0);
 
@@ -78,6 +70,7 @@ export function StationProvider({
 
     const orderId   = orderData   ? (orderData._id   as string ?? null) : null;
     const requestId = requestData ? (requestData._id as string ?? null) : null;
+    const paneId    = paneData    ? (paneData._id    as string ?? null) : null;
 
     const setField  = useCallback((key: string, value: unknown) => {
         if (!key) return;
@@ -86,29 +79,9 @@ export function StationProvider({
 
     const resetForm = useCallback(() => setFormData({}), []);
 
-    const resolveVar = useCallback((path: string): string => {
-        // form.fieldKey → read from formData
-        if (path.startsWith("form.")) {
-            const val = formData[path.slice(5)];
-            return val != null ? String(val) : "";
-        }
-        // request.x.y → walk requestData
-        if (path.startsWith("request.")) {
-            if (!requestData) return "";
-            const parts = path.slice(8).split(".");
-            let cur: unknown = requestData;
-            for (const p of parts) {
-                if (!cur || typeof cur !== "object") return "";
-                cur = (cur as Record<string, unknown>)[p];
-            }
-            if (cur == null) return "";
-            if (typeof cur === "object") return (cur as Record<string, string>).name ?? JSON.stringify(cur);
-            return String(cur);
-        }
-        // order.x.y or just x.y → walk orderData
-        if (!orderData) return "";
-        const parts = path.replace(/^order\./, "").split(".");
-        let cur: unknown = orderData;
+    const walkObject = useCallback((obj: Record<string, unknown>, dotPath: string): string => {
+        const parts = dotPath.split(".");
+        let cur: unknown = obj;
         for (const p of parts) {
             if (!cur || typeof cur !== "object") return "";
             cur = (cur as Record<string, unknown>)[p];
@@ -116,7 +89,22 @@ export function StationProvider({
         if (cur == null) return "";
         if (typeof cur === "object") return (cur as Record<string, string>).name ?? JSON.stringify(cur);
         return String(cur);
-    }, [formData, orderData, requestData]);
+    }, []);
+
+    const resolveVar = useCallback((path: string): string => {
+        if (path.startsWith("form.")) {
+            const val = formData[path.slice(5)];
+            return val != null ? String(val) : "";
+        }
+        if (path.startsWith("request.")) {
+            return requestData ? walkObject(requestData, path.slice(8)) : "";
+        }
+        if (path.startsWith("pane.")) {
+            return paneData ? walkObject(paneData, path.slice(5)) : "";
+        }
+        if (!orderData) return "";
+        return walkObject(orderData, path.replace(/^order\./, ""));
+    }, [formData, orderData, requestData, paneData, walkObject]);
 
     return (
         <StationContext.Provider value={{
@@ -124,6 +112,7 @@ export function StationProvider({
             formData, setField, resetForm,
             orderData, setOrderData, orderId,
             requestData, setRequestData, requestId,
+            paneData, setPaneData, paneId,
             selectedRecord, setSelectedRecord,
             resolveVar,
             refreshCounter, triggerRefresh,

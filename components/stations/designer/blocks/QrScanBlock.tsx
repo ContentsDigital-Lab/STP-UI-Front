@@ -12,10 +12,10 @@ import { usePreview } from "../PreviewContext";
 import { useStationContext } from "../StationContext";
 import { CameraScanModal } from "./CameraScanModal";
 
-/** Context type determined from the datasource */
-const CONTEXT_SOURCE: Record<string, "request" | "order"> = {
+const CONTEXT_SOURCE: Record<string, "request" | "order" | "pane"> = {
     "/requests": "request",
     "/orders":   "order",
+    "/panes":    "pane",
 };
 
 const STATUS_MAP: Record<string, { label: string; bg: string; text: string; dot: string }> = {
@@ -67,7 +67,7 @@ export function QrScanBlock({
 }: QrScanBlockProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
-    const { setOrderData, setRequestData, triggerRefresh } = useStationContext();
+    const { setOrderData, setRequestData, setPaneData, triggerRefresh } = useStationContext();
     const contextType = CONTEXT_SOURCE[dataSource] ?? "order";
 
     const inputRef = useRef<HTMLInputElement>(null);
@@ -94,6 +94,8 @@ export function QrScanBlock({
 
             if (parsed.type === "id") {
                 endpoint = `${dataSource}/${parsed.value}`;
+            } else if (dataSource === "/panes") {
+                endpoint = `/panes?paneNumber=${encodeURIComponent(parsed.value)}&limit=1`;
             } else {
                 endpoint = `${dataSource}?code=${encodeURIComponent(parsed.value)}&limit=1`;
             }
@@ -105,9 +107,9 @@ export function QrScanBlock({
             const record = Array.isArray(res.data) ? res.data[0] : res.data;
             if (!record) throw new Error("ไม่พบรายการที่ตรงกัน");
 
-            // Populate context + local state
             if (contextType === "order")   setOrderData(record);
             if (contextType === "request") setRequestData(record);
+            if (contextType === "pane")    setPaneData(record);
             triggerRefresh();
             setScannedRecord(record);
 
@@ -153,6 +155,7 @@ export function QrScanBlock({
                 setScannedRecord(refreshed.data);
                 if (contextType === "order")   setOrderData(refreshed.data);
                 if (contextType === "request") setRequestData(refreshed.data);
+                if (contextType === "pane")    setPaneData(refreshed.data);
                 triggerRefresh();
             }
             setActionResult("success");
@@ -183,17 +186,24 @@ export function QrScanBlock({
         setActionResult(null);
         if (contextType === "order")   setOrderData(null);
         if (contextType === "request") setRequestData(null);
+        if (contextType === "pane")    setPaneData(null);
         setTimeout(() => inputRef.current?.focus(), 50);
     }
 
     // ── Preview render ────────────────────────────────────────────────────────
     if (isPreview) {
-        const statusRaw = scannedRecord?.status as string | undefined;
+        const statusRaw = (contextType === "pane" ? scannedRecord?.currentStatus : scannedRecord?.status) as string | undefined;
         const statusCfg = statusRaw ? (STATUS_MAP[statusRaw] ?? null) : null;
 
-        // Order fields to display
         const orderFields =
-            contextType === "order"
+            contextType === "pane"
+                ? [
+                      { icon: <ClipboardList className="h-3.5 w-3.5" />, label: "เลข Pane",       value: resolveField(scannedRecord ?? {}, "paneNumber") },
+                      { icon: <Package className="h-3.5 w-3.5" />,       label: "ประเภทกระจก",    value: resolveField(scannedRecord ?? {}, "glassTypeLabel") },
+                      { icon: null,                                        label: "ขนาด (WxH)",     value: (() => { const d = (scannedRecord as Record<string, unknown>)?.dimensions as Record<string, number> | undefined; return d ? `${d.width}x${d.height}${d.thickness ? `x${d.thickness}` : ""}` : "—"; })() },
+                      { icon: null,                                        label: "สถานีปัจจุบัน", value: resolveField(scannedRecord ?? {}, "currentStation") },
+                  ]
+                : contextType === "order"
                 ? [
                       { icon: <ClipboardList className="h-3.5 w-3.5" />, label: "รหัสออเดอร์", value: resolveField(scannedRecord ?? {}, "code") },
                       { icon: <User className="h-3.5 w-3.5" />,          label: "ลูกค้า",       value: resolveField(scannedRecord ?? {}, "customer") },
@@ -302,37 +312,38 @@ export function QrScanBlock({
                             })}
                         </div>
 
-                        {/* Scan-in button (shown when autoAction is "none" so worker confirms manually) */}
-                        {autoAction === "none" && scannedRecord.status === "pending" && (
-                            <div className="px-4 pb-4 pt-1">
-                                <button
-                                    onClick={() => handleManualAction({ status: "in_progress" })}
-                                    disabled={actionLoading}
-                                    className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-60"
-                                >
-                                    {actionLoading
-                                        ? <Loader2 className="h-4 w-4 animate-spin" />
-                                        : <CheckCircle2 className="h-4 w-4" />
-                                    }
-                                    สแกนเข้าสถานี
-                                </button>
-                            </div>
-                        )}
-                        {autoAction === "none" && scannedRecord.status === "in_progress" && (
-                            <div className="px-4 pb-4 pt-1">
-                                <button
-                                    onClick={() => handleManualAction({ status: "completed" })}
-                                    disabled={actionLoading}
-                                    className="w-full flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-500 transition-colors disabled:opacity-60"
-                                >
-                                    {actionLoading
-                                        ? <Loader2 className="h-4 w-4 animate-spin" />
-                                        : <CheckCircle2 className="h-4 w-4" />
-                                    }
-                                    สแกนออก / เสร็จสิ้น
-                                </button>
-                            </div>
-                        )}
+                        {autoAction === "none" && (() => {
+                            const st = (contextType === "pane" ? scannedRecord.currentStatus : scannedRecord.status) as string | undefined;
+                            const patchField = contextType === "pane" ? "currentStatus" : "status";
+                            return (
+                                <>
+                                    {st === "pending" && (
+                                        <div className="px-4 pb-4 pt-1">
+                                            <button
+                                                onClick={() => handleManualAction({ [patchField]: "in_progress" })}
+                                                disabled={actionLoading}
+                                                className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-60"
+                                            >
+                                                {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                                                สแกนเข้าสถานี
+                                            </button>
+                                        </div>
+                                    )}
+                                    {st === "in_progress" && (
+                                        <div className="px-4 pb-4 pt-1">
+                                            <button
+                                                onClick={() => handleManualAction({ [patchField]: "completed" })}
+                                                disabled={actionLoading}
+                                                className="w-full flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-500 transition-colors disabled:opacity-60"
+                                            >
+                                                {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                                                สแกนออก / เสร็จสิ้น
+                                            </button>
+                                        </div>
+                                    )}
+                                </>
+                            );
+                        })()}
 
                         {/* Action result feedback */}
                         {actionResult === "success" && (

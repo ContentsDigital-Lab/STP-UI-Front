@@ -6,7 +6,8 @@ import { QRCodeSVG } from "qrcode.react";
 import { Loader2, Printer, ArrowLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ordersApi } from "@/lib/api/orders";
-import { Order, Material } from "@/lib/api/types";
+import { panesApi } from "@/lib/api/panes";
+import { Order, Material, Pane } from "@/lib/api/types";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const STATION_LABELS: Record<string, string> = {
@@ -64,14 +65,19 @@ export default function WorkOrderPrintPage() {
     const router   = useRouter();
 
     const [order,   setOrder]   = useState<Order | null>(null);
+    const [panes,   setPanes]   = useState<Pane[]>([]);
     const [loading, setLoading] = useState(true);
     const [baseUrl, setBaseUrl] = useState("");
 
     useEffect(() => {
         setBaseUrl(window.location.origin);
-        ordersApi.getById(id)
-            .then((res) => { if (res.success) setOrder(res.data); })
-            .finally(() => setLoading(false));
+        Promise.all([
+            ordersApi.getById(id),
+            panesApi.getAll({ order: id, limit: 100 }),
+        ]).then(([oRes, pRes]) => {
+            if (oRes.success) setOrder(oRes.data);
+            if (pRes.success) setPanes(pRes.data ?? []);
+        }).finally(() => setLoading(false));
     }, [id]);
 
     if (loading) return (
@@ -206,38 +212,56 @@ export default function WorkOrderPrintPage() {
                 {/* ── Section 3: Glass Piece Grid ── */}
                 <div className="page-break-before">
                     <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-4">
-                        รายการกระจกแต่ละชิ้น — {qty} ชิ้น
+                        รายการกระจกแต่ละชิ้น — {panes.length > 0 ? panes.length : qty} ชิ้น
                     </p>
                     <div className="grid grid-cols-3 gap-4">
-                        {Array.from({ length: qty }, (_, i) => {
-                            const pieceNum    = i + 1;
-                            const pieceCode   = `${orderCode}-${zeroPad(pieceNum, 3)}`;
-                            const pieceQrVal  = `${baseUrl}/production/${order._id}?piece=${pieceNum}`;
-                            return (
-                                <div key={pieceNum} className="border-2 border-gray-200 rounded-xl p-3 flex flex-col items-center gap-2 bg-white">
-                                    {/* Piece ID */}
-                                    <p className="font-mono font-black text-sm tracking-widest text-black">#{pieceCode}</p>
-
-                                    {/* QR */}
+                        {panes.length > 0
+                            ? panes.map((pane) => (
+                                <div key={pane._id} className="border-2 border-gray-200 rounded-xl p-3 flex flex-col items-center gap-2 bg-white">
+                                    <p className="font-mono font-black text-sm tracking-widest text-black">#{pane.paneNumber}</p>
                                     <div className="p-2 bg-white border border-gray-100 rounded-lg">
-                                        <QRCodeSVG value={pieceQrVal} size={100} bgColor="#ffffff" fgColor="#000000" level="M" marginSize={1} />
+                                        <QRCodeSVG value={pane.qrCode} size={100} bgColor="#ffffff" fgColor="#000000" level="M" marginSize={1} />
                                     </div>
-
-                                    {/* Material */}
                                     <div className="w-full text-center">
-                                        <p className="text-xs font-medium text-gray-700">{getStr(order.material)}</p>
-                                        {getMaterialSpec(order.material) && (
+                                        <p className="text-xs font-medium text-gray-700">{pane.glassTypeLabel || getStr(order.material)}</p>
+                                        {pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0) && (
+                                            <p className="text-[10px] text-gray-400 mt-0.5">
+                                                {pane.dimensions.width}x{pane.dimensions.height}
+                                                {pane.dimensions.thickness > 0 && ` (${pane.dimensions.thickness}mm)`}
+                                            </p>
+                                        )}
+                                        {!pane.dimensions?.width && getMaterialSpec(order.material) && (
                                             <p className="text-[10px] text-gray-400 mt-0.5">{getMaterialSpec(order.material)}</p>
                                         )}
                                     </div>
-
-                                    {/* Signature line */}
                                     <div className="w-full border-t border-dashed border-gray-200 pt-2 mt-auto">
                                         <p className="text-[9px] text-gray-300 text-center">ผ่านสถานี _______________</p>
                                     </div>
                                 </div>
-                            );
-                        })}
+                            ))
+                            : Array.from({ length: qty }, (_, i) => {
+                                const pieceNum   = i + 1;
+                                const pieceCode  = `${orderCode}-${zeroPad(pieceNum, 3)}`;
+                                const pieceQrVal = `${baseUrl}/production/${order._id}?piece=${pieceNum}`;
+                                return (
+                                    <div key={pieceNum} className="border-2 border-gray-200 rounded-xl p-3 flex flex-col items-center gap-2 bg-white">
+                                        <p className="font-mono font-black text-sm tracking-widest text-black">#{pieceCode}</p>
+                                        <div className="p-2 bg-white border border-gray-100 rounded-lg">
+                                            <QRCodeSVG value={pieceQrVal} size={100} bgColor="#ffffff" fgColor="#000000" level="M" marginSize={1} />
+                                        </div>
+                                        <div className="w-full text-center">
+                                            <p className="text-xs font-medium text-gray-700">{getStr(order.material)}</p>
+                                            {getMaterialSpec(order.material) && (
+                                                <p className="text-[10px] text-gray-400 mt-0.5">{getMaterialSpec(order.material)}</p>
+                                            )}
+                                        </div>
+                                        <div className="w-full border-t border-dashed border-gray-200 pt-2 mt-auto">
+                                            <p className="text-[9px] text-gray-300 text-center">ผ่านสถานี _______________</p>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        }
                     </div>
                 </div>
             </div>

@@ -11,6 +11,7 @@ import { usePreview } from "../PreviewContext";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { inventoriesApi } from "@/lib/api/inventories";
 import { ordersApi }       from "@/lib/api/orders";
+import { panesApi }        from "@/lib/api/panes";
 import { stationsApi }     from "@/lib/api/stations";
 import { Order, Inventory, Material, Station } from "@/lib/api/types";
 
@@ -136,15 +137,48 @@ export function OrderReleasePanel({
         try {
             const res = await ordersApi.release(order._id);
             if (res.success && res.data.code) {
-                // Show QR immediately after release
-                const mat = typeof order.material === "object" ? (order.material as { name?: string }).name ?? "" : "";
-                const cus = typeof order.customer === "object" ? (order.customer as { name?: string }).name ?? "" : "";
+                const routing = assignments[order._id] ?? [];
+                const mat = resolveMat(order.material);
+
+                // Update existing panes with routing, or create if none exist
+                const existingPanes = await panesApi.getAll({ order: order._id, limit: 100 }).catch(() => null);
+                const panes = existingPanes?.success ? (existingPanes.data ?? []) : [];
+
+                if (panes.length > 0) {
+                    // Panes already exist (created at request time) — assign routing
+                    if (routing.length > 0) {
+                        Promise.all(
+                            panes.map(p => panesApi.update(p._id, { routing }))
+                        ).catch(err => console.error("[OrderReleasePanel] Failed to update panes:", err));
+                    }
+                } else {
+                    // No panes yet — create them now as fallback
+                    const qty = Math.max(1, order.quantity ?? 1);
+                    const spec = mat?.specDetails;
+                    const panePayload = {
+                        order: order._id,
+                        currentStation: "queue" as const,
+                        currentStatus: "pending" as const,
+                        routing: routing.length > 0 ? routing : undefined,
+                        dimensions: {
+                            width: spec?.width ? parseFloat(spec.width) || 0 : 0,
+                            height: spec?.length ? parseFloat(spec.length) || 0 : 0,
+                            thickness: spec?.thickness ? parseFloat(spec.thickness) || 0 : 0,
+                        },
+                        glassType: matId(order.material) || undefined,
+                        glassTypeLabel: matName(order.material) || undefined,
+                    };
+                    Promise.all(
+                        Array.from({ length: qty }, () => panesApi.create({ ...panePayload }))
+                    ).catch(err => console.error("[OrderReleasePanel] Failed to create panes:", err));
+                }
+
+                const cusName = typeof order.customer === "object" ? (order.customer as { name?: string }).name ?? "" : "";
                 setQrTarget({
                     code:  res.data.code,
-                    label: [mat, cus].filter(Boolean).join(" — "),
+                    label: [mat?.name ?? "", cusName].filter(Boolean).join(" — "),
                     url:   `${window.location.origin}/production/${order._id}`,
                 });
-                // refresh list
                 await load();
             }
         } finally {
