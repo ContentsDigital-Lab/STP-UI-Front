@@ -64,7 +64,7 @@ import {
     ArrowRightLeft,
 } from "lucide-react";
 
-const ITEMS_PER_PAGE = 20;
+const ITEMS_PER_PAGE = 10;
 
 const ACTION_LABELS: Record<string, { th: string; en: string; color: string }> = {
     import: { th: "นำเข้าคลัง", en: "Import", color: "emerald" },

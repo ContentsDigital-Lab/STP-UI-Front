@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { QRCodeCanvas } from "qrcode.react";
 import { ordersApi } from "@/lib/api/orders";
 import type { Order, Customer, Material, Worker } from "@/lib/api/types";
-import type { StickerTemplate } from "./page";
+import type { StickerTemplate, StickerElement } from "./page";
 
 const MM_TO_PX = 3.7795275591;
 
@@ -41,66 +41,92 @@ function resolveText(text: string, d: SampleData): string {
         .replace(/\{\{time\}\}/g, d.time);
 }
 
+function renderEl(el: StickerElement, scale: number, data: SampleData): React.ReactNode {
+    const left = el.x * scale, top = el.y * scale;
+
+    if (el.type === "text" || el.type === "dynamic") {
+        return (
+            <span key={el.id} style={{
+                position: "absolute", left, top,
+                fontSize: el.fontSize * scale, color: el.fill,
+                fontWeight: el.bold ? "bold" : "normal",
+                fontStyle: el.italic ? "italic" : "normal",
+                fontFamily: "'Prompt', sans-serif",
+                whiteSpace: "nowrap", lineHeight: 1, userSelect: "none",
+                transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
+                transformOrigin: "0 0",
+            }}>
+                {resolveText(el.text, data)}
+            </span>
+        );
+    }
+    if (el.type === "qr") {
+        const qrSize = Math.round(Math.min(el.width, el.height) * scale);
+        return (
+            <div key={el.id} style={{
+                position: "absolute", left, top,
+                transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
+                transformOrigin: "0 0",
+            }}>
+                <QRCodeCanvas value={resolveText(el.value, data) || " "} size={qrSize} />
+            </div>
+        );
+    }
+    if (el.type === "rect") {
+        return (
+            <div key={el.id} style={{
+                position: "absolute", left, top,
+                width: el.width * scale, height: el.height * scale,
+                background: el.fill === "transparent" ? "transparent" : el.fill,
+                border: `${Math.max(0.5, el.strokeWidth * scale)}px solid ${el.stroke}`,
+                boxSizing: "border-box",
+                transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
+                transformOrigin: "0 0",
+            }} />
+        );
+    }
+    if (el.type === "line") {
+        const [x1 = 0, y1 = 0, x2 = 0, y2 = 0] = el.points;
+        const dx = (x2 - x1) * scale, dy = (y2 - y1) * scale;
+        return (
+            <div key={el.id} style={{
+                position: "absolute", left: left + x1 * scale, top: top + y1 * scale,
+                width: Math.sqrt(dx * dx + dy * dy), height: Math.max(1, el.strokeWidth * scale),
+                background: el.stroke, transformOrigin: "0 50%",
+                transform: `rotate(${Math.atan2(dy, dx) * 180 / Math.PI + (el.rotation ?? 0)}deg)`,
+            }} />
+        );
+    }
+    if (el.type === "image") {
+        // eslint-disable-next-line @next/next/no-img-element
+        return <img key={el.id} src={el.src} alt="" style={{
+            position: "absolute", left, top,
+            width: el.width * scale, height: el.height * scale, objectFit: "contain",
+            transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
+            transformOrigin: "0 0",
+        }} />;
+    }
+    if (el.type === "group") {
+        return (
+            <div key={el.id} style={{
+                position: "absolute", left, top,
+                transform: el.rotation ? `rotate(${el.rotation}deg)` : undefined,
+                transformOrigin: "0 0",
+            }}>
+                {el.children.map(child => renderEl(child, scale, data))}
+            </div>
+        );
+    }
+    return null;
+}
+
 function PreviewCanvas({ template, data, scale }: { template: StickerTemplate; data: SampleData; scale: number }) {
     const pxW = Math.round(template.width * MM_TO_PX);
     const pxH = Math.round(template.height * MM_TO_PX);
 
     return (
         <div style={{ position: "relative", width: pxW * scale, height: pxH * scale, background: "white", overflow: "hidden", flexShrink: 0 }}>
-            {template.elements.map(el => {
-                const left = el.x * scale, top = el.y * scale;
-
-                if (el.type === "text" || el.type === "dynamic") {
-                    return (
-                        <span key={el.id} style={{
-                            position: "absolute", left, top,
-                            fontSize: el.fontSize * scale, color: el.fill,
-                            fontWeight: el.bold ? "bold" : "normal",
-                            fontStyle: el.italic ? "italic" : "normal",
-                            fontFamily: "'Prompt', sans-serif",
-                            whiteSpace: "nowrap", lineHeight: 1, userSelect: "none",
-                        }}>
-                            {resolveText(el.text, data)}
-                        </span>
-                    );
-                }
-                if (el.type === "qr") {
-                    const qrSize = Math.round(Math.min(el.width, el.height) * scale);
-                    return (
-                        <div key={el.id} style={{ position: "absolute", left, top }}>
-                            <QRCodeCanvas value={resolveText(el.value, data) || " "} size={qrSize} />
-                        </div>
-                    );
-                }
-                if (el.type === "rect") {
-                    return (
-                        <div key={el.id} style={{
-                            position: "absolute", left, top,
-                            width: el.width * scale, height: el.height * scale,
-                            background: el.fill === "transparent" ? "transparent" : el.fill,
-                            border: `${Math.max(0.5, el.strokeWidth * scale)}px solid ${el.stroke}`,
-                            boxSizing: "border-box",
-                        }} />
-                    );
-                }
-                if (el.type === "line") {
-                    const [x1 = 0, y1 = 0, x2 = 0, y2 = 0] = el.points;
-                    const dx = (x2 - x1) * scale, dy = (y2 - y1) * scale;
-                    return (
-                        <div key={el.id} style={{
-                            position: "absolute", left: left + x1 * scale, top: top + y1 * scale,
-                            width: Math.sqrt(dx * dx + dy * dy), height: Math.max(1, el.strokeWidth * scale),
-                            background: el.stroke, transformOrigin: "0 50%",
-                            transform: `rotate(${Math.atan2(dy, dx) * 180 / Math.PI}deg)`,
-                        }} />
-                    );
-                }
-                if (el.type === "image") {
-                    // eslint-disable-next-line @next/next/no-img-element
-                    return <img key={el.id} src={el.src} alt="" style={{ position: "absolute", left, top, width: el.width * scale, height: el.height * scale, objectFit: "contain" }} />;
-                }
-                return null;
-            })}
+            {template.elements.map(el => renderEl(el, scale, data))}
         </div>
     );
 }

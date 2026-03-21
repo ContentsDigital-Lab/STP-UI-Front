@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Stage, Layer, Rect, Text, Transformer, Line, Image as KonvaImage } from "react-konva";
+import { Stage, Layer, Group, Rect, Text, Transformer, Line, Image as KonvaImage } from "react-konva";
 import type Konva from "konva";
-import type { StickerElement, ImageElement } from "./page";
+import type { StickerElement, ImageElement, GroupElement } from "./page";
 
 // ─── Snap threshold (canvas pixels, before zoom) ─────────────────────────────
 const SNAP = 6;
@@ -15,6 +15,38 @@ const SNAP_ANGLES = new Set(ROT_SNAPS);
 
 // ─── Rotation label (shown during rotate, like Canva) ────────────────────────
 interface RotLabel { angle: number; cx: number; cy: number; snapped: boolean; }
+
+// ─── Bounding-box helper (for multi-select highlight) ────────────────────────
+function getElBounds(el: StickerElement): { x: number; y: number; w: number; h: number } {
+    if (el.type === "text" || el.type === "dynamic") {
+        return {
+            x: el.x,
+            y: el.y,
+            w: Math.max(el.text.length * el.fontSize * 0.58, 20),
+            h: el.fontSize * 1.4,
+        };
+    }
+    if (el.type === "line") {
+        const pts = el.points;
+        const xs = pts.filter((_, i) => i % 2 === 0);
+        const ys = pts.filter((_, i) => i % 2 === 1);
+        const minX = Math.min(...xs), maxX = Math.max(...xs);
+        const minY = Math.min(...ys), maxY = Math.max(...ys);
+        const padV = Math.max(el.strokeWidth, 4) + 4;
+        return {
+            x: el.x + minX,
+            y: el.y + minY - padV / 2,
+            w: Math.max(maxX - minX, 10),
+            h: Math.max(maxY - minY + padV, 10),
+        };
+    }
+    return {
+        x: el.x,
+        y: el.y,
+        w: "width"  in el ? (el as { width:  number }).width  : 40,
+        h: "height" in el ? (el as { height: number }).height : 20,
+    };
+}
 
 function isRotating(node: Konva.Node) {
     return Math.abs(node.scaleX() - 1) < 0.005 && Math.abs(node.scaleY() - 1) < 0.005;
@@ -28,13 +60,14 @@ function isSnapped(a: number) {
 }
 
 // ─── QR placeholder ───────────────────────────────────────────────────────────
-function QrPlaceholderImage({ id, x, y, width, height, rotation, value, isSelected, onSelect, onChange, onRotating, onRotateEnd }: {
+function QrPlaceholderImage({ id, x, y, width, height, rotation, value, isSelected, onSelect, onChange, onRotating, onRotateEnd, onContextMenu }: {
     id: string; x: number; y: number; width: number; height: number; rotation?: number; value: string;
     isSelected: boolean;
-    onSelect: () => void;
+    onSelect: (shift?: boolean) => void;
     onChange: (patch: { x?: number; y?: number; width?: number; height?: number; rotation?: number }) => void;
     onRotating: (label: RotLabel) => void;
     onRotateEnd: () => void;
+    onContextMenu?: (clientX: number, clientY: number) => void;
 }) {
     const imgRef = useRef<Konva.Image>(null);
     const trRef  = useRef<Konva.Transformer>(null);
@@ -80,7 +113,8 @@ function QrPlaceholderImage({ id, x, y, width, height, rotation, value, isSelect
                 x={x} y={y} width={width} height={height}
                 rotation={rotation ?? 0}
                 draggable
-                onClick={onSelect} onTap={onSelect}
+                onClick={e => onSelect(e.evt.shiftKey)} onTap={() => onSelect()}
+                onContextMenu={e => { e.evt.preventDefault(); onContextMenu?.(e.evt.clientX, e.evt.clientY); }}
                 onDragEnd={e => onChange({ x: e.target.x(), y: e.target.y() })}
                 onTransformEnd={() => {
                     const node = imgRef.current!;
@@ -116,13 +150,14 @@ function QrPlaceholderImage({ id, x, y, width, height, rotation, value, isSelect
 }
 
 // ─── Image element ────────────────────────────────────────────────────────────
-function ImageNode({ el, isSelected, onSelect, onChange, onRotating, onRotateEnd }: {
+function ImageNode({ el, isSelected, onSelect, onChange, onRotating, onRotateEnd, onContextMenu }: {
     el: ImageElement;
     isSelected: boolean;
-    onSelect: () => void;
+    onSelect: (shift?: boolean) => void;
     onChange: (updated: StickerElement) => void;
     onRotating: (label: RotLabel) => void;
     onRotateEnd: () => void;
+    onContextMenu?: (clientX: number, clientY: number) => void;
 }) {
     const [htmlImg, setHtmlImg] = useState<HTMLImageElement | null>(null);
     const imgRef = useRef<Konva.Image>(null);
@@ -134,12 +169,13 @@ function ImageNode({ el, isSelected, onSelect, onChange, onRotating, onRotateEnd
         img.onload = () => setHtmlImg(img);
     }, [el.src]);
 
+    // Re-attach transformer whenever selection state OR image load state changes
     useEffect(() => {
         if (isSelected && trRef.current && imgRef.current) {
             trRef.current.nodes([imgRef.current]);
             trRef.current.getLayer()?.batchDraw();
         }
-    }, [isSelected]);
+    }, [isSelected, htmlImg]);
 
     if (!htmlImg) return null;
 
@@ -151,25 +187,24 @@ function ImageNode({ el, isSelected, onSelect, onChange, onRotating, onRotateEnd
                 image={htmlImg}
                 x={el.x} y={el.y} width={el.width} height={el.height}
                 rotation={el.rotation ?? 0}
+                crop={el.imageCrop ? { x: el.imageCrop.x, y: el.imageCrop.y, width: el.imageCrop.w, height: el.imageCrop.h } : undefined}
                 draggable
-                onClick={onSelect} onTap={onSelect}
+                onClick={e => onSelect(e.evt.shiftKey)} onTap={() => onSelect()}
+                onContextMenu={e => { e.evt.preventDefault(); onContextMenu?.(e.evt.clientX, e.evt.clientY); }}
                 onDragEnd={e => onChange({ ...el, x: e.target.x(), y: e.target.y() } as StickerElement)}
                 onTransformEnd={() => {
                     const node = imgRef.current!;
-                    onChange({
-                        ...el, x: node.x(), y: node.y(),
-                        rotation: node.rotation(),
-                        width: Math.round(el.width * node.scaleX()),
-                        height: Math.round(el.height * node.scaleY()),
-                    } as StickerElement);
+                    // Use node.width()/height() to avoid stale closure
+                    const newW = Math.round(node.width() * node.scaleX());
+                    const newH = Math.round(node.height() * node.scaleY());
                     node.scaleX(1); node.scaleY(1);
+                    onChange({ ...el, x: node.x(), y: node.y(), rotation: node.rotation(), width: newW, height: newH } as StickerElement);
                     onRotateEnd();
                 }}
             />
             {isSelected && (
                 <Transformer
                     ref={trRef}
-                    keepRatio
                     rotationSnaps={ROT_SNAPS}
                     rotationSnapTolerance={ROT_SNAP_TOLERANCE}
                     boundBoxFunc={(_, nb) => nb}
@@ -188,13 +223,14 @@ function ImageNode({ el, isSelected, onSelect, onChange, onRotating, onRotateEnd
 }
 
 // ─── Generic draggable element ────────────────────────────────────────────────
-function ElementNode({ el, isSelected, onSelect, onChange, onRotating, onRotateEnd }: {
+function ElementNode({ el, isSelected, onSelect, onChange, onRotating, onRotateEnd, onContextMenu }: {
     el: StickerElement;
     isSelected: boolean;
-    onSelect: () => void;
+    onSelect: (shift?: boolean) => void;
     onChange: (updated: StickerElement) => void;
     onRotating: (label: RotLabel) => void;
     onRotateEnd: () => void;
+    onContextMenu?: (clientX: number, clientY: number) => void;
 }) {
     const shapeRef = useRef<Konva.Node>(null);
     const trRef    = useRef<Konva.Transformer>(null);
@@ -230,7 +266,8 @@ function ElementNode({ el, isSelected, onSelect, onChange, onRotating, onRotateE
         onRotating({ angle: a, cx: rect.x + rect.width / 2, cy: rect.y + rect.height / 2, snapped: isSnapped(a) });
     };
 
-    const common = { id: el.id, draggable: true, onClick: onSelect, onTap: onSelect, onDragEnd: handleDragEnd, onTransformEnd: handleTransformEnd };
+    const ctxMenu = (e: Konva.KonvaEventObject<MouseEvent>) => { e.evt.preventDefault(); onContextMenu?.(e.evt.clientX, e.evt.clientY); };
+    const common = { id: el.id, draggable: true, onClick: (e: Konva.KonvaEventObject<MouseEvent>) => onSelect(e.evt.shiftKey), onTap: () => onSelect(), onContextMenu: ctxMenu, onDragEnd: handleDragEnd, onTransformEnd: handleTransformEnd };
 
     // Transformer props shared
     const trProps = {
@@ -270,6 +307,120 @@ function ElementNode({ el, isSelected, onSelect, onChange, onRotating, onRotateE
     return null;
 }
 
+// ─── Static (non-interactive) renderers for group children ────────────────────
+function StaticImageEl({ el }: { el: ImageElement }) {
+    const [htmlImg, setHtmlImg] = useState<HTMLImageElement | null>(null);
+    useEffect(() => {
+        const img = new window.Image(); img.src = el.src;
+        img.onload = () => setHtmlImg(img);
+    }, [el.src]);
+    if (!htmlImg) return null;
+    return <KonvaImage x={el.x} y={el.y} width={el.width} height={el.height} rotation={el.rotation ?? 0} image={htmlImg}
+        crop={el.imageCrop ? { x: el.imageCrop.x, y: el.imageCrop.y, width: el.imageCrop.w, height: el.imageCrop.h } : undefined} />;
+}
+
+function StaticQrEl({ el }: { el: Extract<StickerElement, { type: "qr" }> }) {
+    const canvasRef = useRef<HTMLCanvasElement | null>(null);
+    if (!canvasRef.current) {
+        const c = document.createElement("canvas");
+        c.width = 80; c.height = 80;
+        const ctx = c.getContext("2d")!;
+        ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, 80, 80);
+        ctx.strokeStyle = "#000"; ctx.lineWidth = 2;
+        ctx.strokeRect(4, 4, 72, 72);
+        [[6, 6], [52, 6], [6, 52]].forEach(([px, py]) => {
+            ctx.fillStyle = "#000"; ctx.fillRect(px!, py!, 22, 22);
+            ctx.fillStyle = "#fff"; ctx.fillRect(px! + 4, py! + 4, 14, 14);
+            ctx.fillStyle = "#000"; ctx.fillRect(px! + 7, py! + 7, 8, 8);
+        });
+        ctx.fillStyle = "#000";
+        const seed = el.value.length;
+        for (let r = 0; r < 5; r++) {
+            for (let c2 = 0; c2 < 5; c2++) {
+                if ((r * 7 + c2 * 3 + seed) % 2 === 0) ctx.fillRect(32 + c2 * 8, 32 + r * 8, 6, 6);
+            }
+        }
+        canvasRef.current = c;
+    }
+    return <KonvaImage x={el.x} y={el.y} width={el.width} height={el.height} rotation={el.rotation ?? 0} image={canvasRef.current ?? undefined} />;
+}
+
+function StaticElement({ el }: { el: Exclude<StickerElement, GroupElement> }) {
+    if (el.type === "text" || el.type === "dynamic") {
+        const fontStyle = [el.italic ? "italic" : "", el.bold ? "bold" : ""].filter(Boolean).join(" ") || "normal";
+        return <Text x={el.x} y={el.y} rotation={el.rotation ?? 0} text={el.text} fontSize={el.fontSize} fill={el.fill} fontStyle={fontStyle} fontFamily="'Prompt', sans-serif" />;
+    }
+    if (el.type === "rect")  return <Rect x={el.x} y={el.y} rotation={el.rotation ?? 0} width={el.width} height={el.height} fill={el.fill === "transparent" ? "" : el.fill} stroke={el.stroke} strokeWidth={el.strokeWidth} />;
+    if (el.type === "line")  return <Line x={el.x} y={el.y} rotation={el.rotation ?? 0} points={el.points} stroke={el.stroke} strokeWidth={el.strokeWidth} />;
+    if (el.type === "image") return <StaticImageEl el={el} />;
+    if (el.type === "qr")    return <StaticQrEl el={el} />;
+    return null;
+}
+
+// ─── Group node ───────────────────────────────────────────────────────────────
+function GroupNode({ el, isSelected, onSelect, onChange, onRotating, onRotateEnd, onContextMenu }: {
+    el: GroupElement;
+    isSelected: boolean;
+    onSelect: (shift?: boolean) => void;
+    onChange: (updated: StickerElement) => void;
+    onRotating: (label: RotLabel) => void;
+    onRotateEnd: () => void;
+    onContextMenu?: (clientX: number, clientY: number) => void;
+}) {
+    const groupRef = useRef<Konva.Group>(null);
+    const trRef    = useRef<Konva.Transformer>(null);
+
+    useEffect(() => {
+        if (isSelected && trRef.current && groupRef.current) {
+            trRef.current.nodes([groupRef.current]);
+            trRef.current.getLayer()?.batchDraw();
+        }
+    }, [isSelected]);
+
+    const handleTransformEnd = () => {
+        const node = groupRef.current!;
+        const sx = node.scaleX(), sy = node.scaleY();
+        node.scaleX(1); node.scaleY(1);
+        const scaledChildren = el.children.map(child => {
+            const base = { ...child, x: child.x * sx, y: child.y * sy };
+            if ("width"    in child) (base as Record<string, unknown>).width  = Math.round((child as { width: number }).width  * sx);
+            if ("height"   in child) (base as Record<string, unknown>).height = Math.round((child as { height: number }).height * sy);
+            if ("fontSize" in child) (base as Record<string, unknown>).fontSize = Math.round((child as { fontSize: number }).fontSize * Math.min(sx, sy));
+            if ("points"   in child) (base as Record<string, unknown>).points = (child as { points: number[] }).points.map((p, i) => p * (i % 2 === 0 ? sx : sy));
+            return base;
+        }) as GroupElement["children"];
+        onChange({ ...el, x: node.x(), y: node.y(), rotation: node.rotation(), width: Math.round(el.width * sx), height: Math.round(el.height * sy), children: scaledChildren } as StickerElement);
+        onRotateEnd();
+    };
+
+    return (
+        <>
+            <Group ref={groupRef} id={el.id} x={el.x} y={el.y} rotation={el.rotation ?? 0} draggable
+                onClick={e => onSelect(e.evt.shiftKey)} onTap={() => onSelect()}
+                onContextMenu={e => { e.evt.preventDefault(); onContextMenu?.(e.evt.clientX, e.evt.clientY); }}
+                onDragEnd={e => onChange({ ...el, x: e.target.x(), y: e.target.y() } as StickerElement)}
+                onTransformEnd={handleTransformEnd}
+            >
+                {el.children.map(child => <StaticElement key={child.id} el={child} />)}
+            </Group>
+            {isSelected && (
+                <Transformer ref={trRef}
+                    rotationSnaps={ROT_SNAPS} rotationSnapTolerance={ROT_SNAP_TOLERANCE}
+                    boundBoxFunc={(_, nb) => nb}
+                    onTransform={() => {
+                        const node = groupRef.current!;
+                        if (!isRotating(node)) return;
+                        const a = normaliseAngle(node.rotation());
+                        const rect = node.getClientRect();
+                        onRotating({ angle: a, cx: rect.x + rect.width / 2, cy: rect.y + rect.height / 2, snapped: isSnapped(a) });
+                    }}
+                    onTransformEnd={onRotateEnd}
+                />
+            )}
+        </>
+    );
+}
+
 // ─── Main Canvas ──────────────────────────────────────────────────────────────
 interface StickerCanvasProps {
     width: number;
@@ -277,13 +428,15 @@ interface StickerCanvasProps {
     zoom?: number;
     elements: StickerElement[];
     selectedId: string | null;
-    onSelect: (id: string | null) => void;
+    multiSelected?: string[];
+    onSelect: (id: string | null, shift?: boolean) => void;
     onChange: (updated: StickerElement) => void;
     onElementsChange: (els: StickerElement[]) => void;
+    onContextMenu?: (id: string | null, clientX: number, clientY: number) => void;
 }
 
 export default function StickerCanvas({
-    width, height, zoom = 1, elements, selectedId, onSelect, onChange,
+    width, height, zoom = 1, elements, selectedId, multiSelected = [], onSelect, onChange, onContextMenu,
 }: StickerCanvasProps) {
     const [guides,   setGuides]   = useState<{ v: number[]; h: number[] }>({ v: [], h: [] });
     const [rotLabel, setRotLabel] = useState<RotLabel | null>(null);
@@ -377,6 +530,7 @@ export default function StickerCanvas({
                 scaleY={zoom}
                 onMouseDown={e => { if (e.target === e.target.getStage()) onSelect(null); }}
                 onTouchStart={e => { if (e.target === e.target.getStage()) onSelect(null); }}
+                onContextMenu={e => { e.evt.preventDefault(); if (e.target === e.target.getStage()) onContextMenu?.(null, e.evt.clientX, e.evt.clientY); }}
                 onDragMove={handleStageDragMove}
                 onDragEnd={handleStageDragEnd}
             >
@@ -391,28 +545,41 @@ export default function StickerCanvas({
                                 x={el.x} y={el.y} width={el.width} height={el.height}
                                 rotation={el.rotation ?? 0} value={el.value}
                                 isSelected={selectedId === el.id}
-                                onSelect={() => onSelect(el.id)}
+                                onSelect={shift => onSelect(el.id, shift)}
                                 onChange={patch => onChange({ ...el, ...patch } as StickerElement)}
                                 onRotating={handleRotating}
                                 onRotateEnd={handleRotateEnd}
+                                onContextMenu={(cx, cy) => onContextMenu?.(el.id, cx, cy)}
                             />
                         ) : el.type === "image" ? (
                             <ImageNode
                                 key={el.id} el={el}
                                 isSelected={selectedId === el.id}
-                                onSelect={() => onSelect(el.id)}
+                                onSelect={shift => onSelect(el.id, shift)}
                                 onChange={onChange}
                                 onRotating={handleRotating}
                                 onRotateEnd={handleRotateEnd}
+                                onContextMenu={(cx, cy) => onContextMenu?.(el.id, cx, cy)}
+                            />
+                        ) : el.type === "group" ? (
+                            <GroupNode
+                                key={el.id} el={el}
+                                isSelected={selectedId === el.id}
+                                onSelect={shift => onSelect(el.id, shift)}
+                                onChange={onChange}
+                                onRotating={handleRotating}
+                                onRotateEnd={handleRotateEnd}
+                                onContextMenu={(cx, cy) => onContextMenu?.(el.id, cx, cy)}
                             />
                         ) : (
                             <ElementNode
                                 key={el.id} el={el}
                                 isSelected={selectedId === el.id}
-                                onSelect={() => onSelect(el.id)}
+                                onSelect={shift => onSelect(el.id, shift)}
                                 onChange={onChange}
                                 onRotating={handleRotating}
                                 onRotateEnd={handleRotateEnd}
+                                onContextMenu={(cx, cy) => onContextMenu?.(el.id, cx, cy)}
                             />
                         )
                     )}
@@ -427,6 +594,28 @@ export default function StickerCanvas({
                         {guides.h.map((y, i) => (
                             <Line key={`h${i}`} points={[-10, y, width + 10, y]} stroke={gStroke} strokeWidth={gW} dash={gDash} />
                         ))}
+                    </Layer>
+                )}
+
+                {/* Multi-select highlight overlay */}
+                {multiSelected.length > 0 && (
+                    <Layer x={PAD} y={PAD} listening={false}>
+                        {multiSelected.map(id => {
+                            const el = elements.find(e => e.id === id);
+                            if (!el) return null;
+                            const { x, y, w, h } = getElBounds(el);
+                            return (
+                                <Rect
+                                    key={id}
+                                    x={x} y={y}
+                                    width={w} height={h}
+                                    rotation={el.rotation ?? 0}
+                                    stroke="#7c3aed" strokeWidth={1.5} dash={[4, 3]}
+                                    fill="rgba(124,58,237,0.06)"
+                                    cornerRadius={2}
+                                />
+                            );
+                        })}
                     </Layer>
                 )}
             </Stage>

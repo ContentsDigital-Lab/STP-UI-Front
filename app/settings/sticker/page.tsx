@@ -1,12 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import dynamic from "next/dynamic";
 import {
     Trash2, Type, Variable, QrCode, Square, Minus, Save, Tag,
     Undo2, Redo2, ZoomIn, ZoomOut, Copy, Clipboard, ImageIcon, Eye,
+    Eraser, Loader2, Crop, Layers2, Ungroup, CopyPlus,
+    AlignStartVertical, AlignCenterVertical, AlignEndVertical,
+    AlignStartHorizontal, AlignCenterHorizontal, AlignEndHorizontal,
+    AlignHorizontalDistributeCenter, AlignVerticalDistributeCenter,
+    ChevronUp, ChevronDown, ChevronsUp, ChevronsDown,
 } from "lucide-react";
 import StickerPreviewModal from "./StickerPreviewModal";
+import CropModal from "./CropModal";
+import type { CropArea } from "./CropModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +23,7 @@ const StickerCanvas = dynamic(() => import("./StickerCanvas"), { ssr: false });
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type ElementType = "text" | "dynamic" | "qr" | "rect" | "line" | "image";
+export type ElementType = "text" | "dynamic" | "qr" | "rect" | "line" | "image" | "group";
 
 interface BaseElement { id: string; type: ElementType; x: number; y: number; rotation?: number; }
 interface TextElement extends BaseElement {
@@ -33,9 +40,14 @@ interface LineElement extends BaseElement {
     type: "line"; points: number[]; stroke: string; strokeWidth: number;
 }
 export interface ImageElement extends BaseElement {
-    type: "image"; width: number; height: number; src: string; // base64 data URL
+    type: "image"; width: number; height: number; src: string;
+    imageCrop?: { x: number; y: number; w: number; h: number }; // source px
 }
-export type StickerElement = TextElement | QrElement | RectElement | LineElement | ImageElement;
+export interface GroupElement extends BaseElement {
+    type: "group"; width: number; height: number;
+    children: Exclude<StickerElement, GroupElement>[];
+}
+export type StickerElement = TextElement | QrElement | RectElement | LineElement | ImageElement | GroupElement;
 
 export interface StickerTemplate {
     width: number; height: number; elements: StickerElement[];
@@ -60,13 +72,230 @@ const DYNAMIC_VARIABLES = [
 
 function genId() { return Math.random().toString(36).slice(2, 9); }
 
+// ─── Context Menu ─────────────────────────────────────────────────────────────
+
+type ZOrderDir = "front" | "forward" | "backward" | "back";
+type AlignDir   = "left" | "centerH" | "right" | "top" | "centerV" | "bottom";
+
+function ContextMenu({ pos, el, multiSelected, hasClipboard, onClose, onCopy, onPaste, onDuplicate, onDelete, onZOrder, onGroup, onUngroup, onCrop, onAlign }: {
+    pos: { x: number; y: number };
+    el: StickerElement | null;
+    multiSelected: string[];
+    hasClipboard: boolean;
+    onClose: () => void;
+    onCopy: () => void;
+    onPaste: () => void;
+    onDuplicate: () => void;
+    onDelete: () => void;
+    onZOrder: (d: ZOrderDir) => void;
+    onGroup: () => void;
+    onUngroup: () => void;
+    onCrop: () => void;
+    onAlign: (d: AlignDir) => void;
+}) {
+    const menuRef = React.useRef<HTMLDivElement>(null);
+    const [adj, setAdj] = React.useState(pos);
+
+    // Adjust so menu stays within viewport
+    React.useEffect(() => {
+        if (!menuRef.current) return;
+        const { width, height } = menuRef.current.getBoundingClientRect();
+        setAdj({
+            x: Math.min(pos.x, window.innerWidth  - width  - 8),
+            y: Math.min(pos.y, window.innerHeight - height - 8),
+        });
+    }, [pos.x, pos.y]);
+
+    // Close on outside click
+    React.useEffect(() => {
+        const h = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) onClose(); };
+        document.addEventListener("mousedown", h);
+        return () => document.removeEventListener("mousedown", h);
+    }, [onClose]);
+
+    const isGroup  = el?.type === "group";
+    const isImage  = el?.type === "image";
+    const hasEl    = !!el;
+    const canGroup = multiSelected.length >= 2;
+
+    const act = (fn: () => void) => () => { fn(); onClose(); };
+
+    type MenuItem = { icon: React.ReactNode; label: string; shortcut?: string; action: () => void; danger?: boolean };
+    const sections: MenuItem[][] = [];
+
+    // Section: Copy / Duplicate / Paste
+    const clipSection: MenuItem[] = [];
+    if (hasEl) {
+        clipSection.push({ icon: <Copy className="h-3.5 w-3.5" />, label: "คัดลอก", shortcut: "⌘C", action: act(onCopy) });
+        clipSection.push({ icon: <CopyPlus className="h-3.5 w-3.5" />, label: "ทำสำเนา", shortcut: "⌘D", action: act(onDuplicate) });
+    }
+    if (hasClipboard) clipSection.push({ icon: <Clipboard className="h-3.5 w-3.5" />, label: "วาง", shortcut: "⌘V", action: act(onPaste) });
+    if (clipSection.length) sections.push(clipSection);
+
+    // Section: Z-order (single element only)
+    if (hasEl && !canGroup) {
+        sections.push([
+            { icon: <ChevronsUp className="h-3.5 w-3.5" />, label: "ขึ้นสุด (Bring to Front)", action: act(() => onZOrder("front")) },
+            { icon: <ChevronUp className="h-3.5 w-3.5" />, label: "ขึ้นหนึ่งชั้น", shortcut: "⌘]", action: act(() => onZOrder("forward")) },
+            { icon: <ChevronDown className="h-3.5 w-3.5" />, label: "ลงหนึ่งชั้น", shortcut: "⌘[", action: act(() => onZOrder("backward")) },
+            { icon: <ChevronsDown className="h-3.5 w-3.5" />, label: "ลงสุด (Send to Back)", action: act(() => onZOrder("back")) },
+        ]);
+    }
+
+    // Section: Alignment (multi-select)
+    if (canGroup) {
+        sections.push([
+            { icon: <AlignStartVertical className="h-3.5 w-3.5" />, label: "ชิดซ้าย",   action: act(() => onAlign("left")) },
+            { icon: <AlignCenterVertical className="h-3.5 w-3.5" />, label: "กึ่งกลางแนวนอน", action: act(() => onAlign("centerH")) },
+            { icon: <AlignEndVertical className="h-3.5 w-3.5" />, label: "ชิดขวา",   action: act(() => onAlign("right")) },
+            { icon: <AlignStartHorizontal className="h-3.5 w-3.5" />, label: "ชิดบน",     action: act(() => onAlign("top")) },
+            { icon: <AlignCenterHorizontal className="h-3.5 w-3.5" />, label: "กึ่งกลางแนวตั้ง", action: act(() => onAlign("centerV")) },
+            { icon: <AlignEndHorizontal className="h-3.5 w-3.5" />, label: "ชิดล่าง",   action: act(() => onAlign("bottom")) },
+        ]);
+    }
+
+    // Section: Group / Ungroup
+    const groupSection: MenuItem[] = [];
+    if (canGroup)  groupSection.push({ icon: <Layers2 className="h-3.5 w-3.5" />, label: "จัดกลุ่ม", shortcut: "⌘G", action: act(onGroup) });
+    if (isGroup)   groupSection.push({ icon: <Ungroup className="h-3.5 w-3.5" />, label: "ยกเลิกกลุ่ม", shortcut: "⌘⇧G", action: act(onUngroup) });
+    if (groupSection.length) sections.push(groupSection);
+
+    // Section: Image tools
+    if (isImage) {
+        sections.push([
+            { icon: <Crop className="h-3.5 w-3.5" />, label: "ตัดรูป (Crop)", action: act(onCrop) },
+            { icon: <Eraser className="h-3.5 w-3.5" />, label: "ลบพื้นหลัง", action: act(() => {}) },
+        ]);
+    }
+
+    // Section: Delete
+    if (hasEl) {
+        sections.push([{ icon: <Trash2 className="h-3.5 w-3.5" />, label: "ลบ", shortcut: "⌫", action: act(onDelete), danger: true }]);
+    }
+
+    if (sections.length === 0) return null;
+
+    return (
+        <div
+            ref={menuRef}
+            style={{ position: "fixed", left: adj.x, top: adj.y, zIndex: 9999 }}
+            className="bg-card border shadow-2xl rounded-xl py-1.5 min-w-[220px] text-sm select-none"
+            onContextMenu={e => e.preventDefault()}
+        >
+            {sections.map((items, si) => (
+                <React.Fragment key={si}>
+                    {si > 0 && <div className="my-1 border-t border-border mx-2" />}
+                    {items.map((item, i) => (
+                        <button
+                            key={i}
+                            onClick={item.action}
+                            className={`w-full flex items-center gap-2.5 px-3 py-[7px] hover:bg-accent/70 transition-colors text-left ${item.danger ? "text-destructive hover:bg-destructive/10" : ""}`}
+                        >
+                            <span className="w-4 h-4 flex items-center justify-center shrink-0 opacity-60">{item.icon}</span>
+                            <span className="flex-1 text-[13px]">{item.label}</span>
+                            {item.shortcut && <span className="text-[11px] text-muted-foreground font-mono shrink-0">{item.shortcut}</span>}
+                        </button>
+                    ))}
+                </React.Fragment>
+            ))}
+        </div>
+    );
+}
+
+// ─── Alignment Panel (shown when 2+ elements are multi-selected) ──────────────
+
+function AlignPanel({ count, onAlign, onDistribute, onGroup }: {
+    count: number;
+    onAlign: (dir: "left" | "centerH" | "right" | "top" | "centerV" | "bottom") => void;
+    onDistribute: (axis: "h" | "v") => void;
+    onGroup: () => void;
+}) {
+    return (
+        <div className="p-3 flex flex-col gap-3">
+            <p className="text-[11px] text-muted-foreground">{count} ชิ้นที่เลือก · ⇧+คลิกเพื่อเพิ่ม</p>
+
+            <div>
+                <p className="text-[10px] font-semibold uppercase text-muted-foreground tracking-wider mb-1.5">จัดแนวนอน</p>
+                <div className="grid grid-cols-3 gap-1">
+                    <Button variant="ghost" size="icon" className="h-8 w-full" title="ชิดซ้าย" onClick={() => onAlign("left")}>
+                        <AlignStartVertical className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-full" title="กึ่งกลาง" onClick={() => onAlign("centerH")}>
+                        <AlignCenterVertical className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-full" title="ชิดขวา" onClick={() => onAlign("right")}>
+                        <AlignEndVertical className="h-4 w-4" />
+                    </Button>
+                </div>
+            </div>
+
+            <div>
+                <p className="text-[10px] font-semibold uppercase text-muted-foreground tracking-wider mb-1.5">จัดแนวตั้ง</p>
+                <div className="grid grid-cols-3 gap-1">
+                    <Button variant="ghost" size="icon" className="h-8 w-full" title="ชิดบน" onClick={() => onAlign("top")}>
+                        <AlignStartHorizontal className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-full" title="กึ่งกลาง" onClick={() => onAlign("centerV")}>
+                        <AlignCenterHorizontal className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-full" title="ชิดล่าง" onClick={() => onAlign("bottom")}>
+                        <AlignEndHorizontal className="h-4 w-4" />
+                    </Button>
+                </div>
+            </div>
+
+            {count >= 3 && (
+                <div>
+                    <p className="text-[10px] font-semibold uppercase text-muted-foreground tracking-wider mb-1.5">กระจายระยะ</p>
+                    <div className="grid grid-cols-2 gap-1">
+                        <Button variant="ghost" size="sm" className="h-8 text-xs gap-1" onClick={() => onDistribute("h")}>
+                            <AlignHorizontalDistributeCenter className="h-3.5 w-3.5" /> แนวนอน
+                        </Button>
+                        <Button variant="ghost" size="sm" className="h-8 text-xs gap-1" onClick={() => onDistribute("v")}>
+                            <AlignVerticalDistributeCenter className="h-3.5 w-3.5" /> แนวตั้ง
+                        </Button>
+                    </div>
+                </div>
+            )}
+
+            <Button size="sm" className="gap-1.5 h-8 bg-violet-600 hover:bg-violet-700 text-white" onClick={onGroup}>
+                <Layers2 className="h-3.5 w-3.5" /> จัดกลุ่ม (⌘G)
+            </Button>
+        </div>
+    );
+}
+
 // ─── Properties Panel ─────────────────────────────────────────────────────────
 
-function PropsPanel({ element, onChange, onDelete }: {
+function PropsPanel({ element, onChange, onDelete, onCrop, onUngroup, onZOrder }: {
     element: StickerElement | null;
     onChange: (u: StickerElement) => void;
     onDelete: () => void;
+    onCrop?: () => void;
+    onUngroup?: () => void;
+    onZOrder?: (dir: "front" | "forward" | "backward" | "back") => void;
 }) {
+    const [removingBg, setRemovingBg] = useState(false);
+
+    const handleRemoveBg = async () => {
+        if (element?.type !== "image") return;
+        setRemovingBg(true);
+        try {
+            const { removeBackground } = await import("@imgly/background-removal");
+            const blob = await removeBackground(element.src);
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const newSrc = ev.target?.result as string;
+                onChange({ ...element, src: newSrc } as StickerElement);
+            };
+            reader.readAsDataURL(blob);
+        } catch (err) {
+            console.error("Remove background failed:", err);
+        } finally {
+            setRemovingBg(false);
+        }
+    };
+
     if (!element) {
         return (
             <div className="flex flex-col items-center justify-center h-40 gap-2 text-muted-foreground">
@@ -84,7 +313,29 @@ function PropsPanel({ element, onChange, onDelete }: {
         element.type === "dynamic" ? "ตัวแปร" :
         element.type === "qr" ? "QR Code" :
         element.type === "image" ? "รูปภาพ" :
-        element.type === "rect" ? "สี่เหลี่ยม" : "เส้น";
+        element.type === "rect" ? "สี่เหลี่ยม" :
+        element.type === "group" ? "กลุ่ม" : "เส้น";
+
+    // ── Group shortcut ──────────────────────────────────────────────────────────
+    if (element.type === "group") {
+        const grp = element as GroupElement;
+        return (
+            <div className="p-3 flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase text-muted-foreground tracking-wider">
+                        <Layers2 className="h-3.5 w-3.5" /> กลุ่ม ({grp.children.length} ชิ้น)
+                    </div>
+                    <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive" onClick={onDelete}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                </div>
+                <Button variant="outline" size="sm" className="w-full h-8 text-xs gap-1.5" onClick={onUngroup}>
+                    <Ungroup className="h-3.5 w-3.5" /> ยกเลิกกลุ่ม
+                </Button>
+                <p className="text-[10px] text-muted-foreground text-center">⌘⇧G ยกเลิกกลุ่ม</p>
+            </div>
+        );
+    }
 
     return (
         <div className="p-3 flex flex-col gap-3">
@@ -265,13 +516,55 @@ function PropsPanel({ element, onChange, onDelete }: {
                                     onChange={e => update({ height: Number(e.target.value) } as Partial<ImageElement>)} />
                             </div>
                         </div>
-                        <div className="rounded-lg overflow-hidden border border-border bg-muted/40" style={{ maxHeight: 80 }}>
+                        <div className="rounded-lg overflow-hidden border border-border bg-[url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2216%22%20height%3D%2216%22%3E%3Crect%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23e5e7eb%22/%3E%3Crect%20x%3D%228%22%20y%3D%228%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23e5e7eb%22/%3E%3C/svg%3E')]" style={{ maxHeight: 80 }}>
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img src={el.src} alt="preview" className="w-full h-full object-contain" style={{ maxHeight: 80 }} />
                         </div>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full h-8 text-xs gap-1.5 border-violet-200 text-violet-700 hover:bg-violet-50 hover:text-violet-800"
+                            onClick={handleRemoveBg}
+                            disabled={removingBg}
+                        >
+                            {removingBg
+                                ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> กำลังลบพื้นหลัง...</>
+                                : <><Eraser className="h-3.5 w-3.5" /> ลบพื้นหลัง</>
+                            }
+                        </Button>
+                        {removingBg && (
+                            <p className="text-[10px] text-muted-foreground text-center leading-relaxed">
+                                AI กำลังประมวลผล<br />อาจใช้เวลา 5–15 วินาที
+                            </p>
+                        )}
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full h-8 text-xs gap-1.5"
+                            onClick={onCrop}
+                        >
+                            <Crop className="h-3.5 w-3.5" /> ตัดรูป (Crop)
+                        </Button>
                     </>
                 );
             })()}
+
+            {/* Z-order */}
+            {onZOrder && (
+                <div>
+                    <p className="text-[10px] font-semibold uppercase text-muted-foreground tracking-wider mb-1.5">ลำดับชั้น</p>
+                    <div className="grid grid-cols-4 gap-1">
+                        <Button variant="ghost" size="icon" className="h-7 w-full" title="ขึ้นสุด" onClick={() => onZOrder("front")}><ChevronsUp className="h-3.5 w-3.5" /></Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-full" title="ขึ้นหนึ่งชั้น" onClick={() => onZOrder("forward")}><ChevronUp className="h-3.5 w-3.5" /></Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-full" title="ลงหนึ่งชั้น" onClick={() => onZOrder("backward")}><ChevronDown className="h-3.5 w-3.5" /></Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-full" title="ลงสุด" onClick={() => onZOrder("back")}><ChevronsDown className="h-3.5 w-3.5" /></Button>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1 mt-0.5">
+                        <p className="text-[9px] text-muted-foreground text-center col-span-2">ขึ้นสุด · ขึ้น</p>
+                        <p className="text-[9px] text-muted-foreground text-center col-span-2">ลง · ลงสุด</p>
+                    </div>
+                </div>
+            )}
 
             {/* Keyboard hint */}
             <div className="mt-1 rounded-lg bg-muted/50 p-2 space-y-0.5">
@@ -281,6 +574,8 @@ function PropsPanel({ element, onChange, onDelete }: {
                 <p className="text-[10px] text-muted-foreground">Del/⌫ ลบ</p>
                 <p className="text-[10px] text-muted-foreground">⌘C / ⌘V คัดลอก/วาง</p>
                 <p className="text-[10px] text-muted-foreground">⌘Z / ⌘⇧Z ย้อน/ทำซ้ำ</p>
+                <p className="text-[10px] text-muted-foreground">⇧+คลิก เลือกหลายชิ้น</p>
+                <p className="text-[10px] text-muted-foreground">⌘G จัดกลุ่ม / ⌘⇧G ยกเลิกกลุ่ม</p>
                 <p className="text-[10px] text-muted-foreground">Esc ยกเลิกการเลือก</p>
             </div>
         </div>
@@ -294,6 +589,9 @@ export default function StickerDesignerPage() {
     const [canvasH, setCanvasH] = useState(50);
     const [elements, setElements] = useState<StickerElement[]>([]);
     const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [multiSelected, setMultiSelected] = useState<string[]>([]);
+    const [cropModal, setCropModal] = useState<{ id: string; src: string; current?: CropArea } | null>(null);
+    const [contextMenu, setContextMenu] = useState<{ id: string | null; x: number; y: number } | null>(null);
     const [zoom, setZoom] = useState(2.5);
     const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
     const [showPreview, setShowPreview] = useState(false);
@@ -328,6 +626,187 @@ export default function StickerDesignerPage() {
 
     const canUndo = historyRef.current.past.length > 0;
     const canRedo = historyRef.current.future.length > 0;
+
+    // ── Select (with optional shift for multi-select) ──────────────────────────
+    const selectedIdRef = useRef(selectedId);
+    useEffect(() => { selectedIdRef.current = selectedId; }, [selectedId]);
+    const multiSelectedRef = useRef(multiSelected);
+    useEffect(() => { multiSelectedRef.current = multiSelected; }, [multiSelected]);
+
+    const handleSelect = useCallback((id: string | null, shift?: boolean) => {
+        if (shift && id) {
+            setMultiSelected(prev => {
+                const withCurrent = selectedIdRef.current && !prev.includes(selectedIdRef.current)
+                    ? [...prev, selectedIdRef.current] : prev;
+                return withCurrent.includes(id) ? withCurrent.filter(x => x !== id) : [...withCurrent, id];
+            });
+            setSelectedId(null);
+        } else {
+            setSelectedId(id);
+            setMultiSelected([]);
+        }
+    }, []);
+
+    // ── Group / Ungroup ─────────────────────────────────────────────────────────
+    const handleGroup = useCallback(() => {
+        const ids = multiSelectedRef.current.length >= 2 ? multiSelectedRef.current : [];
+        if (ids.length < 2) return;
+        const sel = elementsRef.current.filter(e => ids.includes(e.id));
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        sel.forEach(el => {
+            minX = Math.min(minX, el.x);
+            minY = Math.min(minY, el.y);
+            maxX = Math.max(maxX, el.x + ('width'  in el ? (el as { width: number }).width   : 0));
+            maxY = Math.max(maxY, el.y + ('height' in el ? (el as { height: number }).height : 0));
+        });
+        const gx = minX, gy = minY;
+        const group: GroupElement = {
+            id: genId(), type: "group",
+            x: gx, y: gy,
+            width: maxX - minX, height: maxY - minY,
+            children: sel.map(el => ({ ...el, x: el.x - gx, y: el.y - gy })) as GroupElement["children"],
+        };
+        commit(elementsRef.current.filter(e => !ids.includes(e.id)).concat([group]));
+        setSelectedId(group.id);
+        setMultiSelected([]);
+    }, []);
+
+    const handleUngroup = useCallback(() => {
+        const group = elementsRef.current.find(e => e.id === selectedIdRef.current) as GroupElement | undefined;
+        if (!group || group.type !== "group") return;
+        const ungrouped = group.children.map(child => ({
+            ...child, id: genId(), x: group.x + child.x, y: group.y + child.y,
+        }));
+        commit(elementsRef.current.filter(e => e.id !== group.id).concat(ungrouped));
+        setSelectedId(null);
+        setMultiSelected(ungrouped.map(e => e.id));
+    }, []);
+
+    // ── Align / Distribute ──────────────────────────────────────────────────────
+    const getElBounds = (el: StickerElement): { x: number; y: number; w: number; h: number } => {
+        if (el.type === "text" || el.type === "dynamic") {
+            return { x: el.x, y: el.y, w: Math.max(el.text.length * el.fontSize * 0.58, 20), h: el.fontSize * 1.4 };
+        }
+        if (el.type === "line") {
+            const xs = el.points.filter((_, i) => i % 2 === 0);
+            const ys = el.points.filter((_, i) => i % 2 === 1);
+            return { x: el.x + Math.min(...xs), y: el.y + Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) + el.strokeWidth };
+        }
+        return { x: el.x, y: el.y, w: "width" in el ? (el as { width: number }).width : 40, h: "height" in el ? (el as { height: number }).height : 20 };
+    };
+    const getW = (el: StickerElement) => getElBounds(el).w;
+    const getH = (el: StickerElement) => getElBounds(el).h;
+
+    const handleAlign = useCallback((dir: "left" | "centerH" | "right" | "top" | "centerV" | "bottom") => {
+        const ids = multiSelectedRef.current;
+        if (ids.length < 2) return;
+        const sel = elementsRef.current.filter(e => ids.includes(e.id));
+        const minX    = Math.min(...sel.map(e => e.x));
+        const maxX    = Math.max(...sel.map(e => e.x + getW(e)));
+        const minY    = Math.min(...sel.map(e => e.y));
+        const maxY    = Math.max(...sel.map(e => e.y + getH(e)));
+        const centerX = (minX + maxX) / 2;
+        const centerY = (minY + maxY) / 2;
+        commit(elementsRef.current.map(el => {
+            if (!ids.includes(el.id)) return el;
+            const w = getW(el), h = getH(el);
+            switch (dir) {
+                case "left":    return { ...el, x: minX };
+                case "centerH": return { ...el, x: centerX - w / 2 };
+                case "right":   return { ...el, x: maxX - w };
+                case "top":     return { ...el, y: minY };
+                case "centerV": return { ...el, y: centerY - h / 2 };
+                case "bottom":  return { ...el, y: maxY - h };
+                default: return el;
+            }
+        }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const handleDistribute = useCallback((axis: "h" | "v") => {
+        const ids = multiSelectedRef.current;
+        if (ids.length < 3) return;
+        const sel = elementsRef.current.filter(e => ids.includes(e.id));
+        if (axis === "h") {
+            const sorted = [...sel].sort((a, b) => a.x - b.x);
+            const totalW = sorted.reduce((s, e) => s + getW(e), 0);
+            const span   = (sorted[sorted.length - 1].x + getW(sorted[sorted.length - 1])) - sorted[0].x;
+            const gap    = (span - totalW) / (sorted.length - 1);
+            const xMap: Record<string, number> = {};
+            let cursor = sorted[0].x + getW(sorted[0]);
+            xMap[sorted[0].id] = sorted[0].x;
+            for (let i = 1; i < sorted.length; i++) {
+                xMap[sorted[i].id] = cursor + gap;
+                cursor = xMap[sorted[i].id] + getW(sorted[i]);
+            }
+            commit(elementsRef.current.map(el => ids.includes(el.id) ? { ...el, x: xMap[el.id] } : el));
+        } else {
+            const sorted = [...sel].sort((a, b) => a.y - b.y);
+            const totalH = sorted.reduce((s, e) => s + getH(e), 0);
+            const span   = (sorted[sorted.length - 1].y + getH(sorted[sorted.length - 1])) - sorted[0].y;
+            const gap    = (span - totalH) / (sorted.length - 1);
+            const yMap: Record<string, number> = {};
+            let cursor = sorted[0].y + getH(sorted[0]);
+            yMap[sorted[0].id] = sorted[0].y;
+            for (let i = 1; i < sorted.length; i++) {
+                yMap[sorted[i].id] = cursor + gap;
+                cursor = yMap[sorted[i].id] + getH(sorted[i]);
+            }
+            commit(elementsRef.current.map(el => ids.includes(el.id) ? { ...el, y: yMap[el.id] } : el));
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // ── Z-order ─────────────────────────────────────────────────────────────────
+    const handleZOrder = useCallback((dir: "front" | "forward" | "backward" | "back") => {
+        const id = selectedIdRef.current;
+        if (!id) return;
+        const els = [...elementsRef.current];
+        const idx = els.findIndex(e => e.id === id);
+        if (idx < 0) return;
+        if (dir === "front") {
+            const [el] = els.splice(idx, 1);
+            commit([...els, el]);
+        } else if (dir === "back") {
+            const [el] = els.splice(idx, 1);
+            commit([el, ...els]);
+        } else if (dir === "forward" && idx < els.length - 1) {
+            [els[idx], els[idx + 1]] = [els[idx + 1], els[idx]];
+            commit(els);
+        } else if (dir === "backward" && idx > 0) {
+            [els[idx], els[idx - 1]] = [els[idx - 1], els[idx]];
+            commit(els);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // ── Context menu ────────────────────────────────────────────────────────────
+    const handleContextMenu = useCallback((id: string | null, x: number, y: number) => {
+        if (id && id !== selectedIdRef.current && !multiSelectedRef.current.includes(id)) {
+            setSelectedId(id);
+            setMultiSelected([]);
+        }
+        setContextMenu({ id, x, y });
+    }, []);
+
+    // ── Duplicate ────────────────────────────────────────────────────────────────
+    const handleDuplicate = useCallback(() => {
+        const el = elementsRef.current.find(e => e.id === selectedIdRef.current);
+        if (!el) return;
+        const newEl = { ...el, id: genId(), x: el.x + 12, y: el.y + 12 };
+        commit([...elementsRef.current, newEl]);
+        setSelectedId(newEl.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // ── Crop ───────────────────────────────────────────────────────────────────
+    const handleCropConfirm = useCallback((crop: CropArea) => {
+        if (!cropModal) return;
+        commit(elementsRef.current.map(e =>
+            e.id === cropModal.id ? { ...e, imageCrop: crop } as StickerElement : e
+        ));
+        setCropModal(null);
+    }, [cropModal]);
 
     // ── Clipboard ──
     const clipboardRef = useRef<StickerElement | null>(null);
@@ -405,9 +884,6 @@ export default function StickerDesignerPage() {
     }, []);
 
     // ── Keyboard shortcuts ──
-    const selectedIdRef = useRef(selectedId);
-    useEffect(() => { selectedIdRef.current = selectedId; }, [selectedId]);
-
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
             const inInput = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
@@ -418,10 +894,17 @@ export default function StickerDesignerPage() {
             if (mod && e.key === "z" && !e.shiftKey) { e.preventDefault(); undo(); return; }
             if (mod && (e.key === "y" || (e.key === "z" && e.shiftKey))) { e.preventDefault(); redo(); return; }
 
-            // Copy / Paste
+            // Group / Ungroup
+            if (mod && e.key === "g") { e.preventDefault(); e.shiftKey ? handleUngroup() : handleGroup(); return; }
+
+            // Z-order
+            if (mod && e.key === "]") { e.preventDefault(); handleZOrder("forward"); return; }
+            if (mod && e.key === "[") { e.preventDefault(); handleZOrder("backward"); return; }
+
+            // Copy / Paste / Duplicate
             if (mod && e.key === "c") { copy(); return; }
             if (mod && e.key === "v") { paste(); return; }
-            if (mod && e.key === "d") { e.preventDefault(); copy(); paste(); return; }
+            if (mod && e.key === "d") { e.preventDefault(); handleDuplicate(); return; }
 
             // Zoom
             if (mod && (e.key === "=" || e.key === "+")) { e.preventDefault(); setZoom(z => Math.min(z + 0.25, 6)); return; }
@@ -437,7 +920,7 @@ export default function StickerDesignerPage() {
             }
 
             // Escape
-            if (e.key === "Escape") { setSelectedId(null); return; }
+            if (e.key === "Escape") { setContextMenu(null); setSelectedId(null); return; }
 
             // Arrow nudge
             if (sid && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
@@ -452,7 +935,7 @@ export default function StickerDesignerPage() {
         };
         window.addEventListener("keydown", handler);
         return () => window.removeEventListener("keydown", handler);
-    }, [undo, redo, copy, paste]);
+    }, [undo, redo, copy, paste, handleGroup, handleUngroup, handleZOrder, handleDuplicate]);
 
     // ── Canvas dimensions ──
     const pxW = Math.round(canvasW * MM_TO_PX);
@@ -631,34 +1114,60 @@ export default function StickerDesignerPage() {
                 </div>
 
                 {/* Canvas Area */}
-                <div className="flex-1 bg-muted/40 rounded-xl border overflow-auto flex items-center justify-center p-8">
+                <div className="flex-1 bg-muted/40 rounded-xl border overflow-auto flex items-center justify-center p-8 relative">
+                    {multiSelected.length >= 2 && (
+                        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 bg-violet-600 text-white text-[11px] font-bold px-3 py-1 rounded-full shadow-lg flex items-center gap-1.5 pointer-events-none">
+                            <Layers2 className="h-3.5 w-3.5" />
+                            {multiSelected.length} ชิ้น · ⌘G เพื่อจัดกลุ่ม
+                        </div>
+                    )}
                     <StickerCanvas
                         width={pxW}
                         height={pxH}
                         zoom={zoom}
                         elements={elements}
                         selectedId={selectedId}
-                        onSelect={setSelectedId}
+                        multiSelected={multiSelected}
+                        onSelect={handleSelect}
                         onChange={handleElementChange}
                         onElementsChange={next => commit(next)}
+                        onContextMenu={handleContextMenu}
                     />
                 </div>
 
                 {/* Right Properties Panel */}
                 <div className="w-48 shrink-0 bg-card border rounded-xl overflow-y-auto">
                     <div className="p-3 border-b">
-                        <p className="text-[10px] font-semibold uppercase text-muted-foreground tracking-wider">คุณสมบัติ</p>
+                        <p className="text-[10px] font-semibold uppercase text-muted-foreground tracking-wider">
+                            {multiSelected.length >= 2 ? "จัด Layout" : "คุณสมบัติ"}
+                        </p>
                     </div>
-                    <PropsPanel
-                        element={selectedElement}
-                        onChange={handleElementChange}
-                        onDelete={() => {
-                            if (selectedId) {
-                                commit(elements.filter(e => e.id !== selectedId));
-                                setSelectedId(null);
-                            }
-                        }}
-                    />
+                    {multiSelected.length >= 2 ? (
+                        <AlignPanel
+                            count={multiSelected.length}
+                            onAlign={handleAlign}
+                            onDistribute={handleDistribute}
+                            onGroup={handleGroup}
+                        />
+                    ) : (
+                        <PropsPanel
+                            element={selectedElement}
+                            onChange={handleElementChange}
+                            onDelete={() => {
+                                if (selectedId) {
+                                    commit(elements.filter(e => e.id !== selectedId));
+                                    setSelectedId(null);
+                                }
+                            }}
+                            onCrop={() => {
+                                if (selectedElement?.type === "image") {
+                                    setCropModal({ id: selectedElement.id, src: (selectedElement as ImageElement).src, current: (selectedElement as ImageElement).imageCrop });
+                                }
+                            }}
+                            onUngroup={handleUngroup}
+                            onZOrder={handleZOrder}
+                        />
+                    )}
                 </div>
             </div>
         </div>
@@ -667,6 +1176,39 @@ export default function StickerDesignerPage() {
             <StickerPreviewModal
                 template={{ width: canvasW, height: canvasH, elements }}
                 onClose={() => setShowPreview(false)}
+            />
+        )}
+        {cropModal && (
+            <CropModal
+                src={cropModal.src}
+                initialCrop={cropModal.current}
+                onConfirm={handleCropConfirm}
+                onClose={() => setCropModal(null)}
+            />
+        )}
+
+        {contextMenu && (
+            <ContextMenu
+                pos={{ x: contextMenu.x, y: contextMenu.y }}
+                el={elements.find(e => e.id === contextMenu.id) ?? null}
+                multiSelected={multiSelected}
+                hasClipboard={!!clipboardRef.current}
+                onClose={() => setContextMenu(null)}
+                onCopy={() => { copy(); }}
+                onPaste={() => { paste(); }}
+                onDuplicate={handleDuplicate}
+                onDelete={() => {
+                    const id = contextMenu.id ?? selectedId;
+                    if (id) { commit(elements.filter(e => e.id !== id)); setSelectedId(null); setMultiSelected([]); }
+                }}
+                onZOrder={handleZOrder}
+                onGroup={handleGroup}
+                onUngroup={handleUngroup}
+                onCrop={() => {
+                    const el = elements.find(e => e.id === contextMenu.id);
+                    if (el?.type === "image") setCropModal({ id: el.id, src: (el as ImageElement).src, current: (el as ImageElement).imageCrop });
+                }}
+                onAlign={handleAlign}
             />
         )}
         </>
