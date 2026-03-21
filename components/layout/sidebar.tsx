@@ -76,10 +76,10 @@ export function Sidebar({ collapsed, setCollapsed, onNavigate }: SidebarProps) {
                             href={item.href}
                             onClick={onNavigate}
                             className={cn(
-                                "group flex items-center rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors",
+                                "group flex items-center rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-all duration-200 border-r-[4px] border-transparent",
                                 isActive
-                                    ? "bg-sidebar-accent text-sidebar-accent-foreground font-semibold"
-                                    : "text-sidebar-foreground/70 hover:text-sidebar-accent-foreground",
+                                    ? "bg-sidebar-accent text-sidebar-accent-foreground dark:text-[#E8601C] font-semibold border-sidebar-primary dark:border-[#E8601C]"
+                                    : "text-sidebar-foreground/70",
                                 collapsed ? "justify-center" : "justify-start"
                             )}
                             title={collapsed ? item.name : undefined}
