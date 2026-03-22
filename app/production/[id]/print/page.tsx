@@ -7,7 +7,8 @@ import { Loader2, Printer, ArrowLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ordersApi } from "@/lib/api/orders";
 import { panesApi } from "@/lib/api/panes";
-import { Order, Material, Pane } from "@/lib/api/types";
+import { stationsApi } from "@/lib/api/stations";
+import { Order, Material, Pane, Station } from "@/lib/api/types";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const STATION_LABELS: Record<string, string> = {
@@ -64,19 +65,22 @@ export default function WorkOrderPrintPage() {
     const { id }   = useParams<{ id: string }>();
     const router   = useRouter();
 
-    const [order,   setOrder]   = useState<Order | null>(null);
-    const [panes,   setPanes]   = useState<Pane[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [baseUrl, setBaseUrl] = useState("");
+    const [order,      setOrder]      = useState<Order | null>(null);
+    const [panes,      setPanes]      = useState<Pane[]>([]);
+    const [stationMap, setStationMap] = useState<Map<string, Station>>(new Map());
+    const [loading,    setLoading]    = useState(true);
+    const [baseUrl,    setBaseUrl]    = useState("");
 
     useEffect(() => {
         setBaseUrl(window.location.origin);
         Promise.all([
             ordersApi.getById(id),
             panesApi.getAll({ order: id, limit: 100 }),
-        ]).then(([oRes, pRes]) => {
+            stationsApi.getAll(),
+        ]).then(([oRes, pRes, sRes]) => {
             if (oRes.success) setOrder(oRes.data);
             if (pRes.success) setPanes(pRes.data ?? []);
+            if (sRes.success) setStationMap(new Map((sRes.data ?? []).map((s: Station) => [s._id, s])));
         }).finally(() => setLoading(false));
     }, [id]);
 
@@ -187,7 +191,7 @@ export default function WorkOrderPrintPage() {
                         <div className="flex flex-wrap items-center gap-1.5">
                             {stations.map((sid, idx) => {
                                 const sidStr = typeof sid === "string" ? sid : (sid as Record<string, string>)._id ?? String(sid);
-                                const label  = STATION_LABELS[sidStr] ?? sidStr;
+                                const label  = stationMap.get(sidStr)?.name ?? STATION_LABELS[sidStr] ?? sidStr;
                                 const done   = idx < (order.currentStationIndex ?? 0);
                                 const active = idx === (order.currentStationIndex ?? -1) && order.status === "in_progress";
                                 return (
