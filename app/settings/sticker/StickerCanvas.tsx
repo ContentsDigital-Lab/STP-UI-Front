@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Stage, Layer, Group, Rect, Text, Transformer, Line, Image as KonvaImage } from "react-konva";
+import { Stage, Layer, Group, Rect, Text, Transformer, Line, Image as KonvaImage, Circle, Ellipse, RegularPolygon, Star as KonvaStar, Arrow } from "react-konva";
 import type Konva from "konva";
-import type { StickerElement, ImageElement, GroupElement } from "./types";
+import type { StickerElement, ImageElement, GroupElement, ShapeElement } from "./types";
+import { cssFontFamily } from "./fonts";
 
 // ─── Snap threshold (canvas pixels, before zoom) ─────────────────────────────
 const SNAP = 6;
@@ -223,7 +224,7 @@ function ImageNode({ el, isSelected, onSelect, onChange, onRotating, onRotateEnd
 }
 
 // ─── Generic draggable element ────────────────────────────────────────────────
-function ElementNode({ el, isSelected, onSelect, onChange, onRotating, onRotateEnd, onContextMenu }: {
+function ElementNode({ el, isSelected, onSelect, onChange, onRotating, onRotateEnd, onContextMenu, onEditLabel }: {
     el: StickerElement;
     isSelected: boolean;
     onSelect: (shift?: boolean) => void;
@@ -231,6 +232,7 @@ function ElementNode({ el, isSelected, onSelect, onChange, onRotating, onRotateE
     onRotating: (label: RotLabel) => void;
     onRotateEnd: () => void;
     onContextMenu?: (clientX: number, clientY: number) => void;
+    onEditLabel?: (id: string, node: Konva.Node) => void;
 }) {
     const shapeRef = useRef<Konva.Node>(null);
     const trRef    = useRef<Konva.Transformer>(null);
@@ -250,7 +252,7 @@ function ElementNode({ el, isSelected, onSelect, onChange, onRotating, onRotateE
         const sx = node.scaleX(), sy = node.scaleY();
         const rot = node.rotation();
         node.scaleX(1); node.scaleY(1);
-        if (el.type === "rect") {
+        if (el.type === "rect" || el.type === "shape") {
             onChange({ ...el, x: node.x(), y: node.y(), rotation: rot, width: Math.round((el as { width: number }).width * sx), height: Math.round((el as { height: number }).height * sy) } as StickerElement);
         } else {
             onChange({ ...el, x: node.x(), y: node.y(), rotation: rot } as StickerElement);
@@ -267,7 +269,7 @@ function ElementNode({ el, isSelected, onSelect, onChange, onRotating, onRotateE
     };
 
     const ctxMenu = (e: Konva.KonvaEventObject<MouseEvent>) => { e.evt.preventDefault(); onContextMenu?.(e.evt.clientX, e.evt.clientY); };
-    const common = { id: el.id, draggable: true, onClick: (e: Konva.KonvaEventObject<MouseEvent>) => onSelect(e.evt.shiftKey), onTap: () => onSelect(), onContextMenu: ctxMenu, onDragEnd: handleDragEnd, onTransformEnd: handleTransformEnd };
+    const common = { id: el.id, draggable: true, onClick: (e: Konva.KonvaEventObject<MouseEvent>) => onSelect(e.evt.shiftKey), onTap: () => onSelect(), onContextMenu: ctxMenu, onDragEnd: handleDragEnd, onTransformEnd: handleTransformEnd, onDblClick: () => { if (shapeRef.current) onEditLabel?.(el.id, shapeRef.current); } };
 
     // Transformer props shared
     const trProps = {
@@ -283,15 +285,23 @@ function ElementNode({ el, isSelected, onSelect, onChange, onRotating, onRotateE
         const fontStyle = [el.italic ? "italic" : "", el.bold ? "bold" : ""].filter(Boolean).join(" ") || "normal";
         return (
             <>
-                <Text ref={shapeRef as React.RefObject<Konva.Text>} {...common} x={el.x} y={el.y} rotation={el.rotation ?? 0} text={el.text} fontSize={el.fontSize} fill={el.fill} fontStyle={fontStyle} fontFamily="'Prompt', sans-serif" />
+                <Text ref={shapeRef as React.RefObject<Konva.Text>} {...common} x={el.x} y={el.y} rotation={el.rotation ?? 0} text={el.text} fontSize={el.fontSize} fill={el.fill} fontStyle={fontStyle} fontFamily={cssFontFamily(el.fontFamily ?? "Prompt")} />
                 {isSelected && <Transformer {...trProps} enabledAnchors={["middle-left", "middle-right"]} />}
             </>
         );
     }
     if (el.type === "rect") {
+        const rectGroupRef = shapeRef as React.RefObject<Konva.Group>;
         return (
             <>
-                <Rect ref={shapeRef as React.RefObject<Konva.Rect>} {...common} x={el.x} y={el.y} rotation={el.rotation ?? 0} width={el.width} height={el.height} fill={el.fill === "transparent" ? "" : el.fill} stroke={el.stroke} strokeWidth={el.strokeWidth} />
+                <Group ref={rectGroupRef} id={el.id} x={el.x} y={el.y} rotation={el.rotation ?? 0} draggable
+                    onClick={(e: Konva.KonvaEventObject<MouseEvent>) => onSelect(e.evt.shiftKey)} onTap={() => onSelect()} onContextMenu={ctxMenu}
+                    onDragEnd={handleDragEnd} onTransformEnd={handleTransformEnd}
+                    onDblClick={() => { if (rectGroupRef.current) onEditLabel?.(el.id, rectGroupRef.current); }}
+                >
+                    <Rect x={0} y={0} width={el.width} height={el.height} fill={el.fill === "transparent" ? "" : el.fill} stroke={el.stroke} strokeWidth={el.strokeWidth} />
+                    {el.label && <Text x={0} y={0} width={el.width} height={el.height} text={el.label} align="center" verticalAlign="middle" fontSize={el.labelFontSize ?? 12} fill={el.labelColor ?? "#000000"} listening={false} fontFamily="'Prompt', sans-serif" />}
+                </Group>
                 {isSelected && <Transformer {...trProps} />}
             </>
         );
@@ -301,6 +311,66 @@ function ElementNode({ el, isSelected, onSelect, onChange, onRotating, onRotateE
             <>
                 <Line ref={shapeRef as React.RefObject<Konva.Line>} {...common} x={el.x} y={el.y} rotation={el.rotation ?? 0} points={el.points} stroke={el.stroke} strokeWidth={el.strokeWidth} hitStrokeWidth={10} />
                 {isSelected && <Transformer {...trProps} enabledAnchors={["middle-left", "middle-right"]} />}
+            </>
+        );
+    }
+    if (el.type === "shape") {
+        const s = el as ShapeElement;
+        const cx = s.width / 2;
+        const cy = s.height / 2;
+        const r  = Math.min(s.width, s.height) / 2;
+        const fill = s.fill === "transparent" ? "" : s.fill;
+        let shapeNode: React.ReactNode;
+        switch (s.kind) {
+            case "circle":
+                shapeNode = <Circle x={cx} y={cy} radius={r} fill={fill} stroke={s.stroke} strokeWidth={s.strokeWidth} listening={false} />;
+                break;
+            case "ellipse":
+                shapeNode = <Ellipse x={cx} y={cy} radiusX={s.width / 2} radiusY={s.height / 2} fill={fill} stroke={s.stroke} strokeWidth={s.strokeWidth} listening={false} />;
+                break;
+            case "triangle":
+                shapeNode = <RegularPolygon x={cx} y={cy} sides={3} radius={r} fill={fill} stroke={s.stroke} strokeWidth={s.strokeWidth} listening={false} />;
+                break;
+            case "star":
+                shapeNode = <KonvaStar x={cx} y={cy} numPoints={5} innerRadius={r * 0.4} outerRadius={r} fill={fill} stroke={s.stroke} strokeWidth={s.strokeWidth} listening={false} />;
+                break;
+            case "pentagon":
+                shapeNode = <RegularPolygon x={cx} y={cy} sides={5} radius={r} fill={fill} stroke={s.stroke} strokeWidth={s.strokeWidth} listening={false} />;
+                break;
+            case "hexagon":
+                shapeNode = <RegularPolygon x={cx} y={cy} sides={6} radius={r} fill={fill} stroke={s.stroke} strokeWidth={s.strokeWidth} listening={false} />;
+                break;
+            case "diamond":
+                shapeNode = <Line x={0} y={0} points={[cx, 0, s.width, cy, cx, s.height, 0, cy]} closed fill={fill} stroke={s.stroke} strokeWidth={s.strokeWidth} listening={false} />;
+                break;
+            case "arrow":
+                shapeNode = <Arrow x={0} y={cy} points={[0, 0, s.width, 0]} fill={fill} stroke={s.stroke} strokeWidth={Math.max(s.strokeWidth, 2)} pointerLength={12} pointerWidth={10} listening={false} />;
+                break;
+            default:
+                shapeNode = null;
+        }
+        const groupRef2 = shapeRef as React.RefObject<Konva.Group>;
+        return (
+            <>
+                <Group ref={groupRef2} id={s.id} x={s.x} y={s.y} rotation={s.rotation ?? 0} width={s.width} height={s.height} draggable
+                    onClick={e => onSelect(e.evt.shiftKey)} onTap={() => onSelect()} onContextMenu={ctxMenu}
+                    onDragEnd={handleDragEnd} onTransformEnd={handleTransformEnd}
+                    onDblClick={() => { if (groupRef2.current) onEditLabel?.(s.id, groupRef2.current); }}
+                >
+                    {/* Transparent hit-area rect so the Group is always draggable */}
+                    <Rect x={0} y={0} width={s.width} height={s.height} opacity={0} />
+                    {shapeNode}
+                    {s.label && (
+                        <Text
+                            x={0} y={0} width={s.width} height={s.height}
+                            text={s.label} align="center" verticalAlign="middle"
+                            fontSize={s.labelFontSize ?? 12} fill={s.labelColor ?? "#000000"}
+                            listening={false}
+                            fontFamily="'Prompt', sans-serif"
+                        />
+                    )}
+                </Group>
+                {isSelected && <Transformer {...trProps} />}
             </>
         );
     }
@@ -348,12 +418,41 @@ function StaticQrEl({ el }: { el: Extract<StickerElement, { type: "qr" }> }) {
 function StaticElement({ el }: { el: Exclude<StickerElement, GroupElement> }) {
     if (el.type === "text" || el.type === "dynamic") {
         const fontStyle = [el.italic ? "italic" : "", el.bold ? "bold" : ""].filter(Boolean).join(" ") || "normal";
-        return <Text x={el.x} y={el.y} rotation={el.rotation ?? 0} text={el.text} fontSize={el.fontSize} fill={el.fill} fontStyle={fontStyle} fontFamily="'Prompt', sans-serif" />;
+        return <Text x={el.x} y={el.y} rotation={el.rotation ?? 0} text={el.text} fontSize={el.fontSize} fill={el.fill} fontStyle={fontStyle} fontFamily={cssFontFamily(el.fontFamily ?? "Prompt")} />;
     }
-    if (el.type === "rect")  return <Rect x={el.x} y={el.y} rotation={el.rotation ?? 0} width={el.width} height={el.height} fill={el.fill === "transparent" ? "" : el.fill} stroke={el.stroke} strokeWidth={el.strokeWidth} />;
+    if (el.type === "rect") return (
+        <Group x={el.x} y={el.y} rotation={el.rotation ?? 0}>
+            <Rect x={0} y={0} width={el.width} height={el.height} fill={el.fill === "transparent" ? "" : el.fill} stroke={el.stroke} strokeWidth={el.strokeWidth} />
+            {el.label && <Text x={0} y={0} width={el.width} height={el.height} text={el.label} align="center" verticalAlign="middle" fontSize={el.labelFontSize ?? 12} fill={el.labelColor ?? "#000000"} listening={false} fontFamily="'Prompt', sans-serif" />}
+        </Group>
+    );
     if (el.type === "line")  return <Line x={el.x} y={el.y} rotation={el.rotation ?? 0} points={el.points} stroke={el.stroke} strokeWidth={el.strokeWidth} />;
     if (el.type === "image") return <StaticImageEl el={el} />;
     if (el.type === "qr")    return <StaticQrEl el={el} />;
+    if (el.type === "shape") {
+        const s = el as ShapeElement;
+        const cx = s.width / 2, cy = s.height / 2;
+        const r = Math.min(s.width, s.height) / 2;
+        const fill = s.fill === "transparent" ? "" : s.fill;
+        let shapeNode: React.ReactNode;
+        switch (s.kind) {
+            case "circle":    shapeNode = <Circle x={cx} y={cy} radius={r} fill={fill} stroke={s.stroke} strokeWidth={s.strokeWidth} />; break;
+            case "ellipse":   shapeNode = <Ellipse x={cx} y={cy} radiusX={s.width/2} radiusY={s.height/2} fill={fill} stroke={s.stroke} strokeWidth={s.strokeWidth} />; break;
+            case "triangle":  shapeNode = <RegularPolygon x={cx} y={cy} sides={3} radius={r} fill={fill} stroke={s.stroke} strokeWidth={s.strokeWidth} />; break;
+            case "star":      shapeNode = <KonvaStar x={cx} y={cy} numPoints={5} innerRadius={r*0.4} outerRadius={r} fill={fill} stroke={s.stroke} strokeWidth={s.strokeWidth} />; break;
+            case "pentagon":  shapeNode = <RegularPolygon x={cx} y={cy} sides={5} radius={r} fill={fill} stroke={s.stroke} strokeWidth={s.strokeWidth} />; break;
+            case "hexagon":   shapeNode = <RegularPolygon x={cx} y={cy} sides={6} radius={r} fill={fill} stroke={s.stroke} strokeWidth={s.strokeWidth} />; break;
+            case "diamond":   shapeNode = <Line x={0} y={0} points={[cx, 0, s.width, cy, cx, s.height, 0, cy]} closed fill={fill} stroke={s.stroke} strokeWidth={s.strokeWidth} />; break;
+            case "arrow":     shapeNode = <Arrow x={0} y={cy} points={[0, 0, s.width, 0]} fill={fill} stroke={s.stroke} strokeWidth={Math.max(s.strokeWidth, 2)} pointerLength={12} pointerWidth={10} />; break;
+            default:          shapeNode = null;
+        }
+        return (
+            <Group x={s.x} y={s.y} rotation={s.rotation ?? 0}>
+                {shapeNode}
+                {s.label && <Text x={0} y={0} width={s.width} height={s.height} text={s.label} align="center" verticalAlign="middle" fontSize={s.labelFontSize ?? 12} fill={s.labelColor ?? "#000000"} listening={false} fontFamily="'Prompt', sans-serif" />}
+            </Group>
+        );
+    }
     return null;
 }
 
@@ -444,6 +543,33 @@ export default function StickerCanvas({
     const elsRef = useRef(elements);
     useEffect(() => { elsRef.current = elements; }, [elements]);
 
+    const stageRef = useRef<Konva.Stage>(null);
+    const [labelEdit, setLabelEdit] = useState<{ id: string; value: string; left: number; top: number; width: number; height: number } | null>(null);
+
+    const onChangeRef = useRef(onChange);
+    useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+
+    const handleEditLabel = useCallback((id: string, node: Konva.Node) => {
+        const stage = stageRef.current;
+        if (!stage) return;
+        const stageBox = stage.container().getBoundingClientRect();
+        // getClientRect() without relativeTo returns coords in stage-container pixel space
+        // (already accounting for zoom/scale), so just add the container's screen offset.
+        const rect = node.getClientRect();
+        const el = elsRef.current.find(e => e.id === id);
+        const value = (el as { label?: string })?.label ?? "";
+        // Use a small compact input centered on the shape, not the full bounding box
+        const inputW = Math.min(Math.max(rect.width * 0.8, 100), 200);
+        const inputH = 32;
+        setLabelEdit({
+            id, value,
+            left: stageBox.left + rect.x + (rect.width - inputW) / 2,
+            top: stageBox.top + rect.y + (rect.height - inputH) / 2,
+            width: inputW,
+            height: inputH,
+        });
+    }, []);
+
     const handleRotating = useCallback((label: RotLabel) => setRotLabel(label), []);
     const handleRotateEnd = useCallback(() => setRotLabel(null), []);
 
@@ -524,6 +650,7 @@ export default function StickerCanvas({
             }}
         >
             <Stage
+                ref={stageRef}
                 width={Math.round((width + PAD * 2) * zoom)}
                 height={Math.round((height + PAD * 2) * zoom)}
                 scaleX={zoom}
@@ -580,6 +707,7 @@ export default function StickerCanvas({
                                 onRotating={handleRotating}
                                 onRotateEnd={handleRotateEnd}
                                 onContextMenu={(cx, cy) => onContextMenu?.(el.id, cx, cy)}
+                                onEditLabel={handleEditLabel}
                             />
                         )
                     )}
@@ -619,6 +747,46 @@ export default function StickerCanvas({
                     </Layer>
                 )}
             </Stage>
+
+            {/* ── Inline label editor ── */}
+            {labelEdit && (
+                <input
+                    type="text"
+                    style={{
+                        position: "fixed",
+                        left: labelEdit.left,
+                        top: labelEdit.top,
+                        width: labelEdit.width,
+                        height: labelEdit.height,
+                        background: "rgba(255,255,255,0.97)",
+                        border: "2px solid #6366f1",
+                        borderRadius: 6,
+                        padding: "0 8px",
+                        fontSize: 13,
+                        zIndex: 200,
+                        outline: "none",
+                        textAlign: "center",
+                        fontFamily: "'Prompt', sans-serif",
+                        boxShadow: "0 4px 16px rgba(99,102,241,0.25)",
+                    }}
+                    value={labelEdit.value}
+                    autoFocus
+                    onChange={e => setLabelEdit(prev => prev ? { ...prev, value: e.target.value } : null)}
+                    onBlur={() => {
+                        if (labelEdit) {
+                            const el = elsRef.current.find(e => e.id === labelEdit.id);
+                            if (el && (el.type === "shape" || el.type === "rect")) {
+                                onChangeRef.current({ ...el, label: labelEdit.value } as StickerElement);
+                            }
+                            setLabelEdit(null);
+                        }
+                    }}
+                    onKeyDown={e => {
+                        if (e.key === "Escape") { setLabelEdit(null); }
+                        if (e.key === "Enter") { (e.target as HTMLInputElement).blur(); }
+                    }}
+                />
+            )}
 
             {/* ── Rotation angle badge (shown while rotating, like Canva) ── */}
             {rotLabel && (

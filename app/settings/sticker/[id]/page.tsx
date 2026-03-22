@@ -11,6 +11,8 @@ import {
     AlignStartHorizontal, AlignCenterHorizontal, AlignEndHorizontal,
     AlignHorizontalDistributeCenter, AlignVerticalDistributeCenter,
     ChevronUp, ChevronDown, ChevronsUp, ChevronsDown, ArrowLeft,
+    Circle, Triangle, Star, Hexagon, Diamond, Pentagon, ArrowRight,
+    ChevronRight,
 } from "lucide-react";
 import StickerPreviewModal from "../StickerPreviewModal";
 import CropModal from "../CropModal";
@@ -28,8 +30,10 @@ const StickerCanvas = dynamic(() => import("../StickerCanvas"), { ssr: false });
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type { ElementType, TextElement, QrElement, RectElement, LineElement, ImageElement, GroupElement, StickerElement, StickerTemplate } from "../types";
-import type { ElementType, TextElement, QrElement, RectElement, LineElement, ImageElement, GroupElement, StickerElement, StickerTemplate } from "../types";
+export type { ElementType, TextElement, QrElement, RectElement, LineElement, ImageElement, GroupElement, ShapeElement, StickerElement, StickerTemplate } from "../types";
+import type { ElementType, TextElement, QrElement, RectElement, LineElement, ImageElement, GroupElement, ShapeElement, StickerElement, StickerTemplate } from "../types";
+import type { ShapeKind } from "../types";
+import { FONTS, FONT_CATEGORIES, buildGoogleFontsUrl, cssFontFamily } from "../fonts";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -49,6 +53,59 @@ const DYNAMIC_VARIABLES = [
 ];
 
 function genId() { return Math.random().toString(36).slice(2, 9); }
+
+// ─── Font Picker ──────────────────────────────────────────────────────────────
+
+function FontPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+    const [open, setOpen] = React.useState(false);
+    const ref = React.useRef<HTMLDivElement>(null);
+
+    React.useEffect(() => {
+        if (!open) return;
+        const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+        document.addEventListener("mousedown", h);
+        return () => document.removeEventListener("mousedown", h);
+    }, [open]);
+
+    const current = FONTS.find(f => f.value === value) ?? FONTS[0];
+    const grouped = (Object.keys(FONT_CATEGORIES) as Array<keyof typeof FONT_CATEGORIES>).map(cat => ({
+        cat, label: FONT_CATEGORIES[cat], fonts: FONTS.filter(f => f.category === cat),
+    }));
+
+    return (
+        <div ref={ref} className="relative">
+            <button
+                type="button"
+                className="w-full h-7 text-xs border border-input rounded-md px-2 flex items-center justify-between bg-background hover:bg-accent/50 transition-colors"
+                style={{ fontFamily: cssFontFamily(current.value) }}
+                onClick={() => setOpen(v => !v)}
+            >
+                <span className="truncate">{current.label}</span>
+                <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0 ml-1" />
+            </button>
+            {open && (
+                <div className="absolute top-full left-0 mt-1 bg-card border shadow-xl rounded-xl z-[9999] w-52 max-h-64 overflow-y-auto py-1">
+                    {grouped.map(({ cat, label, fonts }) => (
+                        <React.Fragment key={cat}>
+                            <p className="text-[9px] font-semibold uppercase text-muted-foreground tracking-wider px-3 pt-2 pb-0.5">{label}</p>
+                            {fonts.map(f => (
+                                <button
+                                    key={f.value}
+                                    type="button"
+                                    className={`w-full text-left px-3 py-1.5 text-[13px] hover:bg-accent/70 transition-colors ${f.value === value ? "text-primary font-semibold bg-accent/40" : ""}`}
+                                    style={{ fontFamily: cssFontFamily(f.value) }}
+                                    onClick={() => { onChange(f.value); setOpen(false); }}
+                                >
+                                    {f.label}
+                                </button>
+                            ))}
+                        </React.Fragment>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
 
 // ─── Context Menu ─────────────────────────────────────────────────────────────
 
@@ -292,6 +349,7 @@ function PropsPanel({ element, onChange, onDelete, onCrop, onUngroup, onZOrder }
         element.type === "qr" ? "QR Code" :
         element.type === "image" ? "รูปภาพ" :
         element.type === "rect" ? "สี่เหลี่ยม" :
+        element.type === "shape" ? "รูปทรง" :
         element.type === "group" ? "กลุ่ม" : "เส้น";
 
     // ── Group shortcut ──────────────────────────────────────────────────────────
@@ -382,6 +440,10 @@ function PropsPanel({ element, onChange, onDelete, onCrop, onUngroup, onZOrder }
                             <Button variant={el.italic ? "default" : "outline"} size="sm" className="flex-1 h-7 text-xs italic"
                                 onClick={() => update({ italic: !el.italic } as Partial<TextElement>)}>I</Button>
                         </div>
+                        <div>
+                            <Label className="text-[10px]">ฟอนต์</Label>
+                            <FontPicker value={el.fontFamily ?? "Prompt"} onChange={v => update({ fontFamily: v } as Partial<TextElement>)} />
+                        </div>
                     </>
                 );
             })()}
@@ -454,6 +516,25 @@ function PropsPanel({ element, onChange, onDelete, onCrop, onUngroup, onZOrder }
                             <Input type="number" className="h-7 text-xs" value={el.strokeWidth}
                                 onChange={e => update({ strokeWidth: Number(e.target.value) } as Partial<RectElement>)} />
                         </div>
+                        <div>
+                            <Label className="text-[10px]">ข้อความในกล่อง (ดับเบิ้ลคลิกบน Canvas)</Label>
+                            <Input className="h-7 text-xs" value={el.label ?? ""}
+                                onChange={e => update({ label: e.target.value } as Partial<RectElement>)} />
+                        </div>
+                        {el.label && (
+                            <div className="grid grid-cols-2 gap-1.5">
+                                <div>
+                                    <Label className="text-[10px]">สีข้อความ</Label>
+                                    <input type="color" className="h-7 w-full rounded border border-input cursor-pointer" value={el.labelColor ?? "#000000"}
+                                        onChange={e => update({ labelColor: e.target.value } as Partial<RectElement>)} />
+                                </div>
+                                <div>
+                                    <Label className="text-[10px]">ขนาดตัวอักษร</Label>
+                                    <Input type="number" className="h-7 text-xs" value={el.labelFontSize ?? 12}
+                                        onChange={e => update({ labelFontSize: Number(e.target.value) } as Partial<RectElement>)} />
+                                </div>
+                            </div>
+                        )}
                     </>
                 );
             })()}
@@ -527,6 +608,63 @@ function PropsPanel({ element, onChange, onDelete, onCrop, onUngroup, onZOrder }
                 );
             })()}
 
+            {/* Shape */}
+            {element.type === "shape" && (() => {
+                const el = element as ShapeElement;
+                return (
+                    <>
+                        <div className="grid grid-cols-2 gap-1.5">
+                            <div>
+                                <Label className="text-[10px]">กว้าง</Label>
+                                <Input type="number" className="h-7 text-xs" value={el.width}
+                                    onChange={e => update({ width: Number(e.target.value) } as Partial<ShapeElement>)} />
+                            </div>
+                            <div>
+                                <Label className="text-[10px]">สูง</Label>
+                                <Input type="number" className="h-7 text-xs" value={el.height}
+                                    onChange={e => update({ height: Number(e.target.value) } as Partial<ShapeElement>)} />
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1.5">
+                            <div>
+                                <Label className="text-[10px]">สีพื้น</Label>
+                                <input type="color" className="h-7 w-full rounded border border-input cursor-pointer" value={el.fill === "transparent" ? "#ffffff" : el.fill}
+                                    onChange={e => update({ fill: e.target.value } as Partial<ShapeElement>)} />
+                            </div>
+                            <div>
+                                <Label className="text-[10px]">สีขอบ</Label>
+                                <input type="color" className="h-7 w-full rounded border border-input cursor-pointer" value={el.stroke}
+                                    onChange={e => update({ stroke: e.target.value } as Partial<ShapeElement>)} />
+                            </div>
+                        </div>
+                        <div>
+                            <Label className="text-[10px]">ความหนาขอบ</Label>
+                            <Input type="number" className="h-7 text-xs" value={el.strokeWidth}
+                                onChange={e => update({ strokeWidth: Number(e.target.value) } as Partial<ShapeElement>)} />
+                        </div>
+                        <div>
+                            <Label className="text-[10px]">ข้อความในรูปทรง (ดับเบิ้ลคลิกบน Canvas)</Label>
+                            <Input className="h-7 text-xs" value={el.label ?? ""}
+                                onChange={e => update({ label: e.target.value } as Partial<ShapeElement>)} />
+                        </div>
+                        {el.label && (
+                            <div className="grid grid-cols-2 gap-1.5">
+                                <div>
+                                    <Label className="text-[10px]">สีข้อความ</Label>
+                                    <input type="color" className="h-7 w-full rounded border border-input cursor-pointer" value={el.labelColor ?? "#000000"}
+                                        onChange={e => update({ labelColor: e.target.value } as Partial<ShapeElement>)} />
+                                </div>
+                                <div>
+                                    <Label className="text-[10px]">ขนาดตัวอักษร</Label>
+                                    <Input type="number" className="h-7 text-xs" value={el.labelFontSize ?? 12}
+                                        onChange={e => update({ labelFontSize: Number(e.target.value) } as Partial<ShapeElement>)} />
+                                </div>
+                            </div>
+                        )}
+                    </>
+                );
+            })()}
+
             {/* Z-order */}
             {onZOrder && (
                 <div>
@@ -576,12 +714,22 @@ export default function StickerDesignerPage() {
     const [zoom, setZoom] = useState(2.5);
     const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
     const [showPreview, setShowPreview] = useState(false);
+    const [shapesOpen, setShapesOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // ── API state ──
     const [templateName, setTemplateName] = useState("");
     const [saving,       setSaving]       = useState(false);
     const [loadError,    setLoadError]    = useState(false);
+
+    // ── Load Google Fonts ──
+    useEffect(() => {
+        const link = document.createElement("link");
+        link.rel = "stylesheet";
+        link.href = buildGoogleFontsUrl();
+        document.head.appendChild(link);
+        return () => { document.head.removeChild(link); };
+    }, []);
 
     // ── History (undo/redo) ──
     const historyRef = useRef<{ past: StickerElement[][], future: StickerElement[][] }>({ past: [], future: [] });
@@ -930,7 +1078,7 @@ export default function StickerDesignerPage() {
     pxHRef.current = pxH;
 
     // ── Add element ──
-    const addElement = useCallback((type: ElementType) => {
+    const addElement = useCallback((type: ElementType, shapeKind?: ShapeKind) => {
         const cx = pxW / 2;
         const cy = pxH / 2;
         const id = genId();
@@ -951,6 +1099,12 @@ export default function StickerDesignerPage() {
             case "line":
                 el = { id, type: "line", x: cx - 50, y: cy, points: [0, 0, 100, 0], stroke: "#000000", strokeWidth: 1 };
                 break;
+            case "shape": {
+                const kind = shapeKind ?? "circle";
+                const isFlat = kind === "arrow";
+                el = { id, type: "shape", kind, x: cx - 40, y: isFlat ? cy - 10 : cy - 40, width: 80, height: isFlat ? 20 : 80, fill: "transparent", stroke: "#000000", strokeWidth: 1 };
+                break;
+            }
             default:
                 return; // "image" is added via file picker
         }
@@ -1133,12 +1287,11 @@ export default function StickerDesignerPage() {
                     <hr className="border-border" />
                     <p className="text-[10px] font-semibold uppercase text-muted-foreground tracking-wider">เพิ่ม Element</p>
 
+                    {/* Non-shape tools */}
                     {[
                         { type: "text" as ElementType,    icon: <Type className="h-3.5 w-3.5" />,     label: "ข้อความ" },
                         { type: "dynamic" as ElementType, icon: <Variable className="h-3.5 w-3.5" />, label: "ตัวแปร" },
                         { type: "qr" as ElementType,      icon: <QrCode className="h-3.5 w-3.5" />,   label: "QR Code" },
-                        { type: "rect" as ElementType,    icon: <Square className="h-3.5 w-3.5" />,   label: "สี่เหลี่ยม" },
-                        { type: "line" as ElementType,    icon: <Minus className="h-3.5 w-3.5" />,    label: "เส้น" },
                     ].map(({ type, icon, label }) => (
                         <Button key={type} variant="outline" size="sm"
                             className="justify-start gap-2 h-8 text-xs w-full"
@@ -1146,6 +1299,7 @@ export default function StickerDesignerPage() {
                             {icon} {label}
                         </Button>
                     ))}
+
                     {/* Image upload */}
                     <Button variant="outline" size="sm"
                         className="justify-start gap-2 h-8 text-xs w-full"
@@ -1163,6 +1317,41 @@ export default function StickerDesignerPage() {
                             e.target.value = "";
                         }}
                     />
+
+                    {/* Shapes collapsible */}
+                    <button
+                        className="flex items-center justify-between w-full text-[10px] font-semibold uppercase text-muted-foreground tracking-wider py-1 hover:text-foreground transition-colors"
+                        onClick={() => setShapesOpen(v => !v)}
+                    >
+                        รูปทรง
+                        <ChevronRight className={`h-3 w-3 transition-transform ${shapesOpen ? "rotate-90" : ""}`} />
+                    </button>
+                    {shapesOpen && (
+                        <div className="grid grid-cols-2 gap-1">
+                            {([
+                                { kind: "rect" as const,     icon: <Square className="h-3.5 w-3.5" />,      label: "สี่เหลี่ยม",  isRect: true },
+                                { kind: "circle" as const,   icon: <Circle className="h-3.5 w-3.5" />,      label: "วงกลม",      isRect: false },
+                                { kind: "ellipse" as const,  icon: <Circle className="h-3 w-4" />,          label: "วงรี",       isRect: false },
+                                { kind: "triangle" as const, icon: <Triangle className="h-3.5 w-3.5" />,    label: "สามเหลี่ยม", isRect: false },
+                                { kind: "star" as const,     icon: <Star className="h-3.5 w-3.5" />,        label: "ดาว",        isRect: false },
+                                { kind: "pentagon" as const, icon: <Pentagon className="h-3.5 w-3.5" />,    label: "ห้าเหลี่ยม", isRect: false },
+                                { kind: "hexagon" as const,  icon: <Hexagon className="h-3.5 w-3.5" />,     label: "หกเหลี่ยม",  isRect: false },
+                                { kind: "diamond" as const,  icon: <Diamond className="h-3.5 w-3.5" />,     label: "เพชร",       isRect: false },
+                                { kind: "arrow" as const,    icon: <ArrowRight className="h-3.5 w-3.5" />,  label: "ลูกศร",      isRect: false },
+                                { kind: "line" as const,     icon: <Minus className="h-3.5 w-3.5" />,       label: "เส้น",       isLine: true },
+                            ] as Array<{ kind: string; icon: React.ReactNode; label: string; isRect?: boolean; isLine?: boolean }>).map(({ kind, icon, label, isRect, isLine }) => (
+                                <Button key={kind} variant="outline" size="sm"
+                                    className="justify-start gap-1.5 h-8 text-[11px] w-full px-2"
+                                    onClick={() => {
+                                        if (isRect) addElement("rect");
+                                        else if (isLine) addElement("line");
+                                        else addElement("shape", kind as ShapeKind);
+                                    }}>
+                                    {icon} {label}
+                                </Button>
+                            ))}
+                        </div>
+                    )}
 
                     <hr className="border-border" />
                     <p className="text-[10px] text-muted-foreground leading-relaxed">
