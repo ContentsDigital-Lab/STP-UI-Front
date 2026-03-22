@@ -225,6 +225,7 @@ export default function ProductionDetailPage() {
     const [colorMap,   setColorMap]   = useState<Record<string, string>>({});
     const [loading,    setLoading]    = useState(true);
     const [error,      setError]      = useState<string | null>(null);
+    const [infoTab,    setInfoTab]    = useState<"order" | "bill">("order");
 
     const stationMap = new Map(stations.map(s => [s._id, s]));
 
@@ -322,30 +323,58 @@ export default function ProductionDetailPage() {
                 {/* ── Left ────────────────────────────────────────────── */}
                 <div className="space-y-4">
 
-                    {/* Order details */}
+                    {/* Order + Bill toggle card */}
                     <div className="rounded-xl border bg-card p-4">
-                        <h2 className="text-sm font-semibold mb-2">ข้อมูลออเดอร์</h2>
-                        <InfoRow icon={User}     label="ลูกค้า"      value={getStr(order.customer)} />
-                        <InfoRow icon={Package}  label="วัสดุ"       value={getStr(order.material)} />
-                        <InfoRow icon={Hash}     label="จำนวน"       value={`${order.quantity} ชิ้น`} />
-                        <InfoRow icon={User}     label="มอบหมายให้"  value={getStr(order.assignedTo)} />
-                        <InfoRow icon={Clock}    label="ความสำคัญ"   value={`P${order.priority}`} />
-                    </div>
-
-                    {/* Bill (request) details */}
-                    {request && (
-                        <div className="rounded-xl border bg-card p-4">
-                            <h2 className="text-sm font-semibold mb-2 flex items-center gap-2">
-                                <Info className="h-4 w-4 text-muted-foreground" />
-                                ข้อมูลบิล
-                            </h2>
-                            <InfoRow icon={Package}  label="ประเภทสินค้า"  value={request.details?.type ?? "—"} />
-                            <InfoRow icon={Hash}     label="จำนวน (บิล)"   value={`${request.details?.quantity ?? "—"} ชิ้น`} />
-                            <InfoRow icon={Hash}     label="ราคาประมาณ"    value={`฿${(request.details?.estimatedPrice ?? 0).toLocaleString()}`} />
-                            <InfoRow icon={Calendar} label="กำหนดส่ง"      value={fmtDate(request.deadline)} />
-                            <InfoRow icon={MapPin}   label="สถานที่ส่ง"    value={request.deliveryLocation ?? "—"} />
+                        {/* Tab toggle */}
+                        <div className="flex items-center gap-1 rounded-lg border bg-muted p-0.5 mb-3 w-fit">
+                            <button
+                                onClick={() => setInfoTab("order")}
+                                className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
+                                    infoTab === "order"
+                                        ? "bg-background text-foreground shadow-sm"
+                                        : "text-foreground/60 hover:text-foreground hover:bg-background/50"
+                                }`}
+                            >
+                                <Factory className="h-3 w-3" />
+                                ข้อมูลออเดอร์
+                            </button>
+                            {request && (
+                                <button
+                                    onClick={() => setInfoTab("bill")}
+                                    className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
+                                        infoTab === "bill"
+                                            ? "bg-background text-foreground shadow-sm"
+                                            : "text-foreground/60 hover:text-foreground hover:bg-background/50"
+                                    }`}
+                                >
+                                    <Info className="h-3 w-3" />
+                                    ข้อมูลบิล
+                                </button>
+                            )}
                         </div>
-                    )}
+
+                        {/* Order tab */}
+                        {infoTab === "order" && (
+                            <>
+                                <InfoRow icon={User}     label="ลูกค้า"      value={getStr(order.customer)} />
+                                <InfoRow icon={Package}  label="วัสดุ"       value={getStr(order.material)} />
+                                <InfoRow icon={Hash}     label="จำนวน"       value={`${order.quantity} ชิ้น`} />
+                                <InfoRow icon={User}     label="มอบหมายให้"  value={getStr(order.assignedTo)} />
+                                <InfoRow icon={Clock}    label="ความสำคัญ"   value={`P${order.priority}`} />
+                            </>
+                        )}
+
+                        {/* Bill tab */}
+                        {infoTab === "bill" && request && (
+                            <>
+                                <InfoRow icon={Package}  label="ประเภทสินค้า"  value={request.details?.type ?? "—"} />
+                                <InfoRow icon={Hash}     label="จำนวน (บิล)"   value={`${request.details?.quantity ?? "—"} ชิ้น`} />
+                                <InfoRow icon={Hash}     label="ราคาประมาณ"    value={`฿${(request.details?.estimatedPrice ?? 0).toLocaleString()}`} />
+                                <InfoRow icon={Calendar} label="กำหนดส่ง"      value={fmtDate(request.deadline)} />
+                                <InfoRow icon={MapPin}   label="สถานที่ส่ง"    value={request.deliveryLocation ?? "—"} />
+                            </>
+                        )}
+                    </div>
 
                     {/* Sibling orders in same bill */}
                     <BillOrderList
@@ -375,11 +404,13 @@ export default function ProductionDetailPage() {
                             )}
                         </div>
 
-                        <StationJourney
-                            order={order}
-                            stationMap={stationMap}
-                            colorMap={colorMap}
-                        />
+                        <div className="overflow-y-auto max-h-72 pr-1">
+                            <StationJourney
+                                order={order}
+                                stationMap={stationMap}
+                                colorMap={colorMap}
+                            />
+                        </div>
 
                         {order.status === "completed" && (
                             <div className="flex items-center gap-2 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-3 py-2">
@@ -429,7 +460,7 @@ export default function ProductionDetailPage() {
 
             {/* ── Pane list ─────────────────────────────────────────── */}
             {panes.length > 0 && (
-                <div className="rounded-xl border bg-card p-4 space-y-3">
+                <div className="rounded-xl border bg-card p-4 space-y-3 min-h-85">
                     <div className="flex items-center justify-between">
                         <h2 className="text-sm font-semibold flex items-center gap-2">
                             <Package className="h-4 w-4 text-primary" />

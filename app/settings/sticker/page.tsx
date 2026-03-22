@@ -18,6 +18,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+    getStickerTemplates,
+    createStickerTemplate,
+    updateStickerTemplate,
+} from "@/lib/api/sticker-templates";
 
 const StickerCanvas = dynamic(() => import("./StickerCanvas"), { ssr: false });
 
@@ -597,6 +602,13 @@ export default function StickerDesignerPage() {
     const [showPreview, setShowPreview] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // ── API state ──
+    const [templateId,   setTemplateId]   = useState<string | null>(null);
+    const [templateName, setTemplateName] = useState("สติ๊กเกอร์ออเดอร์");
+    const [saving,       setSaving]       = useState(false);
+    const [showNameDlg,  setShowNameDlg]  = useState(false);
+    const [pendingName,  setPendingName]  = useState("");
+
     // ── History (undo/redo) ──
     const historyRef = useRef<{ past: StickerElement[][], future: StickerElement[][] }>({ past: [], future: [] });
     const elementsRef = useRef(elements);
@@ -870,17 +882,41 @@ export default function StickerDesignerPage() {
         return () => window.removeEventListener("paste", handler);
     }, [handleImageFile]);
 
-    // ── Load from localStorage ──
+    // ── Load from API (fall back to localStorage draft) ──
     useEffect(() => {
-        try {
-            const raw = localStorage.getItem(STORAGE_KEY);
-            if (raw) {
-                const tmpl: StickerTemplate = JSON.parse(raw);
+        getStickerTemplates(1, 1).then((list) => {
+            if (list.length > 0) {
+                const tmpl = list[0];
+                setTemplateId(tmpl._id);
+                setTemplateName(tmpl.name);
                 setCanvasW(tmpl.width);
                 setCanvasH(tmpl.height);
-                setElements(tmpl.elements);
+                setElements((tmpl.elements ?? []) as StickerElement[]);
+            } else {
+                // fall back to localStorage draft
+                try {
+                    const raw = localStorage.getItem(STORAGE_KEY);
+                    if (raw) {
+                        const tmpl: StickerTemplate = JSON.parse(raw);
+                        setCanvasW(tmpl.width);
+                        setCanvasH(tmpl.height);
+                        setElements(tmpl.elements);
+                    }
+                } catch { /* ignore */ }
             }
-        } catch { /* ignore */ }
+        }).catch(() => {
+            // offline fallback
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (raw) {
+                    const tmpl: StickerTemplate = JSON.parse(raw);
+                    setCanvasW(tmpl.width);
+                    setCanvasH(tmpl.height);
+                    setElements(tmpl.elements);
+                }
+            } catch { /* ignore */ }
+        });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // ── Keyboard shortcuts ──
@@ -972,14 +1008,36 @@ export default function StickerDesignerPage() {
         setSelectedId(id);
     }, [pxW, pxH]);
 
-    const handleSave = () => {
+    const doSave = async (name: string) => {
+        setSaving(true);
         try {
+            const payload = { name, width: canvasW, height: canvasH, elements: elements as unknown[] };
+            if (templateId) {
+                await updateStickerTemplate(templateId, payload);
+            } else {
+                const created = await createStickerTemplate(payload);
+                setTemplateId(created._id);
+                setTemplateName(created.name);
+            }
+            // keep local draft in sync
             localStorage.setItem(STORAGE_KEY, JSON.stringify({ width: canvasW, height: canvasH, elements }));
             setToast({ msg: "บันทึกสำเร็จ!", ok: true });
         } catch {
             setToast({ msg: "บันทึกไม่สำเร็จ", ok: false });
+        } finally {
+            setSaving(false);
         }
         setTimeout(() => setToast(null), 2500);
+    };
+
+    const handleSave = () => {
+        if (!templateId) {
+            // first save — ask for a name
+            setPendingName(templateName);
+            setShowNameDlg(true);
+        } else {
+            doSave(templateName);
+        }
     };
 
     const selectedElement = elements.find(e => e.id === selectedId) ?? null;
@@ -1041,9 +1099,12 @@ export default function StickerDesignerPage() {
                         <Eye className="h-4 w-4" />
                         ตัวอย่าง
                     </Button>
-                    <Button onClick={handleSave} className="gap-2 h-8">
-                        <Save className="h-4 w-4" />
-                        บันทึก
+                    <Button onClick={handleSave} disabled={saving} className="gap-2 h-8">
+                        {saving
+                            ? <Loader2 className="h-4 w-4 animate-spin" />
+                            : <Save className="h-4 w-4" />
+                        }
+                        {saving ? "กำลังบันทึก..." : "บันทึก"}
                     </Button>
                 </div>
             </div>
@@ -1210,6 +1271,56 @@ export default function StickerDesignerPage() {
                 }}
                 onAlign={handleAlign}
             />
+        )}
+
+        {/* ── Name dialog (first save) ── */}
+        {showNameDlg && (
+            <div
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+                onClick={() => setShowNameDlg(false)}
+            >
+                <div
+                    className="bg-card rounded-xl border shadow-xl w-full max-w-sm mx-4 p-6 space-y-4"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <h2 className="text-base font-semibold">ตั้งชื่อ Template</h2>
+                    <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                            ชื่อ Template *
+                        </Label>
+                        <Input
+                            autoFocus
+                            value={pendingName}
+                            onChange={(e) => setPendingName(e.target.value)}
+                            placeholder="เช่น สติ๊กเกอร์ออเดอร์มาตรฐาน"
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter" && pendingName.trim()) {
+                                    setShowNameDlg(false);
+                                    setTemplateName(pendingName.trim());
+                                    doSave(pendingName.trim());
+                                }
+                            }}
+                        />
+                    </div>
+                    <div className="flex gap-2 justify-end">
+                        <Button variant="outline" onClick={() => setShowNameDlg(false)}>
+                            ยกเลิก
+                        </Button>
+                        <Button
+                            disabled={!pendingName.trim() || saving}
+                            onClick={() => {
+                                setShowNameDlg(false);
+                                setTemplateName(pendingName.trim());
+                                doSave(pendingName.trim());
+                            }}
+                            className="gap-2"
+                        >
+                            <Save className="h-4 w-4" />
+                            บันทึก
+                        </Button>
+                    </div>
+                </div>
+            </div>
         )}
         </>
     );
