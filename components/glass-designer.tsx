@@ -981,70 +981,54 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 });
             }
 
-            // Horizontal line from right edge to hole at hole's Y level (two segments with gap)
+            // Horizontal leader: from nearest left/right glass edge through hole center
             const holeDimMatH = new THREE.LineBasicMaterial({ color: 0xcc8855 });
-            const dimEdgeXH = bb.maxX + 50;
-            const hLineP1 = new THREE.Vector3(h.x, h.y, 3.2);
-            const hLineP2 = new THREE.Vector3(dimEdgeXH, h.y, 3.2);
-            const hLineMid = new THREE.Vector3((h.x + bb.maxX) / 2, h.y, 3.2);
+            const distLeft = h.x - bb.minX;
+            const distRight = bb.maxX - h.x;
+            const hUseLeft = distLeft <= distRight;
+            const hEdgeBound = hUseLeft ? bb.minX : bb.maxX;
+            const hEdgeEnd  = hEdgeBound;
+            const hDist     = Math.round(hUseLeft ? distLeft : distRight);
+            const hLineP1   = new THREE.Vector3(h.x, h.y, 3.2);
+            const hLineP2   = new THREE.Vector3(hEdgeEnd, h.y, 3.2);
+            const hLineMid  = new THREE.Vector3((h.x + hEdgeBound) / 2, h.y, 3.2);
             const hGapLine1 = new THREE.Line(new THREE.BufferGeometry().setFromPoints([hLineP1, hLineMid]), holeDimMatH);
             const hGapLine2 = new THREE.Line(new THREE.BufferGeometry().setFromPoints([hLineMid, hLineP2]), holeDimMatH);
             group.add(hGapLine1);
             group.add(hGapLine2);
-            const hDimLabel = makeTextSprite(`${Math.round(bb.maxX - h.x)}`, '#cc8855');
-            hDimLabel.position.set((h.x + bb.maxX) / 2, h.y, 3.3);
+            const hDimLabel = makeTextSprite(`${hDist}`, '#cc8855');
+            hDimLabel.position.set((h.x + hEdgeBound) / 2, h.y, 3.3);
             hDimLabel.userData.gapLine1 = hGapLine1;
             hDimLabel.userData.gapLine2 = hGapLine2;
             hDimLabel.userData.lineP1 = hLineP1.clone();
             hDimLabel.userData.lineP2 = hLineP2.clone();
             hDimLabel.userData.lineDirection = 'horizontal';
             group.add(hDimLabel);
+
+            // Vertical leader: from nearest top/bottom glass edge through hole center
+            const holeDimMatV = new THREE.LineBasicMaterial({ color: 0xcc8855 });
+            const distBottom = h.y - bb.minY;
+            const distTop    = bb.maxY - h.y;
+            const vUseBottom = distBottom <= distTop;
+            const vEdgeBound = vUseBottom ? bb.minY : bb.maxY;
+            const vEdgeEnd   = vEdgeBound;
+            const vDist      = Math.round(vUseBottom ? distBottom : distTop);
+            const vLineP1    = new THREE.Vector3(h.x, h.y, 3.2);
+            const vLineP2    = new THREE.Vector3(h.x, vEdgeEnd, 3.2);
+            const vLineMid   = new THREE.Vector3(h.x, (h.y + vEdgeBound) / 2, 3.2);
+            const vGapLine1  = new THREE.Line(new THREE.BufferGeometry().setFromPoints([vLineP1, vLineMid]), holeDimMatV);
+            const vGapLine2  = new THREE.Line(new THREE.BufferGeometry().setFromPoints([vLineMid, vLineP2]), holeDimMatV);
+            group.add(vGapLine1);
+            group.add(vGapLine2);
+            const vDimLabel = makeTextSprite(`${vDist}`, '#cc8855', true);
+            vDimLabel.position.set(h.x, (h.y + vEdgeBound) / 2, 3.3);
+            vDimLabel.userData.gapLine1 = vGapLine1;
+            vDimLabel.userData.gapLine2 = vGapLine2;
+            vDimLabel.userData.lineP1 = vLineP1.clone();
+            vDimLabel.userData.lineP2 = vLineP2.clone();
+            vDimLabel.userData.lineDirection = 'vertical';
+            group.add(vDimLabel);
         });
-
-        // Chained vertical dimensions on right side (between consecutive holes)
-        if (holesRef.current.length > 0) {
-            const holeDimMat = new THREE.LineBasicMaterial({ color: 0xcc8855 });
-            const dimEdgeX = bb.maxX + 50;
-            const tick = 4;
-            const sortedHoles = [...holesRef.current].sort((a, b) => a.y - b.y);
-            const yPoints = [bb.minY, ...sortedHoles.map(h => h.y)];
-
-            group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([
-                new THREE.Vector3(bb.maxX, bb.minY, 0.3),
-                new THREE.Vector3(dimEdgeX, bb.minY, 0.3),
-            ]), holeDimMat));
-
-            yPoints.forEach(y => {
-                group.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([
-                    new THREE.Vector3(dimEdgeX - tick, y, 0.3),
-                    new THREE.Vector3(dimEdgeX + tick, y, 0.3),
-                ]), holeDimMat));
-            });
-
-            for (let i = 0; i < yPoints.length - 1; i++) {
-                const from = yPoints[i];
-                const to = yPoints[i + 1];
-                const dist = Math.round(to - from);
-                if (dist <= 0) continue;
-
-                const vLineP1 = new THREE.Vector3(dimEdgeX, from, 0.3);
-                const vLineP2 = new THREE.Vector3(dimEdgeX, to, 0.3);
-                const vLineMid = new THREE.Vector3(dimEdgeX, (from + to) / 2, 0.3);
-                const vGapLine1 = new THREE.Line(new THREE.BufferGeometry().setFromPoints([vLineP1, vLineMid]), holeDimMat);
-                const vGapLine2 = new THREE.Line(new THREE.BufferGeometry().setFromPoints([vLineMid, vLineP2]), holeDimMat);
-                group.add(vGapLine1);
-                group.add(vGapLine2);
-
-                const vDimLabel = makeTextSprite(`${dist}`, '#cc8855', true);
-                vDimLabel.position.set(dimEdgeX, (from + to) / 2, 0.5);
-                vDimLabel.userData.gapLine1 = vGapLine1;
-                vDimLabel.userData.gapLine2 = vGapLine2;
-                vDimLabel.userData.lineP1 = vLineP1.clone();
-                vDimLabel.userData.lineP2 = vLineP2.clone();
-                vDimLabel.userData.lineDirection = 'vertical';
-                group.add(vDimLabel);
-            }
-        }
 
         // Custom polygon drawing preview
         if (isDrawingCustomRef.current && customDrawPointsRef.current.length > 0) {
@@ -1206,6 +1190,34 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         setSelectedHoleIds(dupedIds);
         setSelectedHoleId(duped.length === 1 ? duped[0].id : null);
     }, [pushUndo, onHolesChange]);
+
+    const handleAddCutoutAtCenter = useCallback((shape: CutoutType) => {
+        if (shape === 'custom') {
+            // Custom shape still requires the user to draw — enter addHole mode
+            setActiveTool('addHole');
+            setSelectedVertexIdx(null);
+            setIsDrawingCustom(false);
+            setCustomDrawPoints([]);
+            return;
+        }
+        const bb = getBoundingBox(verticesRef.current);
+        const cx = Math.round((bb.minX + bb.maxX) / 2);
+        const cy = Math.round((bb.minY + bb.maxY) / 2);
+        pushUndo();
+        const newHole: HoleData = {
+            id: `h_${Date.now()}_${holeCounter++}`,
+            type: shape,
+            x: cx,
+            y: cy,
+            diameter: shape === 'circle' ? holeDiameterRef.current : 0,
+            ...(shape === 'rectangle' ? { width: cutoutWidthRef.current, height: cutoutHeightRef.current } : {}),
+            ...(shape === 'slot' ? { width: cutoutSlotWidthRef.current, length: cutoutLengthRef.current } : {}),
+        };
+        onHolesChange([...holesRef.current, newHole]);
+        setSelectedHoleId(newHole.id);
+        setSelectedHoleIds(new Set());
+        setActiveTool('select');
+    }, [pushUndo, onHolesChange, holeDiameterRef, cutoutWidthRef, cutoutHeightRef, cutoutSlotWidthRef, cutoutLengthRef]);
 
     // Keyboard shortcuts: full cross-platform (Ctrl on Windows, ⌘ on Mac)
     useEffect(() => {
@@ -2202,7 +2214,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                         <Button
                             variant={activeTool === 'addHole' ? 'default' : 'outline'}
                             size="sm"
-                            onClick={() => { setActiveTool('addHole'); setSelectedVertexIdx(null); setIsDrawingCustom(false); setCustomDrawPoints([]); }}
+                            onClick={() => handleAddCutoutAtCenter(cutoutShape)}
                             className={`gap-1.5 rounded-xl rounded-r-none text-xs font-bold h-9 ${activeTool === 'addHole' ? 'bg-[#E8601C] text-white' : ''}`}
                         >
                             {cutoutShape === 'circle' && <Circle className="h-3.5 w-3.5" />}
@@ -2216,15 +2228,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                                 variant={activeTool === 'addHole' ? 'default' : 'outline'}
                                 size="sm"
                                 className={`rounded-xl rounded-l-none border-l-0 h-9 px-1.5 ${activeTool === 'addHole' ? 'bg-[#E8601C] text-white' : ''}`}
-                                onClick={() => {
-                                    setCutoutMenuOpen(v => !v);
-                                    if (activeTool !== 'addHole') {
-                                        setActiveTool('addHole');
-                                        setSelectedVertexIdx(null);
-                                        setIsDrawingCustom(false);
-                                        setCustomDrawPoints([]);
-                                    }
-                                }}
+                                onClick={() => setCutoutMenuOpen(v => !v)}
                             >
                                 <ChevronDown className="h-3 w-3" />
                             </Button>
@@ -2240,11 +2244,8 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                                         className={`flex items-center gap-2 w-full px-3 py-1.5 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 ${cutoutShape === opt.type ? 'text-[#E8601C]' : 'text-slate-700 dark:text-slate-300'}`}
                                         onClick={() => {
                                             setCutoutShape(opt.type);
-                                            setActiveTool('addHole');
-                                            setSelectedVertexIdx(null);
-                                            setIsDrawingCustom(false);
-                                            setCustomDrawPoints([]);
                                             setCutoutMenuOpen(false);
+                                            handleAddCutoutAtCenter(opt.type);
                                         }}
                                     >
                                         <opt.icon className="h-3.5 w-3.5" />
