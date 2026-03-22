@@ -230,6 +230,41 @@ export default function CreateBillPage() {
         setHoles(newHoles);
     }, []);
 
+    // Page-level keyboard shortcuts (cross-platform: Ctrl on Windows, ⌘ on Mac)
+    const isSubmittingRef = useRef(isSubmitting);
+    isSubmittingRef.current = isSubmitting;
+    const formDataRef = useRef(formData);
+    formDataRef.current = formData;
+
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            const mod = e.metaKey || e.ctrlKey;
+            if (!mod) return;
+            const inInput = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
+            if (inInput && e.key !== 's' && e.key !== 'p') return; // allow save/pdf even from inputs
+            if (e.key === 's') {
+                e.preventDefault();
+                const fd = formDataRef.current;
+                if (!isSubmittingRef.current && fd.customer && fd.glassType) {
+                    document.getElementById('__bill-submit-btn')?.click();
+                }
+                return;
+            }
+            if (e.key === 'p') {
+                e.preventDefault();
+                document.getElementById('__bill-pdf-btn')?.click();
+                return;
+            }
+            if (e.key === '\\' || e.key === '|') {
+                e.preventDefault();
+                setIsRightPanelOpen(v => !v);
+                return;
+            }
+        };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, []);
+
     const handleSubmit = async () => {
         if (!formData.customer || !formData.glassType) return;
         setIsSubmitting(true);
@@ -566,9 +601,10 @@ export default function CreateBillPage() {
                         <span className="hidden sm:inline">Import DXF</span>
                         <span className="sm:hidden">DXF</span>
                     </Button>
-                    <Button 
+                    <Button
+                        id="__bill-pdf-btn"
                         onClick={handleExportPDF}
-                        variant="outline" 
+                        variant="outline"
                         className="inline-flex items-center justify-center whitespace-nowrap gap-2 rounded-xl font-bold text-xs h-9 px-3 border-slate-200 dark:border-slate-800 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-700 dark:text-slate-300"
                     >
                         <FileDown className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
@@ -586,9 +622,11 @@ export default function CreateBillPage() {
                         {isRightPanelOpen ? <PanelRightClose className="h-5 w-5" /> : <PanelRightOpen className="h-5 w-5" />}
                     </Button>
                     <Button
+                        id="__bill-submit-btn"
                         onClick={handleSubmit}
                         disabled={isSubmitting || !formData.customer || !formData.glassType}
                         className="gap-1.5 rounded-xl font-bold text-xs h-9 bg-primary hover:bg-primary/90 dark:bg-[#E8601C] dark:hover:bg-[#E8601C]/90 text-white shadow-lg shadow-primary/20 dark:shadow-orange-500/20 px-4 sm:px-6 ml-auto sm:ml-0"
+                        title="บันทึก (Ctrl/⌘+S)"
                     >
                         <Save className="h-3.5 w-3.5" />
                         {isSubmitting

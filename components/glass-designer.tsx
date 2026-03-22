@@ -7,7 +7,7 @@ import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { MousePointer2, Circle, Undo2, Redo2, RotateCcw, Pen, Focus, Hand, Square, ChevronDown, Hexagon, RectangleHorizontal, Box, Maximize2, Minimize2 } from 'lucide-react';
+import { MousePointer2, Circle, Undo2, Redo2, RotateCcw, Pen, Focus, Hand, Square, ChevronDown, Hexagon, RectangleHorizontal, Box, Maximize2, Minimize2, Copy, Clipboard, Trash2, CopyPlus, Layers2, Ungroup } from 'lucide-react';
 
 export type CutoutType = 'circle' | 'rectangle' | 'slot' | 'custom';
 
@@ -449,6 +449,76 @@ function makeClippedCutoutPath(h: HoleData, glassBB: { minX: number; minY: numbe
     return path;
 }
 
+// ── Context menu ──────────────────────────────────────────────────────────────
+type CtxItem = { icon: React.ReactNode; label: string; shortcut?: string; action: () => void; danger?: boolean; disabled?: boolean };
+
+function GlassCtxMenu({ pos, hasSelection, hasMultiSelection, hasGrouped, hasClipboard, canUndo, canRedo, onClose, onCopy, onPaste, onDuplicate, onDelete, onGroup, onUngroup, onUndo, onRedo, onFitView, onResetAll }: {
+    pos: { x: number; y: number };
+    hasSelection: boolean; hasMultiSelection: boolean; hasGrouped: boolean; hasClipboard: boolean;
+    canUndo: boolean; canRedo: boolean;
+    onClose: () => void; onCopy: () => void; onPaste: () => void; onDuplicate: () => void;
+    onDelete: () => void; onGroup: () => void; onUngroup: () => void;
+    onUndo: () => void; onRedo: () => void; onFitView: () => void; onResetAll: () => void;
+}) {
+    const act = (fn: () => void) => () => { fn(); onClose(); };
+    const sections: CtxItem[][] = [];
+
+    const clipOps: CtxItem[] = [];
+    if (hasSelection) {
+        clipOps.push({ icon: <Copy className="h-3.5 w-3.5" />, label: "คัดลอก", shortcut: "⌘C", action: act(onCopy) });
+        clipOps.push({ icon: <CopyPlus className="h-3.5 w-3.5" />, label: "ทำสำเนา", shortcut: "⌘D", action: act(onDuplicate) });
+    }
+    if (hasClipboard) clipOps.push({ icon: <Clipboard className="h-3.5 w-3.5" />, label: "วาง", shortcut: "⌘V", action: act(onPaste) });
+    if (clipOps.length > 0) sections.push(clipOps);
+
+    const grpOps: CtxItem[] = [];
+    if (hasMultiSelection) grpOps.push({ icon: <Layers2 className="h-3.5 w-3.5" />, label: "จัดกลุ่ม", shortcut: "⌘G", action: act(onGroup) });
+    if (hasGrouped) grpOps.push({ icon: <Ungroup className="h-3.5 w-3.5" />, label: "ยกเลิกกลุ่ม", shortcut: "⌘⇧G", action: act(onUngroup) });
+    if (grpOps.length > 0) sections.push(grpOps);
+
+    sections.push([
+        { icon: <Undo2 className="h-3.5 w-3.5" />, label: "ย้อนกลับ", shortcut: "⌘Z", action: act(onUndo), disabled: !canUndo },
+        { icon: <Redo2 className="h-3.5 w-3.5" />, label: "ทำซ้ำ", shortcut: "⌘Y", action: act(onRedo), disabled: !canRedo },
+    ]);
+
+    sections.push([{ icon: <Focus className="h-3.5 w-3.5" />, label: "ซูมให้พอดี", shortcut: "F", action: act(onFitView) }]);
+
+    if (hasSelection) {
+        sections.push([{ icon: <Trash2 className="h-3.5 w-3.5" />, label: "ลบ", shortcut: "⌫", action: act(onDelete), danger: true }]);
+    } else {
+        sections.push([{ icon: <RotateCcw className="h-3.5 w-3.5" />, label: "รีเซ็ตทั้งหมด", action: act(onResetAll), danger: true }]);
+    }
+
+    return (
+        <div
+            className="fixed z-50 bg-popover border border-border rounded-xl shadow-2xl py-1.5 min-w-[190px] overflow-hidden"
+            style={{ left: pos.x, top: pos.y }}
+            onContextMenu={e => e.preventDefault()}
+        >
+            {sections.map((section, si) => (
+                <React.Fragment key={si}>
+                    {si > 0 && <div className="my-1 border-t border-border/60 mx-1.5" />}
+                    {section.map((item, ii) => (
+                        <button
+                            key={ii}
+                            onClick={item.action}
+                            disabled={item.disabled}
+                            className={`flex items-center gap-2.5 px-3 py-1.5 text-left text-[13px] rounded-lg mx-1 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                                item.danger ? 'text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30' : 'text-foreground hover:bg-accent'
+                            }`}
+                            style={{ width: 'calc(100% - 8px)' }}
+                        >
+                            <span className="shrink-0 text-muted-foreground">{item.icon}</span>
+                            <span className="flex-1">{item.label}</span>
+                            {item.shortcut && <span className="text-[11px] text-muted-foreground font-mono shrink-0">{item.shortcut}</span>}
+                        </button>
+                    ))}
+                </React.Fragment>
+            ))}
+        </div>
+    );
+}
+
 export function GlassDesigner({ width, height, holes, onHolesChange, vertices: externalVertices, onVerticesChange, thickness: glassMmThickness }: GlassDesignerProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -471,6 +541,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
     const [customDrawPoints, setCustomDrawPoints] = useState<VertexData[]>([]);
     const [show3DPreview, setShow3DPreview] = useState(true);
     const [cutoutMenuOpen, setCutoutMenuOpen] = useState(false);
+    const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
     const [previewPos, setPreviewPos] = useState<{ x: number; y: number } | null>(null);
     const [previewExpanded, setPreviewExpanded] = useState(false);
     const previewDragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
@@ -1114,20 +1185,59 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
     // Clipboard for copy/paste cutouts
     const clipboardRef = useRef<HoleData[]>([]);
 
-    // Keyboard shortcuts: Cmd+G to group, Cmd+Shift+G to ungroup, Cmd+C copy, Cmd+V paste, Escape to deselect, Delete to remove
+    const handleDuplicate = useCallback(() => {
+        const sel = selectedHoleIdsRef.current;
+        const singleSel = selectedHoleIdRef.current;
+        const ids = sel.size > 0 ? sel : new Set(singleSel ? [singleSel] : []);
+        if (ids.size === 0) return;
+        pushUndo();
+        const toDup = holesRef.current.filter(h => ids.has(h.id));
+        const newGroupId = toDup.length > 1 ? `grp-${Date.now()}` : undefined;
+        const duped = toDup.map(h => ({
+            ...h,
+            id: `h_${Date.now()}_${holeCounter++}`,
+            x: h.x + 20,
+            y: h.y + 20,
+            groupId: newGroupId ?? h.groupId,
+            points: h.points ? h.points.map(p => ({ ...p })) : undefined,
+        }));
+        onHolesChange([...holesRef.current, ...duped]);
+        const dupedIds = new Set(duped.map(h => h.id));
+        setSelectedHoleIds(dupedIds);
+        setSelectedHoleId(duped.length === 1 ? duped[0].id : null);
+    }, [pushUndo, onHolesChange]);
+
+    // Keyboard shortcuts: full cross-platform (Ctrl on Windows, ⌘ on Mac)
     useEffect(() => {
         const onKeyDown = (e: KeyboardEvent) => {
+            const mod = e.metaKey || e.ctrlKey;
+            const inInput = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
+
             if (e.key === 'Escape') {
                 setSelectedHoleId(null);
                 setSelectedHoleIds(new Set());
+                setContextMenu(null);
                 return;
             }
-            if ((e.key === 'Delete' || e.key === 'Backspace') && !e.metaKey && !e.ctrlKey) {
+
+            // Undo: Ctrl/⌘+Z
+            if (mod && e.key === 'z' && !e.shiftKey) { e.preventDefault(); handleUndo(); return; }
+            // Redo: Ctrl/⌘+Y  or  Ctrl/⌘+Shift+Z
+            if (mod && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); handleRedo(); return; }
+            // Duplicate: Ctrl/⌘+D
+            if (mod && e.key === 'd') { e.preventDefault(); handleDuplicate(); return; }
+
+            if (inInput) return;
+
+            // Fit to view: F
+            if (e.key === 'f' || e.key === 'F') { handleResetView(); return; }
+
+            if ((e.key === 'Delete' || e.key === 'Backspace') && !mod) {
                 handleDeleteSelected();
                 return;
             }
             // Cmd+C: copy selected cutouts
-            if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
+            if (mod && e.key === 'c') {
                 const sel = selectedHoleIdsRef.current;
                 const singleSel = selectedHoleIdRef.current;
                 const idsToSelect = sel.size > 0 ? sel : new Set(singleSel ? [singleSel] : []);
@@ -1192,7 +1302,29 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         };
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
-    }, [holes, selectedHoleId, selectedHoleIds, activeTool, internalVertices]);
+    }, [holes, selectedHoleId, selectedHoleIds, activeTool, internalVertices, handleDuplicate]);
+
+    // Right-click context menu on canvas
+    useEffect(() => {
+        const canvas = rendererRef.current?.domElement;
+        if (!canvas) return;
+        const onCtxMenu = (e: MouseEvent) => {
+            e.preventDefault();
+            // Clamp so menu doesn't go off-screen
+            const x = Math.min(e.clientX, window.innerWidth - 210);
+            const y = Math.min(e.clientY, window.innerHeight - 280);
+            setContextMenu({ x, y });
+        };
+        const onMouseDown = (e: MouseEvent) => {
+            if (e.button !== 2) setContextMenu(null);
+        };
+        canvas.addEventListener('contextmenu', onCtxMenu);
+        window.addEventListener('mousedown', onMouseDown);
+        return () => {
+            canvas.removeEventListener('contextmenu', onCtxMenu);
+            window.removeEventListener('mousedown', onMouseDown);
+        };
+    }, []);
 
     // Mouse handlers
     useEffect(() => {
@@ -2324,15 +2456,64 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             {/* Status bar */}
             <div className="flex items-center justify-between px-3 py-1.5 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 text-[10px] font-bold text-slate-400 tracking-wider shrink-0">
                 <span>{holes.length} cutout{holes.length !== 1 ? 's' : ''}</span>
-                <span className="flex items-center gap-6">
-                    <span className="uppercase">Cutout Hotkeys:</span>
-                    <span>Ctrl+Click multi-select</span>
-                    <span>Ctrl+C copy</span>
-                    <span>Ctrl+V paste</span>
-                    <span>Ctrl+G group</span>
-                    <span>Ctrl+Shift+G ungroup</span>
+                <span className="flex items-center gap-4">
+                    <span>Ctrl/⌘+Z undo</span>
+                    <span>Ctrl/⌘+D duplicate</span>
+                    <span>Ctrl/⌘+C copy · V paste</span>
+                    <span>Ctrl/⌘+G group</span>
+                    <span>F fit view</span>
+                    <span>Right-click menu</span>
                 </span>
             </div>
+
+            {/* Context menu */}
+            {contextMenu && (() => {
+                const effIds = selectedHoleIds.size > 0 ? selectedHoleIds : (selectedHoleId ? new Set([selectedHoleId]) : new Set<string>());
+                const hasSel = effIds.size > 0;
+                const hasGrouped = holes.some(h => effIds.has(h.id) && !!h.groupId);
+                return (
+                    <GlassCtxMenu
+                        pos={contextMenu}
+                        hasSelection={hasSel}
+                        hasMultiSelection={selectedHoleIds.size >= 2}
+                        hasGrouped={hasGrouped}
+                        hasClipboard={clipboardRef.current.length > 0}
+                        canUndo={undoStackRef.current.length > 0}
+                        canRedo={redoStackRef.current.length > 0}
+                        onClose={() => setContextMenu(null)}
+                        onCopy={() => {
+                            clipboardRef.current = holesRef.current.filter(h => effIds.has(h.id)).map(h => ({ ...h }));
+                        }}
+                        onPaste={() => {
+                            if (clipboardRef.current.length === 0) return;
+                            pushUndo();
+                            const pasted = clipboardRef.current.map(h => ({
+                                ...h, id: `h_${Date.now()}_${holeCounter++}`, x: h.x + 20, y: h.y + 20,
+                                points: h.points ? h.points.map(p => ({ ...p })) : undefined,
+                            }));
+                            onHolesChange([...holesRef.current, ...pasted]);
+                            clipboardRef.current = pasted.map(h => ({ ...h }));
+                        }}
+                        onDuplicate={handleDuplicate}
+                        onDelete={handleDeleteSelected}
+                        onGroup={() => {
+                            if (selectedHoleIds.size < 2) return;
+                            pushUndo();
+                            const gid = `grp-${Date.now()}`;
+                            onHolesChange(holesRef.current.map(h => selectedHoleIds.has(h.id) ? { ...h, groupId: gid } : h));
+                        }}
+                        onUngroup={() => {
+                            const groupIds = new Set(holesRef.current.filter(h => effIds.has(h.id) && h.groupId).map(h => h.groupId!));
+                            pushUndo();
+                            onHolesChange(holesRef.current.map(h => h.groupId && groupIds.has(h.groupId) ? { ...h, groupId: undefined } : h));
+                        }}
+                        onUndo={handleUndo}
+                        onRedo={handleRedo}
+                        onFitView={handleResetView}
+                        onResetAll={handleResetAll}
+                    />
+                );
+            })()}
         </div>
     );
 }

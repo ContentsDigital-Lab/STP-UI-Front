@@ -7,8 +7,9 @@ import { API_BASE_URL } from '../api/config';
  * @param room The room to join (e.g., 'inventory', 'dashboard')
  * @param events List of events to listen for (e.g., ['inventory:updated', 'order:updated'])
  * @param onEvent Callback triggered when any of the listed events occur
+ * @param options.stationRoom Optional station ID — joins station:{id} room for per-station notifications
  */
-export function useWebSocket(room: string, events: string[], onEvent?: (event: string, data: unknown) => void) {
+export function useWebSocket(room: string, events: string[], onEvent?: (event: string, data: unknown) => void, options?: { stationRoom?: string }) {
     const [status, setStatus] = useState<'connecting' | 'open' | 'closed' | 'error'>('connecting');
     const socketRef = useRef<Socket | null>(null);
 
@@ -18,6 +19,7 @@ export function useWebSocket(room: string, events: string[], onEvent?: (event: s
     }, [onEvent]);
 
     const eventsJson = JSON.stringify(events);
+    const stationRoom = options?.stationRoom;
 
     useEffect(() => {
         const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : '';
@@ -42,6 +44,12 @@ export function useWebSocket(room: string, events: string[], onEvent?: (event: s
             });
 
             socketInstance.emit('join_me');
+
+            if (stationRoom) {
+                socketInstance.emit('join_station_room', stationRoom, (ack: unknown) => {
+                    console.log(`[Socket.io] Joined station room "station:${stationRoom}" ack:`, ack);
+                });
+            }
         });
 
         // Register listeners for all specified events
@@ -75,10 +83,13 @@ export function useWebSocket(room: string, events: string[], onEvent?: (event: s
         return () => {
             console.log(`[Socket.io] Cleaning up room: ${room}`);
             socketInstance.emit(`leave_${room}`);
+            if (stationRoom) {
+                socketInstance.emit('leave_station_room', stationRoom);
+            }
             socketInstance.disconnect();
             socketRef.current = null;
         };
-    }, [room, eventsJson]); // Reconnect if room or events list changes
+    }, [room, eventsJson, stationRoom]); // Reconnect if room, events, or station room changes
 
     // We don't return the socket directly to avoid "Cannot access ref during render" error
     // If needed in the future, return a stable getter or another ref.

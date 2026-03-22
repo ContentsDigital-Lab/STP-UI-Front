@@ -107,28 +107,39 @@ export default function LiveStationPage() {
     }, [stationId]);
 
     // ── Websocket: detect orders newly assigned to this station ───────────────
-    const handleOrderEvent = useCallback(async (event: string) => {
-        if (event !== "order:updated") return;
+    const showNewJobToast = useCallback((order: Order) => {
+        if (knownOrderIdsRef.current.has(order._id)) return;
+        knownOrderIdsRef.current.add(order._id);
+        playNotificationSound("high").catch(() => {});
+        const name = stationRef.current?.name ?? "สถานีนี้";
+        const toastId = `job-${order._id}`;
+        toast.custom(
+            (id) => <NewJobToast order={order} stationName={name} toastId={id} />,
+            { id: toastId, duration: 12000, position: "top-right" },
+        );
+    }, []);
 
+    const handleSocketEvent = useCallback(async (event: string, data: unknown) => {
+        // Direct notification from station room — fetch and show immediately
+        if (event === "notification") {
+            const notif = data as { type?: string; referenceId?: string };
+            if (notif?.type === "order_arrived" && notif.referenceId) {
+                try {
+                    const res = await ordersApi.getById(notif.referenceId);
+                    if (res.success && res.data) showNewJobToast(res.data as Order);
+                } catch { /* ignore */ }
+            }
+            return;
+        }
+
+        // Fallback: poll all orders at this station on any order:updated event
+        if (event !== "order:updated") return;
         try {
             const res = await ordersApi.getAll({ stationId });
             if (!res.success || !res.data) return;
             const orders = res.data as Order[];
 
-            for (const order of orders) {
-                if (knownOrderIdsRef.current.has(order._id)) continue;
-
-                // 🆕 New order at this station!
-                knownOrderIdsRef.current.add(order._id);
-                playNotificationSound("high").catch(() => {});
-
-                const name = stationRef.current?.name ?? "สถานีนี้";
-                const toastId = `job-${order._id}`;
-                toast.custom(
-                    (id) => <NewJobToast order={order} stationName={name} toastId={id} />,
-                    { id: toastId, duration: 12000, position: "top-right" },
-                );
-            }
+            for (const order of orders) showNewJobToast(order);
 
             // Remove orders that left this station
             const currentIds = new Set(orders.map(o => o._id));
@@ -136,9 +147,9 @@ export default function LiveStationPage() {
                 if (!currentIds.has(id)) knownOrderIdsRef.current.delete(id);
             }
         } catch { /* ignore */ }
-    }, [stationId]);
+    }, [stationId, showNewJobToast]);
 
-    useWebSocket("order", ["order:updated"], handleOrderEvent);
+    useWebSocket("order", ["order:updated"], handleSocketEvent, { stationRoom: stationId });
 
     // ── Load station + template ────────────────────────────────────────────────
     useEffect(() => {
