@@ -216,15 +216,14 @@ export default function ClaimsPage() {
     );
 
     return (
-        <div className="space-y-4 sm:space-y-6">
+        <div className="flex flex-col gap-4 sm:gap-6 lg:gap-8 max-w-[1600px] mx-auto w-full overflow-x-hidden">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="space-y-1">
-                    <h1 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2">
-                        <ShieldAlert className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 pb-6 border-b border-slate-200 dark:border-slate-800">
+                <div>
+                    <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white leading-normal pt-2 pb-1">
                         รายการเคลม
                     </h1>
-                    <p className="text-sm text-muted-foreground">บันทึกและติดตามการเคลมวัสดุแบบเรียลไทม์</p>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm sm:text-base font-medium mt-1">บันทึกและติดตามการเคลมวัสดุแบบเรียลไทม์</p>
                 </div>
                 <Button onClick={() => setIsCreateOpen(true)} className="gap-2 w-full sm:w-auto">
                     <Plus className="h-4 w-4" />

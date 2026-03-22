@@ -490,14 +490,14 @@ export default function MaterialLogsPage() {
 
     return (
         <>
-        <div className="flex flex-col gap-6 p-2 md:p-6 lg:p-8 max-w-[1600px] mx-auto w-full">
+        <div className="flex flex-col gap-4 sm:gap-6 lg:gap-8 max-w-[1600px] mx-auto w-full overflow-x-hidden">
             {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 pb-6 border-b border-slate-200 dark:border-slate-800">
                 <div>
-                    <h1 className="text-3xl lg:text-4xl font-bold text-slate-900 dark:text-white uppercase tracking-tight">
+                    <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white leading-normal pt-2 pb-1">
                         {t.logs}
                     </h1>
-                    <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">
+                    <p className="text-slate-500 dark:text-slate-400 text-sm sm:text-base font-medium mt-1">
                         {lang === "th"
                             ? "ติดตามความเคลื่อนไหวของวัสดุ ตั้งแต่นำเข้าคลัง ตัด เบิก ไปจนถึงส่งงานลูกค้า"
                             : "Track all material movements — from import, cut, withdraw to customer delivery"}

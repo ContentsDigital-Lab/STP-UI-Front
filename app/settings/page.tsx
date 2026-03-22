@@ -12,10 +12,13 @@ export default function SettingsPage() {
     const hasUserManagementAccess = user?.role === "admin" || user?.role === "manager";
 
     return (
-        <div className="flex flex-col gap-6">
-            <div>
-                <h1 className="text-3xl font-bold tracking-tight text-foreground">Settings</h1>
-                <p className="text-muted-foreground">Manage your application preferences and system settings.</p>
+        <div className="flex flex-col gap-4 sm:gap-6 lg:gap-8 max-w-[1600px] mx-auto w-full overflow-x-hidden">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 pb-6 border-b border-slate-200 dark:border-slate-800">
+                <div>
+                    <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white leading-normal pt-2 pb-1">Settings</h1>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm sm:text-base font-medium mt-1">Manage your application preferences and system settings.</p>
+                </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
