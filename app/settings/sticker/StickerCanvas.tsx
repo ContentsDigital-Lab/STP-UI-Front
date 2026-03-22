@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Stage, Layer, Group, Rect, Text, Transformer, Line, Image as KonvaImage } from "react-konva";
 import type Konva from "konva";
-import type { StickerElement, ImageElement, GroupElement } from "./page";
+import type { StickerElement, ImageElement, GroupElement } from "./types";
 
 // ─── Snap threshold (canvas pixels, before zoom) ─────────────────────────────
 const SNAP = 6;

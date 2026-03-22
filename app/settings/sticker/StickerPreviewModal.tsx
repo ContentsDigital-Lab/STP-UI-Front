@@ -4,7 +4,7 @@ import React, { useState, useCallback, useRef, useEffect } from "react";
 import { QRCodeCanvas } from "qrcode.react";
 import { ordersApi } from "@/lib/api/orders";
 import type { Order, Customer, Material, Worker } from "@/lib/api/types";
-import type { StickerTemplate, StickerElement } from "./page";
+import type { StickerTemplate, StickerElement } from "./types";
 
 const MM_TO_PX = 3.7795275591;
 
