@@ -5,8 +5,11 @@ import { useRef, useState, KeyboardEvent } from "react";
 import {
     ScanLine, Camera, CheckCircle2, XCircle, Loader2, Hash,
     RotateCcw, User, Package, ClipboardList, AlertCircle,
+    ArrowRight, Play, ScanBarcode,
 } from "lucide-react";
 import { fetchApi } from "@/lib/api/config";
+import { panesApi } from "@/lib/api/panes";
+import { Pane } from "@/lib/api/types";
 import { parseQrScan } from "@/lib/utils/parseQrScan";
 import { usePreview } from "../PreviewContext";
 import { useStationContext } from "../StationContext";
@@ -23,14 +26,21 @@ const STATUS_MAP: Record<string, { label: string; bg: string; text: string; dot:
     in_progress: { label: "กำลังผลิต",   bg: "bg-blue-50 dark:bg-blue-900/30",     text: "text-blue-700 dark:text-blue-300",     dot: "bg-blue-500"  },
     completed:   { label: "เสร็จแล้ว",   bg: "bg-emerald-50 dark:bg-emerald-900/30", text: "text-emerald-700 dark:text-emerald-300", dot: "bg-emerald-500" },
     cancelled:   { label: "ยกเลิก",      bg: "bg-red-50 dark:bg-red-900/30",       text: "text-red-700 dark:text-red-300",       dot: "bg-red-500"   },
+    ready:       { label: "พร้อมส่ง",    bg: "bg-violet-50 dark:bg-violet-900/30",  text: "text-violet-700 dark:text-violet-300",  dot: "bg-violet-500" },
+};
+
+const SCAN_ACTION_LABELS: Record<string, { label: string; icon: typeof Play; cls: string }> = {
+    scan_in:  { label: "สแกนเข้า",    icon: ScanBarcode,  cls: "bg-blue-600 hover:bg-blue-500 text-white" },
+    start:    { label: "เริ่มงาน",     icon: Play,         cls: "bg-amber-600 hover:bg-amber-500 text-white" },
+    complete: { label: "เสร็จสิ้น",    icon: CheckCircle2, cls: "bg-emerald-600 hover:bg-emerald-500 text-white" },
 };
 
 interface QrScanBlockProps {
     label?:           string;
     placeholder?:     string;
-    /** API endpoint to look up — "/orders" or "/requests" */
+    /** API endpoint — "/orders", "/requests", "/panes", or "/panes/scan" for station scan mode */
     dataSource?:      string;
-    /** Auto-PATCH after scan — "none" or "patch" */
+    /** Auto-PATCH after scan — "none" or "patch" (ignored in scan mode) */
     autoAction?:      "none" | "patch";
     /** JSON string for PATCH body, e.g. '{"status":"in_progress"}' */
     autoActionBody?:  string;
@@ -42,7 +52,6 @@ interface QrScanBlockProps {
 
 type ScanStatus = "idle" | "loading" | "success" | "error";
 
-/** Resolve a dotted key against a record, returning a display string */
 function resolveField(record: Record<string, unknown>, key: string): string {
     const val = key.split(".").reduce<unknown>(
         (cur, part) => (cur != null && typeof cur === "object" ? (cur as Record<string, unknown>)[part] : undefined),
@@ -67,8 +76,9 @@ export function QrScanBlock({
 }: QrScanBlockProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
-    const { setOrderData, setRequestData, setPaneData, triggerRefresh } = useStationContext();
-    const contextType = CONTEXT_SOURCE[dataSource] ?? "order";
+    const { stationName, setOrderData, setRequestData, setPaneData, triggerRefresh } = useStationContext();
+    const isScanMode = dataSource === "/panes/scan";
+    const contextType = isScanMode ? "pane" : (CONTEXT_SOURCE[dataSource] ?? "order");
 
     const inputRef = useRef<HTMLInputElement>(null);
     const [scanStatus,     setScanStatus]     = useState<ScanStatus>("idle");
@@ -78,8 +88,107 @@ export function QrScanBlock({
     const [actionLoading,  setActionLoading]  = useState(false);
     const [actionResult,   setActionResult]   = useState<"success" | "error" | null>(null);
 
-    // ── Core scan handler (shared by keyboard + camera) ───────────────────────
+    // Scan mode state
+    const [scanResult, setScanResult] = useState<{
+        pane: Pane;
+        log: Record<string, unknown>;
+        nextStation?: string;
+        message?: string;
+    } | null>(null);
+    const [lastAction, setLastAction] = useState<string | null>(null);
+    const [paneNumber, setPaneNumber] = useState<string | null>(null);
+
+    // ── Station scan handler ───────────────────────────────────────────────────
+    async function handleStationScan(raw: string) {
+        const trimmed = raw.trim();
+        if (!trimmed) return;
+
+        const parsed = parseQrScan(trimmed);
+        const pn = parsed.type === "pane" ? parsed.value : trimmed.replace(/^STDPLUS:/i, "").trim();
+
+        setScanStatus("loading");
+        setMessage("");
+        setScanResult(null);
+        setScannedRecord(null);
+        setLastAction(null);
+        setPaneNumber(pn);
+
+        if (!stationName) {
+            setScanStatus("error");
+            setMessage("ไม่สามารถระบุสถานีได้ — กรุณาเปิดจากหน้าสถานี");
+            return;
+        }
+
+        try {
+            const res = await panesApi.scan(pn, { station: stationName, action: "scan_in" });
+            if (!res.success) throw new Error(res.message || "สแกนไม่สำเร็จ");
+
+            setScanResult(res.data);
+            setPaneData(res.data.pane as unknown as Record<string, unknown>);
+            triggerRefresh();
+            setLastAction("scan_in");
+            setScanStatus("success");
+            setMessage("สแกนเข้าสำเร็จ — กดปุ่มด้านล่างเพื่อดำเนินการ");
+            if (inputRef.current) inputRef.current.value = "";
+        } catch (err: unknown) {
+            const raw = err instanceof Error ? err.message : "เกิดข้อผิดพลาด";
+            // Parse station mismatch: 'Pane is at "X", not "Y"'
+            const mismatch = raw.match(/Pane is at "(.+?)",?\s*not "(.+?)"/i);
+            const msg = mismatch
+                ? `Pane อยู่ที่สถานี "${mismatch[1]}" — ไม่ใช่สถานีนี้ ("${mismatch[2]}")\nต้องสแกนที่สถานี "${mismatch[1]}" ก่อน`
+                : raw;
+            setScanStatus("error");
+            setMessage(msg);
+        }
+    }
+
+    async function handleScanAction(action: "scan_in" | "start" | "complete") {
+        if (!paneNumber) return;
+        setActionLoading(true);
+        setActionResult(null);
+
+        // Use the pane's currentStation (slug the backend expects), fall back to stationName
+        const rawStation = scanResult?.pane?.currentStation;
+        const paneStation = typeof rawStation === "object" && rawStation !== null
+            ? (rawStation as unknown as { name?: string; _id?: string }).name ?? (rawStation as unknown as { name?: string; _id?: string })._id ?? String(rawStation)
+            : rawStation;
+        const station = paneStation || stationName;
+        if (!station) {
+            setMessage("ไม่สามารถระบุสถานีได้");
+            setActionResult("error");
+            setActionLoading(false);
+            return;
+        }
+
+        try {
+            const res = await panesApi.scan(paneNumber, { station, action });
+            if (!res.success) throw new Error(res.message || "ดำเนินการไม่สำเร็จ");
+
+            setScanResult(res.data);
+            setPaneData(res.data.pane as unknown as Record<string, unknown>);
+            triggerRefresh();
+            setLastAction(action);
+            setActionResult("success");
+
+            if (action === "complete") {
+                setMessage(res.data.nextStation
+                    ? `เสร็จสิ้น → ส่งต่อไปสถานี ${res.data.nextStation}`
+                    : "เสร็จสิ้น — ครบทุกสถานีแล้ว");
+            }
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : "ดำเนินการไม่สำเร็จ";
+            setMessage(msg);
+            setActionResult("error");
+        } finally {
+            setActionLoading(false);
+            setTimeout(() => setActionResult(null), 3000);
+        }
+    }
+
+    // ── Standard lookup handler (unchanged) ────────────────────────────────────
     async function handleScan(raw: string) {
+        if (isScanMode) { handleStationScan(raw); return; }
+
         const trimmed = raw.trim();
         if (!trimmed) return;
 
@@ -94,8 +203,8 @@ export function QrScanBlock({
 
             if (parsed.type === "id") {
                 endpoint = `${dataSource}/${parsed.value}`;
-            } else if (dataSource === "/panes") {
-                endpoint = `/panes?paneNumber=${encodeURIComponent(parsed.value)}&limit=1`;
+            } else if (parsed.type === "pane" || dataSource === "/panes") {
+                endpoint = `/panes?paneNumber=${encodeURIComponent(parsed.type === "pane" ? parsed.value : parsed.value)}&limit=1`;
             } else {
                 endpoint = `${dataSource}?code=${encodeURIComponent(parsed.value)}&limit=1`;
             }
@@ -113,21 +222,19 @@ export function QrScanBlock({
             triggerRefresh();
             setScannedRecord(record);
 
-            // Auto-action: PATCH with configured body
             if (autoAction === "patch" && record._id) {
                 let body: Record<string, unknown> = {};
-                try { body = JSON.parse(autoActionBody || "{}"); } catch { /* invalid JSON — skip */ }
+                try { body = JSON.parse(autoActionBody || "{}"); } catch { /* invalid JSON */ }
                 await fetchApi(`${dataSource}/${record._id as string}`, {
                     method: "PATCH",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(body),
-                }).catch(() => { /* non-critical */ });
+                }).catch(() => {});
             }
 
             setScanStatus("success");
             setMessage(successMessage);
             if (inputRef.current) inputRef.current.value = "";
-            // Reset only the scan status badge after 3s — keep scannedRecord
             setTimeout(() => { setScanStatus("idle"); setMessage(""); }, 3000);
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : "เกิดข้อผิดพลาด";
@@ -137,7 +244,6 @@ export function QrScanBlock({
         }
     }
 
-    // ── Manual PATCH action from detail panel button ───────────────────────────
     async function handleManualAction(body: Record<string, unknown>) {
         if (!scannedRecord?._id) return;
         setActionLoading(true);
@@ -149,7 +255,6 @@ export function QrScanBlock({
                 body: JSON.stringify(body),
             });
             if (!res.success) throw new Error("อัปเดตไม่สำเร็จ");
-            // Refresh record
             const refreshed = await fetchApi<{ success: boolean; data: Record<string, unknown> }>(`${dataSource}/${scannedRecord._id as string}`);
             if (refreshed.success && refreshed.data) {
                 setScannedRecord(refreshed.data);
@@ -181,6 +286,9 @@ export function QrScanBlock({
 
     function clearRecord() {
         setScannedRecord(null);
+        setScanResult(null);
+        setPaneNumber(null);
+        setLastAction(null);
         setScanStatus("idle");
         setMessage("");
         setActionResult(null);
@@ -192,6 +300,207 @@ export function QrScanBlock({
 
     // ── Preview render ────────────────────────────────────────────────────────
     if (isPreview) {
+        // ── SCAN MODE UI ──
+        if (isScanMode) {
+            const pane = scanResult?.pane;
+            const statusCfg = pane?.currentStatus ? (STATUS_MAP[pane.currentStatus] ?? null) : null;
+
+            return (
+                <div className="w-full space-y-3">
+                    {label && <label className="block text-xs font-semibold text-foreground/70">{label}</label>}
+
+                    {/* Input (hidden when pane is scanned) */}
+                    {!scanResult && (
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                                <div className="relative flex-1">
+                                    <ScanLine className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50 pointer-events-none" />
+                                    <input
+                                        ref={inputRef}
+                                        type="text"
+                                        placeholder={placeholder}
+                                        onKeyDown={handleKeyDown}
+                                        disabled={scanStatus === "loading"}
+                                        autoComplete="off"
+                                        className="w-full rounded-lg border bg-background pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60"
+                                    />
+                                    {scanStatus === "loading" && (
+                                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />
+                                    )}
+                                </div>
+                                {enableCamera && (
+                                    <button
+                                        onClick={() => setShowCamera(true)}
+                                        disabled={scanStatus === "loading"}
+                                        title="สแกนด้วยกล้อง"
+                                        className="shrink-0 rounded-lg border border-input bg-background px-3 py-2.5 hover:bg-muted transition-colors disabled:opacity-60"
+                                    >
+                                        <Camera className="h-4 w-4 text-muted-foreground" />
+                                    </button>
+                                )}
+                            </div>
+                            {scanStatus === "error" && (
+                                <div className="rounded-lg border border-red-200 dark:border-red-800/50 bg-red-50 dark:bg-red-900/20 p-3 space-y-2">
+                                    <div className="flex items-start gap-1.5 text-red-600 dark:text-red-400 text-xs">
+                                        <XCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                                        <span className="font-medium whitespace-pre-line">{message}</span>
+                                    </div>
+                                    <button
+                                        onClick={() => { setScanStatus("idle"); setMessage(""); inputRef.current?.focus(); }}
+                                        className="text-[11px] text-red-500 hover:text-red-700 underline"
+                                    >
+                                        ลองใหม่
+                                    </button>
+                                </div>
+                            )}
+                            {stationName && (
+                                <p className="text-[10px] text-muted-foreground">📍 สถานี: <span className="font-semibold">{stationName}</span></p>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Scanned pane detail */}
+                    {scanResult && pane && (
+                        <div className="rounded-xl border bg-card overflow-hidden shadow-sm">
+                            {/* Header */}
+                            <div className={`flex items-center justify-between px-4 py-3 border-b ${
+                                lastAction === "complete"
+                                    ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800/50"
+                                    : "bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-800/50"
+                            }`}>
+                                <div className="flex items-center gap-2">
+                                    <Package className={`h-4 w-4 shrink-0 ${
+                                        lastAction === "complete" ? "text-emerald-600 dark:text-emerald-400" : "text-blue-600 dark:text-blue-400"
+                                    }`} />
+                                    <span className={`text-sm font-semibold ${
+                                        lastAction === "complete" ? "text-emerald-700 dark:text-emerald-300" : "text-blue-700 dark:text-blue-300"
+                                    }`}>
+                                        {pane.paneNumber}
+                                    </span>
+                                    {statusCfg && (
+                                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium ${statusCfg.bg} ${statusCfg.text}`}>
+                                            <span className={`h-1.5 w-1.5 rounded-full ${statusCfg.dot} animate-pulse`} />
+                                            {statusCfg.label}
+                                        </span>
+                                    )}
+                                </div>
+                                <button
+                                    onClick={clearRecord}
+                                    title="สแกนใหม่"
+                                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-md hover:bg-muted"
+                                >
+                                    <RotateCcw className="h-3.5 w-3.5" />
+                                    สแกนใหม่
+                                </button>
+                            </div>
+
+                            {/* Pane info */}
+                            <div className="p-4 grid grid-cols-2 gap-x-4 gap-y-3">
+                                <div className="min-w-0">
+                                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-0.5 flex items-center gap-1">
+                                        <ClipboardList className="h-3.5 w-3.5" />เลข Pane
+                                    </p>
+                                    <p className="text-sm font-medium text-foreground">{pane.paneNumber}</p>
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-0.5 flex items-center gap-1">
+                                        <Package className="h-3.5 w-3.5" />ประเภทกระจก
+                                    </p>
+                                    <p className="text-sm font-medium text-foreground">{pane.glassTypeLabel || "—"}</p>
+                                </div>
+                                {pane.dimensions && (
+                                    <div className="min-w-0">
+                                        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-0.5">ขนาด (WxH)</p>
+                                        <p className="text-sm font-medium text-foreground">
+                                            {pane.dimensions.width}x{pane.dimensions.height}
+                                            {pane.dimensions.thickness ? `x${pane.dimensions.thickness}` : ""}
+                                        </p>
+                                    </div>
+                                )}
+                                <div className="min-w-0">
+                                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-0.5">สถานีปัจจุบัน</p>
+                                    <p className="text-sm font-medium text-foreground">{resolveField(pane as unknown as Record<string, unknown>, "currentStation")}</p>
+                                </div>
+                            </div>
+
+                            {/* Next station info after complete */}
+                            {lastAction === "complete" && scanResult.nextStation && (
+                                <div className="mx-4 mb-3 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/40 flex items-center gap-2 text-xs text-blue-700 dark:text-blue-300">
+                                    <ArrowRight className="h-3.5 w-3.5 shrink-0" />
+                                    <span>ส่งต่อไปสถานี <span className="font-bold">{scanResult.nextStation}</span></span>
+                                </div>
+                            )}
+
+                            {/* Action buttons */}
+                            {pane.currentStatus !== "completed" && lastAction !== "complete" && (
+                                <div className="px-4 pb-4 pt-1 space-y-2">
+                                    <button
+                                        onClick={() => handleScanAction("complete")}
+                                        disabled={actionLoading}
+                                        className="w-full flex items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-bold transition-all disabled:opacity-60 bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm"
+                                    >
+                                        {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                                        เสร็จสิ้น → ส่งต่อสถานีถัดไป
+                                    </button>
+                                    <div className="flex gap-2">
+                                        {(["scan_in", "start"] as const).map(action => {
+                                            const cfg = SCAN_ACTION_LABELS[action];
+                                            const Icon = cfg.icon;
+                                            const isActive = lastAction === action;
+                                            return (
+                                                <button
+                                                    key={action}
+                                                    onClick={() => handleScanAction(action)}
+                                                    disabled={actionLoading}
+                                                    className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-[11px] font-semibold transition-all disabled:opacity-60 ${
+                                                        isActive ? "ring-2 ring-offset-1 ring-primary" : ""
+                                                    } ${cfg.cls}`}
+                                                >
+                                                    <Icon className="h-3 w-3" />
+                                                    {cfg.label}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Completed state */}
+                            {(pane.currentStatus === "completed" || lastAction === "complete") && (
+                                <div className="px-4 pb-4">
+                                    <div className="px-3 py-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40 text-center">
+                                        <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300 flex items-center justify-center gap-1.5">
+                                            <CheckCircle2 className="h-4 w-4" />
+                                            {message || "เสร็จสิ้นแล้ว"}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Action feedback */}
+                            {actionResult === "success" && lastAction !== "complete" && (
+                                <div className="px-4 pb-3 flex items-center gap-1.5 text-emerald-600 text-xs">
+                                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                                    ดำเนินการสำเร็จ
+                                </div>
+                            )}
+                            {actionResult === "error" && (
+                                <div className="px-4 pb-3 flex items-center gap-1.5 text-red-500 text-xs">
+                                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                    {message || "ดำเนินการไม่สำเร็จ"}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {showCamera && (
+                        <CameraScanModal onScan={handleCameraScan} onClose={() => setShowCamera(false)} />
+                    )}
+                </div>
+            );
+        }
+
+        // ── STANDARD LOOKUP UI (unchanged) ──
         const statusRaw = (contextType === "pane" ? scannedRecord?.currentStatus : scannedRecord?.status) as string | undefined;
         const statusCfg = statusRaw ? (STATUS_MAP[statusRaw] ?? null) : null;
 
@@ -225,7 +534,6 @@ export function QrScanBlock({
                     <label className="block text-xs font-semibold text-foreground/70">{label}</label>
                 )}
 
-                {/* ── Scan input (hidden when record is loaded) ── */}
                 {!scannedRecord && (
                     <div className="space-y-2">
                         <div className="flex items-center gap-2">
@@ -271,10 +579,8 @@ export function QrScanBlock({
                     </div>
                 )}
 
-                {/* ── Inline detail panel ── */}
                 {scannedRecord && (
                     <div className="rounded-xl border bg-card overflow-hidden shadow-sm">
-                        {/* Header */}
                         <div className="flex items-center justify-between px-4 py-3 bg-emerald-50 dark:bg-emerald-900/20 border-b border-emerald-100 dark:border-emerald-800/50">
                             <div className="flex items-center gap-2">
                                 <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
@@ -296,7 +602,6 @@ export function QrScanBlock({
                             </button>
                         </div>
 
-                        {/* Fields grid */}
                         <div className="p-4 grid grid-cols-2 gap-x-4 gap-y-3">
                             {orderFields.map((f, i) => {
                                 if (f.value === "—") return null;
@@ -345,7 +650,6 @@ export function QrScanBlock({
                             );
                         })()}
 
-                        {/* Action result feedback */}
                         {actionResult === "success" && (
                             <div className="px-4 pb-4 flex items-center gap-1.5 text-emerald-600 text-xs">
                                 <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
@@ -361,12 +665,8 @@ export function QrScanBlock({
                     </div>
                 )}
 
-                {/* Camera modal */}
                 {showCamera && (
-                    <CameraScanModal
-                        onScan={handleCameraScan}
-                        onClose={() => setShowCamera(false)}
-                    />
+                    <CameraScanModal onScan={handleCameraScan} onClose={() => setShowCamera(false)} />
                 )}
             </div>
         );
@@ -378,16 +678,20 @@ export function QrScanBlock({
             ref={(ref) => { ref && connect(drag(ref)); }}
             className={`w-full cursor-grab transition-all rounded-xl p-1 ${selected ? "ring-2 ring-primary/30" : "hover:ring-1 hover:ring-primary/20"}`}
         >
-            {/* Badge row */}
             <div className="flex flex-wrap items-center gap-1 mb-1">
                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 text-[10px] font-medium">
                     <ScanLine className="h-2.5 w-2.5" />
-                    QR Scan
+                    {isScanMode ? "QR Station Scan" : "QR Scan"}
                 </span>
                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-mono">
                     <Hash className="h-2.5 w-2.5" />{dataSource}
                 </span>
-                {autoAction === "patch" && (
+                {isScanMode && (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px] font-medium">
+                        scan_in → start → complete
+                    </span>
+                )}
+                {!isScanMode && autoAction === "patch" && (
                     <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-[10px] font-medium">
                         auto-patch
                     </span>
@@ -399,7 +703,6 @@ export function QrScanBlock({
 
             <label className="block text-xs font-semibold text-foreground/70">{label}</label>
 
-            {/* Fake input preview */}
             <div className="flex items-center gap-2 pointer-events-none">
                 <div className="flex-1 rounded-lg border border-muted bg-background px-3 py-2.5 text-sm text-muted-foreground/40 flex items-center gap-2">
                     <ScanLine className="h-3.5 w-3.5 shrink-0" />
@@ -412,24 +715,48 @@ export function QrScanBlock({
                 )}
             </div>
 
-            {/* Detail panel preview skeleton */}
-            <div className="rounded-lg border border-muted bg-muted/20 p-3 space-y-2 opacity-50 pointer-events-none">
-                <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-                    <div className="h-3 w-24 rounded bg-muted" />
+            {isScanMode ? (
+                <div className="rounded-lg border border-muted bg-muted/20 p-3 space-y-2 opacity-50 pointer-events-none">
+                    <div className="flex items-center gap-2">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                        <div className="h-3 w-20 rounded bg-muted" />
+                        <div className="h-4 w-14 rounded-full bg-blue-100 dark:bg-blue-900/30" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                        {[1, 2, 3, 4].map((i) => (
+                            <div key={i} className="space-y-1">
+                                <div className="h-2 w-12 rounded bg-muted" />
+                                <div className="h-3 w-20 rounded bg-muted/80" />
+                            </div>
+                        ))}
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                        <div className="flex-1 h-8 rounded-lg bg-blue-200/50 dark:bg-blue-900/20" />
+                        <div className="flex-1 h-8 rounded-lg bg-amber-200/50 dark:bg-amber-900/20" />
+                        <div className="flex-1 h-8 rounded-lg bg-emerald-200/50 dark:bg-emerald-900/20" />
+                    </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                    {[1, 2, 3, 4].map((i) => (
-                        <div key={i} className="space-y-1">
-                            <div className="h-2 w-12 rounded bg-muted" />
-                            <div className="h-3 w-20 rounded bg-muted/80" />
-                        </div>
-                    ))}
+            ) : (
+                <div className="rounded-lg border border-muted bg-muted/20 p-3 space-y-2 opacity-50 pointer-events-none">
+                    <div className="flex items-center gap-2">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                        <div className="h-3 w-24 rounded bg-muted" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                        {[1, 2, 3, 4].map((i) => (
+                            <div key={i} className="space-y-1">
+                                <div className="h-2 w-12 rounded bg-muted" />
+                                <div className="h-3 w-20 rounded bg-muted/80" />
+                            </div>
+                        ))}
+                    </div>
                 </div>
-            </div>
+            )}
 
             <p className="text-[10px] text-violet-500 dark:text-violet-400">
-                📷 รองรับกล้อง + เครื่องสแกน · แสดงรายละเอียดหลังสแกน
+                {isScanMode
+                    ? "📷 สแกน QR เพื่อบันทึกการทำงาน · scan_in → start → complete"
+                    : "📷 รองรับกล้อง + เครื่องสแกน · แสดงรายละเอียดหลังสแกน"}
             </p>
         </div>
     );

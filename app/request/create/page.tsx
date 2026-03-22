@@ -371,6 +371,7 @@ export default function CreateBillPage() {
                             request: requestId,
                             dimensions: { width: glassWidth, height: glassHeight, thickness: thicknessMm },
                             glassTypeLabel: glassSpec,
+                            currentStation: "Order_Reless",
                         } as Record<string, unknown>);
                         panesCreated++;
                     } catch (paneErr) {

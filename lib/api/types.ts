@@ -110,7 +110,7 @@ export interface Order {
     updatedAt: string;
 }
 
-export type PaneStation = "queue" | "cutting" | "edging" | "tempering" | "laminating" | "assembly" | "qc" | "ready" | "defected";
+export type PaneStation = string;
 
 export interface PaneEdgeTask {
     side: string;

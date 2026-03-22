@@ -5,6 +5,7 @@ import { createContext, useContext, useState, useCallback, type ReactNode } from
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface StationContextValue {
     stationId:      string | null;
+    stationName:    string | null;
     formData:       Record<string, unknown>;
     setField:       (key: string, value: unknown) => void;
     resetForm:      () => void;
@@ -26,6 +27,7 @@ export interface StationContextValue {
 
 const StationContext = createContext<StationContextValue>({
     stationId:         null,
+    stationName:       null,
     formData:          {},
     setField:          () => {},
     resetForm:         () => {},
@@ -51,11 +53,13 @@ export const useStationContext = () => useContext(StationContext);
 export function StationProvider({
     children,
     stationId: stationIdProp,
+    stationName: stationNameProp,
     initialOrderData,
     initialRequestData,
 }: {
     children:            ReactNode;
     stationId?:          string | null;
+    stationName?:        string | null;
     initialOrderData?:   Record<string, unknown> | null;
     initialRequestData?: Record<string, unknown> | null;
 }) {
@@ -109,6 +113,7 @@ export function StationProvider({
     return (
         <StationContext.Provider value={{
             stationId: stationIdProp ?? null,
+            stationName: stationNameProp ?? null,
             formData, setField, resetForm,
             orderData, setOrderData, orderId,
             requestData, setRequestData, requestId,

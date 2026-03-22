@@ -49,6 +49,8 @@ interface DesignerCanvasProps {
     previewOnly?:        boolean;
     /** ID of the current station — used by RecordList to filter orders for this station */
     stationId?:          string | null;
+    /** Name of the current station — used by QR scan to identify which station the worker is at */
+    stationName?:        string | null;
     /** Order data to pre-populate context (e.g. from ?orderId= URL param) */
     initialData?:        Record<string, unknown> | null;
     /** Request (บิล) data to pre-populate context (e.g. from ?requestId= URL param) */
@@ -136,7 +138,7 @@ function sanitizeCraftNodes(raw: Record<string, unknown>): string | undefined {
     return "ROOT" in clean ? JSON.stringify(clean) : undefined;
 }
 
-export function DesignerCanvas({ templateName, initialNodes, onSave, saving, onSaveStatusChange, previewOnly = false, stationId, initialData, initialRequestData }: DesignerCanvasProps) {
+export function DesignerCanvas({ templateName, initialNodes, onSave, saving, onSaveStatusChange, previewOnly = false, stationId, stationName, initialData, initialRequestData }: DesignerCanvasProps) {
     // Keep RESOLVER inside component so Turbopack hot-reload always picks up fresh module references
     // eslint-disable-next-line react-hooks/exhaustive-deps
     const RESOLVER = useMemo(() => ({
@@ -178,7 +180,7 @@ export function DesignerCanvas({ templateName, initialNodes, onSave, saving, onS
     };
 
     return (
-        <StationProvider stationId={stationId} initialOrderData={initialData} initialRequestData={initialRequestData}>
+        <StationProvider stationId={stationId} stationName={stationName} initialOrderData={initialData} initialRequestData={initialRequestData}>
         <PreviewContext.Provider value={isPreview}>
             <Editor resolver={RESOLVER}>
                 <EditorModeSync enabled={!isPreview} />
