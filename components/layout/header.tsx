@@ -70,7 +70,7 @@ export function Header({ onMenuClick, title }: HeaderProps) {
                         className="rounded-full bg-muted/50 hover:bg-muted font-bold px-2 sm:px-3 flex items-center gap-1 sm:gap-1.5"
                         title={t.language}
                     >
-                        <Globe className="h-4 w-4 text-primary" />
+                        <Globe className="h-4 w-4 text-primary dark:text-[#E8601C]" />
                         <span className="text-foreground">{mounted ? (lang === "th" ? "TH" : "EN") : "TH"}</span>
                     </Button>
 
@@ -99,16 +99,16 @@ export function Header({ onMenuClick, title }: HeaderProps) {
 
                     {/* Profile dropdown */}
                     <DropdownMenu>
-                        <DropdownMenuTrigger className="focus:outline-none flex items-center p-1.5 -m-1.5 rounded-md hover:bg-accent/50 transition-colors">
+                        <DropdownMenuTrigger className="focus:outline-none flex items-center p-1.5 -m-1.5 rounded-md group">
                             <span className="sr-only">Open user menu</span>
                             <Avatar className="h-8 w-8">
                                 <AvatarImage src="" alt="@shadcn" />
-                                <AvatarFallback className="bg-primary/20 text-primary">
+                                <AvatarFallback className="bg-primary/20 text-primary dark:bg-[#E8601C]/20 dark:text-[#E8601C]">
                                     {user?.name?.substring(0, 2).toUpperCase() || "SP"}
                                 </AvatarFallback>
                             </Avatar>
                             <span className="hidden lg:flex lg:items-center">
-                                <span className="ml-4 text-sm font-semibold leading-6 text-foreground" aria-hidden="true">
+                                <span className="ml-4 text-sm font-semibold leading-6 text-foreground group-hover:text-primary dark:group-hover:text-[#E8601C] transition-colors" aria-hidden="true">
                                     {user ? user.name : "Admin User"}
                                 </span>
                             </span>
