@@ -56,6 +56,9 @@ import { workersApi } from "@/lib/api/workers";
 import { Customer, Worker } from "@/lib/api/types";
 import jsPDF from "jspdf";
 import { toast } from "sonner";
+import { getCachedPricingSettings, cachePricingSettings, DEFAULT_PRICING, type PricingSettings } from "@/lib/pricing-settings";
+import { pricingSettingsApi } from "@/lib/api/pricing-settings";
+import { useWebSocket } from "@/lib/hooks/use-socket";
 
 export default function CreateBillPage() {
     const { t, lang } = useLanguage();
@@ -113,6 +116,73 @@ export default function CreateBillPage() {
         assignedTo: "",
         expectedDeliveryDate: "",
     });
+
+    // ── Pricing parameters (สูตรจากตาราง Excel) ──────────────────────────────
+    // สูตร: ราคาต่อแผ่น = (กว้าง×สูง×10.764 × ราคา/ตร.ฟ.) + (เส้นรอบวง × ราคาเจียร/ม) + (รูเจาะ × ราคา/รู) + (บาก × ราคา/บาก)
+    const [pricingSettings, setPricingSettings] = useState<PricingSettings>(() => getCachedPricingSettings());
+    const [pricePerSqFt, setPricePerSqFt]   = useState(0);
+    const [grindingRate, setGrindingRate]   = useState(50);
+    // I: จำนวนรูเจาะ — auto จาก holes.length (cutout ที่วาดใน designer)
+    const [holePriceEach, setHolePriceEach] = useState(() => getCachedPricingSettings().holePriceEach);
+    const [notchQty,     setNotchQty]       = useState(0);
+    const [notchPrice,   setNotchPrice]     = useState(() => getCachedPricingSettings().notchPrice);
+    const [priceAutoFilled, setPriceAutoFilled] = useState(false);
+
+    // ── Fetch pricing settings from server on mount ────────────────────────────
+    useEffect(() => {
+        pricingSettingsApi.get().then(res => {
+            if (res.data) {
+                setPricingSettings(res.data);
+                cachePricingSettings(res.data);
+                setHolePriceEach(res.data.holePriceEach);
+                setNotchPrice(res.data.notchPrice);
+            }
+        }).catch(() => {});
+    }, []);
+
+    // ── Subscribe to pricing:updated WebSocket event ───────────────────────────
+    useWebSocket('pricing', ['pricing:updated'], (event, data) => {
+        if (event === 'pricing:updated') {
+            const updated = data as PricingSettings;
+            setPricingSettings(updated);
+            cachePricingSettings(updated);
+            setHolePriceEach(updated.holePriceEach);
+            setNotchPrice(updated.notchPrice);
+        }
+    });
+
+    // ── Auto-fill ราคาเมื่อเลือกประเภทกระจก + ความหนา (จาก settings) ─────────
+    useEffect(() => {
+        const suggested = pricingSettings.glassPrices[formData.glassType]?.[formData.thickness];
+        if (!suggested) return;
+        setPricePerSqFt(suggested.pricePerSqFt);
+        setGrindingRate(suggested.grindingRate);
+        setPriceAutoFilled(true);
+    }, [formData.glassType, formData.thickness, pricingSettings]);
+
+    // ── คำนวณราคาอัตโนมัติ ────────────────────────────────────────────────────
+    // - ตารางฟุต: จากขนาดกระจก (auto)
+    // - รูเจาะ: จาก holes.length ที่ add ใน glass designer (auto)
+    // - จำนวนชิ้น: จาก formData.quantity (auto)
+    const pricingCalc = React.useMemo(() => {
+        const wM = glassWidth  / 1000;   // mm → m
+        const hM = glassHeight / 1000;   // mm → m
+        const sqFt         = wM * hM * 10.764;               // D: พื้นที่ตารางฟุต (auto จากขนาด)
+        const glassPrice   = sqFt * pricePerSqFt;            // D*E
+        const grindingCost = 2 * (wM + hM) * grindingRate;  // H: เส้นรอบวง × G
+        const drillCost    = holes.length * holePriceEach;   // K: รูเจาะ (auto จาก cutouts) × J
+        const notchCost    = notchQty * notchPrice;          // N: L × M
+        const perPane      = glassPrice + grindingCost + drillCost + notchCost;
+        const total        = perPane * formData.quantity;     // รวมทุกชิ้น (auto จาก quantity)
+        return { sqFt, glassPrice, grindingCost, drillCost, notchCost, perPane, total };
+    }, [glassWidth, glassHeight, pricePerSqFt, grindingRate, holes, holePriceEach, notchQty, notchPrice, formData.quantity]);
+
+    // sync computed price → formData.estimatedPrice
+    useEffect(() => {
+        if (pricePerSqFt > 0) {
+            setFormData(prev => ({ ...prev, estimatedPrice: Math.round(pricingCalc.perPane * 100) / 100 }));
+        }
+    }, [pricingCalc, pricePerSqFt]);
 
     const latestCustomers = useRef(customers);
     latestCustomers.current = customers;
@@ -1073,29 +1143,157 @@ export default function CreateBillPage() {
                                 </h3>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="space-y-1.5">
-                                    <Label className="text-[10px] font-semibold text-slate-400 uppercase">
-                                        {lang === 'th' ? 'จำนวน' : 'Quantity'}
-                                    </Label>
-                                    <Input
-                                        type="number"
-                                        min={1}
-                                        value={formData.quantity}
-                                        onChange={(e) => setFormData({ ...formData, quantity: Math.max(1, parseInt(e.target.value) || 1) })}
-                                        className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm px-4 focus:ring-[#E8601C]"
-                                    />
+                            {/* Quantity */}
+                            <div className="space-y-1.5">
+                                <Label className="text-[10px] font-semibold text-slate-400 uppercase">
+                                    {lang === 'th' ? 'จำนวน' : 'Quantity'}
+                                </Label>
+                                <Input
+                                    type="number"
+                                    min={1}
+                                    value={formData.quantity}
+                                    onChange={(e) => setFormData({ ...formData, quantity: Math.max(1, parseInt(e.target.value) || 1) })}
+                                    className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm px-4 focus:ring-[#E8601C]"
+                                />
+                            </div>
+
+                            {/* ── Price Calculator ──────────────────────────── */}
+                            <div className="space-y-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 p-3">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em]">
+                                    {lang === 'th' ? 'คำนวณราคา' : 'Price Calculator'}
+                                </p>
+
+                                {/* Auto-detected values (read-only badges) */}
+                                <div className="grid grid-cols-3 gap-1.5">
+                                    <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1.5 text-center">
+                                        <p className="text-[8px] font-semibold text-slate-400 uppercase mb-0.5">{lang === 'th' ? 'พื้นที่' : 'Area'}</p>
+                                        <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200">{pricingCalc.sqFt.toFixed(2)}</p>
+                                        <p className="text-[8px] text-slate-400">ตร.ฟ.</p>
+                                    </div>
+                                    <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1.5 text-center">
+                                        <p className="text-[8px] font-semibold text-slate-400 uppercase mb-0.5">{lang === 'th' ? 'รูเจาะ' : 'Cutouts'}</p>
+                                        <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200">{holes.length}</p>
+                                        <p className="text-[8px] text-slate-400">{lang === 'th' ? 'ชิ้น' : 'pcs'}</p>
+                                    </div>
+                                    <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1.5 text-center">
+                                        <p className="text-[8px] font-semibold text-slate-400 uppercase mb-0.5">{lang === 'th' ? 'จำนวน' : 'Qty'}</p>
+                                        <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200">{formData.quantity}</p>
+                                        <p className="text-[8px] text-slate-400">{lang === 'th' ? 'แผ่น' : 'panes'}</p>
+                                    </div>
                                 </div>
-                                <div className="space-y-1.5">
-                                    <Label className="text-[10px] font-semibold text-slate-400 uppercase">
-                                        {lang === 'th' ? 'ราคาประมาณ (฿)' : 'Est. Price (฿)'}
+
+                                {/* Editable rates */}
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="space-y-1">
+                                        <Label className="text-[9px] font-semibold text-slate-400 uppercase flex items-center gap-1">
+                                            {lang === 'th' ? 'ราคา/ตร.ฟ. (฿)' : 'Price/sq.ft (฿)'}
+                                            {priceAutoFilled && <span className="text-[8px] font-bold text-emerald-500 bg-emerald-50 dark:bg-emerald-900/30 px-1 py-0.5 rounded-md">แนะนำ</span>}
+                                        </Label>
+                                        <Input
+                                            type="number" min={0} placeholder="0"
+                                            value={pricePerSqFt || ""}
+                                            onChange={e => { setPricePerSqFt(parseFloat(e.target.value) || 0); setPriceAutoFilled(false); }}
+                                            className="h-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold px-3 focus:ring-[#E8601C]"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label className="text-[9px] font-semibold text-slate-400 uppercase flex items-center gap-1">
+                                            {lang === 'th' ? 'เจียร/ม (฿)' : 'Grind/m (฿)'}
+                                            {priceAutoFilled && <span className="text-[8px] font-bold text-emerald-500 bg-emerald-50 dark:bg-emerald-900/30 px-1 py-0.5 rounded-md">แนะนำ</span>}
+                                        </Label>
+                                        <Input
+                                            type="number" min={0}
+                                            value={grindingRate}
+                                            onChange={e => { setGrindingRate(parseFloat(e.target.value) || 0); setPriceAutoFilled(false); }}
+                                            className="h-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold px-3 focus:ring-[#E8601C]"
+                                        />
+                                    </div>
+
+                                    {/* ราคา/รู — แสดงเฉพาะเมื่อมี cutout */}
+                                    {holes.length > 0 && (
+                                        <div className="col-span-2 space-y-1">
+                                            <Label className="text-[9px] font-semibold text-slate-400 uppercase">
+                                                {lang === 'th' ? `ราคา/รู (฿) — ${holes.length} รู` : `Price/hole (฿) — ${holes.length} holes`}
+                                            </Label>
+                                            <Input
+                                                type="number" min={0}
+                                                value={holePriceEach}
+                                                onChange={e => setHolePriceEach(parseFloat(e.target.value) || 0)}
+                                                className="h-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold px-3 focus:ring-[#E8601C]"
+                                            />
+                                        </div>
+                                    )}
+
+                                    <div className="space-y-1">
+                                        <Label className="text-[9px] font-semibold text-slate-400 uppercase">
+                                            {lang === 'th' ? 'บาก (ชิ้น)' : 'Notches'}
+                                        </Label>
+                                        <Input
+                                            type="number" min={0}
+                                            value={notchQty}
+                                            onChange={e => setNotchQty(parseInt(e.target.value) || 0)}
+                                            className="h-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold px-3 focus:ring-[#E8601C]"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label className="text-[9px] font-semibold text-slate-400 uppercase">
+                                            {lang === 'th' ? 'ราคา/บาก (฿)' : 'Price/notch (฿)'}
+                                        </Label>
+                                        <Input
+                                            type="number" min={0}
+                                            value={notchPrice}
+                                            onChange={e => setNotchPrice(parseFloat(e.target.value) || 0)}
+                                            className="h-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold px-3 focus:ring-[#E8601C]"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Breakdown */}
+                                {pricePerSqFt > 0 && (
+                                    <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-2.5 space-y-1.5">
+                                        <div className="flex justify-between text-[11px] text-slate-500">
+                                            <span>{lang === 'th' ? 'เนื้อกระจก' : 'Glass'}</span>
+                                            <span className="font-semibold">฿{pricingCalc.glassPrice.toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-[11px] text-slate-500">
+                                            <span>{lang === 'th' ? 'ค่าเจียร' : 'Grinding'}</span>
+                                            <span className="font-semibold">฿{pricingCalc.grindingCost.toFixed(2)}</span>
+                                        </div>
+                                        {pricingCalc.drillCost > 0 && (
+                                            <div className="flex justify-between text-[11px] text-slate-500">
+                                                <span>{lang === 'th' ? `ค่าเจาะ (×${holes.length})` : `Drilling (×${holes.length})`}</span>
+                                                <span className="font-semibold">฿{pricingCalc.drillCost.toFixed(2)}</span>
+                                            </div>
+                                        )}
+                                        {pricingCalc.notchCost > 0 && (
+                                            <div className="flex justify-between text-[11px] text-slate-500">
+                                                <span>{lang === 'th' ? `ค่าบาก (×${notchQty})` : `Notching (×${notchQty})`}</span>
+                                                <span className="font-semibold">฿{pricingCalc.notchCost.toFixed(2)}</span>
+                                            </div>
+                                        )}
+                                        <div className="border-t border-slate-200 dark:border-slate-700 pt-1.5 mt-0.5 space-y-0.5">
+                                            <div className="flex justify-between text-[12px] font-bold text-slate-700 dark:text-slate-200">
+                                                <span>{lang === 'th' ? 'ราคา/แผ่น' : 'Per pane'}</span>
+                                                <span className="text-[#E8601C]">฿{pricingCalc.perPane.toFixed(2)}</span>
+                                            </div>
+                                            <div className="flex justify-between text-[13px] font-bold text-slate-800 dark:text-white">
+                                                <span>{lang === 'th' ? `รวม ×${formData.quantity} แผ่น` : `Total ×${formData.quantity}`}</span>
+                                                <span className="text-[#E8601C]">฿{pricingCalc.total.toFixed(2)}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Manual override */}
+                                <div className="space-y-1">
+                                    <Label className="text-[9px] font-semibold text-slate-400 uppercase">
+                                        {lang === 'th' ? 'ราคาประมาณ (฿) — แก้ไขได้' : 'Est. Price (฿) — editable'}
                                     </Label>
                                     <Input
-                                        type="number"
-                                        min={0}
+                                        type="number" min={0}
                                         value={formData.estimatedPrice}
                                         onChange={(e) => setFormData({ ...formData, estimatedPrice: Math.max(0, parseFloat(e.target.value) || 0) })}
-                                        className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm px-4 focus:ring-[#E8601C]"
+                                        className="h-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold px-3 focus:ring-[#E8601C]"
                                     />
                                 </div>
                             </div>

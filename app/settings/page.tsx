@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { UserCog, ShieldAlert, Users, Bell, Tag, Settings } from "lucide-react";
+import { UserCog, ShieldAlert, Users, Bell, Tag, Settings, DollarSign } from "lucide-react";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/lib/auth/auth-context";
 
@@ -83,6 +83,22 @@ export default function SettingsPage() {
                             </div>
                             <CardDescription>
                                 ตั้งค่าเสียงแจ้งเตือนและระดับเสียงตามความสำคัญของการแจ้งเตือน
+                            </CardDescription>
+                        </CardHeader>
+                    </Card>
+                </Link>
+
+                <Link href="/settings/pricing" className="block h-full cursor-pointer transition-transform hover:scale-[1.02]">
+                    <Card className="h-full shadow-sm hover:shadow-md transition-shadow bg-card/60 backdrop-blur-sm border-muted/50 border-primary/20">
+                        <CardHeader>
+                            <div className="flex items-center gap-2 mb-2">
+                                <div className="p-2 bg-[#E8601C]/10 rounded-lg text-[#E8601C]">
+                                    <DollarSign className="h-6 w-6" />
+                                </div>
+                                <CardTitle className="text-xl">ตั้งค่าราคากระจก</CardTitle>
+                            </div>
+                            <CardDescription>
+                                กำหนดราคาต่อตร.ฟ., ค่าเจียร, ค่าเจาะ, ค่าบาก ตามประเภทและความหนากระจก
                             </CardDescription>
                         </CardHeader>
                     </Card>
