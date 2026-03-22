@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { UserCog, ShieldAlert, Users, Bell, Tag } from "lucide-react";
+import { UserCog, ShieldAlert, Users, Bell, Tag, Settings } from "lucide-react";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/lib/auth/auth-context";
 
@@ -16,7 +16,9 @@ export default function SettingsPage() {
             {/* Header */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 pb-6 border-b border-slate-200 dark:border-slate-800">
                 <div>
-                    <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white leading-normal pt-2 pb-1">Settings</h1>
+                    <h1 className="flex items-center gap-3 text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white leading-normal pt-2 pb-1">
+                        <Settings className="h-7 w-7 sm:h-8 sm:w-8 shrink-0" />
+                        Settings</h1>
                     <p className="text-slate-500 dark:text-slate-400 text-sm sm:text-base font-medium mt-1">Manage your application preferences and system settings.</p>
                 </div>
             </div>

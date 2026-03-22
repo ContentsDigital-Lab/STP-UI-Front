@@ -1,9 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { Menu, Moon, Sun, Globe } from "lucide-react";
+import {
+    Menu, Moon, Sun, Globe,
+    LayoutDashboard, ClipboardList, ClipboardCheck, Factory,
+    Package, ArrowDownFromLine, ShieldAlert, History, Settings, Pencil,
+} from "lucide-react";
 import { useTheme } from "next-themes";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { useAuth } from "@/lib/auth/auth-context";
 import { authApi } from "@/lib/api/auth";
@@ -20,12 +24,26 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
+// Map route prefixes to their sidebar icons
+const PAGE_ICONS: { prefix: string; icon: React.ElementType }[] = [
+    { prefix: "/stations/designer", icon: Pencil },
+    { prefix: "/stations",          icon: Factory },
+    { prefix: "/request",           icon: ClipboardList },
+    { prefix: "/production",        icon: ClipboardCheck },
+    { prefix: "/inventory",         icon: Package },
+    { prefix: "/withdrawals",       icon: ArrowDownFromLine },
+    { prefix: "/claims",            icon: ShieldAlert },
+    { prefix: "/logs",              icon: History },
+    { prefix: "/settings",          icon: Settings },
+];
+
 interface HeaderProps {
     onMenuClick: () => void;
     title?: string;
 }
 
 export function Header({ onMenuClick, title }: HeaderProps) {
+    const pathname = usePathname();
     const { theme, setTheme } = useTheme();
     const { lang, setLang, t } = useLanguage();
     const { user, logout } = useAuth();
