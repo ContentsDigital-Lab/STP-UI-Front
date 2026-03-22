@@ -19,6 +19,8 @@ import {
     ChevronsUpDown,
     Check,
     Plus,
+    PanelRightClose,
+    PanelRightOpen,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { Button } from "@/components/ui/button";
@@ -40,6 +42,12 @@ import {
     DialogDescription,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { GlassDesigner, HoleData, VertexData } from "@/components/glass-designer";
 import { requestsApi } from "@/lib/api/requests";
 import { customersApi } from "@/lib/api/customers";
@@ -55,6 +63,7 @@ export default function CreateBillPage() {
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [workers, setWorkers] = useState<Worker[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
 
     // Glass design state
     const [glassWidth, setGlassWidth] = useState(800);
@@ -523,15 +532,33 @@ export default function CreateBillPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap">
-                    <Button variant="outline" size="sm" onClick={handleImportDXF} className="gap-1.5 rounded-xl font-bold text-xs h-9 border-slate-200 dark:border-slate-800">
-                        <FileUp className="h-3.5 w-3.5" />
-                        <span className="hidden sm:inline">Import</span> DXF
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={handleExportPDF} className="gap-1.5 rounded-xl font-bold text-xs h-9 border-slate-200 dark:border-slate-800">
-                        <FileDown className="h-3.5 w-3.5" />
-                        <span className="hidden sm:inline">Export</span> PDF
-                    </Button>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger className="inline-flex items-center justify-center whitespace-nowrap gap-2 rounded-xl font-bold text-xs h-9 px-3 border border-slate-200 dark:border-slate-800 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus:outline-none focus:ring-1 focus:ring-slate-300">
+                            <FileUp className="h-3.5 w-3.5" />
+                            <span className="hidden sm:inline">{lang === 'th' ? "จัดการไฟล์" : "File"}</span>
+                            <ChevronsUpDown className="h-3 w-3 text-slate-400" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-40 rounded-xl p-1">
+                            <DropdownMenuItem onClick={handleImportDXF} className="gap-2 cursor-pointer rounded-lg font-medium text-xs">
+                                <FileUp className="h-4 w-4 text-slate-500" />
+                                Import DXF
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={handleExportPDF} className="gap-2 cursor-pointer rounded-lg font-medium text-xs">
+                                <FileDown className="h-4 w-4 text-slate-500" />
+                                Export PDF
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                     <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block" />
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setIsRightPanelOpen(!isRightPanelOpen)}
+                        className="rounded-xl h-9 w-9 text-slate-400 hover:text-slate-900 dark:hover:text-white hidden lg:flex"
+                        title={isRightPanelOpen ? (lang === 'th' ? "ซ่อนแผงตั้งค่า" : "Hide Panel") : (lang === 'th' ? "แสดงแผงตั้งค่า" : "Show Panel")}
+                    >
+                        {isRightPanelOpen ? <PanelRightClose className="h-5 w-5" /> : <PanelRightOpen className="h-5 w-5" />}
+                    </Button>
                     <Button
                         onClick={handleSubmit}
                         disabled={isSubmitting || !formData.customer || !formData.glassType}
@@ -549,7 +576,7 @@ export default function CreateBillPage() {
             {/* Main Content - Split Layout */}
             <div className="flex flex-col lg:flex-row lg:flex-1 lg:overflow-hidden">
                 {/* Left: Glass Designer Canvas */}
-                <div className="flex flex-col lg:border-r border-slate-200 dark:border-slate-800 min-w-0 h-[50vh] sm:h-[60vh] lg:h-auto lg:flex-1">
+                <div className={`flex flex-col min-w-0 h-[50vh] sm:h-[60vh] lg:h-auto lg:flex-1 ${isRightPanelOpen ? "lg:border-r border-slate-200 dark:border-slate-800" : ""}`}>
                     <GlassDesigner
                         width={glassWidth}
                         height={glassHeight}
@@ -562,7 +589,7 @@ export default function CreateBillPage() {
                 </div>
 
                 {/* Right: Form Panel */}
-                <div className="w-full lg:w-[380px] shrink-0 lg:overflow-y-auto bg-white dark:bg-slate-900 border-t lg:border-t-0 border-slate-200 dark:border-slate-800">
+                <div className={`w-full shrink-0 bg-white dark:bg-slate-900 border-t lg:border-t-0 border-slate-200 dark:border-slate-800 ${isRightPanelOpen ? "lg:w-[380px] lg:overflow-y-auto lg:block" : "lg:hidden"}`}>
                     <div className="p-4 sm:p-6 space-y-6 sm:space-y-8">
                         <h3 className="text-sm font-bold text-slate-900 dark:text-white lg:hidden">
                             {lang === 'th' ? 'รายละเอียดคำสั่งซื้อ' : 'Order Details'}
