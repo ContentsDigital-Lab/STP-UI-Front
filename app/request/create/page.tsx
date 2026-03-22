@@ -532,23 +532,24 @@ export default function CreateBillPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap">
-                    <DropdownMenu>
-                        <DropdownMenuTrigger className="inline-flex items-center justify-center whitespace-nowrap gap-2 rounded-xl font-bold text-xs h-9 px-3 border border-slate-200 dark:border-slate-800 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus:outline-none focus:ring-1 focus:ring-slate-300">
-                            <FileUp className="h-3.5 w-3.5" />
-                            <span className="hidden sm:inline">{lang === 'th' ? "จัดการไฟล์" : "File"}</span>
-                            <ChevronsUpDown className="h-3 w-3 text-slate-400" />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-40 rounded-xl p-1">
-                            <DropdownMenuItem onClick={handleImportDXF} className="gap-2 cursor-pointer rounded-lg font-medium text-xs">
-                                <FileUp className="h-4 w-4 text-slate-500" />
-                                Import DXF
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={handleExportPDF} className="gap-2 cursor-pointer rounded-lg font-medium text-xs">
-                                <FileDown className="h-4 w-4 text-slate-500" />
-                                Export PDF
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                    <Button 
+                        onClick={handleImportDXF}
+                        variant="outline" 
+                        className="inline-flex items-center justify-center whitespace-nowrap gap-2 rounded-xl font-bold text-xs h-9 px-3 border-slate-200 dark:border-slate-800 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-700 dark:text-slate-300"
+                    >
+                        <FileUp className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                        <span className="hidden sm:inline">Import DXF</span>
+                        <span className="sm:hidden">DXF</span>
+                    </Button>
+                    <Button 
+                        onClick={handleExportPDF}
+                        variant="outline" 
+                        className="inline-flex items-center justify-center whitespace-nowrap gap-2 rounded-xl font-bold text-xs h-9 px-3 border-slate-200 dark:border-slate-800 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-700 dark:text-slate-300"
+                    >
+                        <FileDown className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                        <span className="hidden sm:inline">Export PDF</span>
+                        <span className="sm:hidden">PDF</span>
+                    </Button>
                     <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block" />
                     <Button
                         variant="ghost"
