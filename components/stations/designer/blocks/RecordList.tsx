@@ -276,7 +276,7 @@ export function RecordList({
 
     const canShowPanes = dataSource === "/orders" || dataSource === "/requests";
 
-    const toggleRowPanes = (row: Record<string, unknown>) => {
+    const toggleRowPanes = async (row: Record<string, unknown>) => {
         const rid = String(row._id ?? row[idField] ?? "");
         if (expandedRowId === rid) {
             setExpandedRowId(null);
@@ -288,13 +288,19 @@ export function RecordList({
         setRowPanes([]);
         setRowPanesLoading(true);
         setShowAllPanes(false);
-        const params: { order?: string; request?: string; limit: number } = { limit: 100 };
-        if (dataSource === "/orders") params.order = rid;
-        else params.request = rid;
-        panesApi.getAll(params)
-            .then(res => setRowPanes(res.success ? res.data ?? [] : []))
-            .catch(() => setRowPanes([]))
-            .finally(() => setRowPanesLoading(false));
+        try {
+            if (dataSource === "/orders") {
+                const res = await panesApi.getAll({ order: rid, limit: 100 });
+                setRowPanes(res.success ? res.data ?? [] : []);
+            } else {
+                const res = await panesApi.getAll({ request: rid, limit: 100 });
+                setRowPanes(res.success ? res.data ?? [] : []);
+            }
+        } catch {
+            setRowPanes([]);
+        } finally {
+            setRowPanesLoading(false);
+        }
     };
 
     // ── Preview render ────────────────────────────────────────────────────────

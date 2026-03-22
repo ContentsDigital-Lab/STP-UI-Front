@@ -105,8 +105,19 @@ function PaneListSection({ record, endpoint }: { record: Record<string, unknown>
     const [loading, setLoading] = useState(false);
     const [showAll, setShowAll] = useState(false);
 
-    const isRequestEndpoint = endpoint === "/requests" || endpoint === "context" || endpoint.startsWith("/requests/");
-    const isOrderEndpoint = endpoint === "/orders" || endpoint.startsWith("/orders/");
+    const recordLooksLikeOrder = !!record && ("stations" in record || "currentStationIndex" in record || "code" in record);
+    const isOrderEndpoint = endpoint === "/orders" || endpoint.startsWith("/orders/") || (endpoint === "context" && recordLooksLikeOrder);
+    const isRequestEndpoint = (endpoint === "/requests" || endpoint.startsWith("/requests/") || (endpoint === "context" && !recordLooksLikeOrder)) && !isOrderEndpoint;
+
+    const fetchPanes = async (recordId: string): Promise<{ success: boolean; data: Pane[] }> => {
+        if (isOrderEndpoint) {
+            return panesApi.getAll({ order: recordId, limit: 100 });
+        }
+        if (isRequestEndpoint) {
+            return panesApi.getAll({ request: recordId, limit: 100 });
+        }
+        return { success: true, data: [] };
+    };
 
     useEffect(() => {
         if (!record) { setPanes([]); return; }
@@ -114,24 +125,16 @@ function PaneListSection({ record, endpoint }: { record: Record<string, unknown>
         if (!id) { setPanes([]); return; }
         setLoading(true);
         setShowAll(false);
-        const params: { request?: string; order?: string; limit: number } = { limit: 100 };
-        if (isRequestEndpoint) params.request = id;
-        else if (isOrderEndpoint) params.order = id;
-        else { setPanes([]); setLoading(false); return; }
-        panesApi.getAll(params)
+        fetchPanes(id)
             .then(res => setPanes(res.success ? res.data ?? [] : []))
             .catch(() => setPanes([]))
             .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [record, endpoint, isRequestEndpoint, isOrderEndpoint]);
 
     useWebSocket("pane", ["pane:updated"], () => {
         if (!record?._id) return;
-        const id = record._id as string;
-        const params: { request?: string; order?: string; limit: number } = { limit: 100 };
-        if (isRequestEndpoint) params.request = id;
-        else if (isOrderEndpoint) params.order = id;
-        else return;
-        panesApi.getAll(params)
+        fetchPanes(record._id as string)
             .then(res => setPanes(res.success ? res.data ?? [] : []))
             .catch(() => {});
     });
