@@ -731,7 +731,7 @@ export default function InventoryPage() {
                         </div>
                         <div>
                             <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">{it.mostStocked}</p>
-                            <h4 className="text-lg font-bold text-slate-900 dark:text-white truncate group-hover:text-[#E8601C] transition-colors mt-1">
+                            <h4 className="text-lg font-bold text-slate-900 dark:text-white truncate group-hover:text-blue-600 dark:group-hover:text-[#E8601C] transition-colors mt-1">
                                 {globalStats.topMaterials[0]
                                     ? (getMaterialInfo(globalStats.topMaterials[0].material)?.name || "N/A")
                                     : "---"}
@@ -862,7 +862,7 @@ export default function InventoryPage() {
                                         >
                                             <TableCell className="py-5 px-6">
                                                 <div className="flex flex-col">
-                                                    <span className="font-bold text-slate-900 dark:text-white group-hover:text-[#E8601C] transition-colors">
+                                                    <span className="font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-[#E8601C] transition-colors">
                                                         {mat?.name || it.table.unknown}
                                                     </span>
                                                     <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase flex items-center mt-1">
@@ -1316,7 +1316,7 @@ export default function InventoryPage() {
                                         <SelectItem
                                             key={mat._id}
                                             value={mat._id}
-                                            className="rounded-lg py-2.5 font-bold focus:bg-[#E8601C] focus:text-white text-sm"
+                                            className="rounded-lg py-2.5 font-bold focus:text-blue-600 dark:focus:text-[#E8601C] text-sm"
                                         >
                                             <div className="flex flex-col">
                                                 <span>{mat.name}</span>

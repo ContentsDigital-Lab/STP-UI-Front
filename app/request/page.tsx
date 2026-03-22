@@ -557,7 +557,7 @@ export default function OrderRequestsPage() {
                                         >
                                             <TableCell className="py-5 px-6">
                                                 <div className="flex flex-col">
-                                                    <span className="font-bold text-slate-900 dark:text-white group-hover:text-[#E8601C] transition-colors">
+                                                    <span className="font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-[#E8601C] transition-colors">
                                                         {cust?.name || (lang === 'th' ? 'ไม่ระบุ' : 'Unknown')}
                                                     </span>
                                                     <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase mt-0.5">
@@ -712,20 +712,20 @@ export default function OrderRequestsPage() {
                                         </div>
 
                                         {/* Product Details Card */}
-                                        <div className="p-6 rounded-3xl mt-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/50 flex items-center justify-between">
+                                        <div className="p-6 rounded-3xl mt-4 bg-blue-50 dark:bg-[#E8601C]/10 border border-blue-100 dark:border-[#E8601C]/30 flex items-center justify-between">
                                             <div>
-                                                <span className="text-[10px] font-semibold uppercase tracking-widest text-blue-500 mb-1 block">
+                                                <span className="text-[10px] font-semibold uppercase tracking-widest text-blue-500 dark:text-[#E8601C] mb-1 block">
                                                     {it.table.productType}
                                                 </span>
-                                                <span className="text-lg font-bold text-[#1B4B9A] dark:text-blue-400">
+                                                <span className="text-lg font-bold text-[#1B4B9A] dark:text-[#E8601C]">
                                                     {selectedRequest.details?.type || "—"}
                                                 </span>
                                             </div>
                                             <div className="text-right">
-                                                <span className="text-[10px] font-semibold uppercase tracking-widest text-blue-500 mb-1 block">
+                                                <span className="text-[10px] font-semibold uppercase tracking-widest text-blue-500 dark:text-[#E8601C] mb-1 block">
                                                     {it.table.quantity}
                                                 </span>
-                                                <span className="text-3xl font-bold text-[#1B4B9A] dark:text-blue-400 tabular-nums">
+                                                <span className="text-3xl font-bold text-[#1B4B9A] dark:text-[#E8601C] tabular-nums">
                                                     {selectedRequest.details?.quantity?.toLocaleString() || 0}
                                                 </span>
                                             </div>
@@ -737,7 +737,7 @@ export default function OrderRequestsPage() {
                                     {/* Order Info */}
                                     <div className="space-y-4">
                                         <div className="flex items-center gap-2">
-                                            <DollarSign className="h-4 w-4 text-[#E8601C]" />
+                                            <DollarSign className="h-4 w-4 text-blue-500 dark:text-[#E8601C]" />
                                             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em]">{it.detail.orderInfo}</h3>
                                         </div>
                                         <div className="grid grid-cols-2 gap-3">
@@ -768,7 +768,7 @@ export default function OrderRequestsPage() {
                                     {/* Timeline */}
                                     <div className="space-y-4">
                                         <div className="flex items-center gap-2">
-                                            <CalendarClock className="h-4 w-4 text-[#E8601C]" />
+                                            <CalendarClock className="h-4 w-4 text-blue-500 dark:text-[#E8601C]" />
                                             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em]">{it.detail.timeline}</h3>
                                         </div>
                                         <div className="space-y-3">
@@ -822,7 +822,7 @@ export default function OrderRequestsPage() {
                                     </Button>
                                     <Button
                                         onClick={() => openEditDialog(selectedRequest)}
-                                        className="rounded-2xl h-14 bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-[#E8601C] dark:hover:bg-[#E8601C] hover:text-white transition-all font-bold tracking-tight"
+                                        className="rounded-2xl h-14 bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] text-white dark:hover:bg-[#E8601C]/90 transition-all font-bold tracking-tight"
                                     >
                                         <Edit3 className="mr-2 h-5 w-5" />
                                         {it.detail.edit}
@@ -860,7 +860,7 @@ export default function OrderRequestsPage() {
                                 value={formData.customer}
                                 onValueChange={(val) => setFormData({ ...formData, customer: val || "" })}
                             >
-                                <SelectTrigger className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-slate-900 dark:text-white px-5 focus:ring-[#E8601C] focus:border-[#E8601C]">
+                                <SelectTrigger className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-slate-900 dark:text-white px-5 focus:ring-blue-600 dark:focus:ring-[#E8601C] focus:border-blue-600 dark:focus:border-[#E8601C]">
                                     <SelectValue placeholder={lang === 'th' ? 'เลือกลูกค้า...' : 'Select a customer...'}>
                                         {(value: string | null) => {
                                             if (!value) return <span className="text-muted-foreground">{lang === 'th' ? 'เลือกลูกค้า...' : 'Select a customer...'}</span>;
@@ -875,7 +875,7 @@ export default function OrderRequestsPage() {
                                             key={c._id}
                                             value={c._id}
                                             label={c.name}
-                                            className="rounded-xl py-3 font-bold focus:bg-[#E8601C] focus:text-white"
+                                            className="rounded-xl py-3 font-bold focus:text-blue-600 dark:focus:text-[#E8601C]"
                                         >
                                             <div className="flex flex-col">
                                                 <span>{c.name}</span>
@@ -897,7 +897,7 @@ export default function OrderRequestsPage() {
                                     placeholder="e.g. Tempered"
                                     value={formData.type}
                                     onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                                    className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-slate-900 dark:text-white px-5 focus:ring-[#E8601C]"
+                                    className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-slate-900 dark:text-white px-5 focus:ring-blue-600 dark:focus:ring-[#E8601C]"
                                 />
                             </div>
                             <div className="space-y-3">
@@ -909,7 +909,7 @@ export default function OrderRequestsPage() {
                                     min={1}
                                     value={formData.quantity}
                                     onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 1 })}
-                                    className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-slate-900 dark:text-white px-5 focus:ring-[#E8601C]"
+                                    className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-slate-900 dark:text-white px-5 focus:ring-blue-600 dark:focus:ring-[#E8601C]"
                                 />
                             </div>
                             <div className="space-y-3">
@@ -921,7 +921,7 @@ export default function OrderRequestsPage() {
                                     min={0}
                                     value={formData.estimatedPrice}
                                     onChange={(e) => setFormData({ ...formData, estimatedPrice: parseFloat(e.target.value) || 0 })}
-                                    className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-slate-900 dark:text-white px-5 focus:ring-[#E8601C]"
+                                    className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-slate-900 dark:text-white px-5 focus:ring-blue-600 dark:focus:ring-[#E8601C]"
                                 />
                             </div>
                         </div>
@@ -936,7 +936,7 @@ export default function OrderRequestsPage() {
                                 placeholder={lang === 'th' ? 'เช่น บางนา, กรุงเทพฯ' : 'e.g. Bangna, Bangkok'}
                                 value={formData.deliveryLocation}
                                 onChange={(e) => setFormData({ ...formData, deliveryLocation: e.target.value })}
-                                className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-slate-900 dark:text-white px-5 focus:ring-[#E8601C]"
+                                className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-slate-900 dark:text-white px-5 focus:ring-blue-600 dark:focus:ring-[#E8601C]"
                             />
                         </div>
 
@@ -950,7 +950,7 @@ export default function OrderRequestsPage() {
                                     type="date"
                                     value={formData.deadline}
                                     onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
-                                    className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-slate-900 dark:text-white px-5 focus:ring-[#E8601C]"
+                                    className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-slate-900 dark:text-white px-5 focus:ring-blue-600 dark:focus:ring-[#E8601C]"
                                 />
                             </div>
                             <div className="space-y-3">
@@ -961,7 +961,7 @@ export default function OrderRequestsPage() {
                                     type="date"
                                     value={formData.expectedDeliveryDate}
                                     onChange={(e) => setFormData({ ...formData, expectedDeliveryDate: e.target.value })}
-                                    className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-slate-900 dark:text-white px-5 focus:ring-[#E8601C]"
+                                    className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-slate-900 dark:text-white px-5 focus:ring-blue-600 dark:focus:ring-[#E8601C]"
                                 />
                             </div>
                         </div>
@@ -976,7 +976,7 @@ export default function OrderRequestsPage() {
                                 value={formData.assignedTo}
                                 onValueChange={(val) => setFormData({ ...formData, assignedTo: val || "" })}
                             >
-                                <SelectTrigger className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-slate-900 dark:text-white px-5 focus:ring-[#E8601C]">
+                                <SelectTrigger className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-slate-900 dark:text-white px-5 focus:ring-blue-600 dark:focus:ring-[#E8601C]">
                                     <SelectValue placeholder={lang === 'th' ? 'เลือกผู้รับผิดชอบ...' : 'Select a worker...'}>
                                         {(value: string | null) => {
                                             if (!value) return <span className="text-muted-foreground">{lang === 'th' ? 'เลือกผู้รับผิดชอบ...' : 'Select a worker...'}</span>;
@@ -991,7 +991,7 @@ export default function OrderRequestsPage() {
                                             key={w._id}
                                             value={w._id}
                                             label={w.name}
-                                            className="rounded-xl py-3 font-bold focus:bg-[#E8601C] focus:text-white"
+                                            className="rounded-xl py-3 font-bold focus:text-blue-600 dark:focus:text-[#E8601C]"
                                         >
                                             <div className="flex flex-col">
                                                 <span>{w.name}</span>
@@ -1015,7 +1015,7 @@ export default function OrderRequestsPage() {
                         <Button
                             onClick={handleSubmit}
                             disabled={isSubmitting || !formData.customer || !formData.type}
-                            className={`rounded-2xl h-14 min-w-[160px] font-bold tracking-tight text-white transition-all shadow-xl ${isSubmitting ? "bg-slate-400" : "bg-slate-900 dark:bg-white dark:text-slate-900 hover:bg-[#E8601C] dark:hover:bg-[#E8601C] dark:hover:text-white"
+                            className={`rounded-2xl h-14 min-w-[160px] font-bold tracking-tight text-white transition-all shadow-xl ${isSubmitting ? "bg-slate-400" : "bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-[#E8601C]/90"
                                 }`}
                         >
                             {isSubmitting
