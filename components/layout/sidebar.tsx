@@ -27,13 +27,13 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed, setCollapsed, onNavigate }: SidebarProps) {
     const pathname = usePathname();
-    const { t } = useLanguage();
+    const { t, lang } = useLanguage();
 
     const navigation = [
         { name: t.dashboard.label, href: "/",          icon: LayoutDashboard },
         { name: t.orderRequests,   href: "/request",     icon: ClipboardList   },
-        { name: "คำสั่งผลิต",       href: "/production",  icon: ClipboardCheck  },
-        { name: "สถานี",            href: "/stations",    icon: Factory         },
+        { name: lang === 'th' ? "คำสั่งผลิต" : "Production Orders", href: "/production",  icon: ClipboardCheck  },
+        { name: lang === 'th' ? "สถานี" : "Stations", href: "/stations",    icon: Factory         },
         { name: t.inventory,       href: "/inventory", icon: Package         },
         { name: t.withdrawals,     href: "/withdrawals",        icon: ArrowDownFromLine },
         { name: t.claims,          href: "/claims",             icon: ShieldAlert     },
@@ -48,7 +48,7 @@ export function Sidebar({ collapsed, setCollapsed, onNavigate }: SidebarProps) {
                 collapsed ? "w-[80px]" : "w-[240px]"
             )}
         >
-            <div className="flex h-16 xl:h-20 items-center justify-between px-4 border-b">
+            <div className="flex shrink-0 h-14 sm:h-16 xl:h-20 items-center justify-between px-4 border-b">
                 {!collapsed && (
                     <Link href="/" className="flex items-center justify-center w-full overflow-hidden">
                         <img
@@ -59,10 +59,12 @@ export function Sidebar({ collapsed, setCollapsed, onNavigate }: SidebarProps) {
                     </Link>
                 )}
                 {collapsed && (
-                    <Link href="/" className="flex w-full justify-center">
-                        <div className="w-8 h-8 rounded bg-gradient-to-br from-primary to-accent flex items-center justify-center font-bold text-white shadow-sm">
-                            S+
-                        </div>
+                    <Link href="/" className="flex w-full justify-center overflow-hidden">
+                        <img
+                            src="/logonotname.png"
+                            alt="Standard Plus"
+                            className="w-8 h-8 sm:w-10 sm:h-10 object-contain drop-shadow-sm rounded-lg"
+                        />
                     </Link>
                 )}
             </div>
@@ -76,10 +78,10 @@ export function Sidebar({ collapsed, setCollapsed, onNavigate }: SidebarProps) {
                             href={item.href}
                             onClick={onNavigate}
                             className={cn(
-                                "group flex items-center rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors",
+                                "group flex items-center rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground dark:hover:bg-[#E8601C]/10 dark:hover:text-[#E8601C] transition-all duration-200 border-r-[4px] border-transparent",
                                 isActive
-                                    ? "bg-sidebar-accent text-sidebar-accent-foreground font-semibold"
-                                    : "text-sidebar-foreground/70 hover:text-sidebar-accent-foreground",
+                                    ? "bg-sidebar-accent text-sidebar-accent-foreground dark:bg-[#E8601C]/10 dark:text-[#E8601C] font-semibold border-sidebar-primary dark:border-[#E8601C]"
+                                    : "text-sidebar-foreground/70",
                                 collapsed ? "justify-center" : "justify-start"
                             )}
                             title={collapsed ? item.name : undefined}
@@ -104,14 +106,14 @@ export function Sidebar({ collapsed, setCollapsed, onNavigate }: SidebarProps) {
                     size="icon"
                     onClick={() => setCollapsed(!collapsed)}
                     className="text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 w-full flex justify-center h-9 rounded-lg transition-colors"
-                    title={collapsed ? "ขยาย" : "ย่อ"}
+                    title={collapsed ? (lang === 'th' ? "ขยาย" : "Expand") : (lang === 'th' ? "ย่อ" : "Collapse")}
                 >
                     {collapsed ? (
                         <ChevronRight className="h-4 w-4" />
                     ) : (
                         <div className="flex items-center gap-2 w-full justify-center">
                             <ChevronLeft className="h-4 w-4" />
-                            <span className="text-xs font-medium">ย่อเมนู</span>
+                            <span className="text-xs font-medium">{lang === 'th' ? "ย่อเมนู" : "Collapse Menu"}</span>
                         </div>
                     )}
                 </Button>

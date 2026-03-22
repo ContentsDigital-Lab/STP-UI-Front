@@ -370,17 +370,18 @@ export default function OrderRequestsPage() {
         <div className="flex flex-col gap-4 sm:gap-6 lg:gap-8 max-w-[1600px] mx-auto w-full overflow-x-hidden">
             {/* Page Header */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 pb-6 border-b border-slate-200 dark:border-slate-800">
-                <div className="space-y-1">
-                    <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white">
+                <div>
+                    <h1 className="flex items-center gap-3 text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white leading-normal pt-2 pb-1">
+                        <ClipboardList className="h-7 w-7 sm:h-8 sm:w-8 shrink-0" />
                         {it.title}
                     </h1>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm sm:text-base font-medium">
+                    <p className="text-slate-500 dark:text-slate-400 text-sm sm:text-base font-medium mt-1">
                         {it.subtitle}
                     </p>
                 </div>
                 <Link href="/request/create">
                     <Button
-                        className="w-full sm:w-auto gap-2 bg-[#E8601C] hover:bg-[#E8601C]/90 text-white shadow-lg shadow-orange-500/20 px-8 transition-all font-bold rounded-xl h-11"
+                        className="w-full sm:w-auto gap-2 bg-primary hover:bg-primary/90 dark:bg-[#E8601C] dark:hover:bg-[#E8601C]/90 text-white shadow-lg shadow-primary/20 dark:shadow-orange-500/20 px-8 transition-all font-bold rounded-xl h-11"
                     >
                         <Plus className="h-4 w-4" />
                         {it.newRequest}
@@ -394,7 +395,7 @@ export default function OrderRequestsPage() {
                     {/* Total Requests */}
                     <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between min-h-[140px]">
                         <div className="flex items-center justify-between mb-4">
-                            <div className="h-12 w-12 rounded-2xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-[#1B4B9A] dark:text-blue-400 group-hover:bg-[#1B4B9A] group-hover:text-white transition-colors">
+                            <div className="h-12 w-12 rounded-2xl bg-blue-50 dark:bg-[#E8601C]/10 flex items-center justify-center text-primary dark:text-[#E8601C] group-hover:bg-primary dark:group-hover:bg-[#E8601C] group-hover:text-white dark:group-hover:text-white transition-colors">
                                 <ClipboardList className="h-6 w-6" />
                             </div>
                             <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-50 dark:bg-slate-800/50 px-2 py-1 rounded-lg">
@@ -416,7 +417,7 @@ export default function OrderRequestsPage() {
                     {/* This Week */}
                     <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between min-h-[140px]">
                         <div className="flex items-center justify-between mb-4">
-                            <div className="h-12 w-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                            <div className="h-12 w-12 rounded-2xl bg-blue-50 dark:bg-[#E8601C]/10 flex items-center justify-center text-primary dark:text-[#E8601C] group-hover:bg-primary dark:group-hover:bg-[#E8601C] group-hover:text-white dark:group-hover:text-white transition-colors">
                                 <Calendar className="h-6 w-6" />
                             </div>
                             <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-50 dark:bg-slate-800/50 px-2 py-1 rounded-lg">
@@ -432,7 +433,7 @@ export default function OrderRequestsPage() {
                     {/* Assigned */}
                     <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between min-h-[140px]">
                         <div className="flex items-center justify-between mb-4">
-                            <div className="h-12 w-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                            <div className="h-12 w-12 rounded-2xl bg-blue-50 dark:bg-[#E8601C]/10 flex items-center justify-center text-primary dark:text-[#E8601C] group-hover:bg-primary dark:group-hover:bg-[#E8601C] group-hover:text-white dark:group-hover:text-white transition-colors">
                                 <UserCheck className="h-6 w-6" />
                             </div>
                             <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-50 dark:bg-slate-800/50 px-2 py-1 rounded-lg">
@@ -458,7 +459,7 @@ export default function OrderRequestsPage() {
                         <div className="flex items-center justify-between mb-4">
                             <div className={`h-12 w-12 rounded-2xl flex items-center justify-center transition-colors ${globalStats.approaching > 0
                                 ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
-                                : 'bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500 group-hover:bg-slate-600 group-hover:text-white'
+                                : 'bg-blue-50 dark:bg-[#E8601C]/10 text-primary dark:text-[#E8601C] group-hover:bg-primary dark:group-hover:bg-[#E8601C] group-hover:text-white dark:group-hover:text-white'
                                 }`}>
                                 <AlertTriangle className="h-6 w-6" />
                             </div>
@@ -507,19 +508,19 @@ export default function OrderRequestsPage() {
                     </div>
 
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
-                        <div className="w-full sm:w-[240px] space-y-2">
+                        <div className="w-full sm:w-[320px] lg:w-[360px] space-y-2 shrink-0">
                             <Label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
                                 <Package className="h-3 w-3" />
                                 {it.table.productType}
                             </Label>
                             <Select value={typeFilter} onValueChange={(val) => { setTypeFilter(val || "all"); setCurrentPage(1); }}>
-                                <SelectTrigger className="h-12 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm focus:ring-[#E8601C] truncate">
-                                    <SelectValue placeholder="All Types" className="truncate" />
+                                <SelectTrigger className="h-12 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm focus:ring-[#E8601C]">
+                                    <SelectValue placeholder="All Types" className="truncate text-left" />
                                 </SelectTrigger>
-                                <SelectContent className="rounded-2xl border-slate-200 dark:border-slate-800">
-                                    <SelectItem value="all" className="font-bold">All Types</SelectItem>
+                                <SelectContent className="rounded-2xl border-slate-200 dark:border-slate-800 min-w-[max-content]">
+                                    <SelectItem value="all" className="font-bold py-2.5">All Types</SelectItem>
                                     {productTypes.map(type => (
-                                        <SelectItem key={type} value={type} className="font-bold">{type}</SelectItem>
+                                        <SelectItem key={type} value={type} className="font-bold py-2.5 px-3 min-w-[max-content] pr-10">{type}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>

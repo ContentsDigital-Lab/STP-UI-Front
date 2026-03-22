@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
     ClipboardList, Search, RefreshCw, ChevronDown, ChevronRight,
     AlertCircle, User, Package, ArrowRight,
-    CalendarDays, Printer, QrCode, X, CheckCheck, Wifi, WifiOff,
+    CalendarDays, Printer, QrCode, X, CheckCheck, Wifi, WifiOff, ClipboardCheck,
 } from "lucide-react";
 import { QrCodeModal } from "@/components/qr/QrCodeModal";
 import { Button } from "@/components/ui/button";
@@ -272,16 +272,15 @@ export default function ProductionPage() {
 
     return (
         <>
-        <div className="space-y-5">
-
+        <div className="flex flex-col gap-4 sm:gap-6 lg:gap-8 max-w-[1600px] mx-auto w-full overflow-x-hidden">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 pb-6 border-b border-slate-200 dark:border-slate-800">
                 <div>
-                    <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
-                        <ClipboardList className="h-6 w-6 text-primary" />
+                    <h1 className="flex items-center gap-3 text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white leading-normal pt-2 pb-1">
+                        <ClipboardCheck className="h-7 w-7 sm:h-8 sm:w-8 shrink-0" />
                         ติดตามการผลิต
                     </h1>
-                    <p className="text-sm text-muted-foreground mt-0.5">ติดตามสถานะบิล ออเดอร์ และสถานีการผลิต</p>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm sm:text-base font-medium mt-1">ติดตามสถานะบิล ออเดอร์ และสถานีการผลิต</p>
                 </div>
                 <div className="flex items-center gap-2 self-start sm:self-auto">
                     <span className={`flex items-center gap-1 text-xs ${wsStatus === "open" ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}`}>

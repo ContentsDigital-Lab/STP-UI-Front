@@ -616,11 +616,12 @@ export default function InventoryPage() {
         <div className="flex flex-col gap-4 sm:gap-6 lg:gap-8 max-w-[1600px] mx-auto w-full overflow-x-hidden">
             {/* Page Header */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 pb-6 border-b border-slate-200 dark:border-slate-800">
-                <div className="space-y-1">
-                    <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white">
+                <div>
+                    <h1 className="flex items-center gap-3 text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white leading-normal pt-2 pb-1">
+                        <Package className="h-7 w-7 sm:h-8 sm:w-8 shrink-0" />
                         {it.title}
                     </h1>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm sm:text-base font-medium">
+                    <p className="text-slate-500 dark:text-slate-400 text-sm sm:text-base font-medium mt-1">
                         {it.subtitle}
                     </p>
                 </div>
@@ -778,12 +779,12 @@ export default function InventoryPage() {
                         </Label>
                         <Select value={locationFilter} onValueChange={(val) => { setLocationFilter(val || "all"); setCurrentPage(1); }}>
                             <SelectTrigger className="h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-medium text-sm focus:ring-[#E8601C]">
-                                <SelectValue placeholder="All Areas" />
+                                <SelectValue placeholder="All Areas" className="text-left" />
                             </SelectTrigger>
-                            <SelectContent className="rounded-2xl border-slate-200 dark:border-slate-800">
-                                <SelectItem value="all" className="font-medium">All Areas</SelectItem>
+                            <SelectContent className="rounded-2xl border-slate-200 dark:border-slate-800 min-w-[max-content]">
+                                <SelectItem value="all" className="font-medium py-2.5 pr-8">All Areas</SelectItem>
                                 {locations.map(loc => (
-                                    <SelectItem key={loc} value={loc} className="font-medium">{loc}</SelectItem>
+                                    <SelectItem key={loc} value={loc} className="font-medium py-2.5 pr-8 min-w-[max-content]">{loc}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
@@ -797,12 +798,12 @@ export default function InventoryPage() {
                         </Label>
                         <Select value={glassTypeFilter} onValueChange={(val) => { setGlassTypeFilter(val || "all"); setCurrentPage(1); }}>
                             <SelectTrigger className="h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-medium text-sm focus:ring-[#E8601C]">
-                                <SelectValue placeholder="All Types" />
+                                <SelectValue placeholder="All Types" className="text-left" />
                             </SelectTrigger>
-                            <SelectContent className="rounded-2xl border-slate-200 dark:border-slate-800">
-                                <SelectItem value="all" className="font-medium">All Types</SelectItem>
+                            <SelectContent className="rounded-2xl border-slate-200 dark:border-slate-800 min-w-[max-content]">
+                                <SelectItem value="all" className="font-medium py-2.5 pr-8">All Types</SelectItem>
                                 {glassTypes.map(type => (
-                                    <SelectItem key={type} value={type} className="font-medium">{type}</SelectItem>
+                                    <SelectItem key={type} value={type} className="font-medium py-2.5 pr-8 min-w-[max-content]">{type}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>

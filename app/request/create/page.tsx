@@ -19,6 +19,8 @@ import {
     ChevronsUpDown,
     Check,
     Plus,
+    PanelRightClose,
+    PanelRightOpen,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { Button } from "@/components/ui/button";
@@ -40,6 +42,12 @@ import {
     DialogDescription,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { GlassDesigner, HoleData, VertexData } from "@/components/glass-designer";
 import { panesApi } from "@/lib/api/panes";
 import { requestsApi } from "@/lib/api/requests";
@@ -56,6 +64,7 @@ export default function CreateBillPage() {
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [workers, setWorkers] = useState<Worker[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
 
     // Glass design state
     const [glassWidth, setGlassWidth] = useState(800);
@@ -548,19 +557,38 @@ export default function CreateBillPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap">
-                    <Button variant="outline" size="sm" onClick={handleImportDXF} className="gap-1.5 rounded-xl font-bold text-xs h-9 border-slate-200 dark:border-slate-800">
-                        <FileUp className="h-3.5 w-3.5" />
-                        <span className="hidden sm:inline">Import</span> DXF
+                    <Button 
+                        onClick={handleImportDXF}
+                        variant="outline" 
+                        className="inline-flex items-center justify-center whitespace-nowrap gap-2 rounded-xl font-bold text-xs h-9 px-3 border-slate-200 dark:border-slate-800 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-700 dark:text-slate-300"
+                    >
+                        <FileUp className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                        <span className="hidden sm:inline">Import DXF</span>
+                        <span className="sm:hidden">DXF</span>
                     </Button>
-                    <Button variant="outline" size="sm" onClick={handleExportPDF} className="gap-1.5 rounded-xl font-bold text-xs h-9 border-slate-200 dark:border-slate-800">
-                        <FileDown className="h-3.5 w-3.5" />
-                        <span className="hidden sm:inline">Export</span> PDF
+                    <Button 
+                        onClick={handleExportPDF}
+                        variant="outline" 
+                        className="inline-flex items-center justify-center whitespace-nowrap gap-2 rounded-xl font-bold text-xs h-9 px-3 border-slate-200 dark:border-slate-800 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-700 dark:text-slate-300"
+                    >
+                        <FileDown className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                        <span className="hidden sm:inline">Export PDF</span>
+                        <span className="sm:hidden">PDF</span>
                     </Button>
                     <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block" />
                     <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setIsRightPanelOpen(!isRightPanelOpen)}
+                        className="rounded-xl h-9 w-9 text-slate-400 hover:text-slate-900 dark:hover:text-white hidden lg:flex"
+                        title={isRightPanelOpen ? (lang === 'th' ? "ซ่อนแผงตั้งค่า" : "Hide Panel") : (lang === 'th' ? "แสดงแผงตั้งค่า" : "Show Panel")}
+                    >
+                        {isRightPanelOpen ? <PanelRightClose className="h-5 w-5" /> : <PanelRightOpen className="h-5 w-5" />}
+                    </Button>
+                    <Button
                         onClick={handleSubmit}
                         disabled={isSubmitting || !formData.customer || !formData.glassType}
-                        className="gap-1.5 rounded-xl font-bold text-xs h-9 bg-[#E8601C] hover:bg-[#E8601C]/90 text-white shadow-lg shadow-orange-500/20 px-4 sm:px-6 ml-auto sm:ml-0"
+                        className="gap-1.5 rounded-xl font-bold text-xs h-9 bg-primary hover:bg-primary/90 dark:bg-[#E8601C] dark:hover:bg-[#E8601C]/90 text-white shadow-lg shadow-primary/20 dark:shadow-orange-500/20 px-4 sm:px-6 ml-auto sm:ml-0"
                     >
                         <Save className="h-3.5 w-3.5" />
                         {isSubmitting
@@ -574,7 +602,7 @@ export default function CreateBillPage() {
             {/* Main Content - Split Layout */}
             <div className="flex flex-col lg:flex-row lg:flex-1 lg:overflow-hidden">
                 {/* Left: Glass Designer Canvas */}
-                <div className="flex flex-col lg:border-r border-slate-200 dark:border-slate-800 min-w-0 h-[50vh] sm:h-[60vh] lg:h-auto lg:flex-1">
+                <div className={`flex flex-col min-w-0 h-[50vh] sm:h-[60vh] lg:h-auto lg:flex-1 ${isRightPanelOpen ? "lg:border-r border-slate-200 dark:border-slate-800" : ""}`}>
                     <GlassDesigner
                         width={glassWidth}
                         height={glassHeight}
@@ -587,7 +615,7 @@ export default function CreateBillPage() {
                 </div>
 
                 {/* Right: Form Panel */}
-                <div className="w-full lg:w-[380px] shrink-0 lg:overflow-y-auto bg-white dark:bg-slate-900 border-t lg:border-t-0 border-slate-200 dark:border-slate-800">
+                <div className={`w-full shrink-0 bg-white dark:bg-slate-900 border-t lg:border-t-0 border-slate-200 dark:border-slate-800 ${isRightPanelOpen ? "lg:w-[380px] lg:overflow-y-auto lg:block" : "lg:hidden"}`}>
                     <div className="p-4 sm:p-6 space-y-6 sm:space-y-8">
                         <h3 className="text-sm font-bold text-slate-900 dark:text-white lg:hidden">
                             {lang === 'th' ? 'รายละเอียดคำสั่งซื้อ' : 'Order Details'}
@@ -595,7 +623,7 @@ export default function CreateBillPage() {
                         {/* Customer Section */}
                         <div className="space-y-3">
                             <div className="flex items-center gap-2">
-                                <Users className="h-4 w-4 text-[#E8601C]" />
+                                <Users className="h-4 w-4 text-primary dark:text-[#E8601C]" />
                                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">
                                     {lang === 'th' ? 'ลูกค้า' : 'Customer'}
                                 </h3>
@@ -684,7 +712,7 @@ export default function CreateBillPage() {
                         {/* Glass Specifications */}
                         <div className="space-y-3">
                             <div className="flex items-center gap-2">
-                                <Package className="h-4 w-4 text-[#E8601C]" />
+                                <Package className="h-4 w-4 text-primary dark:text-[#E8601C]" />
                                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">
                                     {lang === 'th' ? 'ข้อมูลกระจก' : 'Glass Specification'}
                                 </h3>
@@ -833,7 +861,7 @@ export default function CreateBillPage() {
                         {/* Dimensions */}
                         <div className="space-y-3">
                             <div className="flex items-center gap-2">
-                                <Ruler className="h-4 w-4 text-[#E8601C]" />
+                                <Ruler className="h-4 w-4 text-primary dark:text-[#E8601C]" />
                                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">
                                     {lang === 'th' ? 'ขนาดกระจก' : 'Dimensions'}
                                 </h3>
@@ -1001,7 +1029,7 @@ export default function CreateBillPage() {
                         {/* Order Details */}
                         <div className="space-y-3">
                             <div className="flex items-center gap-2">
-                                <CalendarDays className="h-4 w-4 text-[#E8601C]" />
+                                <CalendarDays className="h-4 w-4 text-primary dark:text-[#E8601C]" />
                                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">
                                     {lang === 'th' ? 'รายละเอียดคำสั่งซื้อ' : 'Order Details'}
                                 </h3>
