@@ -33,7 +33,7 @@ import { useWebSocket } from "@/lib/hooks/use-socket";
 
 export default function DashboardPage() {
   const { t } = useLanguage();
-  const [isActivityOpen, setIsActivityOpen] = useState(false);
+  const [isActivityOpen, setIsActivityOpen] = useState(true);
 
   // WebSocket for real-time updates (v8 Socket.io + Rooms)
   const dashboardEvents = [
