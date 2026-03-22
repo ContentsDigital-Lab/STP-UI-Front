@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Zap, Send, Navigation, Globe, MessageSquare, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { fetchApi } from "@/lib/api/config";
+import { panesApi } from "@/lib/api/panes";
+import { stationsApi } from "@/lib/api/stations";
+import { Station, Pane } from "@/lib/api/types";
 import { usePreview } from "../PreviewContext";
 import { useStationContext } from "../StationContext";
 
@@ -282,7 +285,7 @@ export function ButtonBlock({
             };
 
             try {
-                const res = await fetchApi<{ success: boolean; message?: string }>(actionEndpoint, {
+                const res = await fetchApi<{ success: boolean; message?: string; data?: Record<string, unknown> }>(actionEndpoint, {
                     method: actionMethod || "POST",
                     body: JSON.stringify(body),
                 });
@@ -293,6 +296,31 @@ export function ButtonBlock({
                     setTimeout(() => setFeedback(""), 8000);
                     return;
                 }
+
+                // After creating an order, update panes with routing (station names)
+                if (actionEndpoint === "/orders" && body.stations && Array.isArray(body.stations) && (body.stations as string[]).length > 0) {
+                    const reqId = body.request as string | undefined;
+                    if (reqId) {
+                        (async () => {
+                            try {
+                                const [stRes, pRes] = await Promise.all([
+                                    stationsApi.getAll(),
+                                    panesApi.getAll({ request: reqId, limit: 100 }),
+                                ]);
+                                const stationMap = new Map((stRes.success ? stRes.data as unknown as Station[] : []).map(s => [s._id, s.name]));
+                                const routingNames = (body.stations as string[]).map(id => stationMap.get(id) ?? id);
+                                const firstStation = routingNames[0];
+                                const panes = pRes.success ? pRes.data as Pane[] : [];
+                                await Promise.all(panes.map(p =>
+                                    panesApi.update(p._id, { routing: routingNames, currentStation: firstStation, currentStatus: "pending" })
+                                ));
+                            } catch (e) {
+                                console.error("[ButtonBlock] Failed to update panes routing:", e);
+                            }
+                        })();
+                    }
+                }
+
                 setFeedback("ok");
                 triggerRefresh();
                 setTimeout(() => setFeedback(""), 2500);

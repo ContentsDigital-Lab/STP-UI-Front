@@ -2,7 +2,7 @@
 
 import { useNode } from "@craftjs/core";
 import { useEffect, useState } from "react";
-import { Database, ChevronRight, ChevronDown, Loader2, AlertCircle, Hash, ExternalLink, QrCode, FileText, Package } from "lucide-react";
+import { Database, ChevronRight, ChevronDown, Loader2, AlertCircle, Hash, ExternalLink, QrCode as QrCodeIcon, FileText, Package, Printer } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { fetchApi } from "@/lib/api/config";
@@ -12,6 +12,7 @@ import { usePreview } from "../PreviewContext";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { useStationContext } from "../StationContext";
 import { STATUS_CONFIG } from "./StatusIndicator";
+import { QrCodeModal } from "@/components/qr/QrCodeModal";
 
 const PANE_STATUS_CFG: Record<string, { label: string; dot: string; text: string }> = {
     pending:     { label: "รอ",      dot: "bg-amber-400", text: "text-amber-600" },
@@ -183,11 +184,12 @@ export function RecordList({
     const isPreview = usePreview();
     const router    = useRouter();
     const [qrRow, setQrRow] = useState<{ code: string; orderId: string } | null>(null);
+    const [qrPane, setQrPane] = useState<Pane | null>(null);
     const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
     const [rowPanes, setRowPanes] = useState<Pane[]>([]);
     const [rowPanesLoading, setRowPanesLoading] = useState(false);
     const [showAllPanes, setShowAllPanes] = useState(false);
-    const { selectedRecord, setSelectedRecord, stationId, refreshCounter } = useStationContext();
+    const { selectedRecord, setSelectedRecord, stationId, stationName, refreshCounter } = useStationContext();
     const isApi     = dataSource && dataSource !== "static";
     // PropertiesPanel stores "production" (no slash) — normalise to "/production"
     const navPath   = navigateTo ? (navigateTo.startsWith("/") ? navigateTo : `/${navigateTo}`) : "";
@@ -252,19 +254,31 @@ export function RecordList({
         if (isApi) loadData();
     });
 
+    useWebSocket("pane", ["pane:updated"], () => {
+        setQrPane(null);
+        if (isApi) loadData();
+        if (!expandedRowId) return;
+        const fetchFn = dataSource === "/orders"
+            ? panesApi.getAll({ order: expandedRowId, limit: 100 })
+            : panesApi.getAll({ request: expandedRowId, limit: 100 });
+        fetchFn
+            .then(res => setRowPanes(res.success ? res.data ?? [] : []))
+            .catch(() => {});
+    });
+
     const filtered = rows
         .filter((r) => {
             if (shouldFilterStation && dataSource === "/orders") {
                 const stations = r.stations;
-                const idx      = typeof r.currentStationIndex === "number" ? r.currentStationIndex : 0;
                 if (!Array.isArray(stations)) return false;
-                const current = stations[idx];
-                const currentId = typeof current === "object" && current !== null
-                    ? (current as Record<string, unknown>)._id
-                    : current;
-                if (String(currentId) !== stationId) return false;
+                const hasStation = stations.some((s) => {
+                    const sid = typeof s === "object" && s !== null
+                        ? (s as Record<string, unknown>)._id
+                        : s;
+                    return String(sid) === stationId;
+                });
+                if (!hasStation) return false;
             }
-            // Pane station filtering via currentStation field
             if (shouldFilterStation && dataSource === "/panes") {
                 const paneStation = r.currentStation;
                 if (paneStation && String(paneStation) !== stationId) return false;
@@ -393,7 +407,7 @@ export function RecordList({
                                                             onClick={() => setQrRow({ code: rowCode, orderId: rowObjId })}
                                                             className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
                                                         >
-                                                            <QrCode className="h-4 w-4" />
+                                                            <QrCodeIcon className="h-4 w-4" />
                                                         </button>
                                                     )}
                                                     {showWorkOrderColumn && (
@@ -419,7 +433,10 @@ export function RecordList({
 
                                     const isExpanded = expandedRowId === rowObjId;
                                     const PANE_PEEK = 3;
-                                    const visiblePanes = showAllPanes ? rowPanes : rowPanes.slice(0, PANE_PEEK);
+                                    const stationPanes = stationName
+                                        ? rowPanes.filter(p => p.currentStation === stationName)
+                                        : rowPanes;
+                                    const visiblePanes = showAllPanes ? stationPanes : stationPanes.slice(0, PANE_PEEK);
 
                                     const handleRowClick = () => {
                                         if (selectable) setSelectedRecord(isSelected ? null : row);
@@ -440,21 +457,43 @@ export function RecordList({
                                                             <Loader2 className="h-3 w-3 animate-spin" />
                                                             <span className="text-[11px]">กำลังโหลดกระจก...</span>
                                                         </div>
-                                                    ) : rowPanes.length === 0 ? (
-                                                        <p className="text-[11px] text-muted-foreground py-1">ยังไม่มีกระจก</p>
+                                                    ) : stationPanes.length === 0 ? (
+                                                        <p className="text-[11px] text-muted-foreground py-1">ไม่มีกระจกที่สถานีนี้</p>
                                                     ) : (
                                                         <>
                                                             <div className="flex items-center gap-2 mb-1">
                                                                 <Package className="h-3 w-3 text-primary" />
                                                                 <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">กระจกแต่ละชิ้น</span>
-                                                                <span className="text-[10px] text-muted-foreground ml-auto">
-                                                                    {rowPanes.filter(p => p.currentStatus === "completed").length}/{rowPanes.length} เสร็จ
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        const rid = expandedRowId;
+                                                                        if (!rid) return;
+                                                                        const param = dataSource === "/requests"
+                                                                            ? `request=${rid}`
+                                                                            : `ids=${stationPanes.map(p => p._id).join(",")}`;
+                                                                        window.open(`/panes/print?${param}`, "_blank");
+                                                                    }}
+                                                                    title="พิมพ์ QR สติกเกอร์"
+                                                                    className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded hover:bg-muted ml-auto"
+                                                                >
+                                                                    <Printer className="h-3 w-3" />
+                                                                    พิมพ์ QR
+                                                                </button>
+                                                                <span className="text-[10px] text-muted-foreground">
+                                                                    {stationPanes.filter(p => p.currentStatus === "completed").length}/{stationPanes.length} ชิ้น
                                                                 </span>
                                                             </div>
                                                             {visiblePanes.map(pane => {
                                                                 const st = PANE_STATUS_CFG[pane.currentStatus] ?? { label: pane.currentStatus, dot: "bg-gray-400", text: "text-gray-500" };
                                                                 return (
-                                                                    <div key={pane._id} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-background border border-border/50">
+                                                                    <button
+                                                                        key={pane._id}
+                                                                        type="button"
+                                                                        onClick={() => setQrPane(pane)}
+                                                                        className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg bg-background border border-border/50 hover:bg-muted/60 hover:border-primary/30 transition-colors cursor-pointer text-left"
+                                                                    >
+                                                                        <QrCodeIcon className="h-3 w-3 text-muted-foreground/50 shrink-0" />
                                                                         <span className="font-mono text-[11px] font-bold shrink-0">{pane.paneNumber}</span>
                                                                         <span className={`flex items-center gap-1 text-[10px] font-medium ${st.text}`}>
                                                                             <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />
@@ -467,10 +506,10 @@ export function RecordList({
                                                                             </span>
                                                                         )}
                                                                         <span className="ml-auto text-[10px] text-muted-foreground">{pane.currentStation}</span>
-                                                                    </div>
+                                                                    </button>
                                                                 );
                                                             })}
-                                                            {rowPanes.length > PANE_PEEK && (
+                                                            {stationPanes.length > PANE_PEEK && (
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => setShowAllPanes(v => !v)}
@@ -478,7 +517,7 @@ export function RecordList({
                                                                 >
                                                                     {showAllPanes
                                                                         ? <><ChevronDown className="h-3 w-3" /> แสดงน้อยลง</>
-                                                                        : <><ChevronRight className="h-3 w-3" /> แสดงทั้งหมด ({rowPanes.length} ชิ้น)</>
+                                                                        : <><ChevronRight className="h-3 w-3" /> แสดงทั้งหมด ({stationPanes.length} ชิ้น)</>
                                                                     }
                                                                 </button>
                                                             )}
@@ -494,8 +533,20 @@ export function RecordList({
                     </>
                 )}
             </div>
-            {/* QR popup */}
+            {/* QR popup (order-level) */}
             {qrRow && <QrPopup code={qrRow.code} orderId={qrRow.orderId} onClose={() => setQrRow(null)} />}
+            {/* QR modal (pane-level) */}
+            {qrPane && (
+                <QrCodeModal
+                    code={qrPane.paneNumber}
+                    label={[
+                        qrPane.glassTypeLabel,
+                        qrPane.dimensions ? `${qrPane.dimensions.width}×${qrPane.dimensions.height}${qrPane.dimensions.thickness ? ` (${qrPane.dimensions.thickness}mm)` : ""}` : "",
+                    ].filter(Boolean).join(" — ")}
+                    value={qrPane.qrCode || `STDPLUS:${qrPane.paneNumber}`}
+                    onClose={() => setQrPane(null)}
+                />
+            )}
             </>
         );
     }

@@ -2,7 +2,7 @@
 
 import { useNode } from "@craftjs/core";
 import { useEffect, useState } from "react";
-import { Database, Loader2, AlertCircle, Package, ChevronDown, ChevronRight } from "lucide-react";
+import { Database, Loader2, AlertCircle, Package, ChevronDown, ChevronRight, Printer, QrCode } from "lucide-react";
 import { fetchApi } from "@/lib/api/config";
 import { panesApi } from "@/lib/api/panes";
 import { Pane } from "@/lib/api/types";
@@ -10,6 +10,7 @@ import { usePreview } from "../PreviewContext";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { useStationContext } from "../StationContext";
 import { STATUS_CONFIG } from "./StatusIndicator";
+import { QrCodeModal } from "@/components/qr/QrCodeModal";
 
 // ── Field display config ──────────────────────────────────────────────────────
 export interface DetailField {
@@ -104,6 +105,8 @@ function PaneListSection({ record, endpoint }: { record: Record<string, unknown>
     const [panes, setPanes] = useState<Pane[]>([]);
     const [loading, setLoading] = useState(false);
     const [showAll, setShowAll] = useState(false);
+    const [qrPane, setQrPane] = useState<Pane | null>(null);
+    const { stationName } = useStationContext();
 
     const recordLooksLikeOrder = !!record && ("stations" in record || "currentStationIndex" in record || "code" in record);
     const isOrderEndpoint = endpoint === "/orders" || endpoint.startsWith("/orders/") || (endpoint === "context" && recordLooksLikeOrder);
@@ -133,6 +136,7 @@ function PaneListSection({ record, endpoint }: { record: Record<string, unknown>
     }, [record, endpoint, isRequestEndpoint, isOrderEndpoint]);
 
     useWebSocket("pane", ["pane:updated"], () => {
+        setQrPane(null);
         if (!record?._id) return;
         fetchPanes(record._id as string)
             .then(res => setPanes(res.success ? res.data ?? [] : []))
@@ -146,11 +150,16 @@ function PaneListSection({ record, endpoint }: { record: Record<string, unknown>
             <span className="text-xs">กำลังโหลดกระจก...</span>
         </div>
     );
-    if (panes.length === 0) return null;
 
-    const visible = showAll ? panes : panes.slice(0, PANE_PREVIEW_COUNT);
-    const hasMore = panes.length > PANE_PREVIEW_COUNT;
-    const done = panes.filter(p => p.currentStatus === "completed").length;
+    const stationPanes = stationName
+        ? panes.filter(p => p.currentStation === stationName)
+        : panes;
+
+    if (stationPanes.length === 0) return null;
+
+    const visible = showAll ? stationPanes : stationPanes.slice(0, PANE_PREVIEW_COUNT);
+    const hasMore = stationPanes.length > PANE_PREVIEW_COUNT;
+    const done = stationPanes.filter(p => p.currentStatus === "completed").length;
 
     return (
         <div className="border-t">
@@ -158,17 +167,38 @@ function PaneListSection({ record, endpoint }: { record: Record<string, unknown>
                 <div className="flex items-center gap-2">
                     <Package className="h-3.5 w-3.5 text-primary" />
                     <span className="text-xs font-semibold">กระจกแต่ละชิ้น</span>
-                    <span className="text-[10px] text-muted-foreground">{panes.length} ชิ้น</span>
+                    <span className="text-[10px] text-muted-foreground">{stationPanes.length} ชิ้น</span>
                 </div>
-                <span className="text-[10px] text-muted-foreground">
-                    {done}/{panes.length} เสร็จ
-                </span>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => {
+                            const id = record?._id as string | undefined;
+                            if (!id) return;
+                            const param = isRequestEndpoint ? `request=${id}` : `ids=${stationPanes.map(p => p._id).join(",")}`;
+                            window.open(`/panes/print?${param}`, "_blank");
+                        }}
+                        title="พิมพ์ QR สติกเกอร์"
+                        className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors px-1.5 py-0.5 rounded hover:bg-muted"
+                    >
+                        <Printer className="h-3 w-3" />
+                        พิมพ์ QR
+                    </button>
+                    <span className="text-[10px] text-muted-foreground">
+                        {done}/{stationPanes.length} ชิ้น
+                    </span>
+                </div>
             </div>
             <div className="px-5 py-2 space-y-1.5">
                 {visible.map(pane => {
                     const st = PANE_STATUS[pane.currentStatus] ?? { label: pane.currentStatus, dot: "bg-gray-400", text: "text-gray-500" };
                     return (
-                        <div key={pane._id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/30 border border-border/50">
+                        <button
+                            key={pane._id}
+                            type="button"
+                            onClick={() => setQrPane(pane)}
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/30 border border-border/50 hover:bg-muted/60 hover:border-primary/30 transition-colors cursor-pointer text-left"
+                        >
+                            <QrCode className="h-3 w-3 text-muted-foreground/50 shrink-0" />
                             <span className="font-mono text-[11px] font-bold shrink-0">{pane.paneNumber}</span>
                             <span className={`flex items-center gap-1 text-[10px] font-medium ${st.text}`}>
                                 <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />
@@ -181,7 +211,7 @@ function PaneListSection({ record, endpoint }: { record: Record<string, unknown>
                                 </span>
                             )}
                             <span className="ml-auto text-[10px] text-muted-foreground">{pane.currentStation}</span>
-                        </div>
+                        </button>
                     );
                 })}
                 {hasMore && (
@@ -193,11 +223,22 @@ function PaneListSection({ record, endpoint }: { record: Record<string, unknown>
                         {showAll ? (
                             <><ChevronDown className="h-3 w-3" /> แสดงน้อยลง</>
                         ) : (
-                            <><ChevronRight className="h-3 w-3" /> แสดงทั้งหมด ({panes.length} ชิ้น)</>
+                            <><ChevronRight className="h-3 w-3" /> แสดงทั้งหมด ({stationPanes.length} ชิ้น)</>
                         )}
                     </button>
                 )}
             </div>
+            {qrPane && (
+                <QrCodeModal
+                    code={qrPane.paneNumber}
+                    label={[
+                        qrPane.glassTypeLabel,
+                        qrPane.dimensions ? `${qrPane.dimensions.width}×${qrPane.dimensions.height}${qrPane.dimensions.thickness ? ` (${qrPane.dimensions.thickness}mm)` : ""}` : "",
+                    ].filter(Boolean).join(" — ")}
+                    value={qrPane.qrCode || `STDPLUS:${qrPane.paneNumber}`}
+                    onClose={() => setQrPane(null)}
+                />
+            )}
         </div>
     );
 }

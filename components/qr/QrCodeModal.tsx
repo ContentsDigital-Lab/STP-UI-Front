@@ -53,7 +53,7 @@ export function QrCodeModal({ code, label, value, onClose }: QrCodeModalProps) {
             }
             URL.revokeObjectURL(url);
             const a       = document.createElement("a");
-            a.download    = `qr-order-${code}.png`;
+            a.download    = `qr-${code}.png`;
             a.href        = canvas.toDataURL("image/png");
             a.click();
         };
@@ -73,7 +73,7 @@ export function QrCodeModal({ code, label, value, onClose }: QrCodeModalProps) {
                 <div className="flex items-center justify-between px-5 pt-5 pb-3">
                     <div className="flex items-center gap-2">
                         <QrCode className="h-4 w-4 text-primary" />
-                        <span className="text-sm font-semibold">QR Code ออเดอร์</span>
+                        <span className="text-sm font-semibold">QR Code</span>
                     </div>
                     <button
                         type="button"

@@ -64,4 +64,19 @@ export const panesApi = {
             body: JSON.stringify({ ids }),
         });
     },
+
+    scan: async (paneNumber: string, data: {
+        station: string;
+        action: "scan_in" | "start" | "complete";
+        operator?: string;
+    }): Promise<ApiResponse<{
+        pane: Pane;
+        log: Record<string, unknown>;
+        nextStation?: string;
+    }>> => {
+        return fetchApi(`/panes/${encodeURIComponent(paneNumber)}/scan`, {
+            method: "POST",
+            body: JSON.stringify(data),
+        });
+    },
 };

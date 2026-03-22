@@ -144,11 +144,20 @@ export function OrderReleasePanel({
                 const existingPanes = await panesApi.getAll({ order: order._id, limit: 100 }).catch(() => null);
                 const panes = existingPanes?.success ? (existingPanes.data ?? []) : [];
 
+                // Convert station IDs to names for pane routing
+                const stationMap = new Map(stations.map(s => [s._id, s.name]));
+                const routingNames = routing.map(id => stationMap.get(id) ?? id);
+                const firstStation = routingNames.length > 0 ? routingNames[0] : "Order_Reless";
+
                 if (panes.length > 0) {
-                    // Panes already exist (created at request time) — assign routing
-                    if (routing.length > 0) {
+                    // Panes already exist (created at request time) — assign routing + move to first station
+                    if (routingNames.length > 0) {
                         Promise.all(
-                            panes.map(p => panesApi.update(p._id, { routing }))
+                            panes.map(p => panesApi.update(p._id, {
+                                routing: routingNames,
+                                currentStation: firstStation,
+                                currentStatus: "pending",
+                            }))
                         ).catch(err => console.error("[OrderReleasePanel] Failed to update panes:", err));
                     }
                 } else {
@@ -157,9 +166,9 @@ export function OrderReleasePanel({
                     const spec = mat?.specDetails;
                     const panePayload = {
                         order: order._id,
-                        currentStation: "queue" as const,
+                        currentStation: firstStation,
                         currentStatus: "pending" as const,
-                        routing: routing.length > 0 ? routing : undefined,
+                        routing: routingNames.length > 0 ? routingNames : undefined,
                         dimensions: {
                             width: spec?.width ? parseFloat(spec.width) || 0 : 0,
                             height: spec?.length ? parseFloat(spec.length) || 0 : 0,

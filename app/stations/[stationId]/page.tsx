@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useCallback } from "react";
-import { ArrowLeft, LayoutTemplate, Settings2, Bell, Package, X } from "lucide-react";
+import { ArrowLeft, LayoutTemplate, Settings2, Bell, Package, X, QrCode, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { getStationTemplate } from "@/lib/api/station-templates";
@@ -17,7 +17,9 @@ import { requestsApi } from "@/lib/api/requests";
 import { Station, Order, Customer, Material } from "@/lib/api/types";
 import { getColorOption } from "@/lib/stations/stations-store";
 import { useWebSocket } from "@/lib/hooks/use-socket";
+import { useCheckinSocket } from "@/lib/hooks/use-checkin-socket";
 import { playNotificationSound } from "@/lib/notification-sounds";
+import { QRCodeSVG } from "qrcode.react";
 
 // ⚠️ Craft.js uses browser APIs — disable SSR
 const DesignerCanvas = dynamic(
@@ -91,6 +93,7 @@ export default function LiveStationPage() {
     const [noTemplate,   setNoTemplate]   = useState(false);
     const [orderData,    setOrderData]    = useState<Record<string, unknown> | null>(null);
     const [requestData,  setRequestData]  = useState<Record<string, unknown> | null>(null);
+    const [showCheckinQr, setShowCheckinQr] = useState(false);
 
     // ── Track known orders at this station to detect new arrivals ─────────────
     const knownOrderIdsRef = useRef<Set<string>>(new Set());
@@ -140,6 +143,35 @@ export default function LiveStationPage() {
 
     useWebSocket("order", ["order:updated"], handleOrderEvent);
 
+    // ── Worker check-in via QR ──────────────────────────────────────────────────
+    const { onCheckin } = useCheckinSocket(station?.name ?? null);
+    useEffect(() => {
+        onCheckin(({ worker, time }) => {
+            playNotificationSound("high").catch(() => {});
+            const toastId = `checkin-${Date.now()}`;
+            toast.custom(
+                (id) => (
+                    <div className="flex items-start gap-3 bg-background border-2 border-emerald-500/40 rounded-2xl shadow-2xl p-4 w-80">
+                        <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-500 shrink-0">
+                            <UserCheck className="h-5 w-5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-emerald-500 uppercase tracking-wider">พนักงานเช็คอิน!</p>
+                            <p className="font-bold text-sm text-foreground mt-0.5">{worker}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">เวลา {time}</p>
+                            <p className="text-[10px] text-emerald-400 font-medium mt-1">📍 {stationRef.current?.name ?? "สถานีนี้"}</p>
+                        </div>
+                        <button onClick={() => toast.dismiss(id)} className="shrink-0 text-muted-foreground hover:text-foreground transition-colors mt-0.5">
+                            <X className="h-4 w-4" />
+                        </button>
+                    </div>
+                ),
+                { id: toastId, duration: 10000, position: "top-right" },
+            );
+            setShowCheckinQr(false);
+        });
+    }, [onCheckin]);
+
     // ── Load station + template ────────────────────────────────────────────────
     useEffect(() => {
         stationsApi.getById(stationId)
@@ -184,6 +216,10 @@ export default function LiveStationPage() {
 
     const color = station ? getColorOption(station.colorId) : null;
 
+    const checkinUrl = typeof window !== "undefined"
+        ? `${window.location.origin}/stations/${stationId}/checkin`
+        : "";
+
     const header = (
         <div className="flex items-center gap-3 border-b bg-card px-4 py-2.5 shrink-0">
             <Button variant="ghost" size="sm" className="h-8 gap-1.5" onClick={() => router.push("/stations")}>
@@ -204,6 +240,82 @@ export default function LiveStationPage() {
                     <span className="text-sm text-muted-foreground truncate">{template.name}</span>
                 </>
             )}
+            <div className="ml-auto flex items-center gap-2">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1.5 text-xs"
+                    onClick={() => setShowCheckinQr(v => !v)}
+                >
+                    <UserCheck className="h-3.5 w-3.5" />
+                    เช็คอิน
+                </Button>
+                <Button
+                    variant="default"
+                    size="sm"
+                    className="h-8 gap-1.5 text-xs"
+                    onClick={() => window.open(`/stations/${stationId}/scan`, "_blank")}
+                >
+                    <QrCode className="h-3.5 w-3.5" />
+                    สแกน Pane
+                </Button>
+            </div>
+        </div>
+    );
+
+    const checkinQrPopup = showCheckinQr && checkinUrl && (
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+            onClick={() => setShowCheckinQr(false)}
+        >
+            <div
+                className="bg-card rounded-2xl border shadow-2xl w-full max-w-sm"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="flex items-center justify-between px-5 pt-5 pb-3">
+                    <div className="flex items-center gap-2">
+                        <UserCheck className="h-4 w-4 text-primary" />
+                        <span className="text-sm font-semibold">สแกนเพื่อเช็คอิน</span>
+                    </div>
+                    <button
+                        onClick={() => setShowCheckinQr(false)}
+                        className="p-1 rounded text-muted-foreground/40 hover:text-foreground transition-colors"
+                    >
+                        <X className="h-5 w-5" />
+                    </button>
+                </div>
+                <div className="flex flex-col items-center gap-4 px-5 pb-6">
+                    <div className="p-4 bg-white rounded-2xl border shadow-inner">
+                        <QRCodeSVG
+                            value={checkinUrl}
+                            size={220}
+                            bgColor="#ffffff"
+                            fgColor="#000000"
+                            level="H"
+                            marginSize={4}
+                        />
+                    </div>
+                    <div className="text-center space-y-1">
+                        <p className="text-sm font-semibold text-foreground">
+                            สถานี: {station?.name ?? stationId}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                            ให้พนักงานสแกน QR นี้ด้วยมือถือเพื่อเช็คอินเข้าสถานี
+                        </p>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground/50 font-mono break-all text-center">
+                        {checkinUrl}
+                    </p>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => setShowCheckinQr(false)}
+                    >
+                        ปิด
+                    </Button>
+                </div>
+            </div>
         </div>
     );
 
@@ -245,10 +357,12 @@ export default function LiveStationPage() {
                     saving={false}
                     previewOnly
                     stationId={stationId}
+                    stationName={station?.name ?? null}
                     initialData={orderData}
                     initialRequestData={requestData}
                 />
             </div>
+            {checkinQrPopup}
         </div>
     );
 }
