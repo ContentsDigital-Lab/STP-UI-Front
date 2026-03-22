@@ -680,7 +680,7 @@ export default function CreateBillPage() {
                                                 <button
                                                     type="button"
                                                     onClick={() => openNewCustomerDialog(customerSearch.trim())}
-                                                    className="flex items-center gap-2 w-full px-3 py-3 rounded-xl text-sm font-bold text-[#E8601C] hover:bg-[#E8601C]/10 transition-colors"
+                                                    className="flex items-center gap-2 w-full px-3 py-3 rounded-xl text-sm font-bold text-blue-600 dark:text-[#E8601C] hover:bg-blue-50 dark:hover:bg-[#E8601C]/10 transition-colors"
                                                 >
                                                     <Plus className="h-4 w-4" />
                                                     {lang === 'th' ? `เพิ่ม "${customerSearch.trim()}"` : `Add "${customerSearch.trim()}"`}
@@ -768,7 +768,7 @@ export default function CreateBillPage() {
                                                     <button
                                                         type="button"
                                                         onClick={() => handleAddGlassType(glassTypeSearch.trim())}
-                                                        className="flex items-center gap-2 w-full px-3 py-3 rounded-xl text-sm font-bold text-[#E8601C] hover:bg-[#E8601C]/10 transition-colors"
+                                                        className="flex items-center gap-2 w-full px-3 py-3 rounded-xl text-sm font-bold text-blue-600 dark:text-[#E8601C] hover:bg-blue-50 dark:hover:bg-[#E8601C]/10 transition-colors"
                                                     >
                                                         <Plus className="h-4 w-4" />
                                                         {lang === 'th' ? `เพิ่ม "${glassTypeSearch.trim()}"` : `Add "${glassTypeSearch.trim()}"`}
@@ -842,7 +842,7 @@ export default function CreateBillPage() {
                                                         <button
                                                             type="button"
                                                             onClick={() => handleAddThickness(thicknessSearch.trim())}
-                                                            className="flex items-center gap-2 w-full px-3 py-3 rounded-xl text-sm font-bold text-[#E8601C] hover:bg-[#E8601C]/10 transition-colors"
+                                                            className="flex items-center gap-2 w-full px-3 py-3 rounded-xl text-sm font-bold text-blue-600 dark:text-[#E8601C] hover:bg-blue-50 dark:hover:bg-[#E8601C]/10 transition-colors"
                                                         >
                                                             <Plus className="h-4 w-4" />
                                                             {lang === 'th' ? `เพิ่ม "${thicknessSearch.trim()}mm"` : `Add "${thicknessSearch.trim()}mm"`}

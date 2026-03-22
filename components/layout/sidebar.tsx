@@ -48,7 +48,7 @@ export function Sidebar({ collapsed, setCollapsed, onNavigate }: SidebarProps) {
                 collapsed ? "w-[80px]" : "w-[240px]"
             )}
         >
-            <div className="flex shrink-0 h-14 sm:h-16 xl:h-20 items-center justify-between px-4 border-b">
+            <div className="flex shrink-0 h-[72px] items-center justify-between px-4 border-b">
                 {!collapsed && (
                     <Link href="/" className="flex items-center justify-center w-full overflow-hidden">
                         <img
