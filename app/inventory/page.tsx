@@ -778,12 +778,12 @@ export default function InventoryPage() {
                         </Label>
                         <Select value={locationFilter} onValueChange={(val) => { setLocationFilter(val || "all"); setCurrentPage(1); }}>
                             <SelectTrigger className="h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-medium text-sm focus:ring-[#E8601C]">
-                                <SelectValue placeholder="All Areas" />
+                                <SelectValue placeholder="All Areas" className="text-left" />
                             </SelectTrigger>
-                            <SelectContent className="rounded-2xl border-slate-200 dark:border-slate-800">
-                                <SelectItem value="all" className="font-medium">All Areas</SelectItem>
+                            <SelectContent className="rounded-2xl border-slate-200 dark:border-slate-800 min-w-[max-content]">
+                                <SelectItem value="all" className="font-medium py-2.5 pr-8">All Areas</SelectItem>
                                 {locations.map(loc => (
-                                    <SelectItem key={loc} value={loc} className="font-medium">{loc}</SelectItem>
+                                    <SelectItem key={loc} value={loc} className="font-medium py-2.5 pr-8 min-w-[max-content]">{loc}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
@@ -797,12 +797,12 @@ export default function InventoryPage() {
                         </Label>
                         <Select value={glassTypeFilter} onValueChange={(val) => { setGlassTypeFilter(val || "all"); setCurrentPage(1); }}>
                             <SelectTrigger className="h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-medium text-sm focus:ring-[#E8601C]">
-                                <SelectValue placeholder="All Types" />
+                                <SelectValue placeholder="All Types" className="text-left" />
                             </SelectTrigger>
-                            <SelectContent className="rounded-2xl border-slate-200 dark:border-slate-800">
-                                <SelectItem value="all" className="font-medium">All Types</SelectItem>
+                            <SelectContent className="rounded-2xl border-slate-200 dark:border-slate-800 min-w-[max-content]">
+                                <SelectItem value="all" className="font-medium py-2.5 pr-8">All Types</SelectItem>
                                 {glassTypes.map(type => (
-                                    <SelectItem key={type} value={type} className="font-medium">{type}</SelectItem>
+                                    <SelectItem key={type} value={type} className="font-medium py-2.5 pr-8 min-w-[max-content]">{type}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
