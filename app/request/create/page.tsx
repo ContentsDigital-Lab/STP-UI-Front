@@ -535,7 +535,7 @@ export default function CreateBillPage() {
                     <Button
                         onClick={handleSubmit}
                         disabled={isSubmitting || !formData.customer || !formData.glassType}
-                        className="gap-1.5 rounded-xl font-bold text-xs h-9 bg-[#E8601C] hover:bg-[#E8601C]/90 text-white shadow-lg shadow-orange-500/20 px-4 sm:px-6 ml-auto sm:ml-0"
+                        className="gap-1.5 rounded-xl font-bold text-xs h-9 bg-primary hover:bg-primary/90 dark:bg-[#E8601C] dark:hover:bg-[#E8601C]/90 text-white shadow-lg shadow-primary/20 dark:shadow-orange-500/20 px-4 sm:px-6 ml-auto sm:ml-0"
                     >
                         <Save className="h-3.5 w-3.5" />
                         {isSubmitting
@@ -570,7 +570,7 @@ export default function CreateBillPage() {
                         {/* Customer Section */}
                         <div className="space-y-3">
                             <div className="flex items-center gap-2">
-                                <Users className="h-4 w-4 text-[#E8601C]" />
+                                <Users className="h-4 w-4 text-primary dark:text-[#E8601C]" />
                                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">
                                     {lang === 'th' ? 'ลูกค้า' : 'Customer'}
                                 </h3>
@@ -659,7 +659,7 @@ export default function CreateBillPage() {
                         {/* Glass Specifications */}
                         <div className="space-y-3">
                             <div className="flex items-center gap-2">
-                                <Package className="h-4 w-4 text-[#E8601C]" />
+                                <Package className="h-4 w-4 text-primary dark:text-[#E8601C]" />
                                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">
                                     {lang === 'th' ? 'ข้อมูลกระจก' : 'Glass Specification'}
                                 </h3>
@@ -808,7 +808,7 @@ export default function CreateBillPage() {
                         {/* Dimensions */}
                         <div className="space-y-3">
                             <div className="flex items-center gap-2">
-                                <Ruler className="h-4 w-4 text-[#E8601C]" />
+                                <Ruler className="h-4 w-4 text-primary dark:text-[#E8601C]" />
                                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">
                                     {lang === 'th' ? 'ขนาดกระจก' : 'Dimensions'}
                                 </h3>
@@ -976,7 +976,7 @@ export default function CreateBillPage() {
                         {/* Order Details */}
                         <div className="space-y-3">
                             <div className="flex items-center gap-2">
-                                <CalendarDays className="h-4 w-4 text-[#E8601C]" />
+                                <CalendarDays className="h-4 w-4 text-primary dark:text-[#E8601C]" />
                                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">
                                     {lang === 'th' ? 'รายละเอียดคำสั่งซื้อ' : 'Order Details'}
                                 </h3>
