@@ -64,14 +64,19 @@ export function StationHistory({
         setFetching(true); setError("");
         try {
             // Fetch in parallel: production logs (complete actions) + orders (for order codes)
-            const [logs, ordersRes] = await Promise.all([
-                fetchApi<ProductionLog[]>(
+            const [logsRes, ordersRes] = await Promise.all([
+                fetchApi<{ success: boolean; data: ProductionLog[] } | ProductionLog[]>(
                     `/production-logs?station=${encodeURIComponent(station)}&limit=300`
                 ),
                 fetchApi<{ success: boolean; data: Record<string, unknown>[] }>(
                     `/orders?stationId=${encodeURIComponent(stationId ?? "")}`
                 ),
             ]);
+
+            // Support both { success, data } and raw array response formats
+            const logsArray: ProductionLog[] = Array.isArray(logsRes)
+                ? logsRes
+                : ((logsRes as { success: boolean; data: ProductionLog[] }).data ?? []);
 
             // Build orderId → orderCode map
             const orderMap = new Map<string, string>();
@@ -84,9 +89,7 @@ export function StationHistory({
             }
 
             // Filter to "complete" actions only, then group by orderId
-            const completeLogs = Array.isArray(logs)
-                ? logs.filter(l => l.action === "complete")
-                : [];
+            const completeLogs = logsArray.filter(l => l.action === "complete");
 
             const groupMap = new Map<string, ProductionLog[]>();
             for (const log of completeLogs) {
