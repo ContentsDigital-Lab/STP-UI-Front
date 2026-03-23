@@ -895,7 +895,7 @@ export default function InventoryPage() {
                                             </TableCell>
                                             <TableCell className="py-5">
                                                 <div className="flex items-center gap-2">
-                                                    <div className="h-2.5 w-2.5 rounded-full shadow-sm" style={{ backgroundColor: getGlassColor(mat?.specDetails?.color) }}></div>
+                                                    <div className="h-2.5 w-2.5 rounded-full shadow-sm" style={{ backgroundColor: inv.storageColor || locationColors[inv.location] || '#94a3b8' }}></div>
                                                     <span className="font-bold text-slate-600 dark:text-slate-300 text-sm italic">{inv.location}</span>
                                                 </div>
                                             </TableCell>
