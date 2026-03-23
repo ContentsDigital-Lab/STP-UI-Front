@@ -908,17 +908,20 @@ export default function CreateBillPage() {
                         {panes.map((pane, idx) => {
                             const isActive = idx === activeTab;
                             return (
-                                <button
+                                <div
                                     key={pane.id}
+                                    role="tab"
+                                    tabIndex={0}
                                     onClick={() => setActiveTab(idx)}
-                                    className={`group relative flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all shrink-0 ${
+                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setActiveTab(idx); }}
+                                    className={`group relative flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all shrink-0 cursor-pointer select-none ${
                                         isActive
                                             ? 'bg-[#E8601C]/10 text-[#E8601C]'
                                             : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                                     }`}
                                 >
                                     <span className="truncate max-w-[100px]">
-                                        {pane.glassType || (lang === 'th' ? `แผ่น ${idx + 1}` : `Pane ${idx + 1}`)}
+                                        {pane.glassType ? `${pane.glassType} ${idx + 1}` : (lang === 'th' ? `แผ่น ${idx + 1}` : `Pane ${idx + 1}`)}
                                     </span>
                                     {panes.length > 1 && (
                                         <DropdownMenu>
@@ -942,7 +945,7 @@ export default function CreateBillPage() {
                                             </DropdownMenuContent>
                                         </DropdownMenu>
                                     )}
-                                </button>
+                                </div>
                             );
                         })}
                         <button
