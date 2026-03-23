@@ -32,7 +32,7 @@ export function Sidebar({ collapsed, setCollapsed, onNavigate }: SidebarProps) {
     const navigation = [
         { name: t.dashboard.label, href: "/",          icon: LayoutDashboard },
         { name: t.orderRequests,   href: "/request",     icon: ClipboardList   },
-        { name: lang === 'th' ? "คำสั่งผลิต" : "Production Orders", href: "/production",  icon: ClipboardCheck  },
+        { name: lang === 'th' ? "ติดตามการผลิต" : "Production Tracking", href: "/production",  icon: ClipboardCheck  },
         { name: lang === 'th' ? "สถานี" : "Stations", href: "/stations",    icon: Factory         },
         { name: t.inventory,       href: "/inventory", icon: Package         },
         { name: t.withdrawals,     href: "/withdrawals",        icon: ArrowDownFromLine },
