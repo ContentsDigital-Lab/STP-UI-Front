@@ -5,8 +5,9 @@ import { useParams, useRouter } from "next/navigation";
 import {
     ArrowLeft, Loader2, AlertCircle, Factory,
     User, Package, Calendar, MapPin, Hash, Clock,
-    Printer, Info, CheckCheck, ChevronRight,
+    Printer, Info, CheckCheck, ChevronRight, QrCode,
 } from "lucide-react";
+import { QrCodeModal } from "@/components/qr/QrCodeModal";
 import { Button } from "@/components/ui/button";
 import { ordersApi } from "@/lib/api/orders";
 import { panesApi } from "@/lib/api/panes";
@@ -222,6 +223,7 @@ export default function ProductionDetailPage() {
     const [billOrders, setBillOrders] = useState<Order[]>([]);
     const [stations,   setStations]   = useState<Station[]>([]);
     const [panes,      setPanes]      = useState<Pane[]>([]);
+    const [qrPane,     setQrPane]     = useState<Pane | null>(null);
     const [colorMap,   setColorMap]   = useState<Record<string, string>>({});
     const [loading,    setLoading]    = useState(true);
     const [error,      setError]      = useState<string | null>(null);
@@ -293,6 +295,7 @@ export default function ProductionDetailPage() {
     const statusCfg = ORDER_STATUS[order.status as keyof typeof ORDER_STATUS] ?? ORDER_STATUS.pending;
 
     return (
+        <>
         <div className="space-y-6">
 
             {/* Back + title */}
@@ -495,10 +498,13 @@ export default function ProductionDetailPage() {
                             })();
 
                             return (
-                                <div
+                                <button
                                     key={pane._id}
-                                    className="flex items-center gap-3 rounded-lg border px-3 py-2.5 hover:bg-muted/20 transition-colors"
+                                    type="button"
+                                    onClick={() => setQrPane(pane)}
+                                    className="flex items-center gap-3 rounded-lg border px-3 py-2.5 hover:bg-muted/30 hover:border-primary/30 transition-colors cursor-pointer text-left w-full"
                                 >
+                                    <QrCode className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2">
                                             <span className="text-xs font-mono font-bold">{pane.paneNumber}</span>
@@ -520,12 +526,25 @@ export default function ProductionDetailPage() {
                                     {pane.currentStatus === "completed" && (
                                         <CheckCheck className="h-3.5 w-3.5 text-green-500 shrink-0" />
                                     )}
-                                </div>
+                                </button>
                             );
                         })}
                     </div>
                 </div>
             )}
         </div>
+
+        {qrPane && (
+            <QrCodeModal
+                code={qrPane.paneNumber}
+                label={[
+                    qrPane.glassTypeLabel,
+                    qrPane.dimensions ? `${qrPane.dimensions.width}×${qrPane.dimensions.height}${qrPane.dimensions.thickness > 0 ? ` (${qrPane.dimensions.thickness}mm)` : ""}` : "",
+                ].filter(Boolean).join(" — ")}
+                value={qrPane.qrCode || `STDPLUS:${qrPane.paneNumber}`}
+                onClose={() => setQrPane(null)}
+            />
+        )}
+        </>
     );
 }
