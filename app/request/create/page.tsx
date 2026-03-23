@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -21,6 +21,9 @@ import {
     Plus,
     PanelRightClose,
     PanelRightOpen,
+    X,
+    Layers,
+    Copy,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { Button } from "@/components/ui/button";
@@ -53,12 +56,65 @@ import { panesApi } from "@/lib/api/panes";
 import { requestsApi } from "@/lib/api/requests";
 import { customersApi } from "@/lib/api/customers";
 import { workersApi } from "@/lib/api/workers";
-import { Customer, Worker } from "@/lib/api/types";
+import { Customer, Worker, Material } from "@/lib/api/types";
+import { materialsApi } from "@/lib/api/materials";
 import jsPDF from "jspdf";
 import { toast } from "sonner";
-import { getCachedPricingSettings, cachePricingSettings, DEFAULT_PRICING, type PricingSettings } from "@/lib/pricing-settings";
+import { getCachedPricingSettings, cachePricingSettings, type PricingSettings } from "@/lib/pricing-settings";
 import { pricingSettingsApi } from "@/lib/api/pricing-settings";
 import { useWebSocket } from "@/lib/hooks/use-socket";
+
+// ─── Multi-pane spec type ────────────────────────────────────────────────────
+
+interface PaneSpec {
+    id: string;
+    glassWidth: number;
+    glassHeight: number;
+    holes: HoleData[];
+    vertices: VertexData[];
+    glassType: string;
+    thickness: string;
+    quantity: number;
+    estimatedPrice: number;
+    pricePerSqFt: number;
+    grindingRate: number;
+    holePriceEach: number;
+    notchQty: number;
+    notchPrice: number;
+    priceAutoFilled: boolean;
+}
+
+let _paneIdSeq = 0;
+const createDefaultPane = (ps: PricingSettings): PaneSpec => ({
+    id: `pane_${++_paneIdSeq}_${Date.now()}`,
+    glassWidth: 800,
+    glassHeight: 600,
+    holes: [],
+    vertices: [{ x: 0, y: 0 }, { x: 800, y: 0 }, { x: 800, y: 600 }, { x: 0, y: 600 }],
+    glassType: "",
+    thickness: "",
+    quantity: 1,
+    estimatedPrice: 1,
+    pricePerSqFt: 0,
+    grindingRate: 50,
+    holePriceEach: ps.holePriceEach,
+    notchQty: 0,
+    notchPrice: ps.notchPrice,
+    priceAutoFilled: false,
+});
+
+const calcPanePrice = (p: PaneSpec) => {
+    const wM = p.glassWidth / 1000;
+    const hM = p.glassHeight / 1000;
+    const sqFt = wM * hM * 10.764;
+    const glassPrice = sqFt * p.pricePerSqFt;
+    const grindingCost = 2 * (wM + hM) * p.grindingRate;
+    const drillCost = p.holes.length * p.holePriceEach;
+    const notchCost = p.notchQty * p.notchPrice;
+    const perPane = glassPrice + grindingCost + drillCost + notchCost;
+    const total = perPane * p.quantity;
+    return { sqFt, glassPrice, grindingCost, drillCost, notchCost, perPane, total };
+};
 
 export default function CreateBillPage() {
     const { t, lang } = useLanguage();
@@ -69,18 +125,65 @@ export default function CreateBillPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
 
-    // Glass design state
-    const [glassWidth, setGlassWidth] = useState(800);
-    const [glassHeight, setGlassHeight] = useState(600);
-    const [holes, setHoles] = useState<HoleData[]>([]);
-    const [vertices, setVertices] = useState<VertexData[]>([
-        { x: 0, y: 0 },
-        { x: 800, y: 0 },
-        { x: 800, y: 600 },
-        { x: 0, y: 600 },
-    ]);
+    // ── Pricing settings (shared) ────────────────────────────────────────────
+    const [pricingSettings, setPricingSettings] = useState<PricingSettings>(() => getCachedPricingSettings());
 
-    // New customer dialog
+    // ── Multi-pane state ─────────────────────────────────────────────────────
+    const [panes, setPanes] = useState<PaneSpec[]>(() => [createDefaultPane(getCachedPricingSettings())]);
+    const [activeTab, setActiveTab] = useState(0);
+    const activeTabRef = useRef(0);
+    activeTabRef.current = activeTab;
+
+    const ap = panes[activeTab] ?? panes[0];
+
+    const updatePane = useCallback((updates: Partial<PaneSpec>) => {
+        setPanes(prev => prev.map((p, i) => i === activeTabRef.current ? { ...p, ...updates } : p));
+    }, []);
+
+    const addPane = useCallback(() => {
+        setPanes(prev => {
+            const newPanes = [...prev, createDefaultPane(pricingSettings)];
+            setActiveTab(newPanes.length - 1);
+            return newPanes;
+        });
+    }, [pricingSettings]);
+
+    const removePane = useCallback((idx: number) => {
+        setPanes(prev => {
+            if (prev.length <= 1) return prev;
+            const newPanes = prev.filter((_, i) => i !== idx);
+            const cur = activeTabRef.current;
+            const newActive = cur >= newPanes.length ? newPanes.length - 1 : cur > idx ? cur - 1 : cur;
+            setActiveTab(newActive);
+            return newPanes;
+        });
+    }, []);
+
+    const duplicatePane = useCallback((idx: number) => {
+        setPanes(prev => {
+            const source = prev[idx];
+            const clone: PaneSpec = {
+                ...source,
+                id: `pane_${++_paneIdSeq}_${Date.now()}`,
+                holes: source.holes.map(h => ({ ...h })),
+                vertices: source.vertices.map(v => ({ ...v })),
+            };
+            const newPanes = [...prev.slice(0, idx + 1), clone, ...prev.slice(idx + 1)];
+            setActiveTab(idx + 1);
+            return newPanes;
+        });
+    }, []);
+
+    // ── Order-level data (shared across all panes) ───────────────────────────
+    const [orderData, setOrderData] = useState({
+        customer: "",
+        deadline: "",
+        deliveryLocation: "",
+        assignedTo: "",
+        expectedDeliveryDate: "",
+    });
+
+    // ── New customer dialog ──────────────────────────────────────────────────
     const [isNewCustomerOpen, setIsNewCustomerOpen] = useState(false);
     const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
     const [newCustomerForm, setNewCustomerForm] = useState({
@@ -91,7 +194,7 @@ export default function CreateBillPage() {
         notes: "",
     });
 
-    // Combobox state
+    // ── Combobox state ───────────────────────────────────────────────────────
     const [customerOpen, setCustomerOpen] = useState(false);
     const [customerSearch, setCustomerSearch] = useState("");
     const [glassTypeOpen, setGlassTypeOpen] = useState(false);
@@ -104,100 +207,97 @@ export default function CreateBillPage() {
     const glassTypeRef = useRef<HTMLDivElement>(null);
     const thicknessRef = useRef<HTMLDivElement>(null);
 
-    // Order form state
-    const [formData, setFormData] = useState({
-        customer: "",
-        glassType: "",
-        thickness: "",
-        quantity: 1,
-        estimatedPrice: 1,
-        deadline: "",
-        deliveryLocation: "",
-        assignedTo: "",
-        expectedDeliveryDate: "",
-    });
+    // ── Pricing calc for active pane ─────────────────────────────────────────
+    const pricingCalc = useMemo(() => calcPanePrice(ap), [ap]);
 
-    // ── Pricing parameters (สูตรจากตาราง Excel) ──────────────────────────────
-    // สูตร: ราคาต่อแผ่น = (กว้าง×สูง×10.764 × ราคา/ตร.ฟ.) + (เส้นรอบวง × ราคาเจียร/ม) + (รูเจาะ × ราคา/รู) + (บาก × ราคา/บาก)
-    const [pricingSettings, setPricingSettings] = useState<PricingSettings>(() => getCachedPricingSettings());
-    const [pricePerSqFt, setPricePerSqFt]   = useState(0);
-    const [grindingRate, setGrindingRate]   = useState(50);
-    // I: จำนวนรูเจาะ — auto จาก holes.length (cutout ที่วาดใน designer)
-    const [holePriceEach, setHolePriceEach] = useState(() => getCachedPricingSettings().holePriceEach);
-    const [notchQty,     setNotchQty]       = useState(0);
-    const [notchPrice,   setNotchPrice]     = useState(() => getCachedPricingSettings().notchPrice);
-    const [priceAutoFilled, setPriceAutoFilled] = useState(false);
+    // ── Sync computed price → estimatedPrice on active pane ──────────────────
+    useEffect(() => {
+        if (ap.pricePerSqFt > 0) {
+            const newPrice = Math.round(pricingCalc.perPane * 100) / 100;
+            setPanes(prev => prev.map((p, i) =>
+                i === activeTabRef.current && p.estimatedPrice !== newPrice
+                    ? { ...p, estimatedPrice: newPrice }
+                    : p
+            ));
+        }
+    }, [pricingCalc.perPane, ap.pricePerSqFt]);
 
-    // ── Fetch pricing settings from server on mount ────────────────────────────
+    // ── Sync combobox search values on tab switch ────────────────────────────
+    useEffect(() => {
+        const p = panes[activeTab];
+        if (p) {
+            setGlassTypeSearch(p.glassType);
+            setThicknessSearch(p.thickness);
+        }
+        setGlassTypeOpen(false);
+        setThicknessOpen(false);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeTab]);
+
+    // ── Fetch pricing settings from server on mount ──────────────────────────
     useEffect(() => {
         pricingSettingsApi.get().then(res => {
             if (res.data) {
                 setPricingSettings(res.data);
                 cachePricingSettings(res.data);
-                setHolePriceEach(res.data.holePriceEach);
-                setNotchPrice(res.data.notchPrice);
             }
         }).catch(() => {});
     }, []);
 
-    // ── Subscribe to pricing:updated WebSocket event ───────────────────────────
+    // ── Subscribe to pricing:updated WebSocket event ─────────────────────────
     useWebSocket('pricing', ['pricing:updated'], (event, data) => {
         if (event === 'pricing:updated') {
             const updated = data as PricingSettings;
             setPricingSettings(updated);
             cachePricingSettings(updated);
-            setHolePriceEach(updated.holePriceEach);
-            setNotchPrice(updated.notchPrice);
         }
     });
 
-    // ── Auto-fill ราคาเมื่อเลือกประเภทกระจก + ความหนา (จาก settings) ─────────
-    useEffect(() => {
-        const suggested = pricingSettings.glassPrices[formData.glassType]?.[formData.thickness];
-        if (!suggested) return;
-        setPricePerSqFt(suggested.pricePerSqFt);
-        setGrindingRate(suggested.grindingRate);
-        setPriceAutoFilled(true);
-    }, [formData.glassType, formData.thickness, pricingSettings]);
-
-    // ── คำนวณราคาอัตโนมัติ ────────────────────────────────────────────────────
-    // - ตารางฟุต: จากขนาดกระจก (auto)
-    // - รูเจาะ: จาก holes.length ที่ add ใน glass designer (auto)
-    // - จำนวนชิ้น: จาก formData.quantity (auto)
-    const pricingCalc = React.useMemo(() => {
-        const wM = glassWidth  / 1000;   // mm → m
-        const hM = glassHeight / 1000;   // mm → m
-        const sqFt         = wM * hM * 10.764;               // D: พื้นที่ตารางฟุต (auto จากขนาด)
-        const glassPrice   = sqFt * pricePerSqFt;            // D*E
-        const grindingCost = 2 * (wM + hM) * grindingRate;  // H: เส้นรอบวง × G
-        const drillCost    = holes.length * holePriceEach;   // K: รูเจาะ (auto จาก cutouts) × J
-        const notchCost    = notchQty * notchPrice;          // N: L × M
-        const perPane      = glassPrice + grindingCost + drillCost + notchCost;
-        const total        = perPane * formData.quantity;     // รวมทุกชิ้น (auto จาก quantity)
-        return { sqFt, glassPrice, grindingCost, drillCost, notchCost, perPane, total };
-    }, [glassWidth, glassHeight, pricePerSqFt, grindingRate, holes, holePriceEach, notchQty, notchPrice, formData.quantity]);
-
-    // sync computed price → formData.estimatedPrice
-    useEffect(() => {
-        if (pricePerSqFt > 0) {
-            setFormData(prev => ({ ...prev, estimatedPrice: Math.round(pricingCalc.perPane * 100) / 100 }));
-        }
-    }, [pricingCalc, pricePerSqFt]);
-
+    // ── Refs for closures ────────────────────────────────────────────────────
     const latestCustomers = useRef(customers);
     latestCustomers.current = customers;
-    const latestFormData = useRef(formData);
-    latestFormData.current = formData;
+    const orderDataRef = useRef(orderData);
+    orderDataRef.current = orderData;
+    const panesRef = useRef(panes);
+    panesRef.current = panes;
+    const isSubmittingRef = useRef(isSubmitting);
+    isSubmittingRef.current = isSubmitting;
 
+    // ── Load customers, workers & materials ──────────────────────────────────
     useEffect(() => {
         const load = async () => {
             try {
-                const [custRes, workerRes] = await Promise.all([
+                const [custRes, workerRes, matRes] = await Promise.all([
                     customersApi.getAll(),
                     workersApi.getAll(),
+                    materialsApi.getAll().catch(() => null),
                 ]);
                 if (custRes.success && custRes.data) setCustomers(custRes.data);
                 if (workerRes.success && workerRes.data) setWorkers(workerRes.data);
+
+                if (matRes?.success && matRes.data) {
+                    const extraTypes = new Set<string>();
+                    const extraThicknesses = new Set<string>();
+                    for (const mat of matRes.data) {
+                        const gt = mat.specDetails?.glassType?.trim();
+                        const th = mat.specDetails?.thickness?.trim();
+                        if (gt) extraTypes.add(gt);
+                        if (th) {
+                            const num = parseInt(th);
+                            extraThicknesses.add(isNaN(num) ? th : `${num}mm`);
+                        }
+                    }
+                    setGlassTypes(prev => {
+                        const merged = [...prev];
+                        for (const t of extraTypes) if (!merged.includes(t)) merged.push(t);
+                        return merged;
+                    });
+                    setThicknesses(prev => {
+                        const merged = new Set(prev);
+                        for (const t of extraThicknesses) merged.add(t);
+                        return [...merged].sort((a, b) => (parseInt(a) || 0) - (parseInt(b) || 0));
+                    });
+                }
             } catch (err) {
                 console.error("Failed to load data:", err);
             }
@@ -205,26 +305,30 @@ export default function CreateBillPage() {
         load();
     }, []);
 
+    // ── Click-outside for comboboxes ─────────────────────────────────────────
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
             if (customerRef.current && !customerRef.current.contains(e.target as Node)) {
                 setCustomerOpen(false);
-                const selected = latestCustomers.current.find(c => c._id === latestFormData.current.customer);
+                const selected = latestCustomers.current.find(c => c._id === orderDataRef.current.customer);
                 setCustomerSearch(selected ? selected.name : "");
             }
             if (glassTypeRef.current && !glassTypeRef.current.contains(e.target as Node)) {
                 setGlassTypeOpen(false);
-                setGlassTypeSearch(latestFormData.current.glassType);
+                const curPane = panesRef.current[activeTabRef.current];
+                setGlassTypeSearch(curPane?.glassType || "");
             }
             if (thicknessRef.current && !thicknessRef.current.contains(e.target as Node)) {
                 setThicknessOpen(false);
-                setThicknessSearch(latestFormData.current.thickness || "");
+                const curPane = panesRef.current[activeTabRef.current];
+                setThicknessSearch(curPane?.thickness || "");
             }
         };
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
+    // ── Filtered combobox lists ──────────────────────────────────────────────
     const filteredCustomers = customers.filter(c =>
         c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
         c.phone?.toLowerCase().includes(customerSearch.toLowerCase())
@@ -234,6 +338,19 @@ export default function CreateBillPage() {
         t.toLowerCase().includes(glassTypeSearch.toLowerCase())
     );
 
+    const availableThicknesses = useMemo(() => {
+        if (!ap.glassType) return thicknesses;
+        const typeEntry = pricingSettings.glassPrices[ap.glassType];
+        if (!typeEntry || Object.keys(typeEntry).length === 0) return thicknesses;
+        return Object.keys(typeEntry).sort((a, b) => (parseInt(a) || 0) - (parseInt(b) || 0));
+    }, [ap.glassType, pricingSettings.glassPrices, thicknesses]);
+
+    const filteredThicknesses = availableThicknesses.filter(t =>
+        t.toLowerCase().includes(thicknessSearch.toLowerCase()) ||
+        t.replace('mm', '').includes(thicknessSearch)
+    );
+
+    // ── Handler: new customer dialog ─────────────────────────────────────────
     const openNewCustomerDialog = (prefillName: string) => {
         setNewCustomerForm({ name: prefillName, phone: "", address: "", discount: 0, notes: "" });
         setCustomerOpen(false);
@@ -253,7 +370,7 @@ export default function CreateBillPage() {
             const res = await customersApi.create(payload);
             if (res.success && res.data) {
                 setCustomers(prev => [...prev, res.data!]);
-                setFormData(prev => ({ ...prev, customer: res.data!._id }));
+                setOrderData(prev => ({ ...prev, customer: res.data!._id }));
                 setCustomerSearch(res.data!.name);
                 setIsNewCustomerOpen(false);
                 toast.success(lang === 'th' ? `เพิ่มลูกค้า "${res.data!.name}" สำเร็จ` : `Customer "${res.data!.name}" created`);
@@ -265,19 +382,20 @@ export default function CreateBillPage() {
         }
     };
 
+    // ── Handler: add glass type ──────────────────────────────────────────────
     const handleAddGlassType = (type: string) => {
         setGlassTypes(prev => [...prev, type]);
-        setFormData(prev => ({ ...prev, glassType: type }));
+        const suggested = pricingSettings.glassPrices[type]?.[ap.thickness];
+        updatePane({
+            glassType: type,
+            ...(suggested ? { pricePerSqFt: suggested.pricePerSqFt, grindingRate: suggested.grindingRate, priceAutoFilled: true } : { pricePerSqFt: 0, grindingRate: 50, priceAutoFilled: false }),
+        });
         setGlassTypeSearch(type);
         setGlassTypeOpen(false);
         toast.success(lang === 'th' ? `เพิ่มประเภท "${type}" สำเร็จ` : `Glass type "${type}" added`);
     };
 
-    const filteredThicknesses = thicknesses.filter(t =>
-        t.toLowerCase().includes(thicknessSearch.toLowerCase()) ||
-        t.replace('mm', '').includes(thicknessSearch)
-    );
-
+    // ── Handler: add thickness ───────────────────────────────────────────────
     const handleAddThickness = (raw: string) => {
         const num = parseInt(raw);
         if (isNaN(num) || num <= 0) {
@@ -290,32 +408,37 @@ export default function CreateBillPage() {
             return;
         }
         setThicknesses(prev => [...prev, value].sort((a, b) => parseInt(a) - parseInt(b)));
-        setFormData(prev => ({ ...prev, thickness: value }));
+        const suggested = pricingSettings.glassPrices[ap.glassType]?.[value];
+        updatePane({
+            thickness: value,
+            ...(suggested ? { pricePerSqFt: suggested.pricePerSqFt, grindingRate: suggested.grindingRate, priceAutoFilled: true } : { pricePerSqFt: 0, grindingRate: 50, priceAutoFilled: false }),
+        });
         setThicknessSearch(value);
         setThicknessOpen(false);
         toast.success(lang === 'th' ? `เพิ่มความหนา ${value} สำเร็จ` : `Thickness ${value} added`);
     };
 
+    // ── Handler: holes & vertices (stable callbacks via ref) ─────────────────
     const handleHolesChange = useCallback((newHoles: HoleData[]) => {
-        setHoles(newHoles);
+        setPanes(prev => prev.map((p, i) => i === activeTabRef.current ? { ...p, holes: newHoles } : p));
     }, []);
 
-    // Page-level keyboard shortcuts (cross-platform: Ctrl on Windows, ⌘ on Mac)
-    const isSubmittingRef = useRef(isSubmitting);
-    isSubmittingRef.current = isSubmitting;
-    const formDataRef = useRef(formData);
-    formDataRef.current = formData;
+    const handleVerticesChange = useCallback((newVerts: VertexData[]) => {
+        setPanes(prev => prev.map((p, i) => i === activeTabRef.current ? { ...p, vertices: newVerts } : p));
+    }, []);
 
+    // ── Keyboard shortcuts ───────────────────────────────────────────────────
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
             const mod = e.metaKey || e.ctrlKey;
             if (!mod) return;
             const inInput = e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
-            if (inInput && e.key !== 's' && e.key !== 'p') return; // allow save/pdf even from inputs
+            if (inInput && e.key !== 's' && e.key !== 'p') return;
             if (e.key === 's') {
                 e.preventDefault();
-                const fd = formDataRef.current;
-                if (!isSubmittingRef.current && fd.customer && fd.glassType) {
+                const od = orderDataRef.current;
+                const ps = panesRef.current;
+                if (!isSubmittingRef.current && od.customer && ps.some(p => p.glassType)) {
                     document.getElementById('__bill-submit-btn')?.click();
                 }
                 return;
@@ -335,47 +458,50 @@ export default function CreateBillPage() {
         return () => window.removeEventListener('keydown', handler);
     }, []);
 
+    // ── Submit: create request + panes for ALL specs ─────────────────────────
     const handleSubmit = async () => {
-        if (!formData.customer || !formData.glassType) return;
+        const validPanes = panes.filter(p => p.glassType);
+        if (!orderData.customer || validPanes.length === 0) return;
         setIsSubmitting(true);
 
-        const glassSpec = `${formData.glassType} ${formData.thickness} (${glassWidth}×${glassHeight}mm)`;
-        if (holes.length > 0) {
-            // Include hole info in the type description
-        }
+        const totalQty = validPanes.reduce((sum, p) => sum + p.quantity, 0);
+        const totalPrice = validPanes.reduce((sum, p) => sum + calcPanePrice(p).total, 0);
+        const typeDesc = validPanes.map(p => `${p.glassType} ${p.thickness} (${p.glassWidth}×${p.glassHeight}mm)`).join(' + ');
 
         const payload = {
             details: {
-                type: glassSpec,
-                quantity: formData.quantity,
-                estimatedPrice: formData.estimatedPrice,
+                type: typeDesc,
+                quantity: totalQty,
+                estimatedPrice: Math.round(totalPrice * 100) / 100,
             },
-            customer: formData.customer,
-            deadline: formData.deadline ? new Date(formData.deadline).toISOString() : undefined,
-            deliveryLocation: formData.deliveryLocation,
-            assignedTo: formData.assignedTo || undefined,
-            expectedDeliveryDate: formData.expectedDeliveryDate ? new Date(formData.expectedDeliveryDate).toISOString() : undefined,
+            customer: orderData.customer,
+            deadline: orderData.deadline ? new Date(orderData.deadline).toISOString() : undefined,
+            deliveryLocation: orderData.deliveryLocation,
+            assignedTo: orderData.assignedTo || undefined,
+            expectedDeliveryDate: orderData.expectedDeliveryDate ? new Date(orderData.expectedDeliveryDate).toISOString() : undefined,
         };
 
         try {
             const res = await requestsApi.create(payload);
             if (res.success) {
                 const requestId = res.data._id;
-                const qty = Math.max(1, formData.quantity);
-                const thicknessMm = parseFloat(formData.thickness) || 0;
-
                 let panesCreated = 0;
-                for (let i = 0; i < qty; i++) {
-                    try {
-                        await panesApi.create({
-                            request: requestId,
-                            dimensions: { width: glassWidth, height: glassHeight, thickness: thicknessMm },
-                            glassTypeLabel: glassSpec,
-                            currentStation: "Order_Reless",
-                        } as Record<string, unknown>);
-                        panesCreated++;
-                    } catch (paneErr) {
-                        console.error(`[CreateBill] Failed to create pane ${i + 1}/${qty}:`, paneErr);
+                for (const pane of validPanes) {
+                    const thicknessMm = parseFloat(pane.thickness) || 0;
+                    const glassSpec = `${pane.glassType} ${pane.thickness} (${pane.glassWidth}×${pane.glassHeight}mm)`;
+                    const qty = Math.max(1, pane.quantity);
+                    for (let i = 0; i < qty; i++) {
+                        try {
+                            await panesApi.create({
+                                request: requestId,
+                                dimensions: { width: pane.glassWidth, height: pane.glassHeight, thickness: thicknessMm },
+                                glassTypeLabel: glassSpec,
+                                currentStation: "Order_Reless",
+                            } as Record<string, unknown>);
+                            panesCreated++;
+                        } catch (paneErr) {
+                            console.error(`[CreateBill] Failed to create pane:`, paneErr);
+                        }
                     }
                 }
 
@@ -396,81 +522,78 @@ export default function CreateBillPage() {
         }
     };
 
+    // ── PDF export (active pane) ─────────────────────────────────────────────
     const handleExportPDF = () => {
         const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
         const pageW = pdf.internal.pageSize.getWidth();
         const pageH = pdf.internal.pageSize.getHeight();
         const margin = 15;
 
-        // Header
         pdf.setFontSize(18);
         pdf.setFont("helvetica", "bold");
         pdf.text("Standard Plus - Glass Bill", margin, margin + 5);
 
         pdf.setFontSize(9);
         pdf.setFont("helvetica", "normal");
-        const cust = customers.find(c => c._id === formData.customer);
+        const cust = customers.find(c => c._id === orderData.customer);
         pdf.text(`Customer: ${cust?.name || '—'}`, margin, margin + 13);
         pdf.text(`Date: ${new Date().toLocaleDateString()}`, margin, margin + 18);
-        pdf.text(`Type: ${formData.glassType} ${formData.thickness}`, pageW / 2, margin + 13);
-        pdf.text(`Qty: ${formData.quantity}`, pageW / 2, margin + 18);
-        if (formData.deadline) {
-            pdf.text(`Deadline: ${formData.deadline}`, pageW / 2, margin + 23);
+        pdf.text(`Type: ${ap.glassType} ${ap.thickness}`, pageW / 2, margin + 13);
+        pdf.text(`Qty: ${ap.quantity}`, pageW / 2, margin + 18);
+        let nextInfoY = margin + 23;
+        if (panes.length > 1) {
+            pdf.text(`Pane spec ${activeTab + 1} of ${panes.length}`, pageW / 2, nextInfoY);
+            nextInfoY += 5;
+        }
+        if (orderData.deadline) {
+            pdf.text(`Deadline: ${orderData.deadline}`, pageW / 2, nextInfoY);
         }
 
-        // Separator
         pdf.setDrawColor(200);
         pdf.line(margin, margin + 27, pageW - margin, margin + 27);
 
-        // Glass drawing area
         const drawAreaX = margin;
         const drawAreaY = margin + 32;
         const drawAreaW = pageW - margin * 2;
         const drawAreaH = pageH - drawAreaY - margin - 20;
 
-        // Scale glass to fit
-        const scaleX = drawAreaW / (glassWidth * 1.3);
-        const scaleY = drawAreaH / (glassHeight * 1.3);
+        const scaleX = drawAreaW / (ap.glassWidth * 1.3);
+        const scaleY = drawAreaH / (ap.glassHeight * 1.3);
         const scale = Math.min(scaleX, scaleY);
-        const gW = glassWidth * scale;
-        const gH = glassHeight * scale;
+        const gW = ap.glassWidth * scale;
+        const gH = ap.glassHeight * scale;
         const gX = drawAreaX + (drawAreaW - gW) / 2;
         const gY = drawAreaY + (drawAreaH - gH) / 2;
 
-        // Glass panel
         pdf.setFillColor(220, 235, 250);
         pdf.setDrawColor(27, 75, 154);
         pdf.setLineWidth(0.5);
         pdf.rect(gX, gY, gW, gH, "FD");
 
-        // Dimension lines
         pdf.setFontSize(8);
         pdf.setFont("helvetica", "bold");
         pdf.setDrawColor(100);
         pdf.setLineWidth(0.2);
 
-        // Bottom dimension (width)
         const dimY = gY + gH + 8;
         pdf.line(gX, dimY, gX + gW, dimY);
         pdf.line(gX, gY + gH + 2, gX, dimY + 3);
         pdf.line(gX + gW, gY + gH + 2, gX + gW, dimY + 3);
-        pdf.text(`${glassWidth} mm`, gX + gW / 2, dimY + 5, { align: "center" });
+        pdf.text(`${ap.glassWidth} mm`, gX + gW / 2, dimY + 5, { align: "center" });
 
-        // Left dimension (height)
         const dimX = gX - 8;
         pdf.line(dimX, gY, dimX, gY + gH);
         pdf.line(gX - 2, gY, dimX - 3, gY);
         pdf.line(gX - 2, gY + gH, dimX - 3, gY + gH);
-        pdf.text(`${glassHeight} mm`, dimX - 3, gY + gH / 2, { angle: 90, align: "center" });
+        pdf.text(`${ap.glassHeight} mm`, dimX - 3, gY + gH / 2, { angle: 90, align: "center" });
 
-        // Cutouts
         pdf.setDrawColor(232, 96, 28);
         pdf.setLineWidth(0.3);
-        const hScaleX = gW / glassWidth;
-        const hScaleY = gH / glassHeight;
-        holes.forEach((hole, i) => {
+        const hScaleX = gW / ap.glassWidth;
+        const hScaleY = gH / ap.glassHeight;
+        ap.holes.forEach((hole, i) => {
             const hx = gX + hole.x * hScaleX;
-            const hy = gY + (glassHeight - hole.y) * hScaleY;
+            const hy = gY + (ap.glassHeight - hole.y) * hScaleY;
             const type = hole.type || 'circle';
             let labelText = '';
 
@@ -521,15 +644,14 @@ export default function CreateBillPage() {
             pdf.text(labelText, hx + 5, hy + 1);
         });
 
-        // Cutout table
-        if (holes.length > 0) {
+        if (ap.holes.length > 0) {
             const tableY = pageH - margin - 15;
             pdf.setFontSize(7);
             pdf.setFont("helvetica", "bold");
             pdf.setDrawColor(150);
             pdf.text("CUTOUTS", margin, tableY);
             pdf.setFont("helvetica", "normal");
-            holes.forEach((hole, i) => {
+            ap.holes.forEach((hole, i) => {
                 const type = hole.type || 'circle';
                 const tx = margin + (i % 3) * 70;
                 const ty = tableY + 4 + Math.floor(i / 3) * 5;
@@ -542,15 +664,15 @@ export default function CreateBillPage() {
             });
         }
 
-        // Footer
         pdf.setFontSize(7);
         pdf.setTextColor(150);
         pdf.text("Generated by Standard Plus System", margin, pageH - margin + 3);
         pdf.text(`Page 1 of 1`, pageW - margin, pageH - margin + 3, { align: "right" });
 
-        pdf.save(`bill_${cust?.name || 'glass'}_${Date.now()}.pdf`);
+        pdf.save(`bill_${cust?.name || 'glass'}_pane${activeTab + 1}_${Date.now()}.pdf`);
     };
 
+    // ── DXF import (into active pane) ────────────────────────────────────────
     const handleImportDXF = async () => {
         const input = document.createElement('input');
         input.type = 'file';
@@ -575,6 +697,7 @@ export default function CreateBillPage() {
                 let maxX = 0;
                 let maxY = 0;
                 let skippedHoles = 0;
+                const currentPane = panesRef.current[activeTabRef.current];
 
                 dxf.entities.forEach((entity: any) => {
                     if (entity.type === 'CIRCLE') {
@@ -609,18 +732,17 @@ export default function CreateBillPage() {
                     return;
                 }
 
-                if (maxX > 0) setGlassWidth(maxX);
-                if (maxY > 0) setGlassHeight(maxY);
-
-                const finalWidth = maxX > 0 ? maxX : glassWidth;
-                const finalHeight = maxY > 0 ? maxY : glassHeight;
-
-                setVertices([{ x: 0, y: 0 }, { x: finalWidth, y: 0 }, { x: finalWidth, y: finalHeight }, { x: 0, y: finalHeight }]);
-
+                const finalWidth = maxX > 0 ? maxX : currentPane.glassWidth;
+                const finalHeight = maxY > 0 ? maxY : currentPane.glassHeight;
                 const validHoles = importedHoles.filter(h => h.x <= finalWidth && h.y <= finalHeight);
                 const outOfBounds = importedHoles.length - validHoles.length;
 
-                setHoles(validHoles);
+                updatePane({
+                    ...(maxX > 0 ? { glassWidth: maxX } : {}),
+                    ...(maxY > 0 ? { glassHeight: maxY } : {}),
+                    vertices: [{ x: 0, y: 0 }, { x: finalWidth, y: 0 }, { x: finalWidth, y: finalHeight }, { x: 0, y: finalHeight }],
+                    holes: validHoles,
+                });
 
                 if (skippedHoles > 0) warnings.push(lang === 'th' ? `${skippedHoles} รูถูกข้ามเนื่องจากค่าลบหรือขนาดไม่ถูกต้อง` : `${skippedHoles} hole(s) skipped due to negative position or invalid size.`);
                 if (outOfBounds > 0) warnings.push(lang === 'th' ? `${outOfBounds} รูถูกข้ามเนื่องจากอยู่นอกขอบเขตกระจก` : `${outOfBounds} hole(s) skipped because they fall outside the glass bounds.`);
@@ -641,7 +763,8 @@ export default function CreateBillPage() {
         input.click();
     };
 
-    const selectedCustomer = customers.find(c => c._id === formData.customer);
+    const selectedCustomer = customers.find(c => c._id === orderData.customer);
+    const grandTotal = useMemo(() => panes.reduce((sum, p) => sum + calcPanePrice(p).total, 0), [panes]);
 
     return (
         <div className="flex flex-col lg:h-full lg:overflow-hidden">
@@ -663,9 +786,9 @@ export default function CreateBillPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap">
-                    <Button 
+                    <Button
                         onClick={handleImportDXF}
-                        variant="outline" 
+                        variant="outline"
                         className="inline-flex items-center justify-center whitespace-nowrap gap-2 rounded-xl font-bold text-xs h-9 px-3 border-slate-200 dark:border-slate-800 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-700 dark:text-slate-300"
                     >
                         <FileUp className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
@@ -695,7 +818,7 @@ export default function CreateBillPage() {
                     <Button
                         id="__bill-submit-btn"
                         onClick={handleSubmit}
-                        disabled={isSubmitting || !formData.customer || !formData.glassType}
+                        disabled={isSubmitting || !orderData.customer || !panes.some(p => p.glassType)}
                         className="gap-1.5 rounded-xl font-bold text-xs h-9 bg-primary hover:bg-primary/90 dark:bg-[#E8601C] dark:hover:bg-[#E8601C]/90 text-white shadow-lg shadow-primary/20 dark:shadow-orange-500/20 px-4 sm:px-6 ml-auto sm:ml-0"
                         title="บันทึก (Ctrl/⌘+S)"
                     >
@@ -713,18 +836,69 @@ export default function CreateBillPage() {
                 {/* Left: Glass Designer Canvas */}
                 <div className={`flex flex-col min-w-0 h-[50vh] sm:h-[60vh] lg:h-auto lg:flex-1 ${isRightPanelOpen ? "lg:border-r border-slate-200 dark:border-slate-800" : ""}`}>
                     <GlassDesigner
-                        width={glassWidth}
-                        height={glassHeight}
-                        holes={holes}
+                        key={ap.id}
+                        width={ap.glassWidth}
+                        height={ap.glassHeight}
+                        holes={ap.holes}
                         onHolesChange={handleHolesChange}
-                        vertices={vertices}
-                        onVerticesChange={setVertices}
-                        thickness={parseInt(formData.thickness) || 6}
+                        vertices={ap.vertices}
+                        onVerticesChange={handleVerticesChange}
+                        thickness={parseInt(ap.thickness) || 6}
                     />
                 </div>
 
                 {/* Right: Form Panel */}
                 <div className={`w-full shrink-0 bg-white dark:bg-slate-900 border-t lg:border-t-0 border-slate-200 dark:border-slate-800 ${isRightPanelOpen ? "lg:w-[380px] lg:overflow-y-auto lg:block" : "lg:hidden"}`}>
+                    {/* ── Pane Tabs (inside right panel) ───────────────── */}
+                    <div className="flex items-center gap-1 px-4 sm:px-6 pt-4 sm:pt-5 pb-0 overflow-x-auto">
+                        {panes.map((pane, idx) => {
+                            const isActive = idx === activeTab;
+                            return (
+                                <button
+                                    key={pane.id}
+                                    onClick={() => setActiveTab(idx)}
+                                    className={`group relative flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all shrink-0 ${
+                                        isActive
+                                            ? 'bg-[#E8601C]/10 text-[#E8601C]'
+                                            : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                    }`}
+                                >
+                                    <span className="truncate max-w-[100px]">
+                                        {pane.glassType || (lang === 'th' ? `แผ่น ${idx + 1}` : `Pane ${idx + 1}`)}
+                                    </span>
+                                    {panes.length > 1 && (
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger
+                                                className={`p-0.5 rounded text-slate-300 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer focus:outline-none ${
+                                                    isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                                                }`}
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
+                                                <X className="h-2.5 w-2.5" />
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="start" className="rounded-xl min-w-[130px]">
+                                                <DropdownMenuItem onClick={() => duplicatePane(idx)} className="rounded-lg text-xs font-semibold gap-2">
+                                                    <Copy className="h-3.5 w-3.5" />
+                                                    {lang === 'th' ? 'ทำซ้ำ' : 'Duplicate'}
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => removePane(idx)} className="rounded-lg text-xs font-semibold gap-2 text-red-600 focus:text-red-600">
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                    {lang === 'th' ? 'ลบ' : 'Remove'}
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    )}
+                                </button>
+                            );
+                        })}
+                        <button
+                            onClick={addPane}
+                            className="flex items-center gap-0.5 px-2 py-1.5 rounded-lg text-[11px] font-bold text-slate-400 hover:text-[#E8601C] hover:bg-[#E8601C]/5 transition-colors whitespace-nowrap shrink-0"
+                        >
+                            <Plus className="h-3 w-3" />
+                        </button>
+                    </div>
+
                     <div className="p-4 sm:p-6 space-y-6 sm:space-y-8">
                         <h3 className="text-sm font-bold text-slate-900 dark:text-white lg:hidden">
                             {lang === 'th' ? 'รายละเอียดคำสั่งซื้อ' : 'Order Details'}
@@ -768,12 +942,12 @@ export default function CreateBillPage() {
                                                         key={c._id}
                                                         type="button"
                                                         onClick={() => {
-                                                            setFormData(prev => ({ ...prev, customer: c._id }));
+                                                            setOrderData(prev => ({ ...prev, customer: c._id }));
                                                             setCustomerSearch(c.name);
                                                             setCustomerOpen(false);
                                                         }}
                                                         className={`flex items-center justify-between w-full px-3 py-2.5 rounded-xl text-left text-sm font-bold transition-colors ${
-                                                            formData.customer === c._id
+                                                            orderData.customer === c._id
                                                                 ? 'bg-[#E8601C]/10 text-[#E8601C]'
                                                                 : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
                                                         }`}
@@ -782,7 +956,7 @@ export default function CreateBillPage() {
                                                             <span>{c.name}</span>
                                                             {c.phone && <span className="text-[10px] opacity-60 font-medium">{c.phone}</span>}
                                                         </div>
-                                                        {formData.customer === c._id && <Check className="h-4 w-4 shrink-0" />}
+                                                        {orderData.customer === c._id && <Check className="h-4 w-4 shrink-0" />}
                                                     </button>
                                                 ))
                                             ) : customerSearch.trim() ? (
@@ -818,7 +992,7 @@ export default function CreateBillPage() {
                             )}
                         </div>
 
-                        {/* Glass Specifications */}
+                        {/* Glass Specifications (per-pane) */}
                         <div className="space-y-3">
                             <div className="flex items-center gap-2">
                                 <Package className="h-4 w-4 text-primary dark:text-[#E8601C]" />
@@ -859,18 +1033,22 @@ export default function CreateBillPage() {
                                                             key={type}
                                                             type="button"
                                                             onClick={() => {
-                                                                setFormData(prev => ({ ...prev, glassType: type }));
+                                                                const suggested = pricingSettings.glassPrices[type]?.[ap.thickness];
+                                                                updatePane({
+                                                                    glassType: type,
+                                                                    ...(suggested ? { pricePerSqFt: suggested.pricePerSqFt, grindingRate: suggested.grindingRate, priceAutoFilled: true } : { pricePerSqFt: 0, grindingRate: 50, priceAutoFilled: false }),
+                                                                });
                                                                 setGlassTypeSearch(type);
                                                                 setGlassTypeOpen(false);
                                                             }}
                                                             className={`flex items-center justify-between w-full px-3 py-2.5 rounded-xl text-left text-sm font-bold transition-colors ${
-                                                                formData.glassType === type
+                                                                ap.glassType === type
                                                                     ? 'bg-[#E8601C]/10 text-[#E8601C]'
                                                                     : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
                                                             }`}
                                                         >
                                                             <span>{type}</span>
-                                                            {formData.glassType === type && <Check className="h-4 w-4 shrink-0" />}
+                                                            {ap.glassType === type && <Check className="h-4 w-4 shrink-0" />}
                                                         </button>
                                                     ))
                                                 ) : glassTypeSearch.trim() ? (
@@ -913,7 +1091,11 @@ export default function CreateBillPage() {
                                                 if (e.key === 'Enter' && thicknessSearch.trim()) {
                                                     const match = `${thicknessSearch}mm`;
                                                     if (thicknesses.includes(match)) {
-                                                        setFormData(prev => ({ ...prev, thickness: match }));
+                                                        const suggested = pricingSettings.glassPrices[ap.glassType]?.[match];
+                                                        updatePane({
+                                                            thickness: match,
+                                                            ...(suggested ? { pricePerSqFt: suggested.pricePerSqFt, grindingRate: suggested.grindingRate, priceAutoFilled: true } : { pricePerSqFt: 0, grindingRate: 50, priceAutoFilled: false }),
+                                                        });
                                                         setThicknessSearch(match);
                                                         setThicknessOpen(false);
                                                     } else {
@@ -933,18 +1115,22 @@ export default function CreateBillPage() {
                                                                 key={t}
                                                                 type="button"
                                                                 onClick={() => {
-                                                                    setFormData(prev => ({ ...prev, thickness: t }));
+                                                                    const suggested = pricingSettings.glassPrices[ap.glassType]?.[t];
+                                                                    updatePane({
+                                                                        thickness: t,
+                                                                        ...(suggested ? { pricePerSqFt: suggested.pricePerSqFt, grindingRate: suggested.grindingRate, priceAutoFilled: true } : { pricePerSqFt: 0, grindingRate: 50, priceAutoFilled: false }),
+                                                                    });
                                                                     setThicknessSearch(t);
                                                                     setThicknessOpen(false);
                                                                 }}
                                                                 className={`flex items-center justify-between w-full px-3 py-2.5 rounded-xl text-left text-sm font-bold transition-colors ${
-                                                                    formData.thickness === t
+                                                                    ap.thickness === t
                                                                         ? 'bg-[#E8601C]/10 text-[#E8601C]'
                                                                         : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
                                                                 }`}
                                                             >
                                                                 <span>{t}</span>
-                                                                {formData.thickness === t && <Check className="h-4 w-4 shrink-0" />}
+                                                                {ap.thickness === t && <Check className="h-4 w-4 shrink-0" />}
                                                             </button>
                                                         ))
                                                     ) : thicknessSearch.trim() ? (
@@ -967,7 +1153,7 @@ export default function CreateBillPage() {
                             </div>
                         </div>
 
-                        {/* Dimensions */}
+                        {/* Dimensions (per-pane) */}
                         <div className="space-y-3">
                             <div className="flex items-center gap-2">
                                 <Ruler className="h-4 w-4 text-primary dark:text-[#E8601C]" />
@@ -983,11 +1169,13 @@ export default function CreateBillPage() {
                                     <Input
                                         type="number"
                                         min={50}
-                                        value={glassWidth}
+                                        value={ap.glassWidth}
                                         onChange={(e) => {
                                             const w = Math.max(1, parseInt(e.target.value) || 1);
-                                            setGlassWidth(w);
-                                            setVertices([{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: glassHeight }, { x: 0, y: glassHeight }]);
+                                            updatePane({
+                                                glassWidth: w,
+                                                vertices: [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: ap.glassHeight }, { x: 0, y: ap.glassHeight }],
+                                            });
                                         }}
                                         className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm px-4 focus:ring-[#E8601C]"
                                     />
@@ -999,11 +1187,13 @@ export default function CreateBillPage() {
                                     <Input
                                         type="number"
                                         min={50}
-                                        value={glassHeight}
+                                        value={ap.glassHeight}
                                         onChange={(e) => {
                                             const h = Math.max(1, parseInt(e.target.value) || 1);
-                                            setGlassHeight(h);
-                                            setVertices([{ x: 0, y: 0 }, { x: glassWidth, y: 0 }, { x: glassWidth, y: h }, { x: 0, y: h }]);
+                                            updatePane({
+                                                glassHeight: h,
+                                                vertices: [{ x: 0, y: 0 }, { x: ap.glassWidth, y: 0 }, { x: ap.glassWidth, y: h }, { x: 0, y: h }],
+                                            });
                                         }}
                                         className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm px-4 focus:ring-[#E8601C]"
                                     />
@@ -1011,24 +1201,24 @@ export default function CreateBillPage() {
                             </div>
                         </div>
 
-                        {/* Cutouts List */}
-                        {holes.length > 0 && (
+                        {/* Cutouts List (per-pane) */}
+                        {ap.holes.length > 0 && (
                             <div className="space-y-3">
                                 <div className="flex items-center justify-between">
                                     <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">
-                                        {lang === 'th' ? 'รูเจาะ / คัทเอาท์' : 'Cutouts'} ({holes.length})
+                                        {lang === 'th' ? 'รูเจาะ / คัทเอาท์' : 'Cutouts'} ({ap.holes.length})
                                     </h3>
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        onClick={() => setHoles([])}
+                                        onClick={() => updatePane({ holes: [] })}
                                         className="text-[10px] text-red-400 hover:text-red-600 h-6 px-2 rounded-lg"
                                     >
                                         {lang === 'th' ? 'ลบทั้งหมด' : 'Clear All'}
                                     </Button>
                                 </div>
                                 <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                                    {holes.map((hole, i) => {
+                                    {ap.holes.map((hole, i) => {
                                         const type = hole.type || 'circle';
                                         const shapeIcons: Record<string, string> = { circle: '●', rectangle: '■', slot: '⬭', custom: '⬡' };
                                         return (
@@ -1054,7 +1244,7 @@ export default function CreateBillPage() {
                                                                 onChange={(e) => {
                                                                     const val = parseInt(e.target.value);
                                                                     if (!val || val < 5) return;
-                                                                    setHoles(holes.map(h => h.id === hole.id ? { ...h, diameter: val } : h));
+                                                                    updatePane({ holes: ap.holes.map(h => h.id === hole.id ? { ...h, diameter: val } : h) });
                                                                 }}
                                                                 className="w-10 bg-transparent border-b border-slate-300 dark:border-slate-600 text-center text-[11px] font-semibold outline-none focus:border-[#E8601C] transition-colors"
                                                             />
@@ -1069,7 +1259,7 @@ export default function CreateBillPage() {
                                                                     onChange={(e) => {
                                                                         const val = parseInt(e.target.value);
                                                                         if (!val || val < 10) return;
-                                                                        setHoles(holes.map(h => h.id === hole.id ? { ...h, width: val } : h));
+                                                                        updatePane({ holes: ap.holes.map(h => h.id === hole.id ? { ...h, width: val } : h) });
                                                                     }}
                                                                     className="w-10 bg-transparent border-b border-slate-300 dark:border-slate-600 text-center text-[11px] font-semibold outline-none focus:border-[#E8601C] transition-colors"
                                                                 />
@@ -1081,7 +1271,7 @@ export default function CreateBillPage() {
                                                                     onChange={(e) => {
                                                                         const val = parseInt(e.target.value);
                                                                         if (!val || val < 10) return;
-                                                                        setHoles(holes.map(h => h.id === hole.id ? { ...h, height: val } : h));
+                                                                        updatePane({ holes: ap.holes.map(h => h.id === hole.id ? { ...h, height: val } : h) });
                                                                     }}
                                                                     className="w-10 bg-transparent border-b border-slate-300 dark:border-slate-600 text-center text-[11px] font-semibold outline-none focus:border-[#E8601C] transition-colors"
                                                                 />
@@ -1097,7 +1287,7 @@ export default function CreateBillPage() {
                                                                     onChange={(e) => {
                                                                         const val = parseInt(e.target.value);
                                                                         if (!val || val < 5) return;
-                                                                        setHoles(holes.map(h => h.id === hole.id ? { ...h, width: val } : h));
+                                                                        updatePane({ holes: ap.holes.map(h => h.id === hole.id ? { ...h, width: val } : h) });
                                                                     }}
                                                                     className="w-10 bg-transparent border-b border-slate-300 dark:border-slate-600 text-center text-[11px] font-semibold outline-none focus:border-[#E8601C] transition-colors"
                                                                 />
@@ -1109,7 +1299,7 @@ export default function CreateBillPage() {
                                                                     onChange={(e) => {
                                                                         const val = parseInt(e.target.value);
                                                                         if (!val || val < 10) return;
-                                                                        setHoles(holes.map(h => h.id === hole.id ? { ...h, length: val } : h));
+                                                                        updatePane({ holes: ap.holes.map(h => h.id === hole.id ? { ...h, length: val } : h) });
                                                                     }}
                                                                     className="w-10 bg-transparent border-b border-slate-300 dark:border-slate-600 text-center text-[11px] font-semibold outline-none focus:border-[#E8601C] transition-colors"
                                                                 />
@@ -1124,7 +1314,7 @@ export default function CreateBillPage() {
                                                     variant="ghost"
                                                     size="icon"
                                                     className="h-6 w-6 rounded-md text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                    onClick={() => setHoles(holes.filter(h => h.id !== hole.id))}
+                                                    onClick={() => updatePane({ holes: ap.holes.filter(h => h.id !== hole.id) })}
                                                 >
                                                     <Trash2 className="h-3 w-3" />
                                                 </Button>
@@ -1144,7 +1334,7 @@ export default function CreateBillPage() {
                                 </h3>
                             </div>
 
-                            {/* Quantity */}
+                            {/* Quantity (per-pane) */}
                             <div className="space-y-1.5">
                                 <Label className="text-[10px] font-semibold text-slate-400 uppercase">
                                     {lang === 'th' ? 'จำนวน' : 'Quantity'}
@@ -1152,19 +1342,18 @@ export default function CreateBillPage() {
                                 <Input
                                     type="number"
                                     min={1}
-                                    value={formData.quantity}
-                                    onChange={(e) => setFormData({ ...formData, quantity: Math.max(1, parseInt(e.target.value) || 1) })}
+                                    value={ap.quantity}
+                                    onChange={(e) => updatePane({ quantity: Math.max(1, parseInt(e.target.value) || 1) })}
                                     className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm px-4 focus:ring-[#E8601C]"
                                 />
                             </div>
 
-                            {/* ── Price Calculator ──────────────────────────── */}
+                            {/* ── Price Calculator (per-pane) ──────────────── */}
                             <div className="space-y-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 p-3">
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em]">
                                     {lang === 'th' ? 'คำนวณราคา' : 'Price Calculator'}
                                 </p>
 
-                                {/* Auto-detected values (read-only badges) */}
                                 <div className="grid grid-cols-3 gap-1.5">
                                     <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1.5 text-center">
                                         <p className="text-[8px] font-semibold text-slate-400 uppercase mb-0.5">{lang === 'th' ? 'พื้นที่' : 'Area'}</p>
@@ -1173,53 +1362,51 @@ export default function CreateBillPage() {
                                     </div>
                                     <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1.5 text-center">
                                         <p className="text-[8px] font-semibold text-slate-400 uppercase mb-0.5">{lang === 'th' ? 'รูเจาะ' : 'Cutouts'}</p>
-                                        <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200">{holes.length}</p>
+                                        <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200">{ap.holes.length}</p>
                                         <p className="text-[8px] text-slate-400">{lang === 'th' ? 'ชิ้น' : 'pcs'}</p>
                                     </div>
                                     <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1.5 text-center">
                                         <p className="text-[8px] font-semibold text-slate-400 uppercase mb-0.5">{lang === 'th' ? 'จำนวน' : 'Qty'}</p>
-                                        <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200">{formData.quantity}</p>
+                                        <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200">{ap.quantity}</p>
                                         <p className="text-[8px] text-slate-400">{lang === 'th' ? 'แผ่น' : 'panes'}</p>
                                     </div>
                                 </div>
 
-                                {/* Editable rates */}
                                 <div className="grid grid-cols-2 gap-2">
                                     <div className="space-y-1">
                                         <Label className="text-[9px] font-semibold text-slate-400 uppercase flex items-center gap-1">
                                             {lang === 'th' ? 'ราคา/ตร.ฟ. (฿)' : 'Price/sq.ft (฿)'}
-                                            {priceAutoFilled && <span className="text-[8px] font-bold text-emerald-500 bg-emerald-50 dark:bg-emerald-900/30 px-1 py-0.5 rounded-md">แนะนำ</span>}
+                                            {ap.priceAutoFilled && <span className="text-[8px] font-bold text-emerald-500 bg-emerald-50 dark:bg-emerald-900/30 px-1 py-0.5 rounded-md">แนะนำ</span>}
                                         </Label>
                                         <Input
                                             type="number" min={0} placeholder="0"
-                                            value={pricePerSqFt || ""}
-                                            onChange={e => { setPricePerSqFt(parseFloat(e.target.value) || 0); setPriceAutoFilled(false); }}
+                                            value={ap.pricePerSqFt || ""}
+                                            onChange={e => updatePane({ pricePerSqFt: parseFloat(e.target.value) || 0, priceAutoFilled: false })}
                                             className="h-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold px-3 focus:ring-[#E8601C]"
                                         />
                                     </div>
                                     <div className="space-y-1">
                                         <Label className="text-[9px] font-semibold text-slate-400 uppercase flex items-center gap-1">
                                             {lang === 'th' ? 'เจียร/ม (฿)' : 'Grind/m (฿)'}
-                                            {priceAutoFilled && <span className="text-[8px] font-bold text-emerald-500 bg-emerald-50 dark:bg-emerald-900/30 px-1 py-0.5 rounded-md">แนะนำ</span>}
+                                            {ap.priceAutoFilled && <span className="text-[8px] font-bold text-emerald-500 bg-emerald-50 dark:bg-emerald-900/30 px-1 py-0.5 rounded-md">แนะนำ</span>}
                                         </Label>
                                         <Input
                                             type="number" min={0}
-                                            value={grindingRate}
-                                            onChange={e => { setGrindingRate(parseFloat(e.target.value) || 0); setPriceAutoFilled(false); }}
+                                            value={ap.grindingRate}
+                                            onChange={e => updatePane({ grindingRate: parseFloat(e.target.value) || 0, priceAutoFilled: false })}
                                             className="h-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold px-3 focus:ring-[#E8601C]"
                                         />
                                     </div>
 
-                                    {/* ราคา/รู — แสดงเฉพาะเมื่อมี cutout */}
-                                    {holes.length > 0 && (
+                                    {ap.holes.length > 0 && (
                                         <div className="col-span-2 space-y-1">
                                             <Label className="text-[9px] font-semibold text-slate-400 uppercase">
-                                                {lang === 'th' ? `ราคา/รู (฿) — ${holes.length} รู` : `Price/hole (฿) — ${holes.length} holes`}
+                                                {lang === 'th' ? `ราคา/รู (฿) — ${ap.holes.length} รู` : `Price/hole (฿) — ${ap.holes.length} holes`}
                                             </Label>
                                             <Input
                                                 type="number" min={0}
-                                                value={holePriceEach}
-                                                onChange={e => setHolePriceEach(parseFloat(e.target.value) || 0)}
+                                                value={ap.holePriceEach}
+                                                onChange={e => updatePane({ holePriceEach: parseFloat(e.target.value) || 0 })}
                                                 className="h-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold px-3 focus:ring-[#E8601C]"
                                             />
                                         </div>
@@ -1231,8 +1418,8 @@ export default function CreateBillPage() {
                                         </Label>
                                         <Input
                                             type="number" min={0}
-                                            value={notchQty}
-                                            onChange={e => setNotchQty(parseInt(e.target.value) || 0)}
+                                            value={ap.notchQty}
+                                            onChange={e => updatePane({ notchQty: parseInt(e.target.value) || 0 })}
                                             className="h-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold px-3 focus:ring-[#E8601C]"
                                         />
                                     </div>
@@ -1242,15 +1429,14 @@ export default function CreateBillPage() {
                                         </Label>
                                         <Input
                                             type="number" min={0}
-                                            value={notchPrice}
-                                            onChange={e => setNotchPrice(parseFloat(e.target.value) || 0)}
+                                            value={ap.notchPrice}
+                                            onChange={e => updatePane({ notchPrice: parseFloat(e.target.value) || 0 })}
                                             className="h-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold px-3 focus:ring-[#E8601C]"
                                         />
                                     </div>
                                 </div>
 
-                                {/* Breakdown */}
-                                {pricePerSqFt > 0 && (
+                                {ap.pricePerSqFt > 0 && (
                                     <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-2.5 space-y-1.5">
                                         <div className="flex justify-between text-[11px] text-slate-500">
                                             <span>{lang === 'th' ? 'เนื้อกระจก' : 'Glass'}</span>
@@ -1262,13 +1448,13 @@ export default function CreateBillPage() {
                                         </div>
                                         {pricingCalc.drillCost > 0 && (
                                             <div className="flex justify-between text-[11px] text-slate-500">
-                                                <span>{lang === 'th' ? `ค่าเจาะ (×${holes.length})` : `Drilling (×${holes.length})`}</span>
+                                                <span>{lang === 'th' ? `ค่าเจาะ (×${ap.holes.length})` : `Drilling (×${ap.holes.length})`}</span>
                                                 <span className="font-semibold">฿{pricingCalc.drillCost.toFixed(2)}</span>
                                             </div>
                                         )}
                                         {pricingCalc.notchCost > 0 && (
                                             <div className="flex justify-between text-[11px] text-slate-500">
-                                                <span>{lang === 'th' ? `ค่าบาก (×${notchQty})` : `Notching (×${notchQty})`}</span>
+                                                <span>{lang === 'th' ? `ค่าบาก (×${ap.notchQty})` : `Notching (×${ap.notchQty})`}</span>
                                                 <span className="font-semibold">฿{pricingCalc.notchCost.toFixed(2)}</span>
                                             </div>
                                         )}
@@ -1278,22 +1464,21 @@ export default function CreateBillPage() {
                                                 <span className="text-[#E8601C]">฿{pricingCalc.perPane.toFixed(2)}</span>
                                             </div>
                                             <div className="flex justify-between text-[13px] font-bold text-slate-800 dark:text-white">
-                                                <span>{lang === 'th' ? `รวม ×${formData.quantity} แผ่น` : `Total ×${formData.quantity}`}</span>
+                                                <span>{lang === 'th' ? `รวม ×${ap.quantity} แผ่น` : `Total ×${ap.quantity}`}</span>
                                                 <span className="text-[#E8601C]">฿{pricingCalc.total.toFixed(2)}</span>
                                             </div>
                                         </div>
                                     </div>
                                 )}
 
-                                {/* Manual override */}
                                 <div className="space-y-1">
                                     <Label className="text-[9px] font-semibold text-slate-400 uppercase">
                                         {lang === 'th' ? 'ราคาประมาณ (฿) — แก้ไขได้' : 'Est. Price (฿) — editable'}
                                     </Label>
                                     <Input
                                         type="number" min={0}
-                                        value={formData.estimatedPrice}
-                                        onChange={(e) => setFormData({ ...formData, estimatedPrice: Math.max(0, parseFloat(e.target.value) || 0) })}
+                                        value={ap.estimatedPrice}
+                                        onChange={(e) => updatePane({ estimatedPrice: Math.max(0, parseFloat(e.target.value) || 0) })}
                                         className="h-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold px-3 focus:ring-[#E8601C]"
                                     />
                                 </div>
@@ -1306,8 +1491,8 @@ export default function CreateBillPage() {
                                     </Label>
                                     <Input
                                         type="date"
-                                        value={formData.deadline}
-                                        onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}
+                                        value={orderData.deadline}
+                                        onChange={(e) => setOrderData(prev => ({ ...prev, deadline: e.target.value }))}
                                         className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm px-4 focus:ring-[#E8601C]"
                                     />
                                 </div>
@@ -1317,8 +1502,8 @@ export default function CreateBillPage() {
                                     </Label>
                                     <Input
                                         type="date"
-                                        value={formData.expectedDeliveryDate}
-                                        onChange={(e) => setFormData({ ...formData, expectedDeliveryDate: e.target.value })}
+                                        value={orderData.expectedDeliveryDate}
+                                        onChange={(e) => setOrderData(prev => ({ ...prev, expectedDeliveryDate: e.target.value }))}
                                         className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm px-4 focus:ring-[#E8601C]"
                                     />
                                 </div>
@@ -1331,8 +1516,8 @@ export default function CreateBillPage() {
                                 </Label>
                                 <Input
                                     placeholder={lang === 'th' ? 'เช่น บางนา, กรุงเทพฯ' : 'e.g. Bangna, Bangkok'}
-                                    value={formData.deliveryLocation}
-                                    onChange={(e) => setFormData({ ...formData, deliveryLocation: e.target.value })}
+                                    value={orderData.deliveryLocation}
+                                    onChange={(e) => setOrderData(prev => ({ ...prev, deliveryLocation: e.target.value }))}
                                     className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm px-4 focus:ring-[#E8601C]"
                                 />
                             </div>
@@ -1343,8 +1528,8 @@ export default function CreateBillPage() {
                                     {lang === 'th' ? 'มอบหมายให้' : 'Assign To'}
                                 </Label>
                                 <Select
-                                    value={formData.assignedTo}
-                                    onValueChange={(val) => setFormData({ ...formData, assignedTo: val || "" })}
+                                    value={orderData.assignedTo}
+                                    onValueChange={(val) => setOrderData(prev => ({ ...prev, assignedTo: val || "" }))}
                                 >
                                     <SelectTrigger className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm focus:ring-[#E8601C]">
                                         <SelectValue placeholder={lang === 'th' ? 'เลือกผู้รับผิดชอบ...' : 'Select worker...'}>
@@ -1368,6 +1553,64 @@ export default function CreateBillPage() {
                                 </Select>
                             </div>
                         </div>
+
+                        {/* ── Order Summary (visible when 2+ panes) ───────── */}
+                        {panes.length > 1 && (
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-2">
+                                    <Layers className="h-4 w-4 text-primary dark:text-[#E8601C]" />
+                                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">
+                                        {lang === 'th' ? 'สรุปคำสั่งซื้อ' : 'Order Summary'}
+                                    </h3>
+                                </div>
+                                <div className="rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 p-3 space-y-1.5">
+                                    {panes.map((p, idx) => {
+                                        const calc = calcPanePrice(p);
+                                        const label = p.glassType
+                                            ? `${p.glassType} ${p.thickness} (${p.glassWidth}×${p.glassHeight})`
+                                            : (lang === 'th' ? 'ยังไม่ระบุ' : 'Not specified');
+                                        return (
+                                            <button
+                                                key={p.id}
+                                                type="button"
+                                                onClick={() => setActiveTab(idx)}
+                                                className={`flex items-center justify-between w-full text-[11px] p-2 rounded-xl cursor-pointer transition-colors ${
+                                                    idx === activeTab
+                                                        ? 'bg-[#E8601C]/10 text-[#E8601C]'
+                                                        : 'hover:bg-white dark:hover:bg-slate-900 text-slate-600 dark:text-slate-400'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-2 font-bold truncate min-w-0">
+                                                    <span className={`w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-bold shrink-0 ${
+                                                        idx === activeTab
+                                                            ? 'bg-[#E8601C]/20 text-[#E8601C]'
+                                                            : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+                                                    }`}>
+                                                        {idx + 1}
+                                                    </span>
+                                                    <span className="truncate">{label}</span>
+                                                    <span className="text-slate-400 shrink-0">×{p.quantity}</span>
+                                                </div>
+                                                <span className="font-bold shrink-0 ml-2">
+                                                    ฿{calc.total.toFixed(0)}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+                                    <div className="border-t border-slate-200 dark:border-slate-700 pt-2 mt-1 flex justify-between items-center px-2">
+                                        <span className="text-[12px] font-bold text-slate-700 dark:text-slate-200">
+                                            {lang === 'th'
+                                                ? `รวม ${panes.reduce((s, p) => s + p.quantity, 0)} แผ่น`
+                                                : `Total ${panes.reduce((s, p) => s + p.quantity, 0)} panes`
+                                            }
+                                        </span>
+                                        <span className="text-[14px] font-bold text-[#E8601C]">
+                                            ฿{grandTotal.toFixed(2)}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
