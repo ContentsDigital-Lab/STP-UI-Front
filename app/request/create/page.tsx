@@ -103,17 +103,59 @@ const createDefaultPane = (ps: PricingSettings): PaneSpec => ({
     priceAutoFilled: false,
 });
 
+const EDGE_THRESHOLD = 5; // mm — cutout within this distance of an edge counts as a notch
+
+const isEdgeCutout = (hole: HoleData, glassW: number, glassH: number): boolean => {
+    const t = EDGE_THRESHOLD;
+    const type = hole.type || 'circle';
+    if (type === 'circle') {
+        const r = hole.diameter / 2;
+        return (hole.x - r <= t) || (hole.x + r >= glassW - t) ||
+               (hole.y - r <= t) || (hole.y + r >= glassH - t);
+    }
+    if (type === 'rectangle') {
+        const hw = (hole.width || 100) / 2;
+        const hh = (hole.height || 60) / 2;
+        return (hole.x - hw <= t) || (hole.x + hw >= glassW - t) ||
+               (hole.y - hh <= t) || (hole.y + hh >= glassH - t);
+    }
+    if (type === 'slot') {
+        const hl = (hole.length || 80) / 2;
+        const hw = (hole.width || 20) / 2;
+        return (hole.x - hl <= t) || (hole.x + hl >= glassW - t) ||
+               (hole.y - hw <= t) || (hole.y + hw >= glassH - t);
+    }
+    if (type === 'custom' && hole.points && hole.points.length >= 3) {
+        return hole.points.some(pt =>
+            (hole.x + pt.x <= t) || (hole.x + pt.x >= glassW - t) ||
+            (hole.y + pt.y <= t) || (hole.y + pt.y >= glassH - t)
+        );
+    }
+    return false;
+};
+
+const countEdgeAndInterior = (holes: HoleData[], glassW: number, glassH: number) => {
+    let notches = 0;
+    let interior = 0;
+    for (const h of holes) {
+        if (isEdgeCutout(h, glassW, glassH)) notches++;
+        else interior++;
+    }
+    return { notches, interior };
+};
+
 const calcPanePrice = (p: PaneSpec) => {
     const wM = p.glassWidth / 1000;
     const hM = p.glassHeight / 1000;
     const sqFt = wM * hM * 10.764;
     const glassPrice = sqFt * p.pricePerSqFt;
     const grindingCost = 2 * (wM + hM) * p.grindingRate;
-    const drillCost = p.holes.length * p.holePriceEach;
+    const { notches: autoNotchQty, interior: autoHoleQty } = countEdgeAndInterior(p.holes, p.glassWidth, p.glassHeight);
+    const drillCost = autoHoleQty * p.holePriceEach;
     const notchCost = p.notchQty * p.notchPrice;
     const perPane = glassPrice + grindingCost + drillCost + notchCost;
     const total = perPane * p.quantity;
-    return { sqFt, glassPrice, grindingCost, drillCost, notchCost, perPane, total };
+    return { sqFt, glassPrice, grindingCost, drillCost, notchCost, perPane, total, autoNotchQty, autoHoleQty };
 };
 
 export default function CreateBillPage() {
@@ -137,7 +179,15 @@ export default function CreateBillPage() {
     const ap = panes[activeTab] ?? panes[0];
 
     const updatePane = useCallback((updates: Partial<PaneSpec>) => {
-        setPanes(prev => prev.map((p, i) => i === activeTabRef.current ? { ...p, ...updates } : p));
+        setPanes(prev => prev.map((p, i) => {
+            if (i !== activeTabRef.current) return p;
+            const merged = { ...p, ...updates };
+            if ('holes' in updates || 'glassWidth' in updates || 'glassHeight' in updates) {
+                const { notches } = countEdgeAndInterior(merged.holes, merged.glassWidth, merged.glassHeight);
+                merged.notchQty = notches;
+            }
+            return merged;
+        }));
     }, []);
 
     const addPane = useCallback(() => {
@@ -420,7 +470,11 @@ export default function CreateBillPage() {
 
     // ── Handler: holes & vertices (stable callbacks via ref) ─────────────────
     const handleHolesChange = useCallback((newHoles: HoleData[]) => {
-        setPanes(prev => prev.map((p, i) => i === activeTabRef.current ? { ...p, holes: newHoles } : p));
+        setPanes(prev => prev.map((p, i) => {
+            if (i !== activeTabRef.current) return p;
+            const { notches } = countEdgeAndInterior(newHoles, p.glassWidth, p.glassHeight);
+            return { ...p, holes: newHoles, notchQty: notches };
+        }));
     }, []);
 
     const handleVerticesChange = useCallback((newVerts: VertexData[]) => {
@@ -1354,15 +1408,20 @@ export default function CreateBillPage() {
                                     {lang === 'th' ? 'คำนวณราคา' : 'Price Calculator'}
                                 </p>
 
-                                <div className="grid grid-cols-3 gap-1.5">
+                                <div className="grid grid-cols-4 gap-1.5">
                                     <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1.5 text-center">
                                         <p className="text-[8px] font-semibold text-slate-400 uppercase mb-0.5">{lang === 'th' ? 'พื้นที่' : 'Area'}</p>
                                         <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200">{pricingCalc.sqFt.toFixed(2)}</p>
                                         <p className="text-[8px] text-slate-400">ตร.ฟ.</p>
                                     </div>
                                     <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1.5 text-center">
-                                        <p className="text-[8px] font-semibold text-slate-400 uppercase mb-0.5">{lang === 'th' ? 'รูเจาะ' : 'Cutouts'}</p>
-                                        <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200">{ap.holes.length}</p>
+                                        <p className="text-[8px] font-semibold text-slate-400 uppercase mb-0.5">{lang === 'th' ? 'รูเจาะ' : 'Holes'}</p>
+                                        <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200">{pricingCalc.autoHoleQty}</p>
+                                        <p className="text-[8px] text-slate-400">{lang === 'th' ? 'รู' : 'pcs'}</p>
+                                    </div>
+                                    <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1.5 text-center">
+                                        <p className="text-[8px] font-semibold text-slate-400 uppercase mb-0.5">{lang === 'th' ? 'บาก' : 'Notch'}</p>
+                                        <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200">{pricingCalc.autoNotchQty}</p>
                                         <p className="text-[8px] text-slate-400">{lang === 'th' ? 'ชิ้น' : 'pcs'}</p>
                                     </div>
                                     <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1.5 text-center">
@@ -1398,10 +1457,10 @@ export default function CreateBillPage() {
                                         />
                                     </div>
 
-                                    {ap.holes.length > 0 && (
+                                    {pricingCalc.autoHoleQty > 0 && (
                                         <div className="col-span-2 space-y-1">
                                             <Label className="text-[9px] font-semibold text-slate-400 uppercase">
-                                                {lang === 'th' ? `ราคา/รู (฿) — ${ap.holes.length} รู` : `Price/hole (฿) — ${ap.holes.length} holes`}
+                                                {lang === 'th' ? `ราคา/รู (฿) — ${pricingCalc.autoHoleQty} รู` : `Price/hole (฿) — ${pricingCalc.autoHoleQty} holes`}
                                             </Label>
                                             <Input
                                                 type="number" min={0}
@@ -1448,7 +1507,7 @@ export default function CreateBillPage() {
                                         </div>
                                         {pricingCalc.drillCost > 0 && (
                                             <div className="flex justify-between text-[11px] text-slate-500">
-                                                <span>{lang === 'th' ? `ค่าเจาะ (×${ap.holes.length})` : `Drilling (×${ap.holes.length})`}</span>
+                                                <span>{lang === 'th' ? `ค่าเจาะ (×${pricingCalc.autoHoleQty})` : `Drilling (×${pricingCalc.autoHoleQty})`}</span>
                                                 <span className="font-semibold">฿{pricingCalc.drillCost.toFixed(2)}</span>
                                             </div>
                                         )}
