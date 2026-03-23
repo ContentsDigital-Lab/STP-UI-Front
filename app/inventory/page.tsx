@@ -71,6 +71,11 @@ import { useAuth } from "@/lib/auth/auth-context";
 
 const ITEMS_PER_PAGE = 10;
 
+const getMatId = (mat: string | Material | null | undefined): string | null => {
+    if (!mat) return null;
+    return typeof mat === 'string' ? mat : mat._id;
+};
+
 export default function InventoryPage() {
     const { t, lang } = useLanguage();
     const it = t.inventory_dashboard;
@@ -258,7 +263,7 @@ export default function InventoryPage() {
         try {
             // Aggregation Logic: Check if material + location + stockType already exists
             const existing = inventories.find(inv =>
-                (typeof inv.material === 'string' ? inv.material : (inv.material as Material)._id) === importData.material &&
+                getMatId(inv.material) === importData.material &&
                 inv.location.toLowerCase() === importData.location.toLowerCase() &&
                 inv.stockType === importData.stockType
             );
@@ -361,10 +366,8 @@ export default function InventoryPage() {
         const payload = data as { action?: string; data?: MaterialLog };
         const inv = selectedInventoryRef.current;
         if (!inv) return;
-        const openMatId = typeof inv.material === 'string' ? inv.material : (inv.material as Material)._id;
-        const logMatId = payload?.data?.material
-            ? (typeof payload.data.material === 'string' ? payload.data.material : (payload.data.material as Material)._id)
-            : null;
+        const openMatId = getMatId(inv.material);
+        const logMatId = payload?.data?.material ? getMatId(payload.data.material) : null;
         if (logMatId && logMatId === openMatId) {
             fetchLogsRef.current(openMatId, inv._id);
         }
@@ -411,9 +414,12 @@ export default function InventoryPage() {
         }
 
         setIsMoveSubmitting(true);
-        const matId = typeof moveSource.material === 'string'
-            ? moveSource.material
-            : (moveSource.material as Material)._id;
+        const matId = getMatId(moveSource.material);
+        if (!matId) {
+            toast.error(lang === 'th' ? 'ไม่พบข้อมูลวัสดุ' : 'Material data not found');
+            setIsMoveSubmitting(false);
+            return;
+        }
 
         try {
             // 1. Decrease source quantity
@@ -429,7 +435,7 @@ export default function InventoryPage() {
             } else {
                 const destLoc = moveDestLocation.trim();
                 const existing = inventories.find(inv =>
-                    (typeof inv.material === 'string' ? inv.material : (inv.material as Material)._id) === matId &&
+                    getMatId(inv.material) === matId &&
                     inv.location.toLowerCase() === destLoc.toLowerCase() &&
                     inv.stockType === moveSource.stockType &&
                     inv._id !== moveSource._id
@@ -1474,8 +1480,7 @@ export default function InventoryPage() {
                         const sourceMat = getMaterialInfo(moveSource.material);
                         const sameMatSlots = inventories.filter(inv =>
                             inv._id !== moveSource._id &&
-                            (typeof inv.material === 'string' ? inv.material : (inv.material as Material)._id) ===
-                            (typeof moveSource.material === 'string' ? moveSource.material : (moveSource.material as Material)._id)
+                            getMatId(inv.material) === getMatId(moveSource.material)
                         );
                         return (
                             <div className="px-8 py-6 space-y-6">
