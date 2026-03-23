@@ -113,6 +113,8 @@ interface RecordListProps {
     /** @deprecated use showAllRequests to opt-out */
     hideProcessedRequests?:  boolean;
     showAllRequests?:        boolean;   // opt-out: when true, show all requests including processed ones
+    /** When true (orders only): eagerly fetch panes and hide orders with 0 pending panes at this station */
+    pendingPanesOnly?:       boolean;
 }
 
 // ── WebSocket room mapping ────────────────────────────────────────────────────
@@ -179,6 +181,7 @@ export function RecordList({
     showQrColumn            = false,
     showWorkOrderColumn     = false,
     showAllRequests         = false,
+    pendingPanesOnly        = false,
 }: RecordListProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
@@ -202,10 +205,17 @@ export function RecordList({
     const [rows,     setRows]     = useState<Record<string, unknown>[]>([]);
     const [fetching, setFetching] = useState(false);
     const [error,    setError]    = useState("");
+    /** orderId → count of pending panes at this station. Used when pendingPanesOnly=true */
+    const [pendingCountByOrder, setPendingCountByOrder] = useState<Record<string, number>>({});
     const [query,    setQuery]    = useState("");
 
     // Auto-filter: when fetching /orders or /panes inside a station context, pass stationId server-side
     const shouldFilterStation = (filterByCurrentStation || (dataSource === "/orders" && !!stationId) || (dataSource === "/panes" && !!stationId)) && !!stationId;
+
+    // Auto pending-only: hide orders/panes that have already been scanned in at this station.
+    // Active whenever this RecordList is showing station-filtered orders (shouldFilterStation covers
+    // both explicit filterByCurrentStation=true AND auto-detection via stationId in context).
+    const effectivePendingOnly = pendingPanesOnly || (dataSource === "/orders" && shouldFilterStation);
 
     const loadData = () => {
         if (!isApi) { setRows(SAMPLE_ROWS); return; }
@@ -243,10 +253,34 @@ export function RecordList({
             .finally(() => setFetching(false));
     };
 
+    /** Fetch all panes at this station and count how many are still pending per order.
+     *  Only called when pendingPanesOnly=true on an orders datasource. */
+    const loadPendingPaneCounts = () => {
+        if (!effectivePendingOnly || dataSource !== "/orders" || (!stationId && !stationName)) return;
+        panesApi.getAll({ limit: 500 }).then(res => {
+            if (!res.success || !Array.isArray(res.data)) return;
+            const counts: Record<string, number> = {};
+            for (const pane of res.data) {
+                const cs = typeof pane.currentStation === "object"
+                    ? (pane.currentStation as { _id?: string })?._id
+                    : pane.currentStation as string;
+                const atStation = cs === stationId || cs === stationName;
+                if (!atStation || pane.currentStatus !== "pending") continue;
+                const orderId = pane.order
+                    ? (typeof pane.order === "string" ? pane.order : (pane.order as { _id?: string })._id ?? "")
+                    : "";
+                if (!orderId) continue;
+                counts[orderId] = (counts[orderId] ?? 0) + 1;
+            }
+            setPendingCountByOrder(counts);
+        }).catch(() => {});
+    };
+
     useEffect(() => {
         loadData();
+        loadPendingPaneCounts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isPreview, dataSource, isApi, shouldFilterStation, stationId, refreshCounter, showAllRequests]);
+    }, [isPreview, dataSource, isApi, shouldFilterStation, stationId, refreshCounter, showAllRequests, effectivePendingOnly, stationName]);
 
     // Real-time updates via WebSocket
     const wsConfig = DATASOURCE_WS[dataSource] ?? { room: "_noop", events: [] };
@@ -257,6 +291,7 @@ export function RecordList({
     useWebSocket("pane", ["pane:updated"], () => {
         setQrPane(null);
         if (isApi) loadData();
+        loadPendingPaneCounts();
         if (!expandedRowId) return;
         const fetchFn = dataSource === "/orders"
             ? panesApi.getAll({ order: expandedRowId, limit: 100 })
@@ -265,6 +300,20 @@ export function RecordList({
             .then(res => setRowPanes(res.success ? res.data ?? [] : []))
             .catch(() => {});
     });
+
+    // Refresh rowPanes when triggerRefresh() is called (e.g. after scan in StationQueueBlock)
+    // WebSocket handles real-time for other users; this handles the local user immediately.
+    useEffect(() => {
+        if (!expandedRowId || !isApi) return;
+        if (dataSource !== "/orders" && dataSource !== "/requests") return;
+        const fetchFn = dataSource === "/orders"
+            ? panesApi.getAll({ order: expandedRowId, limit: 100 })
+            : panesApi.getAll({ request: expandedRowId, limit: 100 });
+        fetchFn
+            .then(res => { if (res.success) setRowPanes(res.data ?? []); })
+            .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [refreshCounter, expandedRowId]);
 
     const filtered = rows
         .filter((r) => {
@@ -282,6 +331,11 @@ export function RecordList({
             if (shouldFilterStation && dataSource === "/panes") {
                 const paneStation = r.currentStation;
                 if (paneStation && String(paneStation) !== stationId) return false;
+            }
+            // Hide orders that have no pending panes left at this station
+            if (effectivePendingOnly && dataSource === "/orders") {
+                const orderId = String(r._id ?? "");
+                if (!orderId || (pendingCountByOrder[orderId] ?? 0) === 0) return false;
             }
             if (!query) return true;
             return columns.some((c) => String(r[c.key] ?? "").toLowerCase().includes(query.toLowerCase()));
@@ -433,9 +487,15 @@ export function RecordList({
 
                                     const isExpanded = expandedRowId === rowObjId;
                                     const PANE_PEEK = 3;
-                                    const stationPanes = stationName
-                                        ? rowPanes.filter(p => p.currentStation === stationName)
-                                        : rowPanes;
+                                    const stationPanes = rowPanes.filter(p => {
+                                        const cs = typeof p.currentStation === "object"
+                                            ? (p.currentStation as { _id?: string })?._id
+                                            : p.currentStation as string;
+                                        const atStation = cs === stationId || cs === stationName;
+                                        if (!atStation) return false;
+                                        if (effectivePendingOnly) return p.currentStatus === "pending";
+                                        return true;
+                                    });
                                     const visiblePanes = showAllPanes ? stationPanes : stationPanes.slice(0, PANE_PEEK);
 
                                     const handleRowClick = () => {
@@ -651,5 +711,6 @@ RecordList.craft = {
         showAllRequests:         false,
         showQrColumn:            false,
         showWorkOrderColumn:     false,
+        pendingPanesOnly:        false,
     } as RecordListProps,
 };

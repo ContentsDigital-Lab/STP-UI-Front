@@ -5,7 +5,7 @@ import {
     Columns2, Columns3, Columns4, Type, AlignLeft, Minus, MoveVertical,
     Tag, TextCursorInput, ChevronDown, FileText,
     MousePointerClick, CreditCard, Activity, LayoutPanelLeft, Table2, ClipboardList, Workflow,
-    Boxes, PackageSearch, History, ScanLine,
+    Boxes, PackageSearch, History, ScanLine, ListChecks,
 } from "lucide-react";
 import { ReactElement } from "react";
 
@@ -30,6 +30,7 @@ import { StationHistory }         from "./blocks/StationHistory";
 import { InventoryStockBlock }    from "./blocks/InventoryStockBlock";
 import { OrderReleasePanel }      from "./blocks/OrderReleasePanel";
 import { QrScanBlock }            from "./blocks/QrScanBlock";
+import { StationQueueBlock }      from "./blocks/StationQueueBlock";
 
 interface PaletteItem {
     label: string;
@@ -84,6 +85,7 @@ const PALETTE: PaletteGroup[] = [
             { label: "ประวัติสถานี",    icon: <History className="h-4 w-4" />,       element: <StationHistory />,        bg: "bg-slate-600"   },
             { label: "สต็อกวัสดุ",      icon: <Boxes className="h-4 w-4" />,        element: <InventoryStockBlock />,   bg: "bg-emerald-700" },
             { label: "ประเมินออเดอร์",  icon: <PackageSearch className="h-4 w-4" />, element: <OrderReleasePanel />,    bg: "bg-violet-600"  },
+            { label: "คิวสถานี",       icon: <ListChecks className="h-4 w-4" />,    element: <StationQueueBlock />,     bg: "bg-emerald-600" },
         ],
     },
 ];
