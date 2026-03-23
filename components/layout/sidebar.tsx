@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLanguage } from "@/lib/i18n/language-context";
+import { useAuth } from "@/lib/auth/auth-context";
 import {
     LayoutDashboard,
     ClipboardList,
@@ -28,10 +29,12 @@ interface SidebarProps {
 export function Sidebar({ collapsed, setCollapsed, onNavigate }: SidebarProps) {
     const pathname = usePathname();
     const { t, lang } = useLanguage();
+    const { user } = useAuth();
+    const isManager = user?.role === "admin" || user?.role === "manager";
 
     const navigation = [
         { name: t.dashboard.label, href: "/",          icon: LayoutDashboard },
-        { name: t.orderRequests,   href: "/request",     icon: ClipboardList   },
+        ...(isManager ? [{ name: t.orderRequests, href: "/request", icon: ClipboardList }] : []),
         { name: lang === 'th' ? "ติดตามการผลิต" : "Production Tracking", href: "/production",  icon: ClipboardCheck  },
         { name: lang === 'th' ? "สถานี" : "Stations", href: "/stations",    icon: Factory         },
         { name: t.inventory,       href: "/inventory", icon: Package         },

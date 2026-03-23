@@ -435,12 +435,18 @@ export default function CreateBillPage() {
     // ── Handler: add glass type ──────────────────────────────────────────────
     const handleAddGlassType = (type: string) => {
         setGlassTypes(prev => [...prev, type]);
-        const suggested = pricingSettings.glassPrices[type]?.[ap.thickness];
+        const typeEntry = pricingSettings.glassPrices[type];
+        const typeThicknesses = typeEntry && Object.keys(typeEntry).length > 0 ? Object.keys(typeEntry) : null;
+        const currentThicknessValid = !typeThicknesses || typeThicknesses.includes(ap.thickness);
+        const newThickness = currentThicknessValid ? ap.thickness : "";
+        const suggested = newThickness ? pricingSettings.glassPrices[type]?.[newThickness] : null;
         updatePane({
             glassType: type,
+            thickness: newThickness,
             ...(suggested ? { pricePerSqFt: suggested.pricePerSqFt, grindingRate: suggested.grindingRate, priceAutoFilled: true } : { pricePerSqFt: 0, grindingRate: 50, priceAutoFilled: false }),
         });
         setGlassTypeSearch(type);
+        setThicknessSearch(newThickness);
         setGlassTypeOpen(false);
         toast.success(lang === 'th' ? `เพิ่มประเภท "${type}" สำเร็จ` : `Glass type "${type}" added`);
     };
@@ -1090,12 +1096,18 @@ export default function CreateBillPage() {
                                                             key={type}
                                                             type="button"
                                                             onClick={() => {
-                                                                const suggested = pricingSettings.glassPrices[type]?.[ap.thickness];
+                                                                const typeEntry = pricingSettings.glassPrices[type];
+                                                                const typeThicknesses = typeEntry && Object.keys(typeEntry).length > 0 ? Object.keys(typeEntry) : null;
+                                                                const currentThicknessValid = !typeThicknesses || typeThicknesses.includes(ap.thickness);
+                                                                const newThickness = currentThicknessValid ? ap.thickness : "";
+                                                                const suggested = newThickness ? pricingSettings.glassPrices[type]?.[newThickness] : null;
                                                                 updatePane({
                                                                     glassType: type,
+                                                                    thickness: newThickness,
                                                                     ...(suggested ? { pricePerSqFt: suggested.pricePerSqFt, grindingRate: suggested.grindingRate, priceAutoFilled: true } : { pricePerSqFt: 0, grindingRate: 50, priceAutoFilled: false }),
                                                                 });
                                                                 setGlassTypeSearch(type);
+                                                                setThicknessSearch(newThickness);
                                                                 setGlassTypeOpen(false);
                                                             }}
                                                             className={`flex items-center justify-between w-full px-3 py-2.5 rounded-xl text-left text-sm font-bold transition-colors ${

@@ -56,21 +56,37 @@ export default function SettingsPage() {
                     </Card>
                 )}
 
-                <Link href="/settings/customers" className="block h-full cursor-pointer transition-transform hover:scale-[1.02]">
-                    <Card className="h-full shadow-sm hover:shadow-md transition-shadow bg-card/60 backdrop-blur-sm border-muted/50 border-primary/20">
+                {hasUserManagementAccess ? (
+                    <Link href="/settings/customers" className="block h-full cursor-pointer transition-transform hover:scale-[1.02]">
+                        <Card className="h-full shadow-sm hover:shadow-md transition-shadow bg-card/60 backdrop-blur-sm border-muted/50 border-primary/20">
+                            <CardHeader>
+                                <div className="flex items-center gap-2 mb-2">
+                                    <div className="p-2 bg-accent/10 rounded-lg text-accent">
+                                        <Users className="h-6 w-6" />
+                                    </div>
+                                    <CardTitle className="text-xl">Customer Management</CardTitle>
+                                </div>
+                                <CardDescription>
+                                    Manage customer records, contact details, and discount rates.
+                                </CardDescription>
+                            </CardHeader>
+                        </Card>
+                    </Link>
+                ) : (
+                    <Card className="h-full shadow-sm opacity-60">
                         <CardHeader>
                             <div className="flex items-center gap-2 mb-2">
-                                <div className="p-2 bg-accent/10 rounded-lg text-accent">
+                                <div className="p-2 bg-muted rounded-lg text-muted-foreground">
                                     <Users className="h-6 w-6" />
                                 </div>
-                                <CardTitle className="text-xl">Customer Management</CardTitle>
+                                <CardTitle className="text-xl text-muted-foreground">Customer Management</CardTitle>
                             </div>
                             <CardDescription>
-                                Manage customer records, contact details, and discount rates.
+                                You do not have permission to access customer management. Administrator or Manager access is required.
                             </CardDescription>
                         </CardHeader>
                     </Card>
-                </Link>
+                )}
 
                 <Link href="/settings/notifications" className="block h-full cursor-pointer transition-transform hover:scale-[1.02]">
                     <Card className="h-full shadow-sm hover:shadow-md transition-shadow bg-card/60 backdrop-blur-sm border-muted/50 border-primary/20">
@@ -88,21 +104,37 @@ export default function SettingsPage() {
                     </Card>
                 </Link>
 
-                <Link href="/settings/pricing" className="block h-full cursor-pointer transition-transform hover:scale-[1.02]">
-                    <Card className="h-full shadow-sm hover:shadow-md transition-shadow bg-card/60 backdrop-blur-sm border-muted/50 border-primary/20">
+                {hasUserManagementAccess ? (
+                    <Link href="/settings/pricing" className="block h-full cursor-pointer transition-transform hover:scale-[1.02]">
+                        <Card className="h-full shadow-sm hover:shadow-md transition-shadow bg-card/60 backdrop-blur-sm border-muted/50 border-primary/20">
+                            <CardHeader>
+                                <div className="flex items-center gap-2 mb-2">
+                                    <div className="p-2 bg-[#E8601C]/10 rounded-lg text-[#E8601C]">
+                                        <DollarSign className="h-6 w-6" />
+                                    </div>
+                                    <CardTitle className="text-xl">ตั้งค่าราคากระจก</CardTitle>
+                                </div>
+                                <CardDescription>
+                                    กำหนดราคาต่อตร.ฟ., ค่าเจียร, ค่าเจาะ, ค่าบาก ตามประเภทและความหนากระจก
+                                </CardDescription>
+                            </CardHeader>
+                        </Card>
+                    </Link>
+                ) : (
+                    <Card className="h-full shadow-sm opacity-60">
                         <CardHeader>
                             <div className="flex items-center gap-2 mb-2">
-                                <div className="p-2 bg-[#E8601C]/10 rounded-lg text-[#E8601C]">
+                                <div className="p-2 bg-muted rounded-lg text-muted-foreground">
                                     <DollarSign className="h-6 w-6" />
                                 </div>
-                                <CardTitle className="text-xl">ตั้งค่าราคากระจก</CardTitle>
+                                <CardTitle className="text-xl text-muted-foreground">ตั้งค่าราคากระจก</CardTitle>
                             </div>
                             <CardDescription>
-                                กำหนดราคาต่อตร.ฟ., ค่าเจียร, ค่าเจาะ, ค่าบาก ตามประเภทและความหนากระจก
+                                You do not have permission to access pricing settings. Administrator or Manager access is required.
                             </CardDescription>
                         </CardHeader>
                     </Card>
-                </Link>
+                )}
 
                 {hasUserManagementAccess ? (
                     <Link href="/settings/sticker" className="block h-full cursor-pointer transition-transform hover:scale-[1.02]">
