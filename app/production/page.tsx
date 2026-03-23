@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
-    ClipboardList, Search, RefreshCw, ChevronDown, ChevronRight,
+    ClipboardList, Search, RefreshCw, ChevronDown, ChevronRight, ChevronLeft,
     AlertCircle, User, Package, ArrowRight,
     CalendarDays, Printer, QrCode, X, CheckCheck, Wifi, WifiOff, ClipboardCheck,
 } from "lucide-react";
@@ -169,6 +169,8 @@ export default function ProductionPage() {
     const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
     const [qrTarget,  setQrTarget]  = useState<{ code: string; label: string; url: string } | null>(null);
     const [qrPane,    setQrPane]    = useState<Pane | null>(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 10;
 
     const loadPanes = useCallback(async () => {
         const pRes = await panesApi.getAll({ limit: 100 }).catch(() => null);
@@ -257,6 +259,11 @@ export default function ProductionPage() {
             );
         });
     }, [bills, search, stationMap]);
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
+    const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+    useEffect(() => { setCurrentPage(1); }, [search]);
 
     const toggle = (id: string) => setExpanded(prev => {
         const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n;
@@ -360,7 +367,7 @@ export default function ProductionPage() {
                 </div>
             ) : (
                 <div className="space-y-3">
-                    {filtered.map((bill) => {
+                    {paginated.map((bill) => {
                         const isOpen = expanded.has(bill.id);
                         const visibleOrders = bill.orders;
 
@@ -638,6 +645,48 @@ export default function ProductionPage() {
                             </div>
                         );
                     })}
+                </div>
+            )}
+            {/* Pagination */}
+            {!loading && totalPages > 1 && (
+                <div className="p-4 sm:p-6 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                        Showing Page {currentPage} of {totalPages}
+                    </span>
+                    <div className="flex gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={currentPage === 1}
+                            onClick={() => setCurrentPage(prev => prev - 1)}
+                            className="h-9 px-3 rounded-xl border-slate-200 dark:border-slate-800 font-bold"
+                        >
+                            <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        <div className="flex gap-1">
+                            {[...Array(totalPages)].map((_, i) => (
+                                <button
+                                    key={i}
+                                    onClick={() => setCurrentPage(i + 1)}
+                                    className={`h-9 w-9 rounded-xl flex items-center justify-center text-xs font-bold transition-all ${currentPage === i + 1
+                                        ? "bg-[#E8601C] text-white shadow-lg shadow-orange-500/20"
+                                        : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500"
+                                        }`}
+                                >
+                                    {i + 1}
+                                </button>
+                            ))}
+                        </div>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={currentPage === totalPages}
+                            onClick={() => setCurrentPage(prev => prev + 1)}
+                            className="h-9 px-3 rounded-xl border-slate-200 dark:border-slate-800 font-bold"
+                        >
+                            <ChevronRight className="h-4 w-4" />
+                        </Button>
+                    </div>
                 </div>
             )}
         </div>
