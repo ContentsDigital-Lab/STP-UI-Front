@@ -34,12 +34,10 @@ export function WithdrawModal({ stationId, onClose }: WithdrawModalProps) {
         inputRef.current?.focus();
     }, []);
 
-    // Listen for withdrawal:created to confirm real-time
-    useWebSocket("withdrawal", ["withdrawal:created"], useCallback((_event: string, data: unknown) => {
-        const payload = data as { data?: Withdrawal };
-        if (!payload?.data) return;
-        // If matches our pane, update result (already shown from API response)
-        setResult(prev => prev ?? payload.data ?? null);
+    // Listen for withdrawal:updated — backend sends { action, data }
+    useWebSocket("withdrawal", ["withdrawal:updated"], useCallback((_event: string, data: unknown) => {
+        const payload = data as { action?: string; data?: Withdrawal };
+        if (payload?.action === "created" && payload.data) setResult(prev => prev ?? payload.data ?? null);
     }, []));
 
     const lookupPane = async (value: string) => {

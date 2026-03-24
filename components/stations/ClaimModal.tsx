@@ -56,10 +56,10 @@ export function ClaimModal({ stationId, onClose }: ClaimModalProps) {
 
     useEffect(() => { inputRef.current?.focus(); }, []);
 
-    // Listen for claim:created WebSocket event
-    useWebSocket("claim", ["claim:created"], useCallback((_event: string, data: unknown) => {
-        const payload = data as { data?: Claim };
-        if (payload?.data) setSuccess(prev => prev ?? payload.data ?? null);
+    // Listen for claim:updated WebSocket event — backend sends { action, data }
+    useWebSocket("claim", ["claim:updated"], useCallback((_event: string, data: unknown) => {
+        const payload = data as { action?: string; data?: Claim };
+        if (payload?.action === "created" && payload.data) setSuccess(prev => prev ?? payload.data ?? null);
     }, []));
 
     const lookupPane = async (value: string) => {
@@ -112,31 +112,30 @@ export function ClaimModal({ stationId, onClose }: ClaimModalProps) {
         setSubmitting(true);
         setSubmitError(null);
         try {
-            // Resolve orderId from populated pane.order
-            const orderId = pane.order
-                ? (typeof pane.order === "object" ? (pane.order as Order)._id : String(pane.order))
-                : null;
-            const materialId = pane.material
-                ? (typeof pane.material === "object" ? (pane.material as Material)._id : String(pane.material))
-                : undefined;
+            // Primary: use /claims/from-pane — backend auto-resolves order/material/worker
+            // Fallback: use /orders/:orderId/claims if from-pane fails
+            // Note: photos are base64 (not URLs) — omit until upload endpoint is available
+            let res = await claimsApi.createFromPane({
+                paneNumber: pane.paneNumber,
+                description: description.trim(),
+            });
 
-            let res;
-            if (orderId) {
-                // Use existing endpoint — works without backend changes
-                res = await claimsApi.createForOrder(orderId, {
-                    source: "worker",
-                    material: materialId,
-                    description: description.trim(),
-                    pane: pane._id,
-                    photos: photos.length ? photos : undefined,
-                } as Parameters<typeof claimsApi.createForOrder>[1]);
-            } else {
-                // Fallback: new endpoint (requires backend from-pane route)
-                res = await claimsApi.createFromPane({
-                    paneNumber: pane.paneNumber,
-                    description: description.trim(),
-                    photos: photos.length ? photos : undefined,
-                });
+            if (!res.success) {
+                // Fallback to existing order-scoped endpoint
+                const orderId = pane.order
+                    ? (typeof pane.order === "object" ? (pane.order as Order)._id : String(pane.order))
+                    : null;
+                const materialId = pane.material
+                    ? (typeof pane.material === "object" ? (pane.material as Material)._id : String(pane.material))
+                    : undefined;
+                if (orderId) {
+                    res = await claimsApi.createForOrder(orderId, {
+                        source: "worker",
+                        material: materialId,
+                        description: description.trim(),
+                        pane: pane._id,
+                    } as Parameters<typeof claimsApi.createForOrder>[1]);
+                }
             }
 
             if (!res.success) {
