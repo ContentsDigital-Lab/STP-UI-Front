@@ -673,7 +673,7 @@ export default function OrderRequestsPage() {
                                         key={i}
                                         onClick={() => setCurrentPage(i + 1)}
                                         className={`h-9 w-9 rounded-xl flex items-center justify-center text-xs font-bold transition-all ${currentPage === i + 1
-                                            ? "bg-[#E8601C] text-white shadow-lg shadow-orange-500/20"
+                                            ? "bg-blue-600 dark:bg-[#E8601C] text-white shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20"
                                             : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500"
                                             }`}
                                     >
@@ -831,7 +831,7 @@ export default function OrderRequestsPage() {
                                 {/* Panes */}
                                 <div className="px-8 pb-8 space-y-4">
                                     <div className="flex items-center gap-2">
-                                        <Package className="h-4 w-4 text-[#E8601C]" />
+                                        <Package className="h-4 w-4 text-blue-500 dark:text-[#E8601C]" />
                                         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em]">
                                             {lang === 'th' ? 'กระจกแต่ละชิ้น' : 'Individual Panes'}
                                         </h3>
