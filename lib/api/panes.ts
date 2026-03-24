@@ -51,7 +51,7 @@ export const panesApi = {
 
     scan: async (paneNumber: string, data: {
         station: string;
-        action: "scan_in" | "start" | "complete";
+        action: "scan_in" | "start" | "complete" | "scan_out";
         operator?: string;
     }): Promise<ApiResponse<{
         pane: Pane;

@@ -15,9 +15,10 @@ import { STATUS_CONFIG } from "./StatusIndicator";
 import { QrCodeModal } from "@/components/qr/QrCodeModal";
 
 const PANE_STATUS_CFG: Record<string, { label: string; dot: string; text: string }> = {
-    pending:     { label: "รอ",      dot: "bg-amber-400", text: "text-amber-600" },
-    in_progress: { label: "กำลังทำ", dot: "bg-blue-500",  text: "text-blue-600" },
-    completed:   { label: "เสร็จ",   dot: "bg-green-500", text: "text-green-600" },
+    pending:            { label: "รอ",          dot: "bg-amber-400", text: "text-amber-600" },
+    in_progress:        { label: "กำลังทำ",     dot: "bg-blue-500",  text: "text-blue-600" },
+    completed:          { label: "เสร็จ",       dot: "bg-green-500", text: "text-green-600" },
+    awaiting_scan_out:  { label: "รอสแกนออก",  dot: "bg-amber-500", text: "text-amber-600" },
 };
 
 // ── Column definition ─────────────────────────────────────────────────────────

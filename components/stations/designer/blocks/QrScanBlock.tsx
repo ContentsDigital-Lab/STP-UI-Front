@@ -22,11 +22,12 @@ const CONTEXT_SOURCE: Record<string, "request" | "order" | "pane"> = {
 };
 
 const STATUS_MAP: Record<string, { label: string; bg: string; text: string; dot: string }> = {
-    pending:     { label: "รอดำเนินการ", bg: "bg-amber-50 dark:bg-amber-900/30",   text: "text-amber-700 dark:text-amber-300",   dot: "bg-amber-500" },
-    in_progress: { label: "กำลังผลิต",   bg: "bg-blue-50 dark:bg-blue-900/30",     text: "text-blue-700 dark:text-blue-300",     dot: "bg-blue-500"  },
-    completed:   { label: "เสร็จแล้ว",   bg: "bg-emerald-50 dark:bg-emerald-900/30", text: "text-emerald-700 dark:text-emerald-300", dot: "bg-emerald-500" },
-    cancelled:   { label: "ยกเลิก",      bg: "bg-red-50 dark:bg-red-900/30",       text: "text-red-700 dark:text-red-300",       dot: "bg-red-500"   },
-    ready:       { label: "พร้อมส่ง",    bg: "bg-violet-50 dark:bg-violet-900/30",  text: "text-violet-700 dark:text-violet-300",  dot: "bg-violet-500" },
+    pending:            { label: "รอดำเนินการ", bg: "bg-amber-50 dark:bg-amber-900/30",     text: "text-amber-700 dark:text-amber-300",     dot: "bg-amber-500"   },
+    in_progress:        { label: "กำลังผลิต",   bg: "bg-blue-50 dark:bg-blue-900/30",       text: "text-blue-700 dark:text-blue-300",       dot: "bg-blue-500"    },
+    completed:          { label: "เสร็จแล้ว",   bg: "bg-emerald-50 dark:bg-emerald-900/30", text: "text-emerald-700 dark:text-emerald-300", dot: "bg-emerald-500" },
+    awaiting_scan_out:  { label: "รอสแกนออก",  bg: "bg-amber-50 dark:bg-amber-900/30",     text: "text-amber-700 dark:text-amber-300",     dot: "bg-amber-500"   },
+    cancelled:          { label: "ยกเลิก",      bg: "bg-red-50 dark:bg-red-900/30",         text: "text-red-700 dark:text-red-300",         dot: "bg-red-500"     },
+    ready:              { label: "พร้อมส่ง",    bg: "bg-violet-50 dark:bg-violet-900/30",   text: "text-violet-700 dark:text-violet-300",   dot: "bg-violet-500"  },
 };
 
 const SCAN_ACTION_LABELS: Record<string, { label: string; icon: typeof Play; cls: string }> = {
