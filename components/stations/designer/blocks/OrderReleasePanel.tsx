@@ -139,6 +139,12 @@ export function OrderReleasePanel({
             if (res.success && res.data.code) {
                 const routing = assignments[order._id] ?? [];
                 const mat = resolveMat(order.material);
+                const mId = matId(order.material);
+
+                // Find best matching inventory slot for this material
+                const matchingInv = inventories
+                    .filter(inv => matId(inv.material) === mId && inv.quantity > 0)
+                    .sort((a, b) => b.quantity - a.quantity)[0] ?? null;
 
                 // Update existing panes with routing, or create if none exist
                 const existingPanes = await panesApi.getAll({ order: order._id, limit: 100 }).catch(() => null);
@@ -157,6 +163,8 @@ export function OrderReleasePanel({
                                 routing: routingNames,
                                 currentStation: firstStation,
                                 currentStatus: "pending",
+                                ...(mId && { material: mId }),
+                                ...(matchingInv && { inventory: matchingInv._id }),
                             }))
                         ).catch(err => console.error("[OrderReleasePanel] Failed to update panes:", err));
                     }
@@ -174,8 +182,10 @@ export function OrderReleasePanel({
                             height: spec?.length ? parseFloat(spec.length) || 0 : 0,
                             thickness: spec?.thickness ? parseFloat(spec.thickness) || 0 : 0,
                         },
-                        glassType: matId(order.material) || undefined,
+                        glassType: mId || undefined,
                         glassTypeLabel: matName(order.material) || undefined,
+                        ...(mId && { material: mId }),
+                        ...(matchingInv && { inventory: matchingInv._id }),
                     };
                     Promise.all(
                         Array.from({ length: qty }, () => panesApi.create({ ...panePayload }))
