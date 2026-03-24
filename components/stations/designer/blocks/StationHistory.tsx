@@ -2,39 +2,48 @@
 
 import { useNode } from "@craftjs/core";
 import { useState, useEffect } from "react";
-import { History, Loader2, ChevronRight, Clock } from "lucide-react";
+import { History, Loader2, Package, Clock } from "lucide-react";
 import { fetchApi } from "@/lib/api/config";
 import { usePreview } from "../PreviewContext";
 import { useStationContext } from "../StationContext";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 
 interface StationHistoryProps {
-    title?:    string;
-    maxRows?:  number;
+    title?:   string;
+    maxRows?: number;
 }
 
-interface HistoryOrder {
-    _id:                 string;
-    code?:               string;
-    status:              string;
-    stations:            string[];
-    currentStationIndex?: number;
-    customer?:           { name?: string } | string;
-    material?:           { name?: string } | string;
-    updatedAt:           string;
+// Production log entry as returned by GET /production-logs (raw array, not { success, data })
+interface ProductionLog {
+    _id:         string;
+    paneId:      { _id: string; paneNumber: string; glassTypeLabel?: string } | string;
+    orderId:     string;
+    station:     string;
+    action:      string;
+    createdAt:   string;
+    completedAt?: string;
 }
 
-function getName(v: unknown): string {
-    if (!v) return "—";
-    if (typeof v === "string") return v;
-    if (typeof v === "object") return (v as Record<string, string>).name ?? "—";
-    return "—";
+interface CompletedGroup {
+    orderId:   string;
+    orderCode: string;
+    logs:      ProductionLog[];
+    latestAt:  string;
 }
 
 function fmtDate(iso: string) {
     try {
-        return new Date(iso).toLocaleDateString("th-TH", { day: "2-digit", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit" });
+        return new Date(iso).toLocaleDateString("th-TH", {
+            day: "2-digit", month: "short", year: "2-digit",
+            hour: "2-digit", minute: "2-digit",
+        });
     } catch { return iso; }
+}
+
+function getPaneNumber(paneId: ProductionLog["paneId"]): string {
+    if (!paneId) return "—";
+    if (typeof paneId === "string") return paneId.slice(-6).toUpperCase();
+    return paneId.paneNumber ?? "—";
 }
 
 export function StationHistory({
@@ -43,47 +52,86 @@ export function StationHistory({
 }: StationHistoryProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
-    const { stationId, refreshCounter } = useStationContext();
+    const { stationId, stationName, refreshCounter } = useStationContext();
 
-    const [rows,     setRows]     = useState<HistoryOrder[]>([]);
+    const [groups,   setGroups]   = useState<CompletedGroup[]>([]);
     const [fetching, setFetching] = useState(false);
     const [error,    setError]    = useState("");
 
-    const loadData = () => {
-        if (!stationId) { setRows([]); return; }
+    const loadData = async () => {
+        const station = stationName || stationId;
+        if (!station) { setGroups([]); return; }
         setFetching(true); setError("");
-        fetchApi<{ success: boolean; data: HistoryOrder[] }>("/orders")
-            .then((res) => {
-                if (!res.success) { setError("โหลดประวัติไม่สำเร็จ"); return; }
-                const all = res.data ?? [];
-                // Keep orders where this station is in the route AND the order has moved past it
-                const history = all.filter((o) => {
-                    const idx = o.stations.indexOf(stationId!);
-                    if (idx === -1) return false;
-                    // Advanced past this station
-                    if (o.currentStationIndex !== undefined && o.currentStationIndex > idx) return true;
-                    // Completed orders that included this station
-                    if (o.status === "completed") return true;
-                    return false;
-                });
-                setRows(history.slice(0, maxRows));
-            })
-            .catch(() => setError("ไม่สามารถโหลดข้อมูลได้"))
-            .finally(() => setFetching(false));
+        try {
+            // Fetch in parallel: production logs (complete actions) + orders (for order codes)
+            const [logsRes, ordersRes] = await Promise.all([
+                fetchApi<{ success: boolean; data: ProductionLog[] } | ProductionLog[]>(
+                    `/production-logs?station=${encodeURIComponent(station)}&limit=300`
+                ),
+                fetchApi<{ success: boolean; data: Record<string, unknown>[] }>(
+                    `/orders?stationId=${encodeURIComponent(stationId ?? "")}`
+                ),
+            ]);
+
+            // Support both { success, data } and raw array response formats
+            const logsArray: ProductionLog[] = Array.isArray(logsRes)
+                ? logsRes
+                : ((logsRes as { success: boolean; data: ProductionLog[] }).data ?? []);
+
+            // Build orderId → orderCode map
+            const orderMap = new Map<string, string>();
+            if (ordersRes?.success) {
+                for (const o of ordersRes.data ?? []) {
+                    const id   = String(o._id ?? "");
+                    const code = String(o.code ?? o.orderNumber ?? id.slice(-6).toUpperCase());
+                    if (id) orderMap.set(id, code);
+                }
+            }
+
+            // Filter to "complete" actions only, then group by orderId
+            const completeLogs = logsArray.filter(l => l.action === "complete");
+
+            const groupMap = new Map<string, ProductionLog[]>();
+            for (const log of completeLogs) {
+                const oid = log.orderId ?? "";
+                if (!oid) continue;
+                if (!groupMap.has(oid)) groupMap.set(oid, []);
+                groupMap.get(oid)!.push(log);
+            }
+
+            const sorted: CompletedGroup[] = [...groupMap.entries()]
+                .map(([orderId, logs]) => {
+                    const ls = [...logs].sort((a, b) =>
+                        (b.completedAt ?? b.createdAt) > (a.completedAt ?? a.createdAt) ? 1 : -1
+                    );
+                    return {
+                        orderId,
+                        orderCode: orderMap.get(orderId) ?? orderId.slice(-6).toUpperCase(),
+                        logs: ls,
+                        latestAt: ls[0]?.completedAt ?? ls[0]?.createdAt ?? "",
+                    };
+                })
+                .sort((a, b) => b.latestAt.localeCompare(a.latestAt))
+                .slice(0, maxRows);
+
+            setGroups(sorted);
+        } catch {
+            setError("โหลดประวัติไม่สำเร็จ");
+        } finally {
+            setFetching(false);
+        }
     };
 
     useEffect(() => {
         loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isPreview, stationId, maxRows, refreshCounter]);
+    }, [isPreview, stationId, stationName, maxRows, refreshCounter]);
 
-    useWebSocket("order", ["order:updated", "order:created"], () => {
-        loadData();
-    });
+    useWebSocket("pane", ["pane:updated"], () => { loadData(); });
 
     // ── Preview render ────────────────────────────────────────────────────────
     if (isPreview) {
-        if (!stationId) {
+        if (!stationId && !stationName) {
             return (
                 <div className="w-full rounded-xl border bg-card px-5 py-8 flex flex-col items-center gap-2 text-center">
                     <History className="h-8 w-8 text-muted-foreground/30" />
@@ -106,12 +154,12 @@ export function StationHistory({
                 </div>
             );
         }
-        if (rows.length === 0) {
+        if (groups.length === 0) {
             return (
                 <div className="w-full rounded-xl border bg-card px-5 py-8 flex flex-col items-center gap-2 text-center">
                     <History className="h-8 w-8 text-muted-foreground/20" />
-                    <p className="text-sm font-medium text-muted-foreground">ยังไม่มีประวัติ</p>
-                    <p className="text-xs text-muted-foreground/60">รายการงานที่ผ่านสถานีนี้จะแสดงที่นี่</p>
+                    <p className="text-sm font-medium text-muted-foreground">ยังไม่มีกระจกที่เสร็จสิ้น</p>
+                    <p className="text-xs text-muted-foreground/60">กระจกที่ผ่านสถานีนี้แล้วจะแสดงที่นี่</p>
                 </div>
             );
         }
@@ -120,45 +168,36 @@ export function StationHistory({
                 <div className="px-4 py-3 border-b bg-muted/30 flex items-center gap-2">
                     <History className="h-4 w-4 text-muted-foreground/60" />
                     <p className="text-sm font-semibold">{title}</p>
-                    <span className="ml-auto text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{rows.length} รายการ</span>
+                    <span className="ml-auto text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                        {groups.reduce((s, g) => s + g.logs.length, 0)} ชิ้น
+                    </span>
                 </div>
                 <div className="divide-y">
-                    {rows.map((o) => {
-                        const code = o.code ?? o._id.slice(-6).toUpperCase();
-                        const stationIdx = o.stations.indexOf(stationId!);
-                        const isCompleted = o.status === "completed";
-                        return (
-                            <div key={o._id} className="px-4 py-3 flex items-center gap-3 hover:bg-muted/20 transition-colors">
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-mono font-semibold text-foreground">{code}</span>
-                                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                                            isCompleted
-                                                ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
-                                                : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-                                        }`}>
-                                            {isCompleted ? "เสร็จสิ้น" : `สถานีที่ ${(o.currentStationIndex ?? 0) + 1}/${o.stations.length}`}
+                    {groups.map((group) => (
+                        <div key={group.orderId} className="px-4 py-3">
+                            <div className="flex items-center gap-2 mb-2">
+                                <span className="text-xs font-mono font-bold text-foreground">#{group.orderCode}</span>
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 font-medium">
+                                    {group.logs.length} ชิ้น
+                                </span>
+                                <span className="ml-auto flex items-center gap-1 text-[10px] text-muted-foreground/60">
+                                    <Clock className="h-3 w-3" />
+                                    {fmtDate(group.latestAt)}
+                                </span>
+                            </div>
+                            <div className="space-y-1">
+                                {group.logs.map(log => (
+                                    <div key={log._id} className="flex items-center gap-2 px-2 py-1 rounded-lg bg-muted/20">
+                                        <Package className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+                                        <span className="text-xs font-mono text-foreground/80 flex-1">{getPaneNumber(log.paneId)}</span>
+                                        <span className="text-[10px] text-muted-foreground/50">
+                                            {fmtDate(log.completedAt ?? log.createdAt)}
                                         </span>
                                     </div>
-                                    <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                                        {getName(o.customer)} · {getName(o.material)}
-                                    </p>
-                                </div>
-                                <div className="text-right shrink-0">
-                                    <div className="flex items-center gap-1 text-[10px] text-muted-foreground/60 justify-end">
-                                        <Clock className="h-3 w-3" />
-                                        {fmtDate(o.updatedAt)}
-                                    </div>
-                                    {stationIdx >= 0 && (
-                                        <div className="flex items-center gap-1 text-[10px] text-muted-foreground/50 justify-end mt-0.5">
-                                            <ChevronRight className="h-3 w-3" />
-                                            <span>ขั้นที่ {stationIdx + 1}</span>
-                                        </div>
-                                    )}
-                                </div>
+                                ))}
                             </div>
-                        );
-                    })}
+                        </div>
+                    ))}
                 </div>
             </div>
         );
@@ -175,51 +214,49 @@ export function StationHistory({
                 <History className="h-3.5 w-3.5 text-muted-foreground/60" />
                 <p className="text-xs font-semibold text-foreground/70">{title}</p>
                 {fetching && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground ml-auto" />}
-                {rows.length > 0 && <span className="ml-auto text-[10px] text-muted-foreground">{rows.length} รายการ</span>}
+                {groups.length > 0 && (
+                    <span className="ml-auto text-[10px] text-muted-foreground">
+                        {groups.reduce((s, g) => s + g.logs.length, 0)} ชิ้น
+                    </span>
+                )}
             </div>
-            {rows.length > 0 ? (
+            {groups.length > 0 ? (
                 <div className="divide-y">
-                    {rows.slice(0, 5).map((o) => {
-                        const code = o.code ?? o._id.slice(-6).toUpperCase();
-                        const isCompleted = o.status === "completed";
-                        return (
-                            <div key={o._id} className="px-4 py-2.5 flex items-center gap-3">
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-xs font-mono font-semibold">{code}</span>
-                                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
-                                            isCompleted
-                                                ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
-                                                : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-                                        }`}>
-                                            {isCompleted ? "เสร็จ" : `สถานีที่ ${(o.currentStationIndex ?? 0) + 1}`}
-                                        </span>
-                                    </div>
-                                    <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
-                                        {getName(o.customer)} · {getName(o.material)}
-                                    </p>
-                                </div>
-                                <span className="text-[10px] text-muted-foreground/50 shrink-0">{fmtDate(o.updatedAt)}</span>
+                    {groups.slice(0, 3).map((group) => (
+                        <div key={group.orderId} className="px-4 py-2.5">
+                            <div className="flex items-center gap-2 mb-1.5">
+                                <span className="text-xs font-mono font-bold">#{group.orderCode}</span>
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 font-medium">
+                                    {group.logs.length} ชิ้น
+                                </span>
                             </div>
-                        );
-                    })}
+                            <div className="space-y-0.5">
+                                {group.logs.slice(0, 2).map(log => (
+                                    <div key={log._id} className="flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-muted/30">
+                                        <Package className="h-3 w-3 text-muted-foreground/40 shrink-0" />
+                                        <span className="text-[10px] font-mono text-foreground/70">{getPaneNumber(log.paneId)}</span>
+                                    </div>
+                                ))}
+                                {group.logs.length > 2 && (
+                                    <p className="text-[10px] text-muted-foreground/40 pl-1.5">+{group.logs.length - 2} ชิ้น</p>
+                                )}
+                            </div>
+                        </div>
+                    ))}
                 </div>
             ) : (
                 <div className="p-4 space-y-2 opacity-50 pointer-events-none">
-                    {[1, 2, 3].map((i) => (
-                        <div key={i} className="flex items-center gap-3 rounded-lg border bg-card px-3 py-2.5">
-                            <div className="flex-1 space-y-1.5">
-                                <div className="flex gap-2">
-                                    <div className="h-3 w-14 rounded bg-muted" />
-                                    <div className="h-3 w-16 rounded-full bg-blue-100 dark:bg-blue-900/30" />
-                                </div>
-                                <div className="h-2.5 w-28 rounded bg-muted/60" />
+                    {[1, 2].map((i) => (
+                        <div key={i} className="flex flex-col gap-1.5 rounded-lg border bg-card px-3 py-2.5">
+                            <div className="flex gap-2">
+                                <div className="h-3 w-14 rounded bg-muted" />
+                                <div className="h-3 w-10 rounded-full bg-green-100 dark:bg-green-900/30" />
                             </div>
-                            <div className="h-2.5 w-20 rounded bg-muted/40" />
+                            <div className="h-2.5 w-28 rounded bg-muted/60" />
                         </div>
                     ))}
                     <p className="text-[10px] text-muted-foreground/40 text-center italic pt-1">
-                        แสดงออเดอร์ที่ผ่านสถานีนี้แล้ว (สูงสุด {maxRows} รายการ)
+                        กระจกที่เสร็จในสถานีนี้ (สูงสุด {maxRows} ออเดอร์)
                     </p>
                 </div>
             )}

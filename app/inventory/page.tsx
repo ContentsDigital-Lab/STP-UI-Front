@@ -248,7 +248,18 @@ export default function InventoryPage() {
                 materialsApi.getAll()
             ]);
 
-            if (invRes.success && invRes.data) setInventories(invRes.data);
+            if (invRes.success && invRes.data) {
+                setInventories(invRes.data);
+                // Build locationColors from server storageColor — overrides localStorage
+                const serverColors: Record<string, string> = {};
+                for (const inv of invRes.data) {
+                    if (inv.location && inv.storageColor) serverColors[inv.location] = inv.storageColor;
+                }
+                if (Object.keys(serverColors).length > 0) {
+                    setLocationColors(prev => ({ ...prev, ...serverColors }));
+                    localStorage.setItem('locationColorMap', JSON.stringify({ ...JSON.parse(localStorage.getItem('locationColorMap') ?? '{}'), ...serverColors }));
+                }
+            }
             if (matRes.success && matRes.data) setMaterials(matRes.data);
         } catch (error) {
             console.error("Failed to load inventory data:", error);
@@ -270,7 +281,10 @@ export default function InventoryPage() {
 
             if (existing) {
                 const newQty = existing.quantity + importData.quantity;
-                const response = await inventoriesApi.update(existing._id, { quantity: newQty });
+                const color = getLocationColor(importData.location);
+                const updatePayload: Record<string, unknown> = { quantity: newQty };
+                if (!existing.storageColor) updatePayload.storageColor = color;
+                const response = await inventoriesApi.update(existing._id, updatePayload);
                 if (response.success && response.data) {
                     setInventories(prev => prev.map(inv => inv._id === existing._id ? response.data! : inv));
                     await materialLogsApi.create({
@@ -285,7 +299,8 @@ export default function InventoryPage() {
                     resetImportForm();
                 }
             } else {
-                const response = await inventoriesApi.create(importData);
+                const color = getLocationColor(importData.location);
+                const response = await inventoriesApi.create({ ...importData, storageColor: color });
                 if (response.success && response.data) {
                     setInventories([response.data, ...inventories]);
                     await materialLogsApi.create({
@@ -449,6 +464,7 @@ export default function InventoryPage() {
                         stockType: moveSource.stockType,
                         quantity: moveQty,
                         location: destLoc,
+                        storageColor: getLocationColor(destLoc),
                     });
                     if (!newInvRes.success || !newInvRes.data) throw new Error("Failed to create destination inventory");
                     destInventoryId = newInvRes.data._id;
@@ -879,7 +895,7 @@ export default function InventoryPage() {
                                             </TableCell>
                                             <TableCell className="py-5">
                                                 <div className="flex items-center gap-2">
-                                                    <div className="h-2.5 w-2.5 rounded-full shadow-sm" style={{ backgroundColor: getGlassColor(mat?.specDetails?.color) }}></div>
+                                                    <div className="h-2.5 w-2.5 rounded-full shadow-sm" style={{ backgroundColor: inv.storageColor || locationColors[inv.location] || '#94a3b8' }}></div>
                                                     <span className="font-bold text-slate-600 dark:text-slate-300 text-sm italic">{inv.location}</span>
                                                 </div>
                                             </TableCell>

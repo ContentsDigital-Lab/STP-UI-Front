@@ -36,6 +36,7 @@ export interface Inventory {
     stockType: "Raw" | "Reuse";
     quantity: number;
     location: string;
+    storageColor?: string;
     createdAt: string;
     updatedAt: string;
 }

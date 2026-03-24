@@ -165,6 +165,7 @@ export default function ProductionPage() {
     const [paneMap,   setPaneMap]   = useState<Map<string, Pane[]>>(new Map());
     const [loading,   setLoading]   = useState(true);
     const [search,    setSearch]    = useState("");
+    const [page,      setPage]      = useState(1);
     const [expanded,  setExpanded]  = useState<Set<string>>(new Set());
     const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
     const [qrTarget,  setQrTarget]  = useState<{ code: string; label: string; url: string } | null>(null);
@@ -260,10 +261,15 @@ export default function ProductionPage() {
         });
     }, [bills, search, stationMap]);
 
-    const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
-    const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+    // Reset to page 1 when search changes
+    useEffect(() => { setPage(1); }, [search]);
 
-    useEffect(() => { setCurrentPage(1); }, [search]);
+    const PAGE_SIZE = 10;
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    const paginated = useMemo(
+        () => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+        [filtered, page]
+    );
 
     const toggle = (id: string) => setExpanded(prev => {
         const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n;
@@ -343,13 +349,12 @@ export default function ProductionPage() {
             </div>
 
             {/* Result hint */}
-            {!loading && search && (
+            {!loading && (search || filtered.length < bills.length) && (
                 <p className="text-xs text-muted-foreground -mt-2">
-                    พบ {filtered.length} จาก {bills.length} บิล · ค้นหา &ldquo;{search}&rdquo;
-                    {" · "}
-                    <button className="text-primary underline underline-offset-2" onClick={() => setSearch("")}>
-                        ล้าง
-                    </button>
+                    {search
+                        ? <>พบ {filtered.length} จาก {bills.length} บิล · ค้นหา &ldquo;{search}&rdquo; · <button className="text-primary underline underline-offset-2" onClick={() => setSearch("")}>ล้าง</button></>
+                        : <>แสดง {filtered.length} บิล</>
+                    }
                 </p>
             )}
 
@@ -357,7 +362,38 @@ export default function ProductionPage() {
             {loading ? (
                 <div className="space-y-3">
                     {Array.from({ length: 4 }).map((_, i) => (
-                        <div key={i} className="h-20 rounded-xl border bg-muted/30 animate-pulse" />
+                        <div key={i} className="rounded-xl border bg-card overflow-hidden animate-pulse">
+                            {/* Header skeleton */}
+                            <div className="px-4 py-3.5 flex items-start gap-3">
+                                <div className="h-4 w-4 rounded bg-muted mt-0.5 shrink-0" />
+                                <div className="flex-1 space-y-2">
+                                    <div className="flex items-center gap-3">
+                                        <div className="h-4 w-28 rounded bg-muted" />
+                                        <div className="h-3.5 w-14 rounded bg-muted/60" />
+                                        <div className="h-3.5 w-24 rounded bg-muted/40" />
+                                    </div>
+                                    <div className="flex gap-1.5">
+                                        <div className="h-4 w-16 rounded-full bg-muted/60" />
+                                        <div className="h-4 w-20 rounded-full bg-muted/50" />
+                                        <div className="h-4 w-14 rounded-full bg-muted/40" />
+                                    </div>
+                                </div>
+                                <div className="hidden sm:flex gap-4 shrink-0">
+                                    <div className="text-center space-y-1">
+                                        <div className="h-5 w-6 rounded bg-muted mx-auto" />
+                                        <div className="h-3 w-10 rounded bg-muted/50 mx-auto" />
+                                    </div>
+                                    <div className="text-center space-y-1">
+                                        <div className="h-5 w-6 rounded bg-muted mx-auto" />
+                                        <div className="h-3 w-10 rounded bg-muted/50 mx-auto" />
+                                    </div>
+                                    <div className="text-center space-y-1">
+                                        <div className="h-5 w-6 rounded bg-muted mx-auto" />
+                                        <div className="h-3 w-8 rounded bg-muted/50 mx-auto" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     ))}
                 </div>
             ) : filtered.length === 0 ? (
@@ -649,44 +685,25 @@ export default function ProductionPage() {
             )}
             {/* Pagination */}
             {!loading && totalPages > 1 && (
-                <div className="p-4 sm:p-6 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                        Showing Page {currentPage} of {totalPages}
+                <div className="flex items-center justify-center gap-2 pt-2">
+                    <Button
+                        variant="outline" size="sm"
+                        onClick={() => setPage(p => Math.max(1, p - 1))}
+                        disabled={page === 1}
+                    >
+                        ← ก่อนหน้า
+                    </Button>
+                    <span className="text-sm text-muted-foreground px-2">
+                        หน้า {page} / {totalPages}
+                        <span className="text-xs ml-1 opacity-60">({filtered.length} บิล)</span>
                     </span>
-                    <div className="flex gap-2">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={currentPage === 1}
-                            onClick={() => setCurrentPage(prev => prev - 1)}
-                            className="h-9 px-3 rounded-xl border-slate-200 dark:border-slate-800 font-bold"
-                        >
-                            <ChevronLeft className="h-4 w-4" />
-                        </Button>
-                        <div className="flex gap-1">
-                            {[...Array(totalPages)].map((_, i) => (
-                                <button
-                                    key={i}
-                                    onClick={() => setCurrentPage(i + 1)}
-                                    className={`h-9 w-9 rounded-xl flex items-center justify-center text-xs font-bold transition-all ${currentPage === i + 1
-                                        ? "bg-[#E8601C] text-white shadow-lg shadow-orange-500/20"
-                                        : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500"
-                                        }`}
-                                >
-                                    {i + 1}
-                                </button>
-                            ))}
-                        </div>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={currentPage === totalPages}
-                            onClick={() => setCurrentPage(prev => prev + 1)}
-                            className="h-9 px-3 rounded-xl border-slate-200 dark:border-slate-800 font-bold"
-                        >
-                            <ChevronRight className="h-4 w-4" />
-                        </Button>
-                    </div>
+                    <Button
+                        variant="outline" size="sm"
+                        onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                        disabled={page === totalPages}
+                    >
+                        ถัดไป →
+                    </Button>
                 </div>
             )}
         </div>
