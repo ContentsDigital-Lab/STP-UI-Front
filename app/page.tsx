@@ -124,32 +124,45 @@ export default function DashboardPage() {
           <Badge variant="outline" className="px-3 py-1 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 font-medium rounded-lg shadow-sm text-xs sm:text-sm">
             Last updated: Just now
           </Badge>
-          <Button className="bg-primary hover:bg-primary/90 shadow-primary/20 dark:bg-[#E8601C] dark:hover:bg-[#E8601C]/90 dark:shadow-orange-500/20 text-white font-bold rounded-xl shadow-lg px-4 sm:px-6 text-sm transition-colors">
+          <Button className="bg-blue-600 hover:bg-blue-700 shadow-blue-500/20 dark:bg-[#E8601C] dark:hover:bg-[#E8601C]/90 dark:shadow-orange-500/20 text-white font-bold rounded-xl shadow-lg px-4 sm:px-6 text-sm transition-colors border-0">
             Export Report
           </Button>
         </div>
       </div>
 
       {/* KPI Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
         {kpis.map((kpi, i) => (
-          <Card key={i} className="border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-all rounded-3xl overflow-hidden group">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 rounded-2xl bg-blue-50 text-primary dark:bg-[#E8601C]/10 dark:text-[#E8601C] group-hover:scale-110 transition-transform">
-                  <kpi.icon className="h-6 w-6" />
-                </div>
-                <Badge className="bg-blue-50 text-primary dark:bg-[#E8601C]/10 dark:text-[#E8601C] border-none font-bold rounded-lg group-hover:px-3 transition-all">
-                  {kpi.change}
-                </Badge>
+          <div key={i} className="relative overflow-hidden bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all group flex flex-col justify-between min-h-[140px] sm:min-h-[160px]">
+            <div className={`absolute top-0 right-0 w-24 h-24 sm:w-32 sm:h-32 rounded-bl-full -z-0 transition-transform group-hover:scale-110 ${
+                kpi.color === 'amber' ? 'bg-amber-50 dark:bg-amber-900/10' :
+                kpi.color === 'emerald' ? 'bg-emerald-50 dark:bg-emerald-900/10' :
+                kpi.color === 'indigo' ? 'bg-indigo-50 dark:bg-indigo-900/10' :
+                'bg-blue-50 dark:bg-[#E8601C]/5'
+            }`} />
+            <div className="relative z-10 flex items-start sm:items-center justify-between mb-4 sm:mb-6">
+              <div className={`h-10 w-10 sm:h-14 sm:w-14 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors duration-300 ${
+                  kpi.color === 'amber' ? 'bg-amber-100/50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 group-hover:bg-amber-600 dark:group-hover:bg-amber-500 group-hover:text-white dark:group-hover:text-white' :
+                  kpi.color === 'emerald' ? 'bg-emerald-100/50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-600 dark:group-hover:bg-emerald-500 group-hover:text-white dark:group-hover:text-white' :
+                  kpi.color === 'indigo' ? 'bg-indigo-100/50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 dark:group-hover:bg-indigo-500 group-hover:text-white dark:group-hover:text-white' :
+                  'bg-blue-100/50 dark:bg-[#E8601C]/10 text-blue-600 dark:text-[#E8601C] group-hover:bg-blue-600 dark:group-hover:bg-[#E8601C] group-hover:text-white dark:group-hover:text-white'
+              }`}>
+                <kpi.icon className="h-5 w-5 sm:h-7 sm:w-7" />
               </div>
-              <div>
-                <p className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{kpi.title}</p>
-                <h3 className="text-3xl font-bold text-slate-900 dark:text-white mt-1 tracking-tight">{kpi.value}</h3>
-                <p className="text-[11px] text-slate-400 mt-2 font-medium">{kpi.description}</p>
-              </div>
-            </CardContent>
-          </Card>
+              <Badge className={`border-none font-bold rounded-lg px-2 sm:px-2.5 py-0.5 sm:py-1 text-[9px] sm:text-[10px] tracking-widest uppercase transition-all shadow-none ${
+                  kpi.isPositive
+                    ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'
+                    : 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+              }`}>
+                {kpi.change}
+              </Badge>
+            </div>
+            <div className="relative z-10">
+              <p className="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-400 mb-0.5 sm:mb-1 line-clamp-1 break-words leading-tight">{kpi.title}</p>
+              <h3 className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight leading-none mb-1 sm:mb-2">{kpi.value}</h3>
+              <p className="hidden sm:block text-[10px] sm:text-xs text-slate-400 font-medium truncate">{kpi.description}</p>
+            </div>
+          </div>
         ))}
       </div>
 

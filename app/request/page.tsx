@@ -372,7 +372,7 @@ export default function OrderRequestsPage() {
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 pb-6 border-b border-slate-200 dark:border-slate-800">
                 <div>
                     <h1 className="flex items-center gap-3 text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white leading-normal pt-2 pb-1">
-                        <ClipboardList className="h-7 w-7 sm:h-8 sm:w-8 shrink-0" />
+                        <ClipboardList className="h-7 w-7 sm:h-8 sm:w-8 text-blue-600 dark:text-[#E8601C] shrink-0" />
                         {it.title}
                     </h1>
                     <p className="text-slate-500 dark:text-slate-400 text-sm sm:text-base font-medium mt-1">
@@ -381,9 +381,9 @@ export default function OrderRequestsPage() {
                 </div>
                 <Link href="/request/create">
                     <Button
-                        className="w-full sm:w-auto gap-2 bg-primary hover:bg-primary/90 dark:bg-[#E8601C] dark:hover:bg-[#E8601C]/90 text-white shadow-lg shadow-primary/20 dark:shadow-orange-500/20 px-8 transition-all font-bold rounded-xl h-11"
+                        className="w-full sm:w-auto gap-2 bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 px-8 transition-all font-bold rounded-2xl h-12 border-0"
                     >
-                        <Plus className="h-4 w-4" />
+                        <Plus className="h-5 w-5" />
                         {it.newRequest}
                     </Button>
                 </Link>
@@ -391,60 +391,65 @@ export default function OrderRequestsPage() {
 
             {/* Stat Cards */}
             {!isLoading && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
                     {/* Total Requests */}
-                    <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between min-h-[140px]">
-                        <div className="flex items-center justify-between mb-4">
-                            <div className="h-12 w-12 rounded-2xl bg-blue-50 dark:bg-[#E8601C]/10 flex items-center justify-center text-primary dark:text-[#E8601C] group-hover:bg-primary dark:group-hover:bg-[#E8601C] group-hover:text-white dark:group-hover:text-white transition-colors">
-                                <ClipboardList className="h-6 w-6" />
+                    <div className="relative overflow-hidden bg-white dark:bg-slate-900 p-4 sm:p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all group flex flex-col justify-between min-h-[140px] sm:min-h-[160px]">
+                        <div className="absolute top-0 right-0 w-24 h-24 sm:w-32 sm:h-32 bg-blue-50 dark:bg-[#E8601C]/5 rounded-bl-full -z-0 transition-transform group-hover:scale-110" />
+                        <div className="relative z-10 flex items-start sm:items-center justify-between mb-4 sm:mb-6">
+                            <div className="h-10 w-10 sm:h-14 sm:w-14 rounded-xl sm:rounded-2xl bg-blue-100/50 dark:bg-[#E8601C]/10 flex items-center justify-center text-blue-600 dark:text-[#E8601C] group-hover:bg-blue-600 dark:group-hover:bg-[#E8601C] group-hover:text-white dark:group-hover:text-white transition-colors duration-300">
+                                <ClipboardList className="h-5 w-5 sm:h-7 sm:w-7" />
                             </div>
-                            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-50 dark:bg-slate-800/50 px-2 py-1 rounded-lg">
+                            <span className="hidden sm:inline-block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-50 dark:bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700">
                                 Overview
                             </span>
                         </div>
-                        <div>
-                            <p className="text-sm font-bold text-slate-500 dark:text-slate-400">{it.totalRequests}</p>
-                            <div className="flex items-baseline gap-2 mt-1">
-                                <h3 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">{globalStats.total}</h3>
-                                <span className="text-[11px] font-semibold text-emerald-500 flex items-center bg-emerald-50 dark:bg-emerald-900/20 px-1.5 py-0.5 rounded-md">
-                                    <ArrowUpRight className="h-3 w-3 mr-0.5" />
-                                    Active
-                                </span>
+                        <div className="relative z-10">
+                            <p className="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-400 mb-0.5 sm:mb-1">{it.totalRequests}</p>
+                            <div className="flex flex-col sm:flex-row sm:items-end gap-1.5 sm:gap-3">
+                                <h3 className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight leading-none">{globalStats.total}</h3>
+                                {globalStats.total > 0 && (
+                                    <span className="text-[10px] sm:text-xs font-bold text-green-600 dark:text-green-400 flex items-center bg-green-50 dark:bg-green-500/10 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg border border-green-100 dark:border-green-500/20 w-fit">
+                                        <ArrowUpRight className="h-3 w-3 sm:h-3.5 sm:w-3.5 mr-0.5" />
+                                        Active
+                                    </span>
+                                )}
                             </div>
                         </div>
                     </div>
 
                     {/* This Week */}
-                    <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between min-h-[140px]">
-                        <div className="flex items-center justify-between mb-4">
-                            <div className="h-12 w-12 rounded-2xl bg-blue-50 dark:bg-[#E8601C]/10 flex items-center justify-center text-primary dark:text-[#E8601C] group-hover:bg-primary dark:group-hover:bg-[#E8601C] group-hover:text-white dark:group-hover:text-white transition-colors">
-                                <Calendar className="h-6 w-6" />
+                    <div className="relative overflow-hidden bg-white dark:bg-slate-900 p-4 sm:p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all group flex flex-col justify-between min-h-[140px] sm:min-h-[160px]">
+                        <div className="absolute top-0 right-0 w-24 h-24 sm:w-32 sm:h-32 bg-blue-50 dark:bg-[#E8601C]/5 rounded-bl-full -z-0 transition-transform group-hover:scale-110" />
+                        <div className="relative z-10 flex items-start sm:items-center justify-between mb-4 sm:mb-6">
+                            <div className="h-10 w-10 sm:h-14 sm:w-14 rounded-xl sm:rounded-2xl bg-blue-100/50 dark:bg-[#E8601C]/10 flex items-center justify-center text-blue-600 dark:text-[#E8601C] group-hover:bg-blue-600 dark:group-hover:bg-[#E8601C] group-hover:text-white dark:group-hover:text-white transition-colors duration-300">
+                                <Calendar className="h-5 w-5 sm:h-7 sm:w-7" />
                             </div>
-                            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-50 dark:bg-slate-800/50 px-2 py-1 rounded-lg">
+                            <span className="hidden sm:inline-block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-50 dark:bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700">
                                 Recent
                             </span>
                         </div>
-                        <div>
-                            <p className="text-sm font-bold text-slate-500 dark:text-slate-400">{it.thisWeek}</p>
-                            <h3 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight mt-1">{globalStats.thisWeek}</h3>
+                        <div className="relative z-10">
+                            <p className="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-400 mb-0.5 sm:mb-1">{it.thisWeek}</p>
+                            <h3 className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight leading-none">{globalStats.thisWeek}</h3>
                         </div>
                     </div>
 
                     {/* Assigned */}
-                    <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between min-h-[140px]">
-                        <div className="flex items-center justify-between mb-4">
-                            <div className="h-12 w-12 rounded-2xl bg-blue-50 dark:bg-[#E8601C]/10 flex items-center justify-center text-primary dark:text-[#E8601C] group-hover:bg-primary dark:group-hover:bg-[#E8601C] group-hover:text-white dark:group-hover:text-white transition-colors">
-                                <UserCheck className="h-6 w-6" />
+                    <div className="relative overflow-hidden bg-white dark:bg-slate-900 p-4 sm:p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all group flex flex-col justify-between min-h-[140px] sm:min-h-[160px]">
+                        <div className="absolute top-0 right-0 w-24 h-24 sm:w-32 sm:h-32 bg-blue-50 dark:bg-[#E8601C]/5 rounded-bl-full -z-0 transition-transform group-hover:scale-110" />
+                        <div className="relative z-10 flex items-start sm:items-center justify-between mb-4 sm:mb-6">
+                            <div className="h-10 w-10 sm:h-14 sm:w-14 rounded-xl sm:rounded-2xl bg-blue-100/50 dark:bg-[#E8601C]/10 flex items-center justify-center text-blue-600 dark:text-[#E8601C] group-hover:bg-blue-600 dark:group-hover:bg-[#E8601C] group-hover:text-white dark:group-hover:text-white transition-colors duration-300">
+                                <UserCheck className="h-5 w-5 sm:h-7 sm:w-7" />
                             </div>
-                            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-50 dark:bg-slate-800/50 px-2 py-1 rounded-lg">
+                            <span className="hidden sm:inline-block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-50 dark:bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700">
                                 Staff
                             </span>
                         </div>
-                        <div>
-                            <p className="text-sm font-bold text-slate-500 dark:text-slate-400">{it.assigned}</p>
-                            <div className="flex items-baseline gap-2 mt-1">
-                                <h3 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">{globalStats.assigned}</h3>
-                                <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase">
+                        <div className="relative z-10">
+                            <p className="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-400 mb-0.5 sm:mb-1">{it.assigned}</p>
+                            <div className="flex items-baseline gap-1.5 sm:gap-2">
+                                <h3 className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight leading-none">{globalStats.assigned}</h3>
+                                <span className="text-xs sm:text-sm font-bold text-slate-400 dark:text-slate-500">
                                     / {globalStats.total}
                                 </span>
                             </div>
@@ -452,41 +457,48 @@ export default function OrderRequestsPage() {
                     </div>
 
                     {/* Approaching Deadline */}
-                    <div className={`p-6 rounded-3xl border shadow-sm hover:shadow-md transition-all group flex flex-col justify-between min-h-[140px] ${globalStats.approaching > 0
-                        ? 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/50'
+                    <div className={`relative overflow-hidden p-4 sm:p-8 rounded-3xl border shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all group flex flex-col justify-between min-h-[140px] sm:min-h-[160px] ${globalStats.approaching > 0
+                        ? 'bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/50'
                         : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
                         }`}>
-                        <div className="flex items-center justify-between mb-4">
-                            <div className={`h-12 w-12 rounded-2xl flex items-center justify-center transition-colors ${globalStats.approaching > 0
+                        <div className={`absolute top-0 right-0 w-24 h-24 sm:w-32 sm:h-32 rounded-bl-full -z-0 transition-transform group-hover:scale-110 ${globalStats.approaching > 0 ? 'bg-amber-100/50 dark:bg-amber-900/10' : 'bg-blue-50 dark:bg-[#E8601C]/5'}`} />
+                        <div className="relative z-10 flex items-start sm:items-center justify-between mb-4 sm:mb-6">
+                            <div className={`h-10 w-10 sm:h-14 sm:w-14 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors duration-300 ${globalStats.approaching > 0
                                 ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
-                                : 'bg-blue-50 dark:bg-[#E8601C]/10 text-primary dark:text-[#E8601C] group-hover:bg-primary dark:group-hover:bg-[#E8601C] group-hover:text-white dark:group-hover:text-white'
+                                : 'bg-blue-100/50 dark:bg-[#E8601C]/10 text-blue-600 dark:text-[#E8601C] group-hover:bg-blue-600 dark:group-hover:bg-[#E8601C] group-hover:text-white dark:group-hover:text-white'
                                 }`}>
-                                <AlertTriangle className="h-6 w-6" />
+                                <AlertTriangle className="h-5 w-5 sm:h-7 sm:w-7" />
                             </div>
-                            {globalStats.approaching > 0 && (
-                                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-amber-100/50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
-                                    <span className="relative flex h-2 w-2">
+                            {globalStats.approaching > 0 ? (
+                                <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-bold uppercase tracking-widest bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50 blink-anim">
+                                    <span className="relative flex h-1.5 w-1.5 sm:h-2 sm:w-2">
                                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 sm:h-2 sm:w-2 bg-amber-500"></span>
                                     </span>
-                                    Alert
+                                    <span className="hidden sm:inline">Alert</span>
+                                    <span className="sm:hidden">!!!</span>
                                 </div>
+                            ) : (
+                                <span className="hidden sm:inline-block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-50 dark:bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-100 dark:border-slate-700">
+                                    Safe
+                                </span>
                             )}
                         </div>
-                        <div>
-                            <p className="text-sm font-bold text-slate-500 dark:text-slate-400">{it.approachingDeadline}</p>
-                            <h3 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight mt-1">{globalStats.approaching}</h3>
+                        <div className="relative z-10">
+                            <p className={`text-xs sm:text-sm font-bold mb-0.5 sm:mb-1 ${globalStats.approaching > 0 ? 'text-amber-700/80 dark:text-amber-500/80' : 'text-slate-500 dark:text-slate-400'}`}>{it.approachingDeadline}</p>
+                            <h3 className={`text-3xl sm:text-4xl font-black tracking-tight leading-none ${globalStats.approaching > 0 ? 'text-amber-600 dark:text-amber-500' : 'text-slate-900 dark:text-white'}`}>{globalStats.approaching}</h3>
                         </div>
                     </div>
                 </div>
             )}
 
             {/* Filter & Search */}
-            <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
-                <div className="flex flex-col lg:flex-row items-stretch lg:items-end gap-4 lg:gap-6">
-                    <div className="w-full lg:max-w-md space-y-2">
-                        <Label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
-                            <Search className="h-3 w-3" />
+            <div className="bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col lg:flex-row items-stretch lg:items-end gap-6 justify-between">
+                <div className="flex flex-col sm:flex-row items-stretch gap-6 flex-1 w-full">
+                    {/* Search Component */}
+                    <div className="w-full lg:max-w-md space-y-2.5 flex-1">
+                        <Label className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-2">
+                            <Search className="h-3.5 w-3.5" />
                             Quick Search
                         </Label>
                         <div className="relative group">
@@ -494,66 +506,66 @@ export default function OrderRequestsPage() {
                                 placeholder={it.searchPlaceholder}
                                 value={searchQuery}
                                 onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-                                className="pl-4 pr-10 h-12 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 focus:ring-[#E8601C] focus:border-[#E8601C] rounded-2xl transition-all font-medium text-sm"
+                                className="pl-4 pr-10 h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700/60 focus:ring-blue-500 dark:focus:ring-[#E8601C] focus:border-blue-500 dark:focus:border-[#E8601C] rounded-2xl transition-all font-bold text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 text-sm shadow-sm"
                             />
                             {searchQuery && (
                                 <button
                                     onClick={() => setSearchQuery("")}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                                    className="absolute right-4 top-1/2 -translate-y-1/2 p-1.5 bg-slate-200 dark:bg-slate-700 rounded-full text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-white transition-colors"
                                 >
-                                    <X className="h-4 w-4" />
+                                    <X className="h-3.5 w-3.5" />
                                 </button>
                             )}
                         </div>
                     </div>
 
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
-                        <div className="w-full sm:w-[320px] lg:w-[360px] space-y-2 shrink-0">
-                            <Label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
-                                <Package className="h-3 w-3" />
-                                {it.table.productType}
-                            </Label>
-                            <Select value={typeFilter} onValueChange={(val) => { setTypeFilter(val || "all"); setCurrentPage(1); }}>
-                                <SelectTrigger className="h-12 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm focus:ring-[#E8601C]">
-                                    <SelectValue placeholder="All Types" className="truncate text-left" />
-                                </SelectTrigger>
-                                <SelectContent className="rounded-2xl border-slate-200 dark:border-slate-800 min-w-[max-content]">
-                                    <SelectItem value="all" className="font-bold py-2.5">All Types</SelectItem>
-                                    {productTypes.map(type => (
-                                        <SelectItem key={type} value={type} className="font-bold py-2.5 px-3 min-w-[max-content] pr-10">{type}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="flex items-center gap-2 sm:pt-6">
-                            {(searchQuery || typeFilter !== "all") && (
-                                <Button
-                                    variant="ghost"
-                                    onClick={resetFilters}
-                                    className="h-12 rounded-2xl text-slate-500 hover:text-[#E8601C] font-bold px-4"
-                                >
-                                    {lang === 'th' ? 'ล้างตัวกรอง' : 'Clear Filters'}
-                                </Button>
-                            )}
-                        </div>
+                    {/* Type Filter */}
+                    <div className="w-full sm:w-[280px] lg:w-[320px] space-y-2.5 shrink-0">
+                        <Label className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-2">
+                            <Package className="h-3.5 w-3.5" />
+                            {it.table.productType}
+                        </Label>
+                        <Select value={typeFilter} onValueChange={(val) => { setTypeFilter(val || "all"); setCurrentPage(1); }}>
+                            <SelectTrigger className="h-14 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700/60 rounded-2xl font-bold text-slate-700 dark:text-slate-200 text-sm focus:ring-blue-500 dark:focus:ring-[#E8601C] shadow-sm">
+                                <SelectValue placeholder="All Types" className="truncate text-left" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-2xl border-slate-200 dark:border-slate-800 shadow-xl min-w-[max-content]">
+                                <SelectItem value="all" className="font-bold py-3 pr-8">All Types</SelectItem>
+                                {productTypes.map(type => (
+                                    <SelectItem key={type} value={type} className="font-bold py-3 px-3 pr-8 min-w-[max-content]">{type}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
+                </div>
+
+                {/* Clear Filter */}
+                <div className="flex items-end justify-end pb-1 shrink-0">
+                    {(searchQuery || typeFilter !== "all") && (
+                        <Button
+                            variant="ghost"
+                            onClick={resetFilters}
+                            className="h-12 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 font-bold px-5 transition-all"
+                        >
+                            {lang === 'th' ? 'ล้างตัวกรอง' : 'Clear Filters'}
+                        </Button>
+                    )}
                 </div>
             </div>
 
             {/* Table */}
-            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                     <Table>
                         <TableHeader>
-                            <TableRow className="border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
-                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 px-6 text-slate-500 dark:text-slate-400">{it.table.customer}</TableHead>
-                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400">{it.table.productType}</TableHead>
-                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-center text-slate-500 dark:text-slate-400">{it.table.quantity}</TableHead>
-                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400">{it.table.price}</TableHead>
-                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400">{it.table.deadline}</TableHead>
-                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400">{it.table.assignedTo}</TableHead>
-                                <TableHead className="text-right py-5 pr-6"></TableHead>
+                            <TableRow className="border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                                <TableHead className="font-black text-[11px] uppercase tracking-widest py-5 px-6 text-slate-400 dark:text-slate-500 h-14">{it.table.customer}</TableHead>
+                                <TableHead className="font-black text-[11px] uppercase tracking-widest py-5 text-slate-400 dark:text-slate-500 h-14">{it.table.productType}</TableHead>
+                                <TableHead className="font-black text-[11px] uppercase tracking-widest py-5 text-center text-slate-400 dark:text-slate-500 h-14">{it.table.quantity}</TableHead>
+                                <TableHead className="font-black text-[11px] uppercase tracking-widest py-5 text-slate-400 dark:text-slate-500 h-14">{it.table.price}</TableHead>
+                                <TableHead className="font-black text-[11px] uppercase tracking-widest py-5 text-slate-400 dark:text-slate-500 h-14">{it.table.deadline}</TableHead>
+                                <TableHead className="font-black text-[11px] uppercase tracking-widest py-5 text-slate-400 dark:text-slate-500 h-14">{it.table.assignedTo}</TableHead>
+                                <TableHead className="text-right py-5 pr-6 h-14"></TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -637,12 +649,17 @@ export default function OrderRequestsPage() {
                                 })
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={7} className="py-20 text-center">
-                                        <div className="flex flex-col items-center gap-3">
-                                            <div className="h-16 w-16 rounded-3xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-300 dark:text-slate-700">
-                                                <ClipboardList className="h-8 w-8" />
+                                    <TableCell colSpan={7} className="py-32 text-center border-none">
+                                        <div className="flex flex-col items-center gap-4">
+                                            <div className="h-20 w-20 rounded-full bg-slate-50 dark:bg-slate-800/50 flex items-center justify-center text-slate-300 dark:text-slate-600 ring-4 ring-white dark:ring-slate-900 shadow-sm">
+                                                <ClipboardList className="h-10 w-10" />
                                             </div>
-                                            <p className="text-slate-500 dark:text-slate-400 font-bold tracking-tight">{it.table.noData}</p>
+                                            <div className="space-y-1">
+                                                <p className="text-lg text-slate-600 dark:text-slate-300 font-bold tracking-tight">{it.table.noData}</p>
+                                                <p className="text-sm font-medium text-slate-400 dark:text-slate-500">
+                                                    ลองสร้างคำสั่งซื้อใหม่ หรือเช็คตัวกรองของคุณดูสิ
+                                                </p>
+                                            </div>
                                         </div>
                                     </TableCell>
                                 </TableRow>
