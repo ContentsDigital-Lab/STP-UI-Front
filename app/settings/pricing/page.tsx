@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, Save, RotateCcw, DollarSign, Info } from "lucide-react";
+import { ChevronLeft, Save, RotateCcw, DollarSign, Info, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,12 +16,12 @@ import {
     type GlassPriceTable,
 } from "@/lib/pricing-settings";
 import { pricingSettingsApi } from "@/lib/api/pricing-settings";
+import { materialsApi } from "@/lib/api/materials";
+import { Material } from "@/lib/api/types";
 
-// glass types that appear in the bill creation page
-const GLASS_TYPES = ["Clear", "Tinted", "Tempered", "Laminated", "Low-E", "Frosted", "Reflective", "Patterned"];
+const BASE_GLASS_TYPES = ["Clear", "Tinted", "Tempered", "Laminated", "Low-E", "Frosted", "Reflective", "Patterned"];
 
-// which thicknesses are available per type (show only relevant ones)
-const TYPE_THICKNESSES: Record<string, string[]> = {
+const BASE_TYPE_THICKNESSES: Record<string, string[]> = {
     Clear:      ["3mm", "5mm", "6mm", "8mm", "10mm", "12mm", "15mm", "19mm"],
     Tinted:     ["5mm", "6mm", "8mm", "10mm", "12mm", "15mm"],
     Tempered:   ["5mm", "6mm", "8mm", "10mm", "12mm", "15mm", "19mm"],
@@ -43,22 +43,65 @@ const TYPE_LABELS: Record<string, string> = {
     Patterned:  "กระจกลาย (Patterned)",
 };
 
+const normalizeThickness = (t: string): string => {
+    const num = parseInt(t);
+    return isNaN(num) ? t : `${num}mm`;
+};
+
+const sortThicknesses = (arr: string[]): string[] =>
+    [...new Set(arr)].sort((a, b) => (parseInt(a) || 0) - (parseInt(b) || 0));
+
 export default function PricingSettingsPage() {
     const [settings, setSettings] = useState<PricingSettings>(() => getCachedPricingSettings());
     const [saved, setSaved] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [activeType, setActiveType] = useState(GLASS_TYPES[0]);
+    const [glassTypes, setGlassTypes] = useState<string[]>(BASE_GLASS_TYPES);
+    const [typeThicknesses, setTypeThicknesses] = useState<Record<string, string[]>>(BASE_TYPE_THICKNESSES);
+    const [activeType, setActiveType] = useState(BASE_GLASS_TYPES[0]);
+    const [newThicknessInput, setNewThicknessInput] = useState("");
 
-    // Fetch from server on mount — server is the source of truth
     useEffect(() => {
-        pricingSettingsApi.get().then(res => {
-            if (res.data) {
-                setSettings(res.data);
-                cachePricingSettings(res.data);
+        const load = async () => {
+            const [pricingRes, matRes] = await Promise.all([
+                pricingSettingsApi.get().catch(() => null),
+                materialsApi.getAll().catch(() => null),
+            ]);
+
+            if (pricingRes?.data) {
+                setSettings(pricingRes.data);
+                cachePricingSettings(pricingRes.data);
             }
-        }).catch(() => {
-            // Fall through — cached value already in state
-        });
+
+            if (matRes?.success && matRes.data) {
+                const extraTypes = new Set<string>();
+                const extraThicknesses: Record<string, Set<string>> = {};
+
+                for (const mat of matRes.data) {
+                    const gt = mat.specDetails?.glassType?.trim();
+                    const th = mat.specDetails?.thickness?.trim();
+                    if (gt) {
+                        extraTypes.add(gt);
+                        if (!extraThicknesses[gt]) extraThicknesses[gt] = new Set();
+                        if (th) extraThicknesses[gt].add(normalizeThickness(th));
+                    }
+                }
+
+                const mergedTypes = [...BASE_GLASS_TYPES];
+                for (const t of extraTypes) {
+                    if (!mergedTypes.includes(t)) mergedTypes.push(t);
+                }
+
+                const mergedThicknesses: Record<string, string[]> = { ...BASE_TYPE_THICKNESSES };
+                for (const [gt, thSet] of Object.entries(extraThicknesses)) {
+                    const base = mergedThicknesses[gt] ?? [];
+                    mergedThicknesses[gt] = sortThicknesses([...base, ...thSet]);
+                }
+
+                setGlassTypes(mergedTypes);
+                setTypeThicknesses(mergedThicknesses);
+            }
+        };
+        load();
     }, []);
 
     const updateGlassPrice = (
@@ -98,6 +141,26 @@ export default function PricingSettingsPage() {
         } finally {
             setSaving(false);
         }
+    };
+
+    const handleAddThickness = () => {
+        const num = parseInt(newThicknessInput);
+        if (isNaN(num) || num <= 0) {
+            toast.error("กรุณาใส่ตัวเลขที่ถูกต้อง");
+            return;
+        }
+        const value = `${num}mm`;
+        const current = typeThicknesses[activeType] ?? [];
+        if (current.includes(value)) {
+            toast.warning(`${value} มีอยู่แล้ว`);
+            return;
+        }
+        setTypeThicknesses(prev => ({
+            ...prev,
+            [activeType]: sortThicknesses([...current, value]),
+        }));
+        setNewThicknessInput("");
+        toast.success(`เพิ่มความหนา ${value} ใน ${activeType} แล้ว`);
     };
 
     const handleReset = () => {
@@ -190,7 +253,7 @@ export default function PricingSettingsPage() {
             <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-card overflow-hidden">
                 {/* Type tabs */}
                 <div className="flex overflow-x-auto border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
-                    {GLASS_TYPES.map(type => (
+                    {glassTypes.map(type => (
                         <button
                             key={type}
                             type="button"
@@ -207,22 +270,43 @@ export default function PricingSettingsPage() {
                 </div>
 
                 <div className="p-5 space-y-4">
-                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{TYPE_LABELS[activeType]}</p>
+                    <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{TYPE_LABELS[activeType] ?? activeType}</p>
+                        <div className="flex items-center gap-1.5">
+                            <Input
+                                type="number" min={1}
+                                placeholder="mm"
+                                value={newThicknessInput}
+                                onChange={e => setNewThicknessInput(e.target.value.replace(/[^0-9]/g, ''))}
+                                onKeyDown={e => { if (e.key === 'Enter') handleAddThickness(); }}
+                                className="h-8 w-16 rounded-lg text-xs font-bold text-center"
+                            />
+                            <button
+                                type="button"
+                                onClick={handleAddThickness}
+                                className="flex items-center gap-1 h-8 px-2.5 rounded-lg text-[11px] font-bold text-[#E8601C] hover:bg-[#E8601C]/5 border border-[#E8601C]/20 transition-colors"
+                            >
+                                <Plus className="h-3 w-3" />
+                                เพิ่มความหนา
+                            </button>
+                        </div>
+                    </div>
 
                     {/* Table header */}
-                    <div className="grid grid-cols-[80px_1fr_1fr] gap-3 pb-2 border-b border-slate-100 dark:border-slate-800">
+                    <div className="grid grid-cols-[80px_1fr_1fr_32px] gap-3 pb-2 border-b border-slate-100 dark:border-slate-800">
                         <span className="text-[10px] font-bold text-slate-400 uppercase">ความหนา</span>
                         <span className="text-[10px] font-bold text-slate-400 uppercase">ราคา/ตร.ฟ. (฿)</span>
                         <span className="text-[10px] font-bold text-slate-400 uppercase">เจียร/ม. (฿)</span>
+                        <span />
                     </div>
 
                     {/* Rows per thickness */}
-                    {(TYPE_THICKNESSES[activeType] ?? ALL_THICKNESSES).map(thickness => {
+                    {(typeThicknesses[activeType] ?? ALL_THICKNESSES).map(thickness => {
                         const row = settings.glassPrices[activeType]?.[thickness];
                         const defRow = DEFAULT_PRICING.glassPrices[activeType]?.[thickness];
                         const hasValue = !!row;
                         return (
-                            <div key={thickness} className="grid grid-cols-[80px_1fr_1fr] gap-3 items-center">
+                            <div key={thickness} className="grid grid-cols-[80px_1fr_1fr_32px] gap-3 items-center group">
                                 <span className="text-sm font-bold text-slate-600 dark:text-slate-300">{thickness}</span>
                                 <Input
                                     type="number" min={0}
@@ -238,9 +322,34 @@ export default function PricingSettingsPage() {
                                     onChange={e => updateGlassPrice(activeType, thickness, "grindingRate", parseFloat(e.target.value) || 0)}
                                     className={`h-9 rounded-xl text-xs font-bold ${!hasValue ? "opacity-50" : ""}`}
                                 />
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setTypeThicknesses(prev => ({
+                                            ...prev,
+                                            [activeType]: (prev[activeType] ?? []).filter(t => t !== thickness),
+                                        }));
+                                        setSettings(prev => {
+                                            const updated = { ...prev, glassPrices: { ...prev.glassPrices } };
+                                            if (updated.glassPrices[activeType]) {
+                                                const copy = { ...updated.glassPrices[activeType] };
+                                                delete copy[thickness];
+                                                updated.glassPrices[activeType] = copy;
+                                            }
+                                            return updated;
+                                        });
+                                        setSaved(false);
+                                        toast.success(`ลบ ${thickness} ออกจาก ${activeType} แล้ว`);
+                                    }}
+                                    className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 opacity-0 group-hover:opacity-100 transition-all"
+                                    title={`ลบ ${thickness}`}
+                                >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                </button>
                             </div>
                         );
                     })}
+
                 </div>
             </div>
 

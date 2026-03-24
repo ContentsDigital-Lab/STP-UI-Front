@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
-    ClipboardList, Search, RefreshCw, ChevronDown, ChevronRight,
+    ClipboardList, Search, RefreshCw, ChevronDown, ChevronRight, ChevronLeft,
     AlertCircle, User, Package, ArrowRight,
     CalendarDays, Printer, QrCode, X, CheckCheck, Wifi, WifiOff, ClipboardCheck,
 } from "lucide-react";
@@ -170,6 +170,8 @@ export default function ProductionPage() {
     const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
     const [qrTarget,  setQrTarget]  = useState<{ code: string; label: string; url: string } | null>(null);
     const [qrPane,    setQrPane]    = useState<Pane | null>(null);
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 10;
 
     const loadPanes = useCallback(async () => {
         const pRes = await panesApi.getAll({ limit: 100 }).catch(() => null);
@@ -681,7 +683,6 @@ export default function ProductionPage() {
                     })}
                 </div>
             )}
-
             {/* Pagination */}
             {!loading && totalPages > 1 && (
                 <div className="flex items-center justify-center gap-2 pt-2">

@@ -361,48 +361,7 @@ export default function WithdrawalsPage() {
                                 </SelectContent>
                             </Select>
                         </div>
-                        <div className="space-y-1.5">
-                            <Label>วัสดุ <span className="text-red-500">*</span></Label>
-                            <Select value={form.material} onValueChange={(v) => setForm((f) => ({ ...f, material: v ?? "" }))}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="เลือกวัสดุ...">
-                                        {(value: string | null) => {
-                                            if (!value) return <span className="text-muted-foreground">เลือกวัสดุ...</span>;
-                                            const m = materials.find(x => x._id === value);
-                                            if (!m) return value;
-                                            const stock = getStockForMaterial(m._id, form.stockType);
-                                            return `${m.name} (คงเหลือ: ${stock})`;
-                                        }}
-                                    </SelectValue>
-                                </SelectTrigger>
-                                <SelectContent className="!w-fit">
-                                    {materials.map((m) => {
-                                        const stock = getStockForMaterial(m._id, form.stockType);
-                                        return (
-                                            <SelectItem key={m._id} value={m._id}>
-                                                <span className="flex items-center justify-between gap-3 w-full">
-                                                    <span>{m.name}</span>
-                                                    <span className={`text-xs font-semibold ${stock <= 0 ? "text-red-500" : stock <= (m.reorderPoint || 10) ? "text-amber-500" : "text-emerald-500"}`}>
-                                                        คงเหลือ: {stock}
-                                                    </span>
-                                                </span>
-                                            </SelectItem>
-                                        );
-                                    })}
-                                </SelectContent>
-                            </Select>
-                        </div>
                         <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1.5">
-                                <Label>จำนวน <span className="text-red-500">*</span></Label>
-                                <Input
-                                    type="number"
-                                    min={1}
-                                    placeholder="0"
-                                    value={form.quantity}
-                                    onChange={(e) => setForm((f) => ({ ...f, quantity: e.target.value }))}
-                                />
-                            </div>
                             <div className="space-y-1.5">
                                 <Label>ประเภทสต็อก</Label>
                                 <Select value={form.stockType} onValueChange={(v) => setForm((f) => ({ ...f, stockType: v as "Raw" | "Reuse" }))}>
@@ -414,6 +373,49 @@ export default function WithdrawalsPage() {
                                         <SelectItem value="Reuse">Reuse (นำกลับ)</SelectItem>
                                     </SelectContent>
                                 </Select>
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label>วัสดุ <span className="text-red-500">*</span></Label>
+                                <Select value={form.material} onValueChange={(v) => setForm((f) => ({ ...f, material: v ?? "" }))}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="เลือกวัสดุ...">
+                                            {(value: string | null) => {
+                                                if (!value) return <span className="text-muted-foreground">เลือกวัสดุ...</span>;
+                                                const m = materials.find(x => x._id === value);
+                                                if (!m) return value;
+                                                const stock = getStockForMaterial(m._id, form.stockType);
+                                                return `${m.name} (${stock})`;
+                                            }}
+                                        </SelectValue>
+                                    </SelectTrigger>
+                                    <SelectContent className="!w-fit">
+                                        {materials.map((m) => {
+                                            const stock = getStockForMaterial(m._id, form.stockType);
+                                            return (
+                                                <SelectItem key={m._id} value={m._id}>
+                                                    <span className="flex items-center justify-between gap-3 w-full">
+                                                        <span>{m.name}</span>
+                                                        <span className={`text-xs font-semibold ${stock <= 0 ? "text-red-500" : stock <= (m.reorderPoint || 10) ? "text-amber-500" : "text-emerald-500"}`}>
+                                                            คงเหลือ: {stock}
+                                                        </span>
+                                                    </span>
+                                                </SelectItem>
+                                            );
+                                        })}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <Label>จำนวน <span className="text-red-500">*</span></Label>
+                                <Input
+                                    type="number"
+                                    min={1}
+                                    placeholder="0"
+                                    value={form.quantity}
+                                    onChange={(e) => setForm((f) => ({ ...f, quantity: e.target.value }))}
+                                />
                             </div>
                         </div>
                         <div className="space-y-1.5">
