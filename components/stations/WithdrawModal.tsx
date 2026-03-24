@@ -126,14 +126,17 @@ export function WithdrawModal({ stationId, onClose }: WithdrawModalProps) {
                 : null;
             const materialId = matId(pane.material);
 
-            const res = await withdrawalsApi.create({
+            const payload = {
                 order: orderId ?? undefined,
                 material: materialId ?? undefined,
                 quantity: 1,
                 stockType: selectedInv?.stockType ?? "Raw",
                 pane: pane._id,
                 inventory: selectedInv?._id,
-            } as Parameters<typeof withdrawalsApi.create>[0]);
+            };
+            console.log("[WithdrawModal] payload:", JSON.stringify(payload));
+
+            const res = await withdrawalsApi.create(payload as Parameters<typeof withdrawalsApi.create>[0]);
 
             if (!res.success) {
                 setError(res.message ?? "ไม่สามารถสร้างรายการเบิกได้");
