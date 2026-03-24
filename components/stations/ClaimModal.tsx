@@ -9,6 +9,7 @@ import { panesApi } from "@/lib/api/panes";
 import { claimsApi } from "@/lib/api/claims";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { Pane, Order, Material, Claim } from "@/lib/api/types";
+import { CameraScanModal } from "@/components/stations/designer/blocks/CameraScanModal";
 
 interface ClaimModalProps {
     stationId?: string;
@@ -49,6 +50,7 @@ export function ClaimModal({ stationId, onClose }: ClaimModalProps) {
     const [lookupError,  setLookupError]  = useState<string | null>(null);
     const [submitError,  setSubmitError]  = useState<string | null>(null);
     const [success,      setSuccess]      = useState<Claim | null>(null);
+    const [showCamera,   setShowCamera]   = useState(false);
     const inputRef   = useRef<HTMLInputElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -82,6 +84,14 @@ export function ClaimModal({ stationId, onClose }: ClaimModalProps) {
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === "Enter") lookupPane(paneNumber);
+    };
+
+    // Called by CameraScanModal — strip "STDPLUS:" prefix if present
+    const handleQrScan = (raw: string) => {
+        const num = raw.replace(/^STDPLUS:/i, "").trim().toUpperCase();
+        setPaneNumber(num);
+        setShowCamera(false);
+        lookupPane(num);
     };
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -213,14 +223,28 @@ export function ClaimModal({ stationId, onClose }: ClaimModalProps) {
                                 className="font-mono font-bold text-sm h-10 uppercase rounded-xl flex-1"
                                 disabled={fetching}
                             />
+                            {/* Camera scan — always enabled */}
                             <Button
                                 variant="outline"
-                                onClick={() => lookupPane(paneNumber)}
-                                disabled={!paneNumber.trim() || fetching}
+                                onClick={() => setShowCamera(true)}
+                                disabled={fetching}
                                 className="h-10 px-3 rounded-xl shrink-0"
+                                title="สแกน QR ด้วยกล้อง"
                             >
-                                {fetching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <QrCode className="h-3.5 w-3.5" />}
+                                <Camera className="h-3.5 w-3.5" />
                             </Button>
+                            {/* Manual lookup — enabled only when text typed */}
+                            {paneNumber.trim() && (
+                                <Button
+                                    variant="outline"
+                                    onClick={() => lookupPane(paneNumber)}
+                                    disabled={fetching}
+                                    className="h-10 px-3 rounded-xl shrink-0"
+                                    title="ค้นหา"
+                                >
+                                    {fetching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <QrCode className="h-3.5 w-3.5" />}
+                                </Button>
+                            )}
                         </div>
 
                         {/* Lookup error */}
@@ -328,6 +352,12 @@ export function ClaimModal({ stationId, onClose }: ClaimModalProps) {
                             className="hidden"
                             onChange={handleFileChange}
                         />
+                        {showCamera && (
+                            <CameraScanModal
+                                onScan={handleQrScan}
+                                onClose={() => setShowCamera(false)}
+                            />
+                        )}
                     </div>
 
                     {/* Submit error */}

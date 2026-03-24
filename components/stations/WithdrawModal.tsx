@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { PackageOpen, QrCode, CheckCircle2, AlertTriangle, Loader2, X, Layers, Package, Cpu } from "lucide-react";
+import { PackageOpen, QrCode, CheckCircle2, AlertTriangle, Loader2, X, Layers, Package, Cpu, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,6 +9,7 @@ import { panesApi } from "@/lib/api/panes";
 import { withdrawalsApi } from "@/lib/api/withdrawals";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { Pane, Order, Material, Withdrawal } from "@/lib/api/types";
+import { CameraScanModal } from "@/components/stations/designer/blocks/CameraScanModal";
 
 interface WithdrawModalProps {
     stationId?: string;
@@ -26,6 +27,7 @@ export function WithdrawModal({ stationId, onClose }: WithdrawModalProps) {
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [result, setResult] = useState<Withdrawal | null>(null);
+    const [showCamera, setShowCamera] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
@@ -67,6 +69,13 @@ export function WithdrawModal({ stationId, onClose }: WithdrawModalProps) {
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === "Enter") lookupPane(paneNumber);
+    };
+
+    const handleQrScan = (raw: string) => {
+        const num = raw.replace(/^STDPLUS:/i, "").trim().toUpperCase();
+        setPaneNumber(num);
+        setShowCamera(false);
+        lookupPane(num);
     };
 
     const handleSubmit = async () => {
@@ -141,29 +150,43 @@ export function WithdrawModal({ stationId, onClose }: WithdrawModalProps) {
                                     สแกน QR หรือพิมพ์หมายเลขกระจก แล้วกด Enter
                                 </p>
                             </div>
-                            <Input
-                                ref={inputRef}
-                                value={paneNumber}
-                                onChange={e => { setPaneNumber(e.target.value.toUpperCase()); setError(null); }}
-                                onKeyDown={handleKeyDown}
-                                placeholder="เช่น PNE-0001"
-                                className="text-center font-mono font-bold text-base h-12 uppercase rounded-xl"
-                                disabled={fetching}
-                            />
+                            <div className="flex gap-2">
+                                <Input
+                                    ref={inputRef}
+                                    value={paneNumber}
+                                    onChange={e => { setPaneNumber(e.target.value.toUpperCase()); setError(null); }}
+                                    onKeyDown={handleKeyDown}
+                                    placeholder="เช่น PNE-0001"
+                                    className="font-mono font-bold text-sm h-10 uppercase rounded-xl flex-1"
+                                    disabled={fetching}
+                                />
+                                {/* Camera scan — always enabled */}
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setShowCamera(true)}
+                                    disabled={fetching}
+                                    className="h-10 px-3 rounded-xl shrink-0"
+                                    title="สแกน QR ด้วยกล้อง"
+                                >
+                                    <Camera className="h-3.5 w-3.5" />
+                                </Button>
+                                {paneNumber.trim() && (
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => lookupPane(paneNumber)}
+                                        disabled={fetching}
+                                        className="h-10 px-3 rounded-xl shrink-0"
+                                    >
+                                        {fetching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <QrCode className="h-3.5 w-3.5" />}
+                                    </Button>
+                                )}
+                            </div>
                             {error && (
                                 <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 px-3 py-2.5 rounded-xl border border-red-100 dark:border-red-900/30">
                                     <AlertTriangle className="h-4 w-4 shrink-0" />
                                     {error}
                                 </div>
                             )}
-                            <Button
-                                onClick={() => lookupPane(paneNumber)}
-                                disabled={!paneNumber.trim() || fetching}
-                                className="w-full h-11 rounded-xl font-bold bg-orange-600 hover:bg-orange-700 text-white"
-                            >
-                                {fetching ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                                {fetching ? "กำลังค้นหา..." : "ค้นหากระจก"}
-                            </Button>
                         </>
                     )}
 
@@ -258,6 +281,12 @@ export function WithdrawModal({ stationId, onClose }: WithdrawModalProps) {
                     )}
                 </div>
             </div>
+            {showCamera && (
+                <CameraScanModal
+                    onScan={handleQrScan}
+                    onClose={() => setShowCamera(false)}
+                />
+            )}
         </div>
     );
 }
