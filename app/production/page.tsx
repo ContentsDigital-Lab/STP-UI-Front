@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
     ClipboardList, Search, RefreshCw, ChevronDown, ChevronRight, ChevronLeft,
-    AlertCircle, User, Package, ArrowRight,
+    AlertCircle, User, Package, ArrowRight, MapPin,
     CalendarDays, Printer, QrCode, X, CheckCheck, Wifi, WifiOff, ClipboardCheck,
 } from "lucide-react";
 import { QrCodeModal } from "@/components/qr/QrCodeModal";
@@ -312,97 +312,93 @@ export default function ProductionPage() {
             </div>
 
             {/* Summary cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 {[
-                    { label: "บิลทั้งหมด", count: totalBills,     dot: "bg-slate-400" },
-                    { label: "รอตรวจสอบ",  count: pendingBills,   dot: "bg-amber-400" },
-                    { label: "กำลังผลิต",  count: activeBills,    dot: "bg-blue-500"  },
-                    { label: "เสร็จแล้ว",  count: completedBills, dot: "bg-green-500" },
-                ].map(({ label, count, dot }) => (
-                    <div key={label} className="rounded-xl border p-4 bg-card">
-                        <div className="flex items-center gap-2 mb-1">
-                            <span className={`h-2 w-2 rounded-full ${dot}`} />
-                            <span className="text-xs text-muted-foreground">{label}</span>
+                    { label: "บิลทั้งหมด", count: totalBills,     icon: ClipboardList, bg: "bg-slate-50 dark:bg-slate-800/50", iconBg: "bg-slate-100 dark:bg-slate-700/50", iconColor: "text-slate-500 dark:text-slate-400" },
+                    { label: "รอตรวจสอบ",  count: pendingBills,   icon: AlertCircle,   bg: "bg-amber-50 dark:bg-amber-950/20", iconBg: "bg-amber-100 dark:bg-amber-900/30", iconColor: "text-amber-600 dark:text-amber-400" },
+                    { label: "กำลังผลิต",  count: activeBills,    icon: RefreshCw,     bg: "bg-blue-50 dark:bg-blue-950/20", iconBg: "bg-blue-100 dark:bg-blue-900/30", iconColor: "text-blue-600 dark:text-blue-400" },
+                    { label: "เสร็จแล้ว",  count: completedBills, icon: CheckCheck,    bg: "bg-green-50 dark:bg-green-950/20", iconBg: "bg-green-100 dark:bg-green-900/30", iconColor: "text-green-600 dark:text-green-400" },
+                ].map(({ label, count, icon: Icon, bg, iconBg, iconColor }) => (
+                    <div key={label} className={`rounded-2xl border border-slate-200 dark:border-slate-800 p-5 ${bg} transition-all hover:shadow-md`}>
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className={`h-9 w-9 rounded-xl ${iconBg} flex items-center justify-center`}>
+                                <Icon className={`h-4 w-4 ${iconColor}`} />
+                            </div>
+                            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{label}</span>
                         </div>
-                        <p className="text-2xl font-bold">{loading ? "…" : count}</p>
+                        <p className="text-3xl font-bold text-slate-900 dark:text-white">{loading ? "…" : count}</p>
                     </div>
                 ))}
             </div>
 
-            {/* Search */}
-            <div className="relative w-full">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                    placeholder="ค้นหา ลูกค้า, รหัสบิล, รหัสออเดอร์, วัสดุ, สถานี, สถานะ, ผู้รับผิดชอบ..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="pl-10 pr-10 h-10 w-full"
-                />
-                {search && (
-                    <button
-                        onClick={() => setSearch("")}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    >
-                        <X className="h-4 w-4" />
-                    </button>
-                )}
-            </div>
-
-            {/* Result hint */}
-            {!loading && (search || filtered.length < bills.length) && (
-                <p className="text-xs text-muted-foreground -mt-2">
-                    {search
-                        ? <>พบ {filtered.length} จาก {bills.length} บิล · ค้นหา &ldquo;{search}&rdquo; · <button className="text-primary underline underline-offset-2" onClick={() => setSearch("")}>ล้าง</button></>
-                        : <>แสดง {filtered.length} บิล</>
-                    }
-                </p>
-            )}
+            {/* Main content card */}
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden">
+                {/* Search */}
+                <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-slate-800">
+                    <div className="relative w-full">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <Input
+                            placeholder="ค้นหา ลูกค้า, รหัสบิล, รหัสออเดอร์, วัสดุ, สถานี, สถานะ, ผู้รับผิดชอบ..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="pl-11 pr-10 h-12 w-full rounded-2xl bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 font-medium"
+                        />
+                        {search && (
+                            <button
+                                onClick={() => setSearch("")}
+                                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
+                        )}
+                    </div>
+                    {!loading && (search || filtered.length < bills.length) && (
+                        <p className="text-xs text-slate-400 mt-2 pl-1">
+                            {search
+                                ? <>พบ <span className="font-bold text-slate-600 dark:text-slate-300">{filtered.length}</span> จาก {bills.length} บิล · ค้นหา &ldquo;{search}&rdquo; · <button className="text-blue-600 dark:text-[#E8601C] underline underline-offset-2 font-semibold" onClick={() => setSearch("")}>ล้าง</button></>
+                                : <>แสดง {filtered.length} บิล</>
+                            }
+                        </p>
+                    )}
+                </div>
 
             {/* Bill list */}
             {loading ? (
-                <div className="space-y-3">
+                <div className="divide-y divide-slate-100 dark:divide-slate-800">
                     {Array.from({ length: 4 }).map((_, i) => (
-                        <div key={i} className="rounded-xl border bg-card overflow-hidden animate-pulse">
-                            {/* Header skeleton */}
-                            <div className="px-4 py-3.5 flex items-start gap-3">
-                                <div className="h-4 w-4 rounded bg-muted mt-0.5 shrink-0" />
-                                <div className="flex-1 space-y-2">
-                                    <div className="flex items-center gap-3">
-                                        <div className="h-4 w-28 rounded bg-muted" />
-                                        <div className="h-3.5 w-14 rounded bg-muted/60" />
-                                        <div className="h-3.5 w-24 rounded bg-muted/40" />
-                                    </div>
-                                    <div className="flex gap-1.5">
-                                        <div className="h-4 w-16 rounded-full bg-muted/60" />
-                                        <div className="h-4 w-20 rounded-full bg-muted/50" />
-                                        <div className="h-4 w-14 rounded-full bg-muted/40" />
-                                    </div>
+                        <div key={i} className="px-5 sm:px-6 py-5 flex items-start gap-4 animate-pulse">
+                            <div className="h-4 w-4 rounded bg-slate-200 dark:bg-slate-700 mt-0.5 shrink-0" />
+                            <div className="flex-1 space-y-2.5">
+                                <div className="flex items-center gap-3">
+                                    <div className="h-4 w-28 rounded-lg bg-slate-200 dark:bg-slate-700" />
+                                    <div className="h-3.5 w-14 rounded-lg bg-slate-100 dark:bg-slate-800" />
+                                    <div className="h-3.5 w-24 rounded-lg bg-slate-100 dark:bg-slate-800" />
                                 </div>
-                                <div className="hidden sm:flex gap-4 shrink-0">
-                                    <div className="text-center space-y-1">
-                                        <div className="h-5 w-6 rounded bg-muted mx-auto" />
-                                        <div className="h-3 w-10 rounded bg-muted/50 mx-auto" />
-                                    </div>
-                                    <div className="text-center space-y-1">
-                                        <div className="h-5 w-6 rounded bg-muted mx-auto" />
-                                        <div className="h-3 w-10 rounded bg-muted/50 mx-auto" />
-                                    </div>
-                                    <div className="text-center space-y-1">
-                                        <div className="h-5 w-6 rounded bg-muted mx-auto" />
-                                        <div className="h-3 w-8 rounded bg-muted/50 mx-auto" />
-                                    </div>
+                                <div className="flex gap-1.5">
+                                    <div className="h-5 w-16 rounded-full bg-slate-100 dark:bg-slate-800" />
+                                    <div className="h-5 w-20 rounded-full bg-slate-100 dark:bg-slate-800" />
                                 </div>
+                            </div>
+                            <div className="hidden sm:flex gap-6 shrink-0">
+                                {[1, 2, 3].map(j => (
+                                    <div key={j} className="text-center space-y-1">
+                                        <div className="h-5 w-8 rounded bg-slate-200 dark:bg-slate-700 mx-auto" />
+                                        <div className="h-3 w-10 rounded bg-slate-100 dark:bg-slate-800 mx-auto" />
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     ))}
                 </div>
             ) : filtered.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed rounded-xl space-y-3">
-                    <AlertCircle className="h-10 w-10 text-muted-foreground/30" />
-                    <p className="text-sm text-muted-foreground">ไม่พบข้อมูลที่ค้นหา</p>
+                <div className="flex flex-col items-center justify-center py-20 space-y-3">
+                    <div className="h-16 w-16 rounded-3xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center">
+                        <AlertCircle className="h-8 w-8 text-slate-300 dark:text-slate-600" />
+                    </div>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 font-bold">ไม่พบข้อมูลที่ค้นหา</p>
                 </div>
             ) : (
-                <div className="space-y-3">
+                <div className="divide-y divide-slate-100 dark:divide-slate-800">
                     {paginated.map((bill) => {
                         const isOpen = expanded.has(bill.id);
                         const visibleOrders = bill.orders;
@@ -413,14 +409,14 @@ export default function ProductionPage() {
                         );
 
                         return (
-                            <div key={bill.id} className="rounded-xl border bg-card overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                            <div key={bill.id} className="group/bill hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
 
                                 {/* ── Bill header ── */}
                                 <button
-                                    className="w-full px-4 py-3.5 flex items-start sm:items-center gap-3 hover:bg-muted/30 transition-colors text-left"
+                                    className="w-full px-5 sm:px-6 py-4 flex items-start sm:items-center gap-3 transition-colors text-left"
                                     onClick={() => toggle(bill.id)}
                                 >
-                                    <span className="mt-0.5 sm:mt-0 text-muted-foreground shrink-0">
+                                    <span className="mt-0.5 sm:mt-0 text-slate-400 shrink-0">
                                         {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                                     </span>
 
@@ -428,14 +424,14 @@ export default function ProductionPage() {
                                         {/* Row 1: customer + id + deadline */}
                                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                                             <div className="flex items-center gap-1.5">
-                                                <User className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
-                                                <span className="font-semibold text-sm">{bill.customer}</span>
+                                                <User className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                                                <span className="font-bold text-sm text-slate-900 dark:text-white">{bill.customer}</span>
                                             </div>
-                                            <span className="font-mono text-xs text-muted-foreground">
+                                            <span className="font-mono text-xs text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
                                                 #{bill.id.slice(-6).toUpperCase()}
                                             </span>
                                             {bill.request?.deadline && (
-                                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                                <div className="flex items-center gap-1 text-xs text-slate-400">
                                                     <CalendarDays className="h-3 w-3" />
                                                     กำหนดส่ง {fmtDate(bill.request.deadline)}
                                                 </div>
@@ -470,22 +466,22 @@ export default function ProductionPage() {
                                         const panesDone = billPanes.filter(p => p.currentStatus === "completed").length;
                                         const hasPanes  = billPanes.length > 0;
                                         return (
-                                            <div className="hidden sm:flex items-center gap-4 shrink-0 text-xs text-muted-foreground mr-1">
-                                                <div className="text-center">
-                                                    <p className="text-base font-bold text-foreground leading-tight">{bill.orders.length}</p>
-                                                    <p>ออเดอร์</p>
+                                            <div className="hidden sm:flex items-center gap-6 shrink-0 mr-1">
+                                                <div className="text-center min-w-[48px]">
+                                                    <p className="text-lg font-bold text-slate-900 dark:text-white leading-tight">{bill.orders.length}</p>
+                                                    <p className="text-[10px] font-medium text-slate-400 uppercase">ออเดอร์</p>
                                                 </div>
-                                                <div className="text-center">
-                                                    <p className="text-base font-bold text-foreground leading-tight">
+                                                <div className="text-center min-w-[48px]">
+                                                    <p className="text-lg font-bold text-blue-600 dark:text-blue-400 leading-tight">
                                                         {hasPanes ? billPanes.length : bill.totalGlass}
                                                     </p>
-                                                    <p>กระจก</p>
+                                                    <p className="text-[10px] font-medium text-slate-400 uppercase">กระจก</p>
                                                 </div>
-                                                <div className="text-center">
-                                                    <p className={`text-base font-bold leading-tight ${panesDone > 0 && panesDone === billPanes.length ? "text-green-600" : panesDone > 0 ? "text-blue-600" : "text-green-600"}`}>
+                                                <div className="text-center min-w-[48px]">
+                                                    <p className={`text-lg font-bold leading-tight ${panesDone > 0 && panesDone === billPanes.length ? "text-green-600" : panesDone > 0 ? "text-blue-600" : "text-green-600"}`}>
                                                         {hasPanes ? panesDone : bill.completedOrders}
                                                     </p>
-                                                    <p>เสร็จ</p>
+                                                    <p className="text-[10px] font-medium text-slate-400 uppercase">เสร็จ</p>
                                                 </div>
                                             </div>
                                         );
@@ -494,96 +490,105 @@ export default function ProductionPage() {
 
                                 {/* ── Order rows ── */}
                                 {isOpen && (
-                                    <div className="border-t divide-y bg-muted/5">
+                                    <div className="border-t border-slate-100 dark:border-slate-800 divide-y divide-slate-50 dark:divide-slate-800/50 bg-slate-50/30 dark:bg-slate-800/10">
                                         {/* Column headers */}
-                                        <div className="px-4 sm:px-8 py-2 flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide bg-muted/20">
-                                            <span className="w-24 shrink-0">รหัส</span>
-                                            <span className="w-36 shrink-0 hidden sm:block">วัสดุ / ชิ้น</span>
-                                            <span className="flex-1">สถานีปัจจุบัน</span>
-                                            <span className="hidden sm:block w-48">เส้นทางสถานี</span>
-                                            <span className="w-24 text-right">สถานะ</span>
+                                        <div className="px-5 sm:px-8 py-3 flex items-center gap-4 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest bg-slate-50/80 dark:bg-slate-800/50 backdrop-blur-sm sticky top-0 z-10">
+                                            <div className="w-5 shrink-0" /> {/* Spacer for chevron */}
+                                            <div className="w-20 shrink-0">รหัส</div>
+                                            <div className="w-40 shrink-0 hidden sm:block">วัสดุ / ชิ้น</div>
+                                            <div className="flex-1">สถานีปัจจุบัน</div>
+                                            <div className="hidden sm:block w-48">เส้นทางสถานี</div>
+                                            <div className="w-24 text-right pr-2">สถานะ</div>
                                         </div>
 
                                         {visibleOrders.length === 0 ? (
-                                            <p className="px-8 py-4 text-sm text-muted-foreground italic">ไม่มีออเดอร์ในสถานะนี้</p>
+                                            <div className="px-8 py-8 flex flex-col items-center justify-center text-center">
+                                                <Package className="h-8 w-8 text-slate-300 dark:text-slate-600 mb-2" />
+                                                <p className="text-sm font-medium text-slate-400">ไม่มีออเดอร์ในสถานะนี้</p>
+                                            </div>
                                         ) : visibleOrders.map((order) => {
                                             const cfg = ORDER_STATUS[order.status as StatusKey] ?? ORDER_STATUS.pending;
                                             const orderPanes = paneMap.get(order._id) ?? [];
                                             const isOrderOpen = expandedOrders.has(order._id);
 
                                             return (
-                                                <div key={order._id}>
-                                                <div
-                                                    className="px-4 sm:px-8 py-3 flex items-center gap-2 hover:bg-muted/20 cursor-pointer transition-colors group"
-                                                    onClick={() => orderPanes.length > 0 ? toggleOrder(order._id) : router.push(`/production/${order._id}`)}
-                                                >
-                                                    {/* Expand indicator */}
-                                                    {orderPanes.length > 0 && (
-                                                        <span className="shrink-0 text-muted-foreground/50">
-                                                            {isOrderOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                                                        </span>
-                                                    )}
-
-                                                    {/* Code */}
-                                                    <span className="w-24 shrink-0 font-mono text-xs font-bold">
-                                                        #{order.code ?? order._id.slice(-6).toUpperCase()}
-                                                    </span>
-
-                                                    {/* Material + pane progress */}
-                                                    <div className="w-36 shrink-0 hidden sm:block min-w-0">
-                                                        <div className="flex items-center gap-1 text-sm truncate">
-                                                            <Package className="h-3 w-3 text-muted-foreground/50 shrink-0" />
-                                                            <span className="truncate text-xs">{getName(order.material)}</span>
+                                                <div key={order._id} className="relative group/order bg-white dark:bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                                    <div
+                                                        className="px-5 sm:px-8 py-4 flex items-center gap-4 cursor-pointer"
+                                                        onClick={() => orderPanes.length > 0 ? toggleOrder(order._id) : router.push(`/production/${order._id}`)}
+                                                    >
+                                                        {/* Expand indicator */}
+                                                        <div className="w-5 shrink-0 flex justify-center text-slate-300 dark:text-slate-600 group-hover/order:text-slate-500 transition-colors">
+                                                            {orderPanes.length > 0 && (
+                                                                isOrderOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />
+                                                            )}
                                                         </div>
-                                                        {(() => {
-                                                            if (orderPanes.length > 0) {
-                                                                const done = orderPanes.filter(p => p.currentStatus === "completed").length;
-                                                                return (
-                                                                    <div className="flex items-center gap-1.5">
-                                                                        <span className="text-xs text-muted-foreground">{order.quantity} ชิ้น</span>
-                                                                        <span className={`text-[10px] font-medium ${done === orderPanes.length ? "text-green-600" : "text-blue-600"}`}>
-                                                                            ({done}/{orderPanes.length})
-                                                                        </span>
-                                                                    </div>
-                                                                );
-                                                            }
-                                                            return <span className="text-xs text-muted-foreground">{order.quantity} ชิ้น</span>;
-                                                        })()}
+
+                                                        {/* Code */}
+                                                        <div className="w-20 shrink-0 font-mono text-xs font-bold text-slate-900 dark:text-slate-200">
+                                                            #{order.code ?? order._id.slice(-6).toUpperCase()}
+                                                        </div>
+
+                                                        {/* Material + pane progress */}
+                                                        <div className="w-40 shrink-0 hidden sm:block min-w-0">
+                                                            <div className="flex items-center gap-1.5 text-sm mb-1">
+                                                                <Package className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                                                                <span className="truncate font-semibold text-slate-700 dark:text-slate-300">{getName(order.material)}</span>
+                                                            </div>
+                                                            {(() => {
+                                                                if (orderPanes.length > 0) {
+                                                                    const done = orderPanes.filter(p => p.currentStatus === "completed").length;
+                                                                    return (
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="text-xs text-slate-500">{order.quantity} ชิ้น</span>
+                                                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${done === orderPanes.length ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"}`}>
+                                                                                {done}/{orderPanes.length} เสร็จ
+                                                                            </span>
+                                                                        </div>
+                                                                    );
+                                                                }
+                                                                return <span className="text-xs text-slate-500">{order.quantity} ชิ้น</span>;
+                                                            })()}
+                                                        </div>
+
+                                                        {/* Current station badge */}
+                                                        <div className="flex-1 min-w-0 flex items-center">
+                                                            <CurrentStationBadge
+                                                                order={order}
+                                                                stationMap={stationMap}
+                                                                colorMap={colorMap}
+                                                            />
+                                                        </div>
+
+                                                        {/* Station flow dots */}
+                                                        <div className="hidden sm:flex w-48 items-center">
+                                                            <StationFlow
+                                                                stationIds={order.stations ?? []}
+                                                                currentIdx={order.currentStationIndex ?? 0}
+                                                                status={order.status}
+                                                                stationMap={stationMap}
+                                                                colorMap={colorMap}
+                                                            />
+                                                        </div>
+
+                                                        {/* Status */}
+                                                        <div className="w-24 flex justify-end shrink-0 pr-2">
+                                                            <span className={`inline-flex items-center gap-1.5 text-xs font-bold ${cfg.cls} px-2.5 py-1 rounded-full bg-white dark:bg-slate-900 shadow-sm border border-slate-100 dark:border-slate-800`}>
+                                                                <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${cfg.dot}`} />
+                                                                <span className="hidden sm:inline">{cfg.label}</span>
+                                                            </span>
+                                                        </div>
                                                     </div>
 
-                                                    {/* Current station badge */}
-                                                    <div className="flex-1 min-w-0">
-                                                        <CurrentStationBadge
-                                                            order={order}
-                                                            stationMap={stationMap}
-                                                            colorMap={colorMap}
-                                                        />
-                                                    </div>
-
-                                                    {/* Station flow dots */}
-                                                    <div className="hidden sm:flex w-48 items-center">
-                                                        <StationFlow
-                                                            stationIds={order.stations ?? []}
-                                                            currentIdx={order.currentStationIndex ?? 0}
-                                                            status={order.status}
-                                                            stationMap={stationMap}
-                                                            colorMap={colorMap}
-                                                        />
-                                                    </div>
-
-                                                    {/* Status + actions */}
-                                                    <div className="w-24 flex items-center justify-end gap-1 shrink-0">
-                                                        <span className={`flex items-center gap-1 text-xs font-medium ${cfg.cls}`}>
-                                                            <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${cfg.dot}`} />
-                                                            <span className="hidden sm:inline">{cfg.label}</span>
-                                                        </span>
+                                                    {/* Floating Actions on Hover */}
+                                                    <div className="absolute right-6 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover/order:opacity-100 transition-all translate-x-2 group-hover/order:translate-x-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md shadow-lg border border-slate-200 dark:border-slate-700 rounded-xl p-1 z-10">
                                                         <button
                                                             type="button"
                                                             title="พิมพ์ใบงาน"
                                                             onClick={(e) => { e.stopPropagation(); router.push(`/production/${order._id}/print`); }}
-                                                            className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors opacity-0 group-hover:opacity-100"
+                                                            className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 dark:hover:text-[#E8601C] hover:bg-blue-50 dark:hover:bg-[#E8601C]/10 transition-colors"
                                                         >
-                                                            <Printer className="h-3.5 w-3.5" />
+                                                            <Printer className="h-4 w-4" />
                                                         </button>
                                                         {order.code && (
                                                             <button
@@ -597,70 +602,82 @@ export default function ProductionPage() {
                                                                         url:   `${window.location.origin}/production/${order._id}`,
                                                                     });
                                                                 }}
-                                                                className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors opacity-0 group-hover:opacity-100"
+                                                                className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 dark:hover:text-[#E8601C] hover:bg-blue-50 dark:hover:bg-[#E8601C]/10 transition-colors"
                                                             >
-                                                                <QrCode className="h-3.5 w-3.5" />
+                                                                <QrCode className="h-4 w-4" />
                                                             </button>
                                                         )}
                                                         <button
                                                             type="button"
                                                             title="ดูรายละเอียด"
                                                             onClick={(e) => { e.stopPropagation(); router.push(`/production/${order._id}`); }}
-                                                            className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors opacity-0 group-hover:opacity-100"
+                                                            className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 dark:hover:text-[#E8601C] hover:bg-blue-50 dark:hover:bg-[#E8601C]/10 transition-colors"
                                                         >
-                                                            <ArrowRight className="h-3.5 w-3.5" />
+                                                            <ArrowRight className="h-4 w-4" />
                                                         </button>
                                                     </div>
-                                                </div>
 
-                                                {/* Inline pane list */}
-                                                {isOrderOpen && orderPanes.length > 0 && (
-                                                    <div className="pl-12 sm:pl-16 pr-4 sm:pr-8 pb-3 space-y-1">
-                                                        <div className="flex items-center gap-2 mb-2">
-                                                            <Package className="h-3 w-3 text-muted-foreground/50" />
-                                                            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">กระจกแต่ละชิ้น</span>
-                                                            <span className="text-[10px] text-muted-foreground">{orderPanes.length} ชิ้น</span>
+                                                    {/* Inline pane list */}
+                                                    {isOrderOpen && orderPanes.length > 0 && (
+                                                        <div className="pl-14 sm:pl-[120px] pr-5 sm:pr-8 py-4 bg-slate-50/50 dark:bg-slate-900/30 border-t border-slate-100 dark:border-slate-800/50">
+                                                            <div className="flex items-center gap-2 mb-3">
+                                                                <div className="h-5 w-5 rounded-md bg-blue-100 dark:bg-slate-800 flex items-center justify-center">
+                                                                    <Package className="h-3 w-3 text-blue-600 dark:text-slate-400" />
+                                                                </div>
+                                                                <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-widest">รายการกระจก</span>
+                                                                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400">{orderPanes.length} ชิ้น</span>
+                                                            </div>
+                                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+                                                                {orderPanes.map(pane => {
+                                                                    const pSt = ({
+                                                                        pending:            { label: "รอ",          dot: "bg-amber-400",  text: "text-amber-600", bg: "bg-amber-50" },
+                                                                        in_progress:        { label: "กำลังทำ",     dot: "bg-blue-500",   text: "text-blue-600", bg: "bg-blue-50" },
+                                                                        completed:          { label: "เสร็จ",       dot: "bg-green-500",  text: "text-green-600", bg: "bg-green-50" },
+                                                                        awaiting_scan_out:  { label: "รอสแกนออก",  dot: "bg-amber-500",  text: "text-amber-600", bg: "bg-amber-50" },
+                                                                    } as Record<string, { label: string; dot: string; text: string; bg: string }>)[pane.currentStatus] ?? { label: pane.currentStatus, dot: "bg-gray-400", text: "text-gray-500", bg: "bg-gray-50" };
+                                                                    const stName = (() => {
+                                                                        if (pane.currentStation === "queue") return "คิว";
+                                                                        if (pane.currentStation === "ready") return "พร้อมส่ง";
+                                                                        if (pane.currentStation === "defected") return "ชำรุด";
+                                                                        const st = stationMap.get(pane.currentStation);
+                                                                        return st?.name ?? pane.currentStation;
+                                                                    })();
+                                                                    return (
+                                                                        <button
+                                                                            key={pane._id}
+                                                                            type="button"
+                                                                            onClick={() => setQrPane(pane)}
+                                                                            className="group/pane relative overflow-hidden flex flex-col gap-1.5 p-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-[#E8601C]/50 hover:shadow-md transition-all text-left"
+                                                                        >
+                                                                            <div className="flex items-center justify-between w-full">
+                                                                                <div className="flex items-center gap-1.5">
+                                                                                    <QrCode className="h-3.5 w-3.5 text-slate-400 group-hover/pane:text-blue-500 dark:group-hover/pane:text-[#E8601C] transition-colors" />
+                                                                                    <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200">{pane.paneNumber}</span>
+                                                                                </div>
+                                                                                <span className={`flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md ${pSt.bg} dark:bg-transparent ${pSt.text}`}>
+                                                                                    <span className={`h-1.5 w-1.5 rounded-full shadow-sm ${pSt.dot}`} />
+                                                                                    {pSt.label}
+                                                                                </span>
+                                                                            </div>
+                                                                            <div className="flex items-center justify-between w-full mt-1">
+                                                                                {pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0) ? (
+                                                                                    <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-900 px-1.5 rounded">
+                                                                                        {pane.dimensions.width}×{pane.dimensions.height}
+                                                                                    </span>
+                                                                                ) : (
+                                                                                    <span />
+                                                                                )}
+                                                                                <div className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 px-1.5 rounded border border-slate-100 dark:border-slate-700">
+                                                                                    <MapPin className="h-3 w-3" />
+                                                                                    <span className="truncate max-w-[80px] font-medium">{stName}</span>
+                                                                                </div>
+                                                                            </div>
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                            </div>
                                                         </div>
-                                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
-                                                            {orderPanes.map(pane => {
-                                                                const pSt = ({
-                                                                    pending:            { label: "รอ",          dot: "bg-amber-400",  text: "text-amber-600" },
-                                                                    in_progress:        { label: "กำลังทำ",     dot: "bg-blue-500",   text: "text-blue-600" },
-                                                                    completed:          { label: "เสร็จ",       dot: "bg-green-500",  text: "text-green-600" },
-                                                                    awaiting_scan_out:  { label: "รอสแกนออก",  dot: "bg-amber-500",  text: "text-amber-600" },
-                                                                } as Record<string, { label: string; dot: string; text: string }>)[pane.currentStatus] ?? { label: pane.currentStatus, dot: "bg-gray-400", text: "text-gray-500" };
-                                                                const stName = (() => {
-                                                                    if (pane.currentStation === "queue") return "คิว";
-                                                                    if (pane.currentStation === "ready") return "พร้อมส่ง";
-                                                                    if (pane.currentStation === "defected") return "ชำรุด";
-                                                                    const st = stationMap.get(pane.currentStation);
-                                                                    return st?.name ?? pane.currentStation;
-                                                                })();
-                                                                return (
-                                                                    <button
-                                                                        key={pane._id}
-                                                                        type="button"
-                                                                        onClick={() => setQrPane(pane)}
-                                                                        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/30 border border-border/50 hover:bg-muted/60 hover:border-primary/30 transition-colors cursor-pointer text-left w-full"
-                                                                    >
-                                                                        <QrCode className="h-3 w-3 text-muted-foreground/40 shrink-0" />
-                                                                        <span className="font-mono text-[11px] font-bold shrink-0">{pane.paneNumber}</span>
-                                                                        <span className={`flex items-center gap-1 text-[10px] font-medium ${pSt.text}`}>
-                                                                            <span className={`h-1.5 w-1.5 rounded-full ${pSt.dot}`} />
-                                                                            {pSt.label}
-                                                                        </span>
-                                                                        {pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0) && (
-                                                                            <span className="text-[10px] text-muted-foreground">
-                                                                                {pane.dimensions.width}×{pane.dimensions.height}
-                                                                            </span>
-                                                                        )}
-                                                                        <span className="ml-auto text-[10px] text-muted-foreground truncate">{stName}</span>
-                                                                    </button>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    </div>
-                                                )}
+                                                    )}
                                                 </div>
                                             );
                                         })}
@@ -670,7 +687,7 @@ export default function ProductionPage() {
                                             const bp = bill.orders.flatMap(o => paneMap.get(o._id) ?? []);
                                             const bd = bp.filter(p => p.currentStatus === "completed").length;
                                             return (
-                                                <div className="sm:hidden px-4 py-2 flex gap-4 text-xs text-muted-foreground bg-muted/10">
+                                                <div className="sm:hidden px-5 py-2.5 flex gap-4 text-xs text-slate-400 bg-slate-50 dark:bg-slate-800/20">
                                                     <span>{bill.orders.length} ออเดอร์</span>
                                                     <span>{bp.length > 0 ? bp.length : bill.totalGlass} กระจก</span>
                                                     <span className="text-green-600">{bp.length > 0 ? bd : bill.completedOrders} เสร็จแล้ว</span>
@@ -686,27 +703,48 @@ export default function ProductionPage() {
             )}
             {/* Pagination */}
             {!loading && totalPages > 1 && (
-                <div className="flex items-center justify-center gap-2 pt-2">
-                    <Button
-                        variant="outline" size="sm"
-                        onClick={() => setPage(p => Math.max(1, p - 1))}
-                        disabled={page === 1}
-                    >
-                        ← ก่อนหน้า
-                    </Button>
-                    <span className="text-sm text-muted-foreground px-2">
+                <div className="p-5 sm:p-6 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
                         หน้า {page} / {totalPages}
-                        <span className="text-xs ml-1 opacity-60">({filtered.length} บิล)</span>
+                        <span className="ml-1 opacity-60">({filtered.length} บิล)</span>
                     </span>
-                    <Button
-                        variant="outline" size="sm"
-                        onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                        disabled={page === totalPages}
-                    >
-                        ถัดไป →
-                    </Button>
+                    <div className="flex gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={page === 1}
+                            onClick={() => setPage(p => Math.max(1, p - 1))}
+                            className="h-9 px-3 rounded-xl border-slate-200 dark:border-slate-800 font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                        >
+                            <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        <div className="flex gap-1">
+                            {[...Array(totalPages)].map((_, i) => (
+                                <button
+                                    key={i}
+                                    onClick={() => setPage(i + 1)}
+                                    className={`h-9 w-9 rounded-xl flex items-center justify-center text-xs font-bold transition-all ${page === i + 1
+                                        ? "bg-blue-600 dark:bg-[#E8601C] text-white shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20"
+                                        : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400"
+                                        }`}
+                                >
+                                    {i + 1}
+                                </button>
+                            ))}
+                        </div>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={page === totalPages}
+                            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                            className="h-9 px-3 rounded-xl border-slate-200 dark:border-slate-800 font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                        >
+                            <ChevronRight className="h-4 w-4" />
+                        </Button>
+                    </div>
                 </div>
             )}
+            </div>
         </div>
 
         {qrTarget && (
