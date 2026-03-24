@@ -130,3 +130,9 @@
     @apply font-prompt;
   }
 }
+
+@media (max-width: 640px) {
+  .station-responsive-grid {
+    grid-template-columns: 1fr !important;
+  }
+}

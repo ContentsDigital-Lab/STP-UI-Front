@@ -18,7 +18,9 @@ export function Column({ children }: ColumnProps) {
         <div
             ref={(ref) => { ref && connect(drag(ref)); }}
             className={`
-                flex flex-col gap-3 min-h-[80px] p-3 rounded-lg transition-all
+                flex flex-col gap-3 min-h-[80px] rounded-lg transition-all
+                min-w-0 overflow-hidden
+                ${isPreview ? "p-0 sm:p-2 lg:p-3" : "p-3"}
                 ${isPreview
                     ? ""
                     : `border-2 border-dashed ${selected ? "border-primary/60 bg-primary/5" : "border-muted-foreground/20 hover:border-muted-foreground/40"}`

@@ -257,22 +257,22 @@ export function StationHistory({
     // ── Shared scan input + error banner ────────────────────────────────
     const scanInputEl = (
         <>
-            <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                    <ScanBarcode className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none text-muted-foreground/50" />
+            <div className="flex items-center gap-1.5 sm:gap-2">
+                <div className="relative flex-1 min-w-0">
+                    <ScanBarcode className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none text-muted-foreground/50" />
                     <input
                         ref={inputRef}
                         type="text"
                         placeholder="สแกน QR เพื่อสแกนออก..."
                         onKeyDown={handleKeyDown}
                         autoComplete="off"
-                        className="w-full rounded-xl border bg-background pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 placeholder:text-muted-foreground/40"
+                        className="w-full rounded-xl border bg-background pl-9 sm:pl-10 pr-3 sm:pr-4 py-2 sm:py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 placeholder:text-muted-foreground/40"
                     />
                 </div>
                 <button
                     onClick={() => setShowCamera(true)}
                     title="สแกนด้วยกล้อง"
-                    className="shrink-0 rounded-xl border border-input bg-background px-3 py-2.5 hover:bg-muted transition-colors"
+                    className="shrink-0 rounded-xl border border-input bg-background px-2.5 sm:px-3 py-2 sm:py-2.5 hover:bg-muted transition-colors"
                 >
                     <Camera className="h-4 w-4 text-muted-foreground" />
                 </button>
@@ -395,16 +395,16 @@ export function StationHistory({
                                                         onClick={() => setQrPane(pane)}
                                                     >
                                                         <span className="h-2.5 w-2.5 rounded-full shrink-0 bg-amber-400" />
-                                                        <div className="flex-1 min-w-0">
-                                                            <div className="flex items-center gap-2 flex-wrap">
-                                                                <span className="font-mono text-xs font-bold text-foreground leading-none">
+                                                        <div className="flex-1 min-w-0 overflow-hidden">
+                                                            <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+                                                                <span className="font-mono text-xs font-bold text-foreground leading-none shrink-0">
                                                                     {pane.paneNumber}
                                                                 </span>
                                                                 {pane.glassTypeLabel && (
-                                                                    <span className="text-[10px] text-muted-foreground">{pane.glassTypeLabel}</span>
+                                                                    <span className="text-[10px] text-muted-foreground truncate">{pane.glassTypeLabel}</span>
                                                                 )}
                                                                 {pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0) && (
-                                                                    <span className="text-[10px] text-muted-foreground/60">
+                                                                    <span className="text-[10px] text-muted-foreground/60 shrink-0">
                                                                         {pane.dimensions.width}×{pane.dimensions.height}
                                                                         {pane.dimensions.thickness > 0 && ` (${pane.dimensions.thickness}mm)`}
                                                                     </span>
