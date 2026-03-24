@@ -854,11 +854,12 @@ export default function OrderRequestsPage() {
                                         return (
                                         <div className="space-y-2">
                                             {visible.map(pane => {
-                                                const stCfg = {
-                                                    pending:     { label: lang === 'th' ? 'รอ' : 'Pending',       dot: 'bg-amber-400' },
-                                                    in_progress: { label: lang === 'th' ? 'กำลังทำ' : 'In Progress', dot: 'bg-blue-500' },
-                                                    completed:   { label: lang === 'th' ? 'เสร็จ' : 'Done',        dot: 'bg-green-500' },
-                                                }[pane.currentStatus] ?? { label: pane.currentStatus, dot: 'bg-gray-400' };
+                                                const stCfg = ({
+                                                    pending:            { label: lang === 'th' ? 'รอ' : 'Pending',             dot: 'bg-amber-400' },
+                                                    in_progress:        { label: lang === 'th' ? 'กำลังทำ' : 'In Progress',     dot: 'bg-blue-500' },
+                                                    completed:          { label: lang === 'th' ? 'เสร็จ' : 'Done',             dot: 'bg-green-500' },
+                                                    awaiting_scan_out:  { label: lang === 'th' ? 'รอสแกนออก' : 'Awaiting Out', dot: 'bg-amber-500' },
+                                                } as Record<string, { label: string; dot: string }>)[pane.currentStatus] ?? { label: pane.currentStatus, dot: 'bg-gray-400' };
                                                 return (
                                                     <div key={pane._id} className="bg-white dark:bg-slate-900 px-4 py-3 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center gap-3">
                                                         <div className="flex-1 min-w-0">

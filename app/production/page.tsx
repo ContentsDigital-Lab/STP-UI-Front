@@ -623,11 +623,12 @@ export default function ProductionPage() {
                                                         </div>
                                                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
                                                             {orderPanes.map(pane => {
-                                                                const pSt = {
-                                                                    pending:     { label: "รอ",       dot: "bg-amber-400",  text: "text-amber-600" },
-                                                                    in_progress: { label: "กำลังทำ",  dot: "bg-blue-500",   text: "text-blue-600" },
-                                                                    completed:   { label: "เสร็จ",    dot: "bg-green-500",  text: "text-green-600" },
-                                                                }[pane.currentStatus] ?? { label: pane.currentStatus, dot: "bg-gray-400", text: "text-gray-500" };
+                                                                const pSt = ({
+                                                                    pending:            { label: "รอ",          dot: "bg-amber-400",  text: "text-amber-600" },
+                                                                    in_progress:        { label: "กำลังทำ",     dot: "bg-blue-500",   text: "text-blue-600" },
+                                                                    completed:          { label: "เสร็จ",       dot: "bg-green-500",  text: "text-green-600" },
+                                                                    awaiting_scan_out:  { label: "รอสแกนออก",  dot: "bg-amber-500",  text: "text-amber-600" },
+                                                                } as Record<string, { label: string; dot: string; text: string }>)[pane.currentStatus] ?? { label: pane.currentStatus, dot: "bg-gray-400", text: "text-gray-500" };
                                                                 const stName = (() => {
                                                                     if (pane.currentStation === "queue") return "คิว";
                                                                     if (pane.currentStation === "ready") return "พร้อมส่ง";

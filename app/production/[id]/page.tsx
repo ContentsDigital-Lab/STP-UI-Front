@@ -483,11 +483,12 @@ export default function ProductionDetailPage() {
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                         {panes.map((pane) => {
-                            const stCfg = {
-                                pending:     { label: "รอ",       dot: "bg-amber-400",  text: "text-amber-600 dark:text-amber-400" },
-                                in_progress: { label: "กำลังทำ",  dot: "bg-blue-500",   text: "text-blue-600 dark:text-blue-400"   },
-                                completed:   { label: "เสร็จ",    dot: "bg-green-500",  text: "text-green-600 dark:text-green-400" },
-                            }[pane.currentStatus] ?? { label: pane.currentStatus, dot: "bg-gray-400", text: "text-gray-500" };
+                            const stCfg = ({
+                                pending:            { label: "รอ",          dot: "bg-amber-400",  text: "text-amber-600 dark:text-amber-400" },
+                                in_progress:        { label: "กำลังทำ",     dot: "bg-blue-500",   text: "text-blue-600 dark:text-blue-400"   },
+                                completed:          { label: "เสร็จ",       dot: "bg-green-500",  text: "text-green-600 dark:text-green-400" },
+                                awaiting_scan_out:  { label: "รอสแกนออก",  dot: "bg-amber-500",  text: "text-amber-600 dark:text-amber-400" },
+                            } as Record<string, { label: string; dot: string; text: string }>)[pane.currentStatus] ?? { label: pane.currentStatus, dot: "bg-gray-400", text: "text-gray-500" };
 
                             const stationName = (() => {
                                 if (pane.currentStation === "queue") return "คิว";
