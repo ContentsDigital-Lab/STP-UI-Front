@@ -141,8 +141,8 @@ export function WithdrawModal({ stationId, onClose }: WithdrawModalProps) {
             }
             setResult(res.data);
             setStep("success");
-        } catch {
-            setError("เกิดข้อผิดพลาด กรุณาลองอีกครั้ง");
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "เกิดข้อผิดพลาด กรุณาลองอีกครั้ง");
         } finally {
             setSubmitting(false);
         }
