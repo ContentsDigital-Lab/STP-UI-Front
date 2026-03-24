@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { panesApi } from "@/lib/api/panes";
 import { withdrawalsApi } from "@/lib/api/withdrawals";
 import { useWebSocket } from "@/lib/hooks/use-socket";
+import { useAuth } from "@/lib/auth/auth-context";
 import { Pane, Order, Material, Withdrawal } from "@/lib/api/types";
 import { CameraScanModal } from "@/components/stations/designer/blocks/CameraScanModal";
 
@@ -29,6 +30,7 @@ export function WithdrawModal({ stationId, onClose }: WithdrawModalProps) {
     const [result, setResult] = useState<Withdrawal | null>(null);
     const [showCamera, setShowCamera] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
+    const { user } = useAuth();
 
     useEffect(() => {
         inputRef.current?.focus();
@@ -99,6 +101,7 @@ export function WithdrawModal({ stationId, onClose }: WithdrawModalProps) {
                     quantity: 1,
                     stockType: "Raw",
                     pane: pane._id,
+                    withdrawnBy: user?._id,
                     notes: notes.trim() || undefined,
                 } as Parameters<typeof withdrawalsApi.create>[0]);
             } else {

@@ -257,7 +257,7 @@ export function StationHistory({
     // ── Shared scan input + error banner ────────────────────────────────
     const scanInputEl = (
         <>
-            <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="flex flex-col sm:flex-row gap-1.5 sm:gap-2">
                 <div className="relative flex-1 min-w-0">
                     <ScanBarcode className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none text-muted-foreground/50" />
                     <input
@@ -272,9 +272,10 @@ export function StationHistory({
                 <button
                     onClick={() => setShowCamera(true)}
                     title="สแกนด้วยกล้อง"
-                    className="shrink-0 rounded-xl border border-input bg-background px-2.5 sm:px-3 py-2 sm:py-2.5 hover:bg-muted transition-colors"
+                    className="shrink-0 rounded-xl bg-blue-600 hover:bg-blue-500 active:bg-blue-700 sm:bg-background sm:hover:bg-muted sm:border sm:border-input px-2.5 sm:px-3 py-2.5 transition-colors flex items-center justify-center gap-1.5 sm:w-auto"
                 >
-                    <Camera className="h-4 w-4 text-muted-foreground" />
+                    <Camera className="h-4 w-4 text-white sm:text-muted-foreground" />
+                    <span className="sm:hidden text-xs font-medium text-white">สแกนออกด้วยกล้อง</span>
                 </button>
             </div>
             {scanError && (

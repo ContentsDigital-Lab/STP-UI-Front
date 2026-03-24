@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { panesApi } from "@/lib/api/panes";
 import { claimsApi } from "@/lib/api/claims";
 import { useWebSocket } from "@/lib/hooks/use-socket";
+import { useAuth } from "@/lib/auth/auth-context";
 import { Pane, Order, Material, Claim } from "@/lib/api/types";
 import { CameraScanModal } from "@/components/stations/designer/blocks/CameraScanModal";
 
@@ -53,6 +54,7 @@ export function ClaimModal({ stationId, onClose }: ClaimModalProps) {
     const [showCamera,   setShowCamera]   = useState(false);
     const inputRef   = useRef<HTMLInputElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const { user } = useAuth();
 
     useEffect(() => { inputRef.current?.focus(); }, []);
 
@@ -127,6 +129,7 @@ export function ClaimModal({ stationId, onClose }: ClaimModalProps) {
                     source: "worker",
                     material: materialId,
                     description: description.trim(),
+                    reportedBy: user?._id,
                     pane: pane._id,
                     photos: photos.length ? photos : undefined,
                 } as Parameters<typeof claimsApi.createForOrder>[1]);
