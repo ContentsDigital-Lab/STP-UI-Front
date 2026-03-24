@@ -4,7 +4,6 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { PackageOpen, QrCode, CheckCircle2, AlertTriangle, Loader2, X, Layers, Package, Cpu, Camera, Boxes, MapPin, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { panesApi } from "@/lib/api/panes";
 import { withdrawalsApi } from "@/lib/api/withdrawals";
 import { inventoriesApi } from "@/lib/api/inventories";
@@ -37,7 +36,6 @@ function matSpecs(m: string | Material | undefined | null): string {
 export function WithdrawModal({ stationId, onClose }: WithdrawModalProps) {
     const [step, setStep] = useState<Step>("scan");
     const [paneNumber, setPaneNumber] = useState("");
-    const [notes, setNotes] = useState("");
     const [pane, setPane] = useState<Pane | null>(null);
     const [fetching, setFetching] = useState(false);
     const [submitting, setSubmitting] = useState(false);
@@ -135,7 +133,6 @@ export function WithdrawModal({ stationId, onClose }: WithdrawModalProps) {
                 stockType: selectedInv?.stockType ?? "Raw",
                 pane: pane._id,
                 inventory: selectedInv?._id,
-                notes: notes.trim() || undefined,
             } as Parameters<typeof withdrawalsApi.create>[0]);
 
             if (!res.success) {
@@ -154,7 +151,7 @@ export function WithdrawModal({ stationId, onClose }: WithdrawModalProps) {
     const reset = () => {
         setStep("scan");
         setPaneNumber("");
-        setNotes("");
+
         setPane(null);
         setError(null);
         setResult(null);
@@ -370,13 +367,6 @@ export function WithdrawModal({ stationId, onClose }: WithdrawModalProps) {
                                 )}
                             </div>
 
-                            <Textarea
-                                value={notes}
-                                onChange={e => setNotes(e.target.value)}
-                                placeholder="หมายเหตุ (ไม่บังคับ)"
-                                className="resize-none rounded-xl text-sm"
-                                rows={2}
-                            />
 
                             {error && (
                                 <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 px-3 py-2.5 rounded-xl border border-red-100 dark:border-red-900/30">
