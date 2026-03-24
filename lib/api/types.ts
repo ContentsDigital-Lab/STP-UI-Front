@@ -126,6 +126,8 @@ export interface Pane {
     qrCode: string;
     request?: string | OrderRequest;
     order?: string | Order;
+    material?: string | Material;
+    inventory?: string | Inventory;
     currentStation: PaneStation;
     currentStatus: "pending" | "in_progress" | "completed" | "awaiting_scan_out";
     routing: string[];
@@ -143,6 +145,26 @@ export interface Pane {
     createdAt: string;
     updatedAt: string;
 }
+
+export interface PaneLog {
+    _id: string;
+    pane: string | Pane;
+    order?: string | Order;
+    material?: string | Material;
+    worker?: string | Worker;
+    station: string;
+    action: "scan_in" | "start" | "complete";
+    completedAt?: string;
+    createdAt: string;
+    updatedAt: string;
+    // aliases added by backend mapper
+    paneId?: string | Pane;
+    orderId?: string | Order;
+}
+
+export type TimelineEvent =
+    | (MaterialLog & { logType: "material_log" })
+    | (PaneLog    & { logType: "pane_log" });
 
 export interface PaginatedResponse<T> {
     success: boolean;

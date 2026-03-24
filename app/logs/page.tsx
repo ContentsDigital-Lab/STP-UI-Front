@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { materialLogsApi } from "@/lib/api/material-logs";
-import { MaterialLog, Order, Material, Worker, Inventory } from "@/lib/api/types";
+import { productionLogsApi } from "@/lib/api/production-logs";
+import { MaterialLog, Order, Material, Worker, Inventory, PaneLog, TimelineEvent, Pane } from "@/lib/api/types";
 import { inventoriesApi } from "@/lib/api/inventories";
 import { workersApi } from "@/lib/api/workers";
 import { useLanguage } from "@/lib/i18n/language-context";
@@ -62,6 +63,10 @@ import {
     User,
     X,
     ArrowRightLeft,
+    Cpu,
+    CheckCircle2,
+    Circle,
+    Play,
 } from "lucide-react";
 
 const ITEMS_PER_PAGE = 10;
@@ -178,6 +183,11 @@ export default function MaterialLogsPage() {
     const [detailLogs, setDetailLogs] = useState<MaterialLog[]>([]);
     const [detailInventory, setDetailInventory] = useState<Inventory | null>(null);
 
+    // Timeline (merged MaterialLog + PaneLog)
+    const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
+    const [timelineLoading, setTimelineLoading] = useState(false);
+    const [selectedMatId, setSelectedMatId] = useState<string>("");
+
     const fetchLogs = useCallback(async () => {
         setIsLoading(true);
         try {
@@ -208,6 +218,17 @@ export default function MaterialLogsPage() {
             }
         }).catch(() => {});
     }, [fetchLogs]);
+
+    // Refresh timeline when a pane is scanned (pane:updated from "pane" room)
+    const selectedMatIdRef = useRef(selectedMatId);
+    useEffect(() => { selectedMatIdRef.current = selectedMatId; }, [selectedMatId]);
+    useWebSocket("pane", ["pane:updated"], useCallback(() => {
+        const mid = selectedMatIdRef.current;
+        if (!mid || !isDetailOpen) return;
+        productionLogsApi.getTimeline(mid)
+            .then(res => { if (res.success) setTimeline(res.data ?? []); })
+            .catch(() => {});
+    }, [isDetailOpen]));
 
     // WebSocket — subscribe to "log" room
     // Server emits only "log:updated" for all actions; payload.action = "created" | "updated" | "deleted"
@@ -246,13 +267,10 @@ export default function MaterialLogsPage() {
         const matId = getMaterialId(log);
         const hasInventoryRef = !!log.referenceId && !log.referenceType;
 
-        // Filter logs: by inventoryId (referenceId without referenceType) if available, else by materialId
         const filtered = allLogs
             .filter(l => {
                 if (getMaterialId(l) !== matId) return false;
-                if (hasInventoryRef) {
-                    return l.referenceId === log.referenceId && !l.referenceType;
-                }
+                if (hasInventoryRef) return l.referenceId === log.referenceId && !l.referenceType;
                 return !l.referenceId || !!l.referenceType;
             })
             .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -260,7 +278,17 @@ export default function MaterialLogsPage() {
         setSelectedLog(log);
         setDetailLogs(filtered);
         setDetailInventory(null);
+        setSelectedMatId(matId);
         setIsDetailOpen(true);
+
+        // Fetch timeline (MaterialLog + PaneLog merged)
+        if (matId) {
+            setTimelineLoading(true);
+            productionLogsApi.getTimeline(matId)
+                .then(res => { if (res.success) setTimeline(res.data ?? []); })
+                .catch(() => {})
+                .finally(() => setTimelineLoading(false));
+        }
 
         // Fetch current inventory location
         if (hasInventoryRef && log.referenceId) {
@@ -268,7 +296,6 @@ export default function MaterialLogsPage() {
                 .then(res => { if (res.success && res.data) setDetailInventory(res.data); })
                 .catch(() => {});
         } else {
-            // Fallback: fetch all inventories and find by materialId
             inventoriesApi.getAll()
                 .then(res => {
                     if (res.success && res.data) {
@@ -990,135 +1017,214 @@ export default function MaterialLogsPage() {
                             </div>
                         </div>
 
-                        {/* Timeline */}
+                        {/* Pane Position Summary */}
+                        {(() => {
+                            const paneLogs = timeline.filter(e => e.logType === "pane_log") as (PaneLog & { logType: "pane_log" })[];
+                            if (paneLogs.length === 0) return null;
+                            // Latest event per pane
+                            const byPane = new Map<string, typeof paneLogs[0]>();
+                            for (const e of paneLogs) {
+                                const pid = typeof e.pane === "object" ? (e.pane as Pane)._id : String(e.pane);
+                                if (!pid) continue;
+                                const existing = byPane.get(pid);
+                                if (!existing || new Date(e.createdAt) > new Date(existing.createdAt)) byPane.set(pid, e);
+                            }
+                            const panePositions = [...byPane.values()];
+                            return (
+                                <div className="px-7 py-5 border-b border-slate-100 dark:border-slate-800">
+                                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-3">
+                                        {lang === "th" ? `กระจกที่ตัดจากวัสดุนี้ (${panePositions.length} ชิ้น)` : `Panes cut from this material (${panePositions.length})`}
+                                    </p>
+                                    <div className="flex flex-col gap-2">
+                                        {panePositions.map(e => {
+                                            const pane = typeof e.pane === "object" ? e.pane as Pane : null;
+                                            const order = typeof e.order === "object" ? e.order as Order : null;
+                                            const worker = typeof e.worker === "object" ? e.worker as Worker : null;
+                                            const statusCfg = {
+                                                scan_in:  { label: lang === "th" ? "เข้าสถานี" : "At station", cls: "bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-950/30 dark:text-blue-400", dot: "bg-blue-500" },
+                                                start:    { label: lang === "th" ? "กำลังทำ"  : "In progress", cls: "bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-950/30 dark:text-amber-400", dot: "bg-amber-500" },
+                                                complete: { label: lang === "th" ? "เสร็จสิ้น" : "Complete", cls: "bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400", dot: "bg-emerald-500" },
+                                            }[e.action] ?? { label: e.action, cls: "bg-slate-50 text-slate-600 border-slate-200", dot: "bg-slate-400" };
+                                            return (
+                                                <div key={e._id} className="flex items-center gap-2 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 px-3 py-2.5">
+                                                    <Cpu className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                                                    <span className="font-mono text-xs font-bold text-slate-700 dark:text-slate-300 shrink-0">{pane?.paneNumber ?? "—"}</span>
+                                                    <ChevronRight className="h-3 w-3 text-slate-300 shrink-0" />
+                                                    <span className="text-xs text-slate-500 shrink-0">{e.station}</span>
+                                                    <span className={`ml-auto inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusCfg.cls}`}>
+                                                        <span className={`h-1.5 w-1.5 rounded-full ${statusCfg.dot}`} />
+                                                        {statusCfg.label}
+                                                    </span>
+                                                    {order && (
+                                                        <span className="text-[10px] font-mono font-bold text-[#1B4B9A] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 px-1.5 py-0.5 rounded border border-blue-100 dark:border-blue-900/40 shrink-0">
+                                                            #{(order._id ?? "").slice(-6).toUpperCase()}
+                                                        </span>
+                                                    )}
+                                                    {worker && (
+                                                        <span className="text-[10px] text-slate-400 shrink-0 flex items-center gap-0.5">
+                                                            <User className="h-3 w-3" />{worker.name ?? worker.username}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
+                        {/* Merged Timeline */}
                         <div className="px-7 py-5">
                             <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-5">
-                                {lang === "th" ? "ไทม์ไลน์การเคลื่อนไหว" : "Movement Timeline"}
+                                {lang === "th" ? "ไทม์ไลน์ทั้งหมด" : "Full Timeline"}
                                 <span className="ml-2 normal-case font-bold text-slate-300 dark:text-slate-600">
-                                    ({lang === "th" ? "ล่าสุดขึ้นก่อน" : "newest first"})
+                                    ({lang === "th" ? "เก่าสุดขึ้นก่อน" : "oldest first"})
                                 </span>
                             </p>
 
-                            {detailLogs.length === 0 ? (
+                            {timelineLoading ? (
+                                <div className="flex flex-col gap-4">
+                                    {[...Array(4)].map((_, i) => (
+                                        <div key={i} className="relative pl-7">
+                                            <div className="absolute left-0 top-1.5 w-3 h-3 rounded-full bg-slate-200 dark:bg-slate-700 animate-pulse" />
+                                            <div className="rounded-2xl border border-slate-100 dark:border-slate-800 p-4 space-y-2">
+                                                <div className="h-5 w-24 rounded-full bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                                                <div className="h-3.5 w-40 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                                                <div className="flex gap-2 pt-2 border-t border-slate-50 dark:border-slate-800">
+                                                    <div className="h-6 w-16 rounded-lg bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                                                    <div className="h-6 w-20 rounded-lg bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : timeline.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center py-16 text-slate-400 dark:text-slate-600">
                                     <History className="h-10 w-10 mb-3 opacity-20" />
                                     <p className="font-bold text-sm">{lang === "th" ? "ไม่พบประวัติ" : "No history found"}</p>
                                 </div>
                             ) : (
                                 <div className="relative">
-                                    {/* Vertical line */}
                                     <div className="absolute left-[5px] top-2 bottom-2 w-0.5 bg-slate-100 dark:bg-slate-800" />
-
                                     <div className="flex flex-col gap-0">
-                                        {detailLogs.map((log, idx) => {
-                                            const workerName = resolveWorkerName(log.worker, workerMap);
-                                            const workerRole = typeof log.worker === 'object' && log.worker ? (log.worker as Worker).role : workerMap.get(String(log.worker ?? ''))?.role;
-                                            const orderId = log.order
-                                                ? (typeof log.order === "object" && log.order !== null
-                                                    ? ((log.order as Order)._id ?? "")
-                                                    : String(log.order))
-                                                : null;
-                                            const stockType = log.stockType ?? (log.referenceId && !log.referenceType ? invMap.get(log.referenceId)?.stockType : undefined);
-                                            const moveLocs = getMoveLocations(log, moveSourceIds, invMap, parentLogMap, logById);
-                                            const singleLoc = !moveLocs ? getLocation(log, invMap) : null;
+                                        {timeline.map(event => {
+                                            const isMat  = event.logType === "material_log";
+                                            const isPane = event.logType === "pane_log";
+                                            const matLog  = isMat  ? event as MaterialLog & { logType: "material_log" } : null;
+                                            const paneLog = isPane ? event as PaneLog    & { logType: "pane_log"     } : null;
 
-                                            return (
-                                                <div key={log._id} className={`relative pl-7 pb-6 ${idx === detailLogs.length - 1 ? "" : ""}`}>
-                                                    {/* Dot on timeline */}
-                                                    <div className="absolute left-0 top-1.5">
-                                                        {renderActionDot(log)}
-                                                    </div>
-
-                                                    {/* Card */}
-                                                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-4 hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
-                                                        {/* Top row */}
-                                                        <div className="flex items-start justify-between gap-3 mb-3">
-                                                            <div className="flex flex-col gap-1">
-                                                                {renderActionBadge(log)}
-                                                                <div className="flex items-center gap-1 text-[11px] text-slate-400 font-bold mt-1">
-                                                                    <Clock className="h-3 w-3" />
-                                                                    {new Date(log.createdAt).toLocaleString(
-                                                                        lang === "th" ? "th-TH" : "en-US",
-                                                                        { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }
-                                                                    )}
+                                            // ── Material Log card ──────────────────────────────
+                                            if (matLog) {
+                                                const workerName = resolveWorkerName(matLog.worker, workerMap);
+                                                const workerRole = typeof matLog.worker === 'object' && matLog.worker ? (matLog.worker as Worker).role : workerMap.get(String(matLog.worker ?? ''))?.role;
+                                                const ordId = matLog.order ? (typeof matLog.order === "object" ? ((matLog.order as Order)._id ?? "") : String(matLog.order)) : null;
+                                                const stockType = matLog.stockType ?? (matLog.referenceId && !matLog.referenceType ? invMap.get(matLog.referenceId)?.stockType : undefined);
+                                                const moveLocs = getMoveLocations(matLog, moveSourceIds, invMap, parentLogMap, logById);
+                                                const singleLoc = !moveLocs ? getLocation(matLog, invMap) : null;
+                                                return (
+                                                    <div key={matLog._id} className="relative pl-7 pb-6">
+                                                        <div className="absolute left-0 top-1.5">{renderActionDot(matLog)}</div>
+                                                        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-4 hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
+                                                            <div className="flex items-start justify-between gap-3 mb-3">
+                                                                <div className="flex flex-col gap-1">
+                                                                    {renderActionBadge(matLog)}
+                                                                    <div className="flex items-center gap-1 text-[11px] text-slate-400 font-bold mt-1">
+                                                                        <Clock className="h-3 w-3" />
+                                                                        {new Date(matLog.createdAt).toLocaleString(lang === "th" ? "th-TH" : "en-US", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                                                    </div>
                                                                 </div>
+                                                                <div className="text-right shrink-0">{renderQuantityChanged(matLog.quantityChanged)}</div>
                                                             </div>
-                                                            <div className="text-right shrink-0">
-                                                                {renderQuantityChanged(log.quantityChanged)}
+                                                            <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-50 dark:border-slate-800">
+                                                                {stockType && (
+                                                                    <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg border ${stockType === "Raw" ? "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700" : "bg-violet-50 text-violet-700 border-violet-100 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-900/40"}`}>{stockType}</span>
+                                                                )}
+                                                                {singleLoc && (
+                                                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-100 dark:border-slate-700">
+                                                                        <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
+                                                                        {singleLoc}
+                                                                    </span>
+                                                                )}
+                                                                {moveLocs && (
+                                                                    <div className="flex items-center gap-1 text-[11px] font-semibold text-violet-700 dark:text-violet-400 flex-wrap">
+                                                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border bg-violet-50 border-violet-100 dark:bg-violet-950/30 dark:border-violet-900/40"><svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>{lang === "th" ? "จาก" : "From"}: {moveLocs.from ?? '?'}</span>
+                                                                        <ChevronRight className="h-3 w-3 text-slate-400 shrink-0" />
+                                                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border bg-violet-50 border-violet-100 dark:bg-violet-950/30 dark:border-violet-900/40"><svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>{lang === "th" ? "ไปยัง" : "To"}: {moveLocs.to ?? '?'}</span>
+                                                                    </div>
+                                                                )}
+                                                                {workerName && (
+                                                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-100 dark:border-slate-700">
+                                                                        <User className="h-3 w-3" />{workerName}{workerRole ? ` · ${workerRole}` : ''}
+                                                                    </span>
+                                                                )}
+                                                                {ordId && (
+                                                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#1B4B9A] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 px-2.5 py-1 rounded-lg border border-blue-100 dark:border-blue-900/40">
+                                                                        <Package className="h-3 w-3" />{lang === "th" ? "ออเดอร์" : "Order"} #{ordId.slice(-6).toUpperCase()}
+                                                                    </span>
+                                                                )}
+                                                                {matLog.referenceType && matLog.referenceId && (
+                                                                    <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg border ${matLog.referenceType === "withdrawal" ? "text-orange-700 bg-orange-50 border-orange-100 dark:text-orange-400 dark:bg-orange-950/30 dark:border-orange-900/40" : "text-red-700 bg-red-50 border-red-100 dark:text-red-400 dark:bg-red-950/30 dark:border-red-900/40"}`}>
+                                                                        <Link2 className="h-3 w-3" />{REF_TYPE_LABELS[matLog.referenceType]?.[lang] ?? matLog.referenceType} #{matLog.referenceId.slice(-6).toUpperCase()}
+                                                                    </span>
+                                                                )}
                                                             </div>
                                                         </div>
+                                                    </div>
+                                                );
+                                            }
 
-                                                        {/* Details row */}
-                                                        <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-50 dark:border-slate-800">
-                                                            {/* Stock Type */}
-                                                            {stockType && (
-                                                                <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg border ${stockType === "Raw"
-                                                                    ? "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
-                                                                    : "bg-violet-50 text-violet-700 border-violet-100 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-900/40"}`}>
-                                                                    {stockType}
-                                                                </span>
-                                                            )}
-
-                                                            {/* Location — single */}
-                                                            {singleLoc && (
-                                                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-100 dark:border-slate-700">
-                                                                    <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
-                                                                    {singleLoc}
-                                                                </span>
-                                                            )}
-
-                                                            {/* Location — move from→to */}
-                                                            {moveLocs && (
-                                                                <div className="flex items-center gap-1 text-[11px] font-semibold text-violet-700 dark:text-violet-400 flex-wrap">
-                                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border bg-violet-50 border-violet-100 dark:bg-violet-950/30 dark:border-violet-900/40">
-                                                                        <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
-                                                                        {lang === "th" ? "จาก" : "From"}: {moveLocs.from ?? '?'}
+                                            // ── Pane Log card ──────────────────────────────────
+                                            if (paneLog) {
+                                                const pane   = typeof paneLog.pane   === "object" ? paneLog.pane   as Pane   : null;
+                                                const order  = typeof paneLog.order  === "object" ? paneLog.order  as Order  : null;
+                                                const worker = typeof paneLog.worker === "object" ? paneLog.worker as Worker : null;
+                                                const workerName = worker?.name ?? worker?.username ?? (typeof paneLog.worker === "string" ? workerMap.get(paneLog.worker)?.name : null) ?? null;
+                                                const actionCfg = {
+                                                    scan_in:  { label: lang === "th" ? "เข้าสถานี"  : "Entered station", icon: <Circle   className="h-3 w-3" />, dot: "bg-blue-500",   cls: "bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/40"   },
+                                                    start:    { label: lang === "th" ? "เริ่มงาน"   : "Started work",    icon: <Play     className="h-3 w-3" />, dot: "bg-amber-500",  cls: "bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/40" },
+                                                    complete: { label: lang === "th" ? "เสร็จสิ้น" : "Completed",       icon: <CheckCircle2 className="h-3 w-3" />, dot: "bg-emerald-500", cls: "bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/40" },
+                                                }[paneLog.action];
+                                                return (
+                                                    <div key={paneLog._id} className="relative pl-7 pb-6">
+                                                        <div className={`absolute left-0 top-1.5 w-3 h-3 rounded-full ${actionCfg?.dot ?? "bg-slate-400"}`} />
+                                                        <div className="bg-indigo-50/40 dark:bg-indigo-950/10 rounded-2xl border border-indigo-100 dark:border-indigo-900/30 p-4 hover:border-indigo-200 dark:hover:border-indigo-800 transition-colors">
+                                                            <div className="flex items-start justify-between gap-3 mb-3">
+                                                                <div className="flex flex-col gap-1">
+                                                                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border ${actionCfg?.cls ?? ""}`}>
+                                                                        {actionCfg?.icon}
+                                                                        {actionCfg?.label ?? paneLog.action}
                                                                     </span>
-                                                                    <ChevronRight className="h-3 w-3 text-slate-400 shrink-0" />
-                                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border bg-violet-50 border-violet-100 dark:bg-violet-950/30 dark:border-violet-900/40">
-                                                                        <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
-                                                                        {lang === "th" ? "ไปยัง" : "To"}: {moveLocs.to ?? '?'}
-                                                                    </span>
+                                                                    <div className="flex items-center gap-1 text-[11px] text-slate-400 font-bold mt-1">
+                                                                        <Clock className="h-3 w-3" />
+                                                                        {new Date(paneLog.createdAt).toLocaleString(lang === "th" ? "th-TH" : "en-US", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                                                                    </div>
                                                                 </div>
-                                                            )}
-
-                                                            {/* Worker */}
-                                                            {workerName && (
-                                                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-100 dark:border-slate-700">
-                                                                    <User className="h-3 w-3" />
-                                                                    {workerName}{workerRole ? ` · ${workerRole}` : ''}
+                                                                <div className="flex items-center gap-1 shrink-0">
+                                                                    <Cpu className="h-3.5 w-3.5 text-indigo-400" />
+                                                                    <span className="font-mono text-xs font-bold text-indigo-700 dark:text-indigo-300">{pane?.paneNumber ?? "—"}</span>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex flex-wrap gap-2 pt-2 border-t border-indigo-100/50 dark:border-indigo-900/20">
+                                                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
+                                                                    <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+                                                                    {paneLog.station}
                                                                 </span>
-                                                            )}
-
-                                                            {/* Order */}
-                                                            {orderId && (
-                                                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#1B4B9A] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 px-2.5 py-1 rounded-lg border border-blue-100 dark:border-blue-900/40">
-                                                                    <Package className="h-3 w-3" />
-                                                                    {lang === "th" ? "ออเดอร์" : "Order"} #{orderId.slice(-6).toUpperCase()}
-                                                                </span>
-                                                            )}
-
-                                                            {/* Reference */}
-                                                            {log.referenceType && log.referenceId && (
-                                                                <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg border ${log.referenceType === "withdrawal"
-                                                                    ? "text-orange-700 bg-orange-50 border-orange-100 dark:text-orange-400 dark:bg-orange-950/30 dark:border-orange-900/40"
-                                                                    : "text-red-700 bg-red-50 border-red-100 dark:text-red-400 dark:bg-red-950/30 dark:border-red-900/40"
-                                                                    }`}>
-                                                                    <Link2 className="h-3 w-3" />
-                                                                    {REF_TYPE_LABELS[log.referenceType]?.[lang] ?? log.referenceType} #{log.referenceId.slice(-6).toUpperCase()}
-                                                                </span>
-                                                            )}
-
-                                                            {/* Empty state */}
-                                                            {!stockType && !singleLoc && !moveLocs && !workerName && !orderId && !log.referenceType && (
-                                                                <span className="text-[11px] text-slate-300 dark:text-slate-700 font-medium italic">
-                                                                    {lang === "th" ? "ไม่มีข้อมูลเพิ่มเติม" : "No additional info"}
-                                                                </span>
-                                                            )}
+                                                                {order && (
+                                                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#1B4B9A] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 px-2.5 py-1 rounded-lg border border-blue-100 dark:border-blue-900/40">
+                                                                        <Package className="h-3 w-3" />{lang === "th" ? "ออเดอร์" : "Order"} #{(order._id ?? "").slice(-6).toUpperCase()}
+                                                                    </span>
+                                                                )}
+                                                                {workerName && (
+                                                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
+                                                                        <User className="h-3 w-3" />{workerName}
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                </div>
-                                            );
+                                                );
+                                            }
+                                            return null;
                                         })}
                                     </div>
                                 </div>
