@@ -1,15 +1,15 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { PackageOpen, QrCode, CheckCircle2, AlertTriangle, Loader2, X, Layers, Package, Cpu, Camera } from "lucide-react";
+import { PackageOpen, QrCode, CheckCircle2, AlertTriangle, Loader2, X, Layers, Package, Cpu, Camera, Boxes, MapPin, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { panesApi } from "@/lib/api/panes";
 import { withdrawalsApi } from "@/lib/api/withdrawals";
+import { inventoriesApi } from "@/lib/api/inventories";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { useAuth } from "@/lib/auth/auth-context";
-import { Pane, Order, Material, Withdrawal } from "@/lib/api/types";
+import { Pane, Order, Material, Inventory, Withdrawal } from "@/lib/api/types";
 import { CameraScanModal } from "@/components/stations/designer/blocks/CameraScanModal";
 
 interface WithdrawModalProps {
@@ -19,30 +19,67 @@ interface WithdrawModalProps {
 
 type Step = "scan" | "confirm" | "success";
 
+// Extract material ID from string | Material
+function matId(m: string | Material | undefined | null): string | null {
+    if (!m) return null;
+    if (typeof m === "object") return m._id;
+    return m;
+}
+
+// Material specs label for display
+function matSpecs(m: string | Material | undefined | null): string {
+    if (!m || typeof m !== "object") return "";
+    const s = m.specDetails ?? {};
+    return [s.glassType, s.thickness ? `${s.thickness}mm` : null, s.color]
+        .filter(Boolean).join(" • ");
+}
+
 export function WithdrawModal({ stationId, onClose }: WithdrawModalProps) {
+    const { user } = useAuth();
     const [step, setStep] = useState<Step>("scan");
     const [paneNumber, setPaneNumber] = useState("");
-    const [notes, setNotes] = useState("");
     const [pane, setPane] = useState<Pane | null>(null);
     const [fetching, setFetching] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [result, setResult] = useState<Withdrawal | null>(null);
     const [showCamera, setShowCamera] = useState(false);
+
+    // Inventory matching state
+    const [matchingInvs, setMatchingInvs] = useState<Inventory[]>([]);
+    const [selectedInv, setSelectedInv] = useState<Inventory | null>(null);
+    const [loadingInv, setLoadingInv] = useState(false);
+
     const inputRef = useRef<HTMLInputElement>(null);
-    const { user } = useAuth();
 
-    useEffect(() => {
-        inputRef.current?.focus();
-    }, []);
+    useEffect(() => { inputRef.current?.focus(); }, []);
 
-    // Listen for withdrawal:created to confirm real-time
-    useWebSocket("withdrawal", ["withdrawal:created"], useCallback((_event: string, data: unknown) => {
-        const payload = data as { data?: Withdrawal };
-        if (!payload?.data) return;
-        // If matches our pane, update result (already shown from API response)
-        setResult(prev => prev ?? payload.data ?? null);
+    // Listen for withdrawal:updated — backend sends { action, data }
+    useWebSocket("withdrawal", ["withdrawal:updated"], useCallback((_event: string, data: unknown) => {
+        const payload = data as { action?: string; data?: Withdrawal };
+        if (payload?.action === "created" && payload.data) setResult(prev => prev ?? payload.data ?? null);
     }, []));
+
+    // Fetch inventories matching pane's material after pane lookup
+    const fetchMatchingInventory = useCallback(async (p: Pane) => {
+        setLoadingInv(true);
+        try {
+            const res = await inventoriesApi.getAll();
+            if (!res.success) return;
+            const pMatId = matId(p.material);
+            const matches = res.data
+                .filter(inv => matId(inv.material) === pMatId && inv.quantity > 0)
+                .sort((a, b) => {
+                    // Raw stock first, then highest quantity
+                    if (a.stockType !== b.stockType) return a.stockType === "Raw" ? -1 : 1;
+                    return b.quantity - a.quantity;
+                });
+            setMatchingInvs(matches);
+            setSelectedInv(matches[0] ?? null);
+        } finally {
+            setLoadingInv(false);
+        }
+    }, []);
 
     const lookupPane = async (value: string) => {
         const raw = value.trim().toUpperCase();
@@ -62,6 +99,7 @@ export function WithdrawModal({ stationId, onClose }: WithdrawModalProps) {
             }
             setPane(p);
             setStep("confirm");
+            fetchMatchingInventory(p);
         } catch {
             setError("เกิดข้อผิดพลาด กรุณาลองอีกครั้ง");
         } finally {
@@ -88,29 +126,17 @@ export function WithdrawModal({ stationId, onClose }: WithdrawModalProps) {
             const orderId = pane.order
                 ? (typeof pane.order === "object" ? (pane.order as Order)._id : String(pane.order))
                 : null;
-            const materialId = pane.material
-                ? (typeof pane.material === "object" ? (pane.material as Material)._id : String(pane.material))
-                : undefined;
+            const materialId = matId(pane.material);
 
-            let res;
-            if (orderId && materialId) {
-                // Use existing endpoint — works without backend changes
-                res = await withdrawalsApi.create({
-                    order: orderId,
-                    material: materialId,
-                    quantity: 1,
-                    stockType: "Raw",
-                    pane: pane._id,
-                    withdrawnBy: user?._id,
-                    notes: notes.trim() || undefined,
-                } as Parameters<typeof withdrawalsApi.create>[0]);
-            } else {
-                // Fallback: new endpoint (requires backend from-pane route)
-                res = await withdrawalsApi.createFromPane({
-                    paneNumber: pane.paneNumber,
-                    notes: notes.trim() || undefined,
-                });
-            }
+            const res = await withdrawalsApi.create({
+                order: orderId ?? undefined,
+                material: materialId ?? undefined,
+                withdrawnBy: user?._id,
+                quantity: 1,
+                stockType: selectedInv?.stockType ?? "Raw",
+                pane: pane._id,
+                inventory: selectedInv?._id,
+            } as Parameters<typeof withdrawalsApi.create>[0]);
 
             if (!res.success) {
                 setError(res.message ?? "ไม่สามารถสร้างรายการเบิกได้");
@@ -118,8 +144,8 @@ export function WithdrawModal({ stationId, onClose }: WithdrawModalProps) {
             }
             setResult(res.data);
             setStep("success");
-        } catch {
-            setError("เกิดข้อผิดพลาด กรุณาลองอีกครั้ง");
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "เกิดข้อผิดพลาด กรุณาลองอีกครั้ง");
         } finally {
             setSubmitting(false);
         }
@@ -128,16 +154,19 @@ export function WithdrawModal({ stationId, onClose }: WithdrawModalProps) {
     const reset = () => {
         setStep("scan");
         setPaneNumber("");
-        setNotes("");
+
         setPane(null);
         setError(null);
         setResult(null);
+        setMatchingInvs([]);
+        setSelectedInv(null);
         setTimeout(() => inputRef.current?.focus(), 50);
     };
 
     // Helpers
     const orderObj = pane?.order && typeof pane.order === "object" ? pane.order as Order : null;
     const materialObj = pane?.material && typeof pane.material === "object" ? pane.material as Material : null;
+    const invMaterialObj = (inv: Inventory) => typeof inv.material === "object" ? inv.material as Material : null;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
@@ -185,7 +214,6 @@ export function WithdrawModal({ stationId, onClose }: WithdrawModalProps) {
                                     className="font-mono font-bold text-sm h-10 uppercase rounded-xl flex-1"
                                     disabled={fetching}
                                 />
-                                {/* Camera scan — always enabled */}
                                 <Button
                                     variant="outline"
                                     onClick={() => setShowCamera(true)}
@@ -219,7 +247,7 @@ export function WithdrawModal({ stationId, onClose }: WithdrawModalProps) {
                     {step === "confirm" && pane && (
                         <>
                             {/* Pane info card */}
-                            <div className="rounded-2xl border bg-slate-50 dark:bg-slate-800/50 p-4 space-y-3">
+                            <div className="rounded-2xl border bg-slate-50 dark:bg-slate-800/50 p-4 space-y-2.5">
                                 <div className="flex items-center gap-2">
                                     <Cpu className="h-4 w-4 text-indigo-500 shrink-0" />
                                     <span className="font-mono font-bold text-base">{pane.paneNumber}</span>
@@ -235,6 +263,15 @@ export function WithdrawModal({ stationId, onClose }: WithdrawModalProps) {
                                     <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                                         <Layers className="h-3.5 w-3.5 shrink-0" />
                                         <span>{materialObj.name}</span>
+                                        {matSpecs(materialObj) && (
+                                            <span className="text-[11px] text-slate-400">{matSpecs(materialObj)}</span>
+                                        )}
+                                    </div>
+                                )}
+                                {pane.dimensions && (
+                                    <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                                        <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/></svg>
+                                        <span>{pane.dimensions.width} × {pane.dimensions.height} × {pane.dimensions.thickness} mm</span>
                                     </div>
                                 )}
                                 {orderObj && (
@@ -244,21 +281,95 @@ export function WithdrawModal({ stationId, onClose }: WithdrawModalProps) {
                                         {orderObj.code && <span className="text-[11px] font-mono text-slate-400">({orderObj.code})</span>}
                                     </div>
                                 )}
-                                {pane.currentStation && (
-                                    <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                                        <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-                                        <span>สถานีปัจจุบัน: <span className="font-semibold text-foreground">{pane.currentStation}</span></span>
+                            </div>
+
+                            {/* ── Inventory matching section ── */}
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <p className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">
+                                        <Boxes className="h-3 w-3" />
+                                        สต็อกที่จะตัด
+                                    </p>
+                                    {!loadingInv && (
+                                        <button
+                                            onClick={() => fetchMatchingInventory(pane)}
+                                            className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+                                        >
+                                            <RefreshCw className="h-2.5 w-2.5" />
+                                            รีเฟรช
+                                        </button>
+                                    )}
+                                </div>
+
+                                {loadingInv ? (
+                                    <div className="flex items-center gap-2 text-sm text-muted-foreground py-3 justify-center">
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                        กำลังโหลดสต็อก...
+                                    </div>
+                                ) : matchingInvs.length === 0 ? (
+                                    <div className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 px-3 py-2.5 rounded-xl border border-amber-100 dark:border-amber-900/30">
+                                        <AlertTriangle className="h-4 w-4 shrink-0" />
+                                        ไม่พบสต็อกวัสดุที่ตรงกัน — ยังสามารถเบิกต่อได้
+                                    </div>
+                                ) : (
+                                    <div className="space-y-1.5">
+                                        {matchingInvs.slice(0, 3).map(inv => {
+                                            const iMat = invMaterialObj(inv);
+                                            const isSelected = selectedInv?._id === inv._id;
+                                            return (
+                                                <button
+                                                    key={inv._id}
+                                                    onClick={() => setSelectedInv(inv)}
+                                                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-all ${
+                                                        isSelected
+                                                            ? "border-orange-400 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-600"
+                                                            : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 bg-slate-50 dark:bg-slate-800/50"
+                                                    }`}
+                                                >
+                                                    <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                                                        isSelected ? "border-orange-500" : "border-slate-300 dark:border-slate-600"
+                                                    }`}>
+                                                        {isSelected && <div className="h-2.5 w-2.5 rounded-full bg-orange-500" />}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-sm font-semibold text-foreground truncate">
+                                                                {iMat?.name ?? (typeof inv.material === "string" ? inv.material.slice(-6) : "—")}
+                                                            </span>
+                                                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
+                                                                inv.stockType === "Raw"
+                                                                    ? "bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400"
+                                                                    : "bg-purple-100 text-purple-700 dark:bg-purple-950/30 dark:text-purple-400"
+                                                            }`}>
+                                                                {inv.stockType === "Raw" ? "วัตถุดิบ" : "นำกลับมาใช้"}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                            {inv.location && (
+                                                                <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                                                    <MapPin className="h-2.5 w-2.5" />{inv.location}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <div className="shrink-0 text-right">
+                                                        <span className={`text-base font-bold ${inv.quantity <= 5 ? "text-amber-600" : "text-emerald-600 dark:text-emerald-400"}`}>
+                                                            {inv.quantity}
+                                                        </span>
+                                                        <span className="text-[10px] text-muted-foreground block">ชิ้น</span>
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                        {matchingInvs.length > 3 && (
+                                            <p className="text-[11px] text-muted-foreground text-center">
+                                                +{matchingInvs.length - 3} รายการอื่น
+                                            </p>
+                                        )}
                                     </div>
                                 )}
                             </div>
 
-                            <Textarea
-                                value={notes}
-                                onChange={e => setNotes(e.target.value)}
-                                placeholder="หมายเหตุ (ไม่บังคับ)"
-                                className="resize-none rounded-xl text-sm"
-                                rows={2}
-                            />
 
                             {error && (
                                 <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 px-3 py-2.5 rounded-xl border border-red-100 dark:border-red-900/30">
@@ -292,6 +403,12 @@ export function WithdrawModal({ stationId, onClose }: WithdrawModalProps) {
                             <div>
                                 <p className="font-bold text-base">เบิกกระจกสำเร็จ!</p>
                                 {pane && <p className="text-sm text-muted-foreground mt-1">กระจก <span className="font-mono font-bold">{pane.paneNumber}</span> ถูกเบิกแล้ว</p>}
+                                {selectedInv && (
+                                    <p className="text-[11px] text-muted-foreground mt-1">
+                                        ตัดสต็อก: {typeof selectedInv.material === "object" ? (selectedInv.material as Material).name : "—"}
+                                        {selectedInv.location ? ` (${selectedInv.location})` : ""}
+                                    </p>
+                                )}
                                 {result && <p className="text-[11px] text-muted-foreground mt-1">#{result._id.slice(-8).toUpperCase()}</p>}
                             </div>
                             <div className="flex gap-2 w-full">
