@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useCallback } from "react";
-import { ArrowLeft, LayoutTemplate, Settings2, Bell, Package, X, QrCode, UserCheck } from "lucide-react";
+import { ArrowLeft, LayoutTemplate, Settings2, Bell, Package, X, PackageOpen, FileWarning, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { getStationTemplate } from "@/lib/api/station-templates";
@@ -20,6 +20,8 @@ import { useWebSocket } from "@/lib/hooks/use-socket";
 import { useCheckinSocket } from "@/lib/hooks/use-checkin-socket";
 import { playNotificationSound } from "@/lib/notification-sounds";
 import { QRCodeSVG } from "qrcode.react";
+import { WithdrawModal } from "@/components/stations/WithdrawModal";
+import { ClaimModal } from "@/components/stations/ClaimModal";
 
 // ⚠️ Craft.js uses browser APIs — disable SSR
 const DesignerCanvas = dynamic(
@@ -93,7 +95,9 @@ export default function LiveStationPage() {
     const [noTemplate,   setNoTemplate]   = useState(false);
     const [orderData,    setOrderData]    = useState<Record<string, unknown> | null>(null);
     const [requestData,  setRequestData]  = useState<Record<string, unknown> | null>(null);
-    const [showCheckinQr, setShowCheckinQr] = useState(false);
+    const [showCheckinQr,   setShowCheckinQr]   = useState(false);
+    const [showWithdraw,    setShowWithdraw]    = useState(false);
+    const [showClaim,       setShowClaim]       = useState(false);
 
     // ── Track known orders at this station to detect new arrivals ─────────────
     const knownOrderIdsRef = useRef<Set<string>>(new Set());
@@ -255,20 +259,19 @@ export default function LiveStationPage() {
                 <Button
                     variant="outline"
                     size="sm"
-                    className="h-8 gap-1.5 text-xs"
-                    onClick={() => setShowCheckinQr(v => !v)}
+                    className="h-8 gap-1.5 text-xs border-orange-200 text-orange-700 hover:bg-orange-50 hover:border-orange-300 dark:border-orange-800 dark:text-orange-400 dark:hover:bg-orange-950/30"
+                    onClick={() => setShowWithdraw(true)}
                 >
-                    <UserCheck className="h-3.5 w-3.5" />
-                    เช็คอิน
+                    <PackageOpen className="h-3.5 w-3.5" />
+                    เบิก
                 </Button>
                 <Button
-                    variant="default"
                     size="sm"
-                    className="h-8 gap-1.5 text-xs"
-                    onClick={() => window.open(`/stations/${stationId}/scan`, "_blank")}
+                    className="h-8 gap-1.5 text-xs bg-red-600 hover:bg-red-700 text-white"
+                    onClick={() => setShowClaim(true)}
                 >
-                    <QrCode className="h-3.5 w-3.5" />
-                    สแกน Pane
+                    <FileWarning className="h-3.5 w-3.5" />
+                    เคลม
                 </Button>
             </div>
         </div>
@@ -374,6 +377,8 @@ export default function LiveStationPage() {
                 />
             </div>
             {checkinQrPopup}
+            {showWithdraw && <WithdrawModal stationId={stationId} onClose={() => setShowWithdraw(false)} />}
+            {showClaim    && <ClaimModal    stationId={stationId} onClose={() => setShowClaim(false)}    />}
         </div>
     );
 }

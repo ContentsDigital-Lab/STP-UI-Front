@@ -41,4 +41,15 @@ export const claimsApi = {
             body: JSON.stringify({ ids }),
         });
     },
+
+    createFromPane: async (data: {
+        paneNumber: string;
+        description: string;
+        photos?: string[];
+    }): Promise<ApiResponse<Claim>> => {
+        return fetchApi<ApiResponse<Claim>>("/claims/from-pane", {
+            method: "POST",
+            body: JSON.stringify(data),
+        });
+    },
 };

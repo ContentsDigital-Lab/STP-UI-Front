@@ -40,4 +40,14 @@ export const withdrawalsApi = {
             body: JSON.stringify({ ids }),
         });
     },
+
+    createFromPane: async (data: {
+        paneNumber: string;
+        notes?: string;
+    }): Promise<ApiResponse<Withdrawal>> => {
+        return fetchApi<ApiResponse<Withdrawal>>("/withdrawals/from-pane", {
+            method: "POST",
+            body: JSON.stringify(data),
+        });
+    },
 };

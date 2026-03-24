@@ -185,6 +185,7 @@ export interface Withdrawal {
     material: string | Material;
     quantity: number;
     stockType: "Raw" | "Reuse";
+    pane?: string | Pane;
     withdrawnDate: string;
     createdAt: string;
     updatedAt: string;
@@ -200,6 +201,8 @@ export interface Claim {
     decision?: "destroy" | "keep";
     reportedBy: string | Worker;
     approvedBy?: string | Worker;
+    pane?: string | Pane;
+    photos?: string[];
     claimDate?: string;
     createdAt: string;
     updatedAt: string;
