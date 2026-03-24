@@ -8,6 +8,7 @@ import { panesApi } from "@/lib/api/panes";
 import { withdrawalsApi } from "@/lib/api/withdrawals";
 import { inventoriesApi } from "@/lib/api/inventories";
 import { useWebSocket } from "@/lib/hooks/use-socket";
+import { useAuth } from "@/lib/auth/auth-context";
 import { Pane, Order, Material, Inventory, Withdrawal } from "@/lib/api/types";
 import { CameraScanModal } from "@/components/stations/designer/blocks/CameraScanModal";
 
@@ -34,6 +35,7 @@ function matSpecs(m: string | Material | undefined | null): string {
 }
 
 export function WithdrawModal({ stationId, onClose }: WithdrawModalProps) {
+    const { user } = useAuth();
     const [step, setStep] = useState<Step>("scan");
     const [paneNumber, setPaneNumber] = useState("");
     const [pane, setPane] = useState<Pane | null>(null);
@@ -126,17 +128,15 @@ export function WithdrawModal({ stationId, onClose }: WithdrawModalProps) {
                 : null;
             const materialId = matId(pane.material);
 
-            const payload = {
+            const res = await withdrawalsApi.create({
                 order: orderId ?? undefined,
                 material: materialId ?? undefined,
+                withdrawnBy: user?._id,
                 quantity: 1,
                 stockType: selectedInv?.stockType ?? "Raw",
                 pane: pane._id,
                 inventory: selectedInv?._id,
-            };
-            console.log("[WithdrawModal] payload:", JSON.stringify(payload));
-
-            const res = await withdrawalsApi.create(payload as Parameters<typeof withdrawalsApi.create>[0]);
+            } as Parameters<typeof withdrawalsApi.create>[0]);
 
             if (!res.success) {
                 setError(res.message ?? "ไม่สามารถสร้างรายการเบิกได้");
