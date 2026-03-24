@@ -185,13 +185,6 @@ export function StationHistory({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isPreview, stationId, stationName, maxRows, refreshCounter]);
 
-    // Poll every 5s as fallback in case WebSocket isn't connected yet
-    useEffect(() => {
-        if (!isPreview || (!stationId && !stationName)) return;
-        const id = setInterval(() => { fetchAwaiting(); }, 5000);
-        return () => clearInterval(id);
-    }, [isPreview, fetchAwaiting, stationId, stationName]);
-
     useWebSocket("pane", ["pane:updated"], () => {
         fetchAwaiting();
         loadHistory();
