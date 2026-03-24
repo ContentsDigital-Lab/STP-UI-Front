@@ -83,10 +83,32 @@ export function WithdrawModal({ stationId, onClose }: WithdrawModalProps) {
         setSubmitting(true);
         setError(null);
         try {
-            const res = await withdrawalsApi.createFromPane({
-                paneNumber: pane.paneNumber,
-                notes: notes.trim() || undefined,
-            });
+            const orderId = pane.order
+                ? (typeof pane.order === "object" ? (pane.order as Order)._id : String(pane.order))
+                : null;
+            const materialId = pane.material
+                ? (typeof pane.material === "object" ? (pane.material as Material)._id : String(pane.material))
+                : undefined;
+
+            let res;
+            if (orderId && materialId) {
+                // Use existing endpoint — works without backend changes
+                res = await withdrawalsApi.create({
+                    order: orderId,
+                    material: materialId,
+                    quantity: 1,
+                    stockType: "Raw",
+                    pane: pane._id,
+                    notes: notes.trim() || undefined,
+                } as Parameters<typeof withdrawalsApi.create>[0]);
+            } else {
+                // Fallback: new endpoint (requires backend from-pane route)
+                res = await withdrawalsApi.createFromPane({
+                    paneNumber: pane.paneNumber,
+                    notes: notes.trim() || undefined,
+                });
+            }
+
             if (!res.success) {
                 setError(res.message ?? "ไม่สามารถสร้างรายการเบิกได้");
                 return;

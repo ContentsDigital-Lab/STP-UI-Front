@@ -112,11 +112,33 @@ export function ClaimModal({ stationId, onClose }: ClaimModalProps) {
         setSubmitting(true);
         setSubmitError(null);
         try {
-            const res = await claimsApi.createFromPane({
-                paneNumber: pane.paneNumber,
-                description: description.trim(),
-                photos: photos.length ? photos : undefined,
-            });
+            // Resolve orderId from populated pane.order
+            const orderId = pane.order
+                ? (typeof pane.order === "object" ? (pane.order as Order)._id : String(pane.order))
+                : null;
+            const materialId = pane.material
+                ? (typeof pane.material === "object" ? (pane.material as Material)._id : String(pane.material))
+                : undefined;
+
+            let res;
+            if (orderId) {
+                // Use existing endpoint — works without backend changes
+                res = await claimsApi.createForOrder(orderId, {
+                    source: "worker",
+                    material: materialId,
+                    description: description.trim(),
+                    pane: pane._id,
+                    photos: photos.length ? photos : undefined,
+                } as Parameters<typeof claimsApi.createForOrder>[1]);
+            } else {
+                // Fallback: new endpoint (requires backend from-pane route)
+                res = await claimsApi.createFromPane({
+                    paneNumber: pane.paneNumber,
+                    description: description.trim(),
+                    photos: photos.length ? photos : undefined,
+                });
+            }
+
             if (!res.success) {
                 setSubmitError(res.message ?? "ไม่สามารถสร้างรายการเคลมได้");
                 return;
