@@ -4,7 +4,7 @@ import { useNode } from "@craftjs/core";
 import { useEffect, useState } from "react";
 import {
     ClipboardList, Package, CheckCircle2, AlertTriangle, XCircle,
-    ChevronDown, ChevronUp, RefreshCw, Rocket, Loader2,
+    ChevronDown, ChevronUp, RefreshCw, Rocket, Loader2, ShieldCheck,
 } from "lucide-react";
 import { QrCodeModal } from "@/components/qr/QrCodeModal";
 import { usePreview } from "../PreviewContext";
@@ -13,7 +13,7 @@ import { inventoriesApi } from "@/lib/api/inventories";
 import { ordersApi }       from "@/lib/api/orders";
 import { panesApi }        from "@/lib/api/panes";
 import { stationsApi }     from "@/lib/api/stations";
-import { Order, Inventory, Material, Station } from "@/lib/api/types";
+import { Order, Inventory, Material, Station, OrderRequest, Customer } from "@/lib/api/types";
 
 interface OrderReleasePanelProps {
     title?:          string;
@@ -36,6 +36,21 @@ function matSpecs(m: unknown) {
     return [s.glassType, s.thickness, s.color].filter(Boolean).join(" • ");
 }
 
+function resolveReq(r: unknown): OrderRequest | null {
+    if (!r || typeof r === "string") return null;
+    return r as OrderRequest;
+}
+function resolveCus(c: unknown): Customer | null {
+    if (!c || typeof c === "string") return null;
+    return c as Customer;
+}
+function cusName(c: unknown): string {
+    const obj = resolveCus(c);
+    if (obj) return obj.name;
+    if (typeof c === "string") return c.slice(-6).toUpperCase();
+    return "—";
+}
+
 function stockStatus(stock: number, required: number): "ok" | "low" | "out" {
     if (stock <= 0) return "out";
     if (stock < required) return "low";
@@ -48,6 +63,10 @@ const STOCK_ICON = {
     out: <XCircle       className="h-4 w-4 text-red-500 shrink-0" />,
 };
 const STOCK_TEXT = { ok: "text-green-600", low: "text-yellow-600", out: "text-red-600" };
+
+// The 4 fields a worker must confirm before releasing
+const CONFIRM_KEYS = ["customer", "quantity", "type", "price"] as const;
+type ConfirmKey = typeof CONFIRM_KEYS[number];
 
 const SAMPLE = [
     { id: "ORD-001", mat: "กระจกใส 6mm",  qty: 10, stock: 32, stations: ["ตัด", "ขัด"] },
@@ -64,18 +83,19 @@ export function OrderReleasePanel({
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
 
-    const [orders,      setOrders]      = useState<Order[]>([]);
-    const [inventories, setInventories] = useState<Inventory[]>([]);
-    const [stations,    setStations]    = useState<Station[]>([]);
-    const [loading,     setLoading]     = useState(false);
-    const [expanded,    setExpanded]    = useState<string | null>(null);
-    const [assignments, setAssignments] = useState<Record<string, string[]>>({});
-    const [releasing,   setReleasing]   = useState<string | null>(null);
-    const [qrTarget,    setQrTarget]    = useState<{ code: string; label: string; url: string } | null>(null);
+    const [orders,        setOrders]        = useState<Order[]>([]);
+    const [inventories,   setInventories]   = useState<Inventory[]>([]);
+    const [stations,      setStations]      = useState<Station[]>([]);
+    const [loading,       setLoading]       = useState(false);
+    const [expanded,      setExpanded]      = useState<string | null>(null);
+    const [assignments,   setAssignments]   = useState<Record<string, string[]>>({});
+    /** Which confirm checkboxes are ticked per order: orderId → Set<ConfirmKey> */
+    const [confirmations, setConfirmations] = useState<Record<string, Set<ConfirmKey>>>({});
+    const [releasing,     setReleasing]     = useState<string | null>(null);
+    const [qrTarget,      setQrTarget]      = useState<{ code: string; label: string; url: string } | null>(null);
 
     useEffect(() => { load(); }, [isPreview]);
 
-    // Real-time updates via WebSocket
     useWebSocket("order",     ["order:updated"],                         () => { load(); });
     useWebSocket("inventory", ["inventory:updated", "material:updated"], () => { load(); });
     useWebSocket("station",   ["station:updated"],                       () => { load(); });
@@ -92,7 +112,6 @@ export function OrderReleasePanel({
             ]);
 
             let list: Order[] = ordRes.success ? ordRes.data : [];
-            // Only show orders that haven't been released yet (no code = not released)
             list = list.filter(o => o.status !== "completed" && o.status !== "cancelled" && !o.code);
             list = list.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0)).slice(0, maxItems);
 
@@ -108,7 +127,6 @@ export function OrderReleasePanel({
         }
     };
 
-    // Sum all inventory for a given material ID
     const getStock = (mId: string) =>
         inventories
             .filter(inv => matId(inv.material) === mId)
@@ -120,12 +138,22 @@ export function OrderReleasePanel({
             return { ...prev, [ordId]: cur.includes(stId) ? cur.filter(s => s !== stId) : [...cur, stId] };
         });
 
+    const toggleConfirm = (ordId: string, key: ConfirmKey) =>
+        setConfirmations(prev => {
+            const cur = new Set(prev[ordId] ?? []);
+            if (cur.has(key)) cur.delete(key); else cur.add(key);
+            return { ...prev, [ordId]: cur };
+        });
+
+    const allConfirmed = (ordId: string) =>
+        CONFIRM_KEYS.every(k => confirmations[ordId]?.has(k));
+
     const releaseOrder = async (order: Order) => {
         setReleasing(order._id);
         try {
             const stationsToSave = assignments[order._id] ?? [];
 
-            // 1. Save station assignment first (combines บันทึกสถานี + ปล่อยงาน into one action)
+            // 1. Save station assignment first
             if (stationsToSave.length > 0) {
                 await ordersApi.update(order._id, { stations: stationsToSave });
             }
@@ -137,17 +165,15 @@ export function OrderReleasePanel({
             const mat = resolveMat(order.material);
             const mId = matId(order.material);
 
-            // Find best matching inventory slot for this material
             const matchingInv = inventories
                 .filter(inv => matId(inv.material) === mId && inv.quantity > 0)
                 .sort((a, b) => b.quantity - a.quantity)[0] ?? null;
 
-            // Build routing (IDs → names)
             const stationMap   = new Map(stations.map(s => [s._id, s.name]));
             const routingNames = stationsToSave.map(id => stationMap.get(id) ?? id);
             const firstStation = routingNames.length > 0 ? routingNames[0] : null;
 
-            // 3. Update existing panes with routing + move to first production station
+            // 3. Update / create panes
             const existingPanes = await panesApi.getAll({ order: order._id, limit: 100 }).catch(() => null);
             const panes = existingPanes?.success ? (existingPanes.data ?? []) : [];
 
@@ -158,14 +184,12 @@ export function OrderReleasePanel({
                             routing: routingNames,
                             currentStation: firstStation,
                             currentStatus: "pending",
-                            ...(mId && { material: mId }),
+                            ...(mId         && { material:  mId }),
                             ...(matchingInv && { inventory: matchingInv._id }),
                         }))
                     );
                 }
-                // If no routing assigned, panes stay at order_release — worker must assign stations first
             } else {
-                // No panes yet — create them now (fallback for orders without prior panes)
                 const qty  = Math.max(1, order.quantity ?? 1);
                 const spec = mat?.specDetails;
                 const panePayload = {
@@ -189,10 +213,10 @@ export function OrderReleasePanel({
             }
 
             // 4. Show QR
-            const cusName = typeof order.customer === "object" ? (order.customer as { name?: string }).name ?? "" : "";
+            const cName = cusName(order.customer);
             setQrTarget({
                 code:  res.data.code,
-                label: [mat?.name ?? "", cusName].filter(Boolean).join(" — "),
+                label: [mat?.name ?? "", cName].filter(Boolean).join(" — "),
                 url:   `${window.location.origin}/production/${order._id}`,
             });
             await load();
@@ -314,6 +338,33 @@ export function OrderReleasePanel({
                         const st     = showStockCheck ? stockStatus(stock, order.quantity) : "ok";
                         const isOpen = expanded === order._id;
                         const curSt  = assignments[order._id] ?? [];
+                        const confirmed = confirmations[order._id] ?? new Set<ConfirmKey>();
+                        const canRelease = allConfirmed(order._id) && curSt.length > 0;
+
+                        // ── Bill data from OrderRequest ────────────────────────
+                        const req        = resolveReq(order.request);
+                        const billCus    = req ? cusName(req.customer) : null;
+                        const billQty    = req?.details?.quantity ?? null;
+                        const billType   = req?.details?.type ?? null;
+                        const billPrice  = req?.details?.estimatedPrice ?? null;
+                        const billDeadline = req?.deadline ?? null;
+
+                        const ordCus    = cusName(order.customer);
+                        const ordQty    = order.quantity;
+                        const ordType   = mName;
+
+                        // Check fields: null = can't compare (no request data)
+                        const cusMismatch    = billCus  != null && billCus  !== ordCus;
+                        const qtyMismatch    = billQty  != null && billQty  !== ordQty;
+                        const typeMismatch   = billType != null && billType !== ordType;
+                        const hasMismatch    = cusMismatch || qtyMismatch || typeMismatch;
+
+                        const checks: { key: ConfirmKey; label: string; bill: string | null; sys: string | null; mismatch: boolean }[] = [
+                            { key: "customer", label: "ลูกค้า",        bill: billCus,                         sys: ordCus,        mismatch: cusMismatch  },
+                            { key: "quantity", label: "จำนวน",         bill: billQty != null ? `${billQty} ${mUnit}` : null, sys: `${ordQty} ${mUnit}`, mismatch: qtyMismatch  },
+                            { key: "type",     label: "ประเภทสินค้า",  bill: billType,                        sys: ordType,       mismatch: typeMismatch },
+                            { key: "price",    label: "ราคาประมาณ",   bill: billPrice != null ? `${billPrice.toLocaleString()} ฿` : null, sys: null, mismatch: false },
+                        ];
 
                         return (
                             <div key={order._id}>
@@ -323,12 +374,10 @@ export function OrderReleasePanel({
                                     className="w-full px-4 py-3 flex items-center gap-3 hover:bg-muted/20 text-left transition-colors"
                                     onClick={() => setExpanded(isOpen ? null : order._id)}
                                 >
-                                    {/* Priority */}
                                     <span className="shrink-0 w-6 h-6 rounded-full bg-muted text-[11px] font-bold flex items-center justify-center text-muted-foreground">
                                         {order.priority ?? "-"}
                                     </span>
 
-                                    {/* Material info */}
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-1.5">
                                             <span className="text-xs font-medium truncate">{mName}</span>
@@ -336,7 +385,7 @@ export function OrderReleasePanel({
                                         </div>
                                         <div className="flex items-center gap-2 mt-0.5">
                                             <span className="text-[11px] text-muted-foreground">
-                                                ต้องการ {order.quantity} {mUnit}
+                                                {cusName(order.customer)} · {order.quantity} {mUnit}
                                             </span>
                                             {showStockCheck && stock >= 0 && (
                                                 <span className={`text-[11px] font-medium ${STOCK_TEXT[st]}`}>
@@ -346,10 +395,15 @@ export function OrderReleasePanel({
                                         </div>
                                     </div>
 
-                                    {/* Stock icon */}
                                     {showStockCheck && STOCK_ICON[st]}
 
-                                    {/* Station count badge */}
+                                    {/* Mismatch warning badge */}
+                                    {hasMismatch && (
+                                        <span className="shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-[10px] font-semibold">
+                                            <AlertTriangle className="h-3 w-3" /> ข้อมูลไม่ตรง
+                                        </span>
+                                    )}
+
                                     <span className={`shrink-0 text-[10px] px-2 py-0.5 rounded-full font-medium ${
                                         curSt.length > 0
                                             ? "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300"
@@ -364,55 +418,180 @@ export function OrderReleasePanel({
                                     }
                                 </button>
 
-                                {/* Expanded: station picker */}
+                                {/* Expanded panel */}
                                 {isOpen && (
-                                    <div className="px-4 pb-4 pt-3 border-t border-border/30 bg-muted/10">
-                                        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2.5">
-                                            กำหนดสถานีที่ต้องผ่าน
-                                        </p>
-                                        {stations.length === 0 ? (
-                                            <p className="text-xs text-muted-foreground/60 italic">
-                                                ยังไม่มีสถานีในระบบ กรุณาสร้างสถานีก่อน
-                                            </p>
-                                        ) : (
-                                            <div className="flex flex-wrap gap-2">
-                                                {stations.map(st => {
-                                                    const active = curSt.includes(st._id);
+                                    <div className="px-4 pb-4 pt-3 border-t border-border/30 bg-muted/10 space-y-4">
+
+                                        {/* ── Section 1: Bill verification ── */}
+                                        <div>
+                                            <div className="flex items-center gap-1.5 mb-2">
+                                                <ShieldCheck className="h-3.5 w-3.5 text-slate-500" />
+                                                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                                                    ตรวจสอบบิล
+                                                </span>
+                                                {!req && (
+                                                    <span className="ml-auto text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                                        <AlertTriangle className="h-3 w-3" /> ไม่พบข้อมูลใบสั่ง
+                                                    </span>
+                                                )}
+                                                {req && billDeadline && (
+                                                    <span className="ml-auto text-[10px] text-muted-foreground">
+                                                        กำหนดส่ง: {new Date(billDeadline).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" })}
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            <div className="rounded-xl border border-border/60 overflow-hidden">
+                                                {/* Column headers */}
+                                                <div className="grid grid-cols-[1.5rem_4rem_1fr_1fr_1.5rem] items-center gap-2 px-3 py-1.5 bg-muted/40 border-b border-border/40">
+                                                    <div />
+                                                    <span className="text-[10px] font-semibold text-muted-foreground">รายการ</span>
+                                                    <span className="text-[10px] font-semibold text-muted-foreground">จากบิล / ใบสั่ง</span>
+                                                    <span className="text-[10px] font-semibold text-muted-foreground">ในระบบ</span>
+                                                    <div />
+                                                </div>
+
+                                                {checks.map(({ key, label, bill, sys, mismatch }) => {
+                                                    const isChecked = confirmed.has(key);
                                                     return (
-                                                        <button
-                                                            key={st._id}
-                                                            type="button"
-                                                            onClick={() => toggleStation(order._id, st._id)}
-                                                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
-                                                                active
-                                                                    ? "bg-violet-600 text-white border-violet-600"
-                                                                    : "bg-background text-foreground border-border hover:border-violet-400 hover:bg-violet-50 dark:hover:bg-violet-950/30"
+                                                        <label
+                                                            key={key}
+                                                            className={`grid grid-cols-[1.5rem_4rem_1fr_1fr_1.5rem] items-center gap-2 px-3 py-2.5 cursor-pointer transition-colors border-b border-border/30 last:border-0 ${
+                                                                isChecked
+                                                                    ? "bg-emerald-50/60 dark:bg-emerald-950/10"
+                                                                    : mismatch
+                                                                        ? "bg-red-50/50 dark:bg-red-950/10"
+                                                                        : "hover:bg-muted/20"
                                                             }`}
                                                         >
-                                                            {st.name}
-                                                        </button>
+                                                            {/* Checkbox */}
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={isChecked}
+                                                                onChange={() => toggleConfirm(order._id, key)}
+                                                                className="sr-only"
+                                                            />
+                                                            <div className={`h-4 w-4 rounded border-2 flex items-center justify-center transition-all shrink-0 ${
+                                                                isChecked
+                                                                    ? "bg-emerald-500 border-emerald-500"
+                                                                    : mismatch
+                                                                        ? "border-red-400"
+                                                                        : "border-slate-300 dark:border-slate-600"
+                                                            }`}>
+                                                                {isChecked && (
+                                                                    <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                                                    </svg>
+                                                                )}
+                                                            </div>
+
+                                                            {/* Field label */}
+                                                            <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 truncate">{label}</span>
+
+                                                            {/* Bill value */}
+                                                            <span className={`text-xs truncate ${bill == null ? "text-muted-foreground/40 italic" : "text-foreground"}`}>
+                                                                {bill ?? "ไม่มีข้อมูล"}
+                                                            </span>
+
+                                                            {/* System value */}
+                                                            <span className={`text-xs truncate ${
+                                                                sys == null
+                                                                    ? "text-muted-foreground/30"
+                                                                    : mismatch
+                                                                        ? "text-red-600 dark:text-red-400 font-semibold"
+                                                                        : "text-foreground"
+                                                            }`}>
+                                                                {sys ?? "—"}
+                                                            </span>
+
+                                                            {/* Match indicator */}
+                                                            <div className="flex justify-center">
+                                                                {mismatch
+                                                                    ? <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0" />
+                                                                    : bill != null && sys != null
+                                                                        ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                                                                        : null
+                                                                }
+                                                            </div>
+                                                        </label>
                                                     );
                                                 })}
                                             </div>
-                                        )}
 
-                                        <div className="flex items-center justify-between mt-3 gap-2">
-                                            {curSt.length === 0 && (
-                                                <span className="flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400 font-medium shrink-0">
-                                                    <AlertTriangle className="h-3.5 w-3.5" /> กรุณาเลือกสถานีก่อน
+                                            {/* Confirm-all shortcut */}
+                                            {!allConfirmed(order._id) && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setConfirmations(prev => ({
+                                                        ...prev,
+                                                        [order._id]: new Set(CONFIRM_KEYS),
+                                                    }))}
+                                                    className="mt-2 text-[11px] text-violet-600 dark:text-violet-400 hover:underline"
+                                                >
+                                                    ยืนยันทั้งหมดในครั้งเดียว →
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {/* ── Section 2: Station picker ── */}
+                                        <div>
+                                            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2.5">
+                                                กำหนดสถานีที่ต้องผ่าน
+                                            </p>
+                                            {stations.length === 0 ? (
+                                                <p className="text-xs text-muted-foreground/60 italic">
+                                                    ยังไม่มีสถานีในระบบ กรุณาสร้างสถานีก่อน
+                                                </p>
+                                            ) : (
+                                                <div className="flex flex-wrap gap-2">
+                                                    {stations.map(s => {
+                                                        const active = curSt.includes(s._id);
+                                                        return (
+                                                            <button
+                                                                key={s._id}
+                                                                type="button"
+                                                                onClick={() => toggleStation(order._id, s._id)}
+                                                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
+                                                                    active
+                                                                        ? "bg-violet-600 text-white border-violet-600"
+                                                                        : "bg-background text-foreground border-border hover:border-violet-400 hover:bg-violet-50 dark:hover:bg-violet-950/30"
+                                                                }`}
+                                                            >
+                                                                {s.name}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* ── Release button ── */}
+                                        <div className="flex items-center gap-2 pt-1">
+                                            {/* Blocking conditions shown inline */}
+                                            {!allConfirmed(order._id) && (
+                                                <span className="flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                                                    <AlertTriangle className="h-3.5 w-3.5" />
+                                                    ยืนยันบิลให้ครบก่อน ({confirmed.size}/{CONFIRM_KEYS.length})
                                                 </span>
                                             )}
-                                            <div className="ml-auto flex gap-2">
+                                            {allConfirmed(order._id) && curSt.length === 0 && (
+                                                <span className="flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                                                    <AlertTriangle className="h-3.5 w-3.5" />
+                                                    กรุณาเลือกสถานีก่อน
+                                                </span>
+                                            )}
+
+                                            <div className="ml-auto">
                                                 <button
                                                     type="button"
                                                     onClick={() => releaseOrder(order)}
-                                                    disabled={releasing === order._id || curSt.length === 0}
-                                                    title={curSt.length === 0 ? "เลือกสถานีก่อนปล่อยงาน" : undefined}
-                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-medium hover:bg-violet-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                                                    disabled={!canRelease || releasing === order._id}
+                                                    title={!canRelease ? "ต้องยืนยันบิลให้ครบและเลือกสถานีก่อน" : undefined}
+                                                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-violet-600 text-white text-xs font-semibold hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                                 >
                                                     {releasing === order._id
-                                                        ? <><Loader2 className="h-3 w-3 animate-spin" /> กำลังปล่อย...</>
-                                                        : <><Rocket className="h-3 w-3" /> ยืนยันและปล่อยงาน</>
+                                                        ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> กำลังปล่อย...</>
+                                                        : <><Rocket className="h-3.5 w-3.5" /> ยืนยันและปล่อยงาน</>
                                                     }
                                                 </button>
                                             </div>
