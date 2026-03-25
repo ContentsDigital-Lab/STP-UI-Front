@@ -70,15 +70,17 @@ function StationJourney({
 
     if (!stationIds.length) {
         return (
-            <div className="rounded-xl border-2 border-dashed border-muted-foreground/20 p-6 text-center">
-                <Factory className="h-8 w-8 mx-auto text-muted-foreground/20 mb-2" />
-                <p className="text-xs text-muted-foreground">ยังไม่ได้กำหนดสถานี</p>
+            <div className="rounded-3xl border border-dashed border-slate-300 dark:border-slate-800 p-8 flex flex-col items-center justify-center bg-slate-50/50 dark:bg-slate-900/30">
+                <div className="h-12 w-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-4">
+                    <Factory className="h-6 w-6 text-slate-400 dark:text-slate-500" />
+                </div>
+                <p className="text-sm font-bold text-slate-500 dark:text-slate-400">ยังไม่ได้กำหนดสถานี</p>
             </div>
         );
     }
 
     return (
-        <div className="space-y-1">
+        <div className="relative w-full">
             {stationIds.map((sid, idx) => {
                 const station  = stationMap.get(sid);
                 const colorId  = colorMap[sid] ?? station?.colorId ?? "sky";
@@ -86,53 +88,103 @@ function StationJourney({
                 const isPast   = isDone || idx < currentIdx;
                 const isCur    = !isDone && !isCancelled && idx === currentIdx;
                 const isFuture = !isDone && !isCancelled && idx > currentIdx;
+                const isFirst  = idx === 0;
+                const isLast   = idx === stationIds.length - 1;
 
                 return (
-                    <div key={sid} className="flex items-stretch gap-3">
-                        {/* Left: dot + line */}
-                        <div className="flex flex-col items-center w-6 shrink-0">
-                            {/* Connector line above */}
-                            <div className={`w-px flex-1 mb-1 ${idx === 0 ? "opacity-0" : isPast || isCur ? "bg-border" : "bg-border/30"}`} />
-                            {/* Dot */}
+                    <div key={sid} className="relative flex items-stretch gap-3 w-full">
+                        {/* Left: Timeline Container */}
+                        <div className="relative flex flex-col items-center justify-center shrink-0 w-10">
+                            {/* Top Line (from previous node) */}
+                            {!isFirst && (
+                                <div 
+                                    className={`absolute top-0 bottom-1/2 w-0.5 ${
+                                        isPast || isCur ? "bg-blue-300 dark:bg-orange-500/60" : "bg-slate-200 dark:bg-slate-800"
+                                    }`} 
+                                />
+                            )}
+                            {/* Bottom Line (to next node) */}
+                            {!isLast && (
+                                <div 
+                                    className={`absolute top-1/2 bottom-0 w-0.5 ${
+                                        isPast ? "bg-blue-300 dark:bg-orange-500/60" : "bg-slate-200 dark:bg-slate-800"
+                                    }`} 
+                                />
+                            )}
+                            
+                            {/* Node Dot - centered precisely */}
                             <div
-                                className={`rounded-full shrink-0 flex items-center justify-center transition-all ${
-                                    isCancelled ? "w-2.5 h-2.5 bg-muted" :
-                                    isCur       ? "w-4 h-4 ring-2 ring-offset-2 shadow-sm" :
-                                    isPast      ? "w-3 h-3" :
-                                                  "w-2.5 h-2.5 border-2 bg-background"
+                                className={`relative z-10 flex items-center justify-center shrink-0 ${
+                                    isCancelled ? "w-4 h-4 rounded-full bg-slate-300 dark:bg-slate-700" :
+                                    isCur       ? "w-6 h-6 rounded-full bg-white dark:bg-slate-900 ring-[3px] ring-blue-500 dark:ring-[#E8601C] ring-offset-[3px] ring-offset-white dark:ring-offset-slate-900" :
+                                    isPast      ? "w-5 h-5 rounded-full" :
+                                                  "w-3 h-3 rounded-full bg-slate-300 dark:bg-slate-700"
                                 }`}
                                 style={{
-                                    backgroundColor: isCancelled ? undefined : (isFuture ? undefined : color.swatch),
-                                    borderColor:     isFuture ? color.swatch : undefined,
-                                    ...(isCur ? { ringColor: color.swatch } : {}),
-                                    ...(isCur ? { boxShadow: `0 0 0 2px white, 0 0 0 4px ${color.swatch}` } : {}),
+                                    ...(isPast && !isCur && !isCancelled ? { backgroundColor: color.swatch } : {})
                                 }}
-                            />
-                            {/* Connector line below */}
-                            <div className={`w-px flex-1 mt-1 ${idx === stationIds.length - 1 ? "opacity-0" : isPast ? "bg-border" : "bg-border/30"}`} />
+                            >
+                                {isCur && (
+                                    <div className="h-2 w-2 rounded-full animate-pulse bg-blue-500 dark:bg-[#E8601C]" />
+                                )}
+                                {isPast && !isCur && !isCancelled && (
+                                    <CheckCheck className="h-2.5 w-2.5 text-white" />
+                                )}
+                            </div>
                         </div>
 
-                        {/* Right: station info */}
-                        <div className={`flex-1 py-1.5 min-w-0 ${idx === stationIds.length - 1 ? "" : ""}`}>
-                            <div className={`flex items-center gap-2 ${isCur ? "pb-1" : ""}`}>
-                                <span
-                                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium transition-all ${
-                                        isCancelled ? "bg-muted text-muted-foreground" :
-                                        isFuture    ? "bg-muted/40 text-muted-foreground/60" :
-                                                      color.cls
-                                    }`}
-                                >
-                                    {station?.name ?? sid}
-                                </span>
-                                {isCur && (
-                                    <span className="text-[10px] text-muted-foreground font-medium animate-pulse">← ปัจจุบัน</span>
-                                )}
-                                {isPast && !isDone && (
-                                    <CheckCheck className="h-3 w-3 text-green-500" />
-                                )}
-                                {isDone && (
-                                    <CheckCheck className="h-3 w-3 text-green-500" />
-                                )}
+                        {/* Right: Station Card */}
+                        <div className="flex-1 min-w-0 py-1.5">
+                            <div
+                                className={`rounded-xl p-3.5 border transition-all ${
+                                    isCur
+                                        ? "bg-white dark:bg-slate-900 shadow-md border-2 border-blue-500 dark:border-[#E8601C]"
+                                        : isPast
+                                            ? "bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800"
+                                            : "bg-slate-50 dark:bg-slate-800/20 border-slate-200 dark:border-slate-800"
+                                }`}
+                            >
+                                <div className="flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                        <div
+                                            className={`flex items-center justify-center p-2 rounded-lg shrink-0 ${
+                                                isCur ? "bg-blue-50 dark:bg-[#E8601C]/10 text-blue-600 dark:text-[#E8601C]" : "bg-slate-100 dark:bg-slate-800 text-slate-400"
+                                            }`}
+                                        >
+                                            <Factory className="h-4 w-4" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <span
+                                                className={`text-sm font-bold block truncate ${
+                                                    isCancelled ? "text-slate-400 line-through" :
+                                                    isFuture    ? "text-slate-500 dark:text-slate-400" :
+                                                                  "text-slate-800 dark:text-white"
+                                                }`}
+                                            >
+                                                {station?.name ?? sid}
+                                            </span>
+                                            {isCur && (
+                                                <div className="text-[11px] font-semibold mt-0.5 flex items-center gap-1 text-blue-600 dark:text-[#E8601C]">
+                                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                                    กำลังดำเนินการ...
+                                                </div>
+                                            )}
+                                            {isPast && !isCur && (
+                                                <div className="text-[11px] font-medium text-green-600 dark:text-green-400 mt-0.5 flex items-center gap-1">
+                                                    <CheckCheck className="h-3 w-3" />
+                                                    เสร็จแล้ว
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                    {isCur && (
+                                        <div className="flex items-center gap-1.5 px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-md border border-slate-200 dark:border-slate-700 shrink-0 relative">
+                                            <span className="h-1.5 w-1.5 rounded-full animate-ping absolute left-2 bg-blue-500 dark:bg-[#E8601C]" />
+                                            <span className="h-1.5 w-1.5 rounded-full relative bg-blue-500 dark:bg-[#E8601C]" />
+                                            <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase">Active</span>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -395,25 +447,25 @@ export default function ProductionDetailPage() {
 
                 {/* ── Right: station journey ───────────────────────────── */}
                 <div className="space-y-6">
-                    <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-200/20 dark:shadow-none p-6 sm:p-8 space-y-6">
-                        <div className="flex items-center justify-between">
+                    <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-200/20 dark:shadow-none p-6 sm:p-8 space-y-6 flex flex-col h-full overflow-hidden">
+                        <div className="flex items-center justify-between gap-4">
                             <h2 className="text-base font-bold flex items-center gap-2.5 text-slate-800 dark:text-slate-200">
-                                <div className="h-8 w-8 rounded-full bg-blue-50 dark:bg-[#E8601C]/10 flex items-center justify-center">
-                                    <Factory className="h-4 w-4 text-blue-600 dark:text-[#E8601C]" />
+                                <div className="h-8 w-8 rounded-full bg-blue-50 dark:bg-[#E8601C]/10 flex items-center justify-center text-blue-600 dark:text-[#E8601C]">
+                                    <Factory className="h-4 w-4" />
                                 </div>
                                 เส้นทางสถานีการผลิต
                             </h2>
                             {order.stations?.length > 0 && (
-                                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700">
+                                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700 whitespace-nowrap">
                                     {order.status === "completed"
-                                        ? `ผ่านทั้งหมด ${order.stations.length} สถานี`
+                                        ? `ผ่านแล้ว ${order.stations.length} สถานี`
                                         : `${(order.currentStationIndex ?? 0) + 1} / ${order.stations.length} สถานี`
                                     }
                                 </span>
                             )}
                         </div>
 
-                        <div className="overflow-y-auto max-h-72 pr-1">
+                        <div className="overflow-y-auto max-h-[400px] flex-1 relative hide-scrollbar px-2 -mx-2">
                             <StationJourney
                                 order={order}
                                 stationMap={stationMap}
@@ -422,17 +474,17 @@ export default function ProductionDetailPage() {
                         </div>
 
                         {order.status === "completed" && (
-                            <div className="flex items-center gap-2 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-3 py-2">
+                            <div className="flex items-center gap-2.5 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-4 py-3 shrink-0">
                                 <CheckCheck className="h-4 w-4 text-green-600 shrink-0" />
-                                <span className="text-sm text-green-700 dark:text-green-400 font-medium">
+                                <span className="text-sm text-green-700 dark:text-green-400 font-bold">
                                     คำสั่งผลิตนี้เสร็จสมบูรณ์แล้ว
                                 </span>
                             </div>
                         )}
 
                         {order.stations?.length > 0 && (
-                            <div className="pt-2 border-t">
-                                <p className="text-[11px] text-muted-foreground uppercase tracking-wide font-semibold mb-2">
+                            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 shrink-0">
+                                <p className="text-[11px] text-slate-400 dark:text-slate-500 uppercase tracking-wide font-semibold mb-2">
                                     สถานีทั้งหมด
                                 </p>
                                 <div className="flex flex-wrap gap-1.5">
@@ -445,16 +497,16 @@ export default function ProductionDetailPage() {
                                         return (
                                             <span
                                                 key={sid}
-                                                className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium border transition-all ${
-                                                    order.status === "cancelled" ? "bg-muted text-muted-foreground border-transparent opacity-40" :
-                                                    isCur   ? `${color.cls} border-current shadow-sm` :
-                                                    isDone  ? `${color.cls} border-transparent opacity-70` :
-                                                              "bg-muted/30 text-muted-foreground border-transparent opacity-50"
+                                                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium border transition-all ${
+                                                    order.status === "cancelled" ? "bg-slate-100 dark:bg-slate-800 text-slate-400 border-transparent opacity-50" :
+                                                    isCur   ? "border-blue-500 dark:border-[#E8601C] text-blue-600 dark:text-[#E8601C] bg-blue-50 dark:bg-[#E8601C]/10 shadow-sm" :
+                                                    isDone  ? `${color.cls} border-transparent opacity-75` :
+                                                              "bg-slate-50 dark:bg-slate-800/30 text-slate-400 border-transparent opacity-50"
                                                 }`}
                                             >
                                                 <span
-                                                    className="h-1.5 w-1.5 rounded-full shrink-0"
-                                                    style={{ backgroundColor: order.status === "cancelled" ? undefined : color.swatch }}
+                                                    className={`h-1.5 w-1.5 rounded-full shrink-0 ${isCur ? "bg-blue-600 dark:bg-[#E8601C]" : ""}`}
+                                                    style={(!isCur && order.status !== "cancelled") ? { backgroundColor: color.swatch } : {}}
                                                 />
                                                 {station?.name ?? sid}
                                             </span>
