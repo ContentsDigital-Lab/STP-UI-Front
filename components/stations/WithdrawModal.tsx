@@ -144,6 +144,8 @@ export function WithdrawModal({ stationId, onClose }: WithdrawModalProps) {
             }
             setResult(res.data);
             setStep("success");
+            // Link withdrawal ID back to the pane record
+            panesApi.update(pane._id, { withdrawal: res.data._id } as Parameters<typeof panesApi.update>[1]).catch(() => {/* non-critical */});
         } catch (e) {
             setError(e instanceof Error ? e.message : "เกิดข้อผิดพลาด กรุณาลองอีกครั้ง");
         } finally {

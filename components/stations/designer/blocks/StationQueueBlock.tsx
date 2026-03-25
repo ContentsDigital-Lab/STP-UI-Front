@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState, KeyboardEvent } from "react";
 import {
     ScanBarcode, Camera, CheckCircle2, XCircle, Loader2,
     Package, RotateCcw, ListChecks, MapPin,
-    ChevronDown, ChevronRight, Play, CheckCheck,
+    ChevronDown, ChevronRight, Play, CheckCheck, PackageOpen,
 } from "lucide-react";
 import { panesApi } from "@/lib/api/panes";
 import { Pane } from "@/lib/api/types";
@@ -283,6 +283,11 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
     // ── Live UI ───────────────────────────────────────────────────────────────
     const scanningCount = Object.values(actionLoading).filter(Boolean).length;
 
+    // Cut station: withdrawal must exist before worker can start
+    const isCutStation = Boolean(
+        stationName && /ตัด|cut/i.test(stationName)
+    );
+
     return (
         <div className="w-full space-y-3">
 
@@ -372,6 +377,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                         const isExpanded   = !collapsed.has(orderId); // default open
                         const startedCount = groupPanes.filter(p => (phases[p._id] ?? "confirmed") === "started").length;
                         const confirmedCount = groupPanes.length - startedCount;
+                        const withdrawnCount = isCutStation ? groupPanes.filter(p => p.withdrawal).length : groupPanes.length;
 
                         return (
                             <div key={orderId} className="rounded-xl border border-border overflow-hidden">
@@ -397,6 +403,16 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                     {confirmedCount > 0 && (
                                         <span className="px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[10px] font-semibold shrink-0">
                                             {confirmedCount} รอ
+                                        </span>
+                                    )}
+                                    {isCutStation && (
+                                        <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold shrink-0 ${
+                                            withdrawnCount === groupPanes.length
+                                                ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400"
+                                                : "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400"
+                                        }`}>
+                                            <PackageOpen className="h-2.5 w-2.5" />
+                                            เบิกแล้ว {withdrawnCount}/{groupPanes.length}
                                         </span>
                                     )}
                                     <span className="text-[10px] text-muted-foreground shrink-0">{groupPanes.length} ชิ้น</span>
@@ -439,6 +455,11 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                                                     {pane.dimensions.thickness > 0 && ` (${pane.dimensions.thickness}mm)`}
                                                                 </span>
                                                             )}
+                                                            {isCutStation && (
+                                                                pane.withdrawal
+                                                                    ? <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">เบิกแล้ว</span>
+                                                                    : <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-950/30 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800">ยังไม่เบิก</span>
+                                                            )}
                                                         </div>
                                                         <span className={`text-[10px] font-medium mt-0.5 block ${
                                                             phase === "started"
@@ -463,7 +484,8 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                                     ) : phase === "confirmed" ? (
                                                         <button
                                                             onClick={() => doAction(pane, "start")}
-                                                            disabled={isLoading}
+                                                            disabled={isLoading || (isCutStation && !pane.withdrawal)}
+                                                            title={isCutStation && !pane.withdrawal ? "ต้องเบิกกระจกก่อนเริ่มตัด" : undefined}
                                                             className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
                                                         >
                                                             {isLoading
