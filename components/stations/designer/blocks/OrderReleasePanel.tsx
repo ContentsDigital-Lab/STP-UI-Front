@@ -112,7 +112,7 @@ export function OrderReleasePanel({
             ]);
 
             let list: Order[] = ordRes.success ? ordRes.data : [];
-            list = list.filter(o => o.status !== "completed" && o.status !== "cancelled" && !o.code);
+            list = list.filter(o => o.status === "pending");
             list = list.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0)).slice(0, maxItems);
 
             setOrders(list);
@@ -152,28 +152,25 @@ export function OrderReleasePanel({
         setReleasing(order._id);
         try {
             const stationsToSave = assignments[order._id] ?? [];
-
-            // 1. Save station assignment first
-            if (stationsToSave.length > 0) {
-                await ordersApi.update(order._id, { stations: stationsToSave });
-            }
-
-            // 2. Release the order (sets order.code + status = in_progress)
-            const res = await ordersApi.release(order._id);
-            if (!res.success || !res.data.code) return;
-
             const mat = resolveMat(order.material);
             const mId = matId(order.material);
+
+            // 1. Save station assignment + mark order in_progress
+            await ordersApi.update(order._id, {
+                ...(stationsToSave.length > 0 && { stations: stationsToSave }),
+                status: "in_progress",
+            });
+
+            // 2. Build routing names
+            const stationMap   = new Map(stations.map(s => [s._id, s.name]));
+            const routingNames = stationsToSave.map(id => stationMap.get(id) ?? id);
+            const firstStation = routingNames.length > 0 ? routingNames[0] : null;
 
             const matchingInv = inventories
                 .filter(inv => matId(inv.material) === mId && inv.quantity > 0)
                 .sort((a, b) => b.quantity - a.quantity)[0] ?? null;
 
-            const stationMap   = new Map(stations.map(s => [s._id, s.name]));
-            const routingNames = stationsToSave.map(id => stationMap.get(id) ?? id);
-            const firstStation = routingNames.length > 0 ? routingNames[0] : null;
-
-            // 3. Update / create panes
+            // 3. Update / create panes — independent of release endpoint
             const existingPanes = await panesApi.getAll({ order: order._id, limit: 100 }).catch(() => null);
             const panes = existingPanes?.success ? (existingPanes.data ?? []) : [];
 
@@ -212,10 +209,13 @@ export function OrderReleasePanel({
                 );
             }
 
-            // 4. Show QR
+            // 4. Try release endpoint for QR code — fallback to orderNumber if unavailable
+            const releaseRes = await ordersApi.release(order._id).catch(() => null);
+            const qrCode = releaseRes?.data?.code ?? order.orderNumber ?? order._id.slice(-6).toUpperCase();
+
             const cName = cusName(order.customer);
             setQrTarget({
-                code:  res.data.code,
+                code:  qrCode,
                 label: [mat?.name ?? "", cName].filter(Boolean).join(" — "),
                 url:   `${window.location.origin}/production/${order._id}`,
             });

@@ -15,6 +15,8 @@ import { CameraScanModal } from "@/components/stations/designer/blocks/CameraSca
 interface WithdrawModalProps {
     stationId?: string;
     onClose: () => void;
+    /** Pre-fill a pane and skip the scan step entirely */
+    initialPane?: Pane;
 }
 
 type Step = "scan" | "confirm" | "success";
@@ -34,11 +36,11 @@ function matSpecs(m: string | Material | undefined | null): string {
         .filter(Boolean).join(" • ");
 }
 
-export function WithdrawModal({ stationId, onClose }: WithdrawModalProps) {
+export function WithdrawModal({ stationId, onClose, initialPane }: WithdrawModalProps) {
     const { user } = useAuth();
-    const [step, setStep] = useState<Step>("scan");
+    const [step, setStep] = useState<Step>(initialPane ? "confirm" : "scan");
     const [paneNumber, setPaneNumber] = useState("");
-    const [pane, setPane] = useState<Pane | null>(null);
+    const [pane, setPane] = useState<Pane | null>(initialPane ?? null);
     const [fetching, setFetching] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -52,7 +54,14 @@ export function WithdrawModal({ stationId, onClose }: WithdrawModalProps) {
 
     const inputRef = useRef<HTMLInputElement>(null);
 
-    useEffect(() => { inputRef.current?.focus(); }, []);
+    useEffect(() => {
+        if (initialPane) {
+            fetchMatchingInventory(initialPane);
+        } else {
+            inputRef.current?.focus();
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Listen for withdrawal:updated — backend sends { action, data }
     useWebSocket("withdrawal", ["withdrawal:updated"], useCallback((_event: string, data: unknown) => {

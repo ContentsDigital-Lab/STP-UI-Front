@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState, KeyboardEvent } from "react";
 import {
     ScanBarcode, Camera, CheckCircle2, XCircle, Loader2,
     Package, RotateCcw, ListChecks, MapPin,
-    ChevronDown, ChevronRight, Play, CheckCheck, PackageOpen,
+    ChevronDown, ChevronRight, Play, CheckCheck, PackageOpen, QrCode,
 } from "lucide-react";
 import { panesApi } from "@/lib/api/panes";
 import { Pane } from "@/lib/api/types";
@@ -14,6 +14,7 @@ import { usePreview } from "../PreviewContext";
 import { useStationContext } from "../StationContext";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { CameraScanModal } from "./CameraScanModal";
+import { QrCodeModal } from "@/components/qr/QrCodeModal";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface StationQueueBlockProps {
@@ -63,6 +64,8 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
     const [showCamera,    setShowCamera]    = useState(false);
     /** Set of orderId that are manually collapsed */
     const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+    /** Pane whose QR code is being displayed */
+    const [qrPane, setQrPane] = useState<Pane | null>(null);
 
     // ── Fetch in_progress panes at this station ───────────────────────────────
     const fetchPanes = useCallback(async () => {
@@ -470,6 +473,17 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                                         </span>
                                                     </div>
 
+                                                    {/* QR code button */}
+                                                    {pane.qrCode && (
+                                                        <button
+                                                            onClick={() => setQrPane(pane)}
+                                                            title="แสดง QR Code กระจก"
+                                                            className="shrink-0 p-1.5 rounded-lg border border-border hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                                                        >
+                                                            <QrCode className="h-3.5 w-3.5" />
+                                                        </button>
+                                                    )}
+
                                                     {/* Action button */}
                                                     {result === "success" ? (
                                                         <span className="shrink-0 flex items-center gap-1 text-emerald-600 dark:text-emerald-400 text-xs font-semibold animate-in fade-in">
@@ -525,6 +539,17 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                     onClose={() => setShowCamera(false)}
                 />
             )}
+
+            {/* QR code modal */}
+            {qrPane && (
+                <QrCodeModal
+                    code={qrPane.paneNumber}
+                    value={qrPane.qrCode}
+                    label={`กระจก ${qrPane.paneNumber}`}
+                    onClose={() => setQrPane(null)}
+                />
+            )}
+
         </div>
     );
 }
