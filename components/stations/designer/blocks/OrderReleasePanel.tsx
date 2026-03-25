@@ -4,7 +4,7 @@ import { useNode } from "@craftjs/core";
 import { useEffect, useState } from "react";
 import {
     ClipboardList, Package, CheckCircle2, AlertTriangle, XCircle,
-    ChevronDown, ChevronUp, RefreshCw, Save, QrCode, Rocket, Loader2,
+    ChevronDown, ChevronUp, RefreshCw, Rocket, Loader2,
 } from "lucide-react";
 import { QrCodeModal } from "@/components/qr/QrCodeModal";
 import { usePreview } from "../PreviewContext";
@@ -70,8 +70,6 @@ export function OrderReleasePanel({
     const [loading,     setLoading]     = useState(false);
     const [expanded,    setExpanded]    = useState<string | null>(null);
     const [assignments, setAssignments] = useState<Record<string, string[]>>({});
-    const [saving,      setSaving]      = useState<string | null>(null);
-    const [savedId,     setSavedId]     = useState<string | null>(null);
     const [releasing,   setReleasing]   = useState<string | null>(null);
     const [qrTarget,    setQrTarget]    = useState<{ code: string; label: string; url: string } | null>(null);
 
@@ -94,7 +92,8 @@ export function OrderReleasePanel({
             ]);
 
             let list: Order[] = ordRes.success ? ordRes.data : [];
-            list = list.filter(o => o.status !== "completed" && o.status !== "cancelled");
+            // Only show orders that haven't been released yet (no code = not released)
+            list = list.filter(o => o.status !== "completed" && o.status !== "cancelled" && !o.code);
             list = list.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0)).slice(0, maxItems);
 
             setOrders(list);
@@ -121,85 +120,82 @@ export function OrderReleasePanel({
             return { ...prev, [ordId]: cur.includes(stId) ? cur.filter(s => s !== stId) : [...cur, stId] };
         });
 
-    const saveAssignment = async (ordId: string) => {
-        setSaving(ordId);
-        try {
-            await ordersApi.update(ordId, { stations: assignments[ordId] });
-            setSavedId(ordId);
-            setTimeout(() => setSavedId(null), 2500);
-        } finally {
-            setSaving(null);
-        }
-    };
-
     const releaseOrder = async (order: Order) => {
         setReleasing(order._id);
         try {
-            const res = await ordersApi.release(order._id);
-            if (res.success && res.data.code) {
-                const routing = assignments[order._id] ?? [];
-                const mat = resolveMat(order.material);
-                const mId = matId(order.material);
+            const stationsToSave = assignments[order._id] ?? [];
 
-                // Find best matching inventory slot for this material
-                const matchingInv = inventories
-                    .filter(inv => matId(inv.material) === mId && inv.quantity > 0)
-                    .sort((a, b) => b.quantity - a.quantity)[0] ?? null;
-
-                // Update existing panes with routing, or create if none exist
-                const existingPanes = await panesApi.getAll({ order: order._id, limit: 100 }).catch(() => null);
-                const panes = existingPanes?.success ? (existingPanes.data ?? []) : [];
-
-                // Convert station IDs to names for pane routing
-                const stationMap = new Map(stations.map(s => [s._id, s.name]));
-                const routingNames = routing.map(id => stationMap.get(id) ?? id);
-                const firstStation = routingNames.length > 0 ? routingNames[0] : "Order_Reless";
-
-                if (panes.length > 0) {
-                    // Panes already exist (created at request time) — assign routing + move to first station
-                    if (routingNames.length > 0) {
-                        Promise.all(
-                            panes.map(p => panesApi.update(p._id, {
-                                routing: routingNames,
-                                currentStation: firstStation,
-                                currentStatus: "pending",
-                                ...(mId && { material: mId }),
-                                ...(matchingInv && { inventory: matchingInv._id }),
-                            }))
-                        ).catch(err => console.error("[OrderReleasePanel] Failed to update panes:", err));
-                    }
-                } else {
-                    // No panes yet — create them now as fallback
-                    const qty = Math.max(1, order.quantity ?? 1);
-                    const spec = mat?.specDetails;
-                    const panePayload = {
-                        order: order._id,
-                        currentStation: firstStation,
-                        currentStatus: "pending" as const,
-                        routing: routingNames.length > 0 ? routingNames : undefined,
-                        dimensions: {
-                            width: spec?.width ? parseFloat(spec.width) || 0 : 0,
-                            height: spec?.length ? parseFloat(spec.length) || 0 : 0,
-                            thickness: spec?.thickness ? parseFloat(spec.thickness) || 0 : 0,
-                        },
-                        glassType: mId || undefined,
-                        glassTypeLabel: matName(order.material) || undefined,
-                        ...(mId && { material: mId }),
-                        ...(matchingInv && { inventory: matchingInv._id }),
-                    };
-                    Promise.all(
-                        Array.from({ length: qty }, () => panesApi.create({ ...panePayload }))
-                    ).catch(err => console.error("[OrderReleasePanel] Failed to create panes:", err));
-                }
-
-                const cusName = typeof order.customer === "object" ? (order.customer as { name?: string }).name ?? "" : "";
-                setQrTarget({
-                    code:  res.data.code,
-                    label: [mat?.name ?? "", cusName].filter(Boolean).join(" — "),
-                    url:   `${window.location.origin}/production/${order._id}`,
-                });
-                await load();
+            // 1. Save station assignment first (combines บันทึกสถานี + ปล่อยงาน into one action)
+            if (stationsToSave.length > 0) {
+                await ordersApi.update(order._id, { stations: stationsToSave });
             }
+
+            // 2. Release the order (sets order.code + status = in_progress)
+            const res = await ordersApi.release(order._id);
+            if (!res.success || !res.data.code) return;
+
+            const mat = resolveMat(order.material);
+            const mId = matId(order.material);
+
+            // Find best matching inventory slot for this material
+            const matchingInv = inventories
+                .filter(inv => matId(inv.material) === mId && inv.quantity > 0)
+                .sort((a, b) => b.quantity - a.quantity)[0] ?? null;
+
+            // Build routing (IDs → names)
+            const stationMap   = new Map(stations.map(s => [s._id, s.name]));
+            const routingNames = stationsToSave.map(id => stationMap.get(id) ?? id);
+            const firstStation = routingNames.length > 0 ? routingNames[0] : null;
+
+            // 3. Update existing panes with routing + move to first production station
+            const existingPanes = await panesApi.getAll({ order: order._id, limit: 100 }).catch(() => null);
+            const panes = existingPanes?.success ? (existingPanes.data ?? []) : [];
+
+            if (panes.length > 0) {
+                if (firstStation) {
+                    await Promise.all(
+                        panes.map(p => panesApi.update(p._id, {
+                            routing: routingNames,
+                            currentStation: firstStation,
+                            currentStatus: "pending",
+                            ...(mId && { material: mId }),
+                            ...(matchingInv && { inventory: matchingInv._id }),
+                        }))
+                    );
+                }
+                // If no routing assigned, panes stay at order_release — worker must assign stations first
+            } else {
+                // No panes yet — create them now (fallback for orders without prior panes)
+                const qty  = Math.max(1, order.quantity ?? 1);
+                const spec = mat?.specDetails;
+                const panePayload = {
+                    order: order._id,
+                    currentStation: firstStation ?? "order_release",
+                    currentStatus: "pending" as const,
+                    routing: routingNames.length > 0 ? routingNames : undefined,
+                    dimensions: {
+                        width:     spec?.width     ? parseFloat(spec.width)     || 0 : 0,
+                        height:    spec?.length    ? parseFloat(spec.length)    || 0 : 0,
+                        thickness: spec?.thickness ? parseFloat(spec.thickness) || 0 : 0,
+                    },
+                    glassType:      mId || undefined,
+                    glassTypeLabel: matName(order.material) || undefined,
+                    ...(mId         && { material:  mId }),
+                    ...(matchingInv && { inventory: matchingInv._id }),
+                };
+                await Promise.all(
+                    Array.from({ length: qty }, () => panesApi.create({ ...panePayload }))
+                );
+            }
+
+            // 4. Show QR
+            const cusName = typeof order.customer === "object" ? (order.customer as { name?: string }).name ?? "" : "";
+            setQrTarget({
+                code:  res.data.code,
+                label: [mat?.name ?? "", cusName].filter(Boolean).join(" — "),
+                url:   `${window.location.origin}/production/${order._id}`,
+            });
+            await load();
         } finally {
             setReleasing(null);
         }
@@ -401,49 +397,24 @@ export function OrderReleasePanel({
                                         )}
 
                                         <div className="flex items-center justify-between mt-3 gap-2">
-                                            {savedId === order._id && (
-                                                <span className="flex items-center gap-1 text-[11px] text-green-600 font-medium shrink-0">
-                                                    <CheckCircle2 className="h-3.5 w-3.5" /> บันทึกแล้ว
+                                            {curSt.length === 0 && (
+                                                <span className="flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400 font-medium shrink-0">
+                                                    <AlertTriangle className="h-3.5 w-3.5" /> กรุณาเลือกสถานีก่อน
                                                 </span>
                                             )}
                                             <div className="ml-auto flex gap-2">
                                                 <button
                                                     type="button"
-                                                    onClick={() => saveAssignment(order._id)}
-                                                    disabled={saving === order._id}
-                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-violet-300 text-violet-700 dark:text-violet-300 text-xs font-medium hover:bg-violet-50 dark:hover:bg-violet-950/30 disabled:opacity-60 transition-colors"
+                                                    onClick={() => releaseOrder(order)}
+                                                    disabled={releasing === order._id || curSt.length === 0}
+                                                    title={curSt.length === 0 ? "เลือกสถานีก่อนปล่อยงาน" : undefined}
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-medium hover:bg-violet-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
                                                 >
-                                                    <Save className="h-3 w-3" />
-                                                    {saving === order._id ? "กำลังบันทึก..." : "บันทึกสถานี"}
+                                                    {releasing === order._id
+                                                        ? <><Loader2 className="h-3 w-3 animate-spin" /> กำลังปล่อย...</>
+                                                        : <><Rocket className="h-3 w-3" /> ยืนยันและปล่อยงาน</>
+                                                    }
                                                 </button>
-                                                {!order.code ? (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => releaseOrder(order)}
-                                                        disabled={releasing === order._id}
-                                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-medium hover:bg-violet-700 disabled:opacity-60 transition-colors"
-                                                    >
-                                                        <Rocket className="h-3 w-3" />
-                                                        {releasing === order._id ? "กำลังปล่อย..." : "ปล่อยงาน"}
-                                                    </button>
-                                                ) : (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            const mat = typeof order.material === "object" ? (order.material as { name?: string }).name ?? "" : "";
-                                                            const cus = typeof order.customer === "object" ? (order.customer as { name?: string }).name ?? "" : "";
-                                                            setQrTarget({
-                                                                code:  order.code!,
-                                                                label: [mat, cus].filter(Boolean).join(" — "),
-                                                                url:   `${window.location.origin}/production/${order._id}`,
-                                                            });
-                                                        }}
-                                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-medium hover:bg-green-700 transition-colors"
-                                                    >
-                                                        <QrCode className="h-3 w-3" />
-                                                        QR #{order.code}
-                                                    </button>
-                                                )}
                                             </div>
                                         </div>
                                     </div>
