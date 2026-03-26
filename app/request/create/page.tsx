@@ -263,17 +263,18 @@ export default function CreateBillPage() {
     // ── Auto-fill pricePerSqFt + grindingRate when glassType & thickness are set ──
     useEffect(() => {
         if (!ap.glassType || !ap.thickness) return;
-        const suggested = pricingSettings.glassPrices[ap.glassType]?.[ap.thickness];
-        if (!suggested) return;
-        // Only auto-fill if price is still 0 OR was previously auto-filled (not user-edited)
+        // User already manually edited the price — don't overwrite
         if (ap.pricePerSqFt !== 0 && !ap.priceAutoFilled) return;
+        // Try server settings first, fallback to DEFAULT_PRICING at leaf level
+        const suggested = pricingSettings.glassPrices[ap.glassType]?.[ap.thickness]
+            ?? DEFAULT_PRICING.glassPrices[ap.glassType]?.[ap.thickness];
+        if (!suggested) return;
         setPanes(prev => prev.map((p, i) =>
             i === activeTabRef.current
                 ? { ...p, pricePerSqFt: suggested.pricePerSqFt, grindingRate: suggested.grindingRate, priceAutoFilled: true }
                 : p
         ));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [ap.glassType, ap.thickness, pricingSettings]);
+    }, [ap.glassType, ap.thickness, ap.pricePerSqFt, ap.priceAutoFilled, pricingSettings]);
 
     // ── Sync computed price → estimatedPrice on active pane ──────────────────
     useEffect(() => {
@@ -1118,11 +1119,16 @@ export default function CreateBillPage() {
                                                             key={type}
                                                             type="button"
                                                             onClick={() => {
-                                                                const typeEntry = pricingSettings.glassPrices[type];
+                                                                const priceTable = Object.keys(pricingSettings.glassPrices[type] ?? {}).length > 0
+                                                                    ? pricingSettings.glassPrices
+                                                                    : DEFAULT_PRICING.glassPrices;
+                                                                const typeEntry = priceTable[type];
                                                                 const typeThicknesses = typeEntry && Object.keys(typeEntry).length > 0 ? Object.keys(typeEntry) : null;
                                                                 const currentThicknessValid = !typeThicknesses || typeThicknesses.includes(ap.thickness);
                                                                 const newThickness = currentThicknessValid ? ap.thickness : "";
-                                                                const suggested = newThickness ? pricingSettings.glassPrices[type]?.[newThickness] : null;
+                                                                const suggested = newThickness
+                                                                    ? (pricingSettings.glassPrices[type]?.[newThickness] ?? DEFAULT_PRICING.glassPrices[type]?.[newThickness])
+                                                                    : null;
                                                                 updatePane({
                                                                     glassType: type,
                                                                     thickness: newThickness,
@@ -1206,7 +1212,8 @@ export default function CreateBillPage() {
                                                                 key={t}
                                                                 type="button"
                                                                 onClick={() => {
-                                                                    const suggested = pricingSettings.glassPrices[ap.glassType]?.[t];
+                                                                    const suggested = pricingSettings.glassPrices[ap.glassType]?.[t]
+                                                                        ?? DEFAULT_PRICING.glassPrices[ap.glassType]?.[t];
                                                                     updatePane({
                                                                         thickness: t,
                                                                         ...(suggested ? { pricePerSqFt: suggested.pricePerSqFt, grindingRate: suggested.grindingRate, priceAutoFilled: true } : { pricePerSqFt: 0, grindingRate: 50, priceAutoFilled: false }),
