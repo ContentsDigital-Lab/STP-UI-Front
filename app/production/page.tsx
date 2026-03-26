@@ -556,22 +556,13 @@ export default function ProductionPage() {
                                                         </div>
                                                     </div>
 
-<<<<<<< HEAD
                                                     {/* Actions (Inline on mobile, Floating on Desktop) */}
                                                     <div className="flex sm:absolute sm:right-6 sm:top-1/2 sm:-translate-y-1/2 items-center justify-end gap-2 sm:gap-1 px-5 pb-4 sm:px-0 sm:pb-0 opacity-100 sm:opacity-0 sm:group-hover/order:opacity-100 transition-all sm:translate-x-2 sm:group-hover/order:translate-x-0 sm:bg-white/90 sm:dark:bg-slate-900/90 sm:backdrop-blur-md sm:shadow-lg sm:border sm:border-slate-200 sm:dark:border-slate-700 sm:rounded-xl sm:p-1 z-10 w-full sm:w-auto mt-[-8px] sm:mt-0">
-=======
-                                                    {/* Floating Actions on Hover */}
-                                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover/order:opacity-100 transition-all bg-white dark:bg-slate-900 shadow-sm border border-slate-200 dark:border-slate-700 rounded-lg p-0.5 z-10">
->>>>>>> origin/main
                                                         <button
                                                             type="button"
                                                             title="พิมพ์ใบงาน"
                                                             onClick={(e) => { e.stopPropagation(); router.push(`/production/${order._id}/print`); }}
-<<<<<<< HEAD
                                                             className="flex-1 sm:flex-none flex items-center justify-center p-2.5 sm:p-1.5 rounded-xl sm:rounded-lg text-slate-500 hover:text-blue-600 dark:hover:text-[#E8601C] bg-slate-50 hover:bg-blue-50 dark:bg-slate-800/50 dark:hover:bg-[#E8601C]/10 transition-colors border border-slate-200/50 dark:border-slate-700/50 sm:border-transparent sm:bg-transparent"
-=======
-                                                            className="p-1.5 rounded-md text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
->>>>>>> origin/main
                                                         >
                                                             <Printer className="h-3.5 w-3.5" />
                                                         </button>
@@ -587,11 +578,7 @@ export default function ProductionPage() {
                                                                         url:   `${window.location.origin}/production/${order._id}`,
                                                                     });
                                                                 }}
-<<<<<<< HEAD
                                                                 className="flex-1 sm:flex-none flex items-center justify-center p-2.5 sm:p-1.5 rounded-xl sm:rounded-lg text-slate-500 hover:text-blue-600 dark:hover:text-[#E8601C] bg-slate-50 hover:bg-blue-50 dark:bg-slate-800/50 dark:hover:bg-[#E8601C]/10 transition-colors border border-slate-200/50 dark:border-slate-700/50 sm:border-transparent sm:bg-transparent"
-=======
-                                                                className="p-1.5 rounded-md text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
->>>>>>> origin/main
                                                             >
                                                                 <QrCode className="h-3.5 w-3.5" />
                                                             </button>
@@ -600,11 +587,7 @@ export default function ProductionPage() {
                                                             type="button"
                                                             title="ดูรายละเอียด"
                                                             onClick={(e) => { e.stopPropagation(); router.push(`/production/${order._id}`); }}
-<<<<<<< HEAD
                                                             className="flex-1 sm:flex-none flex items-center justify-center p-2.5 sm:p-1.5 rounded-xl sm:rounded-lg text-white sm:text-slate-500 bg-blue-600 hover:bg-blue-700 sm:hover:bg-blue-50 sm:hover:text-blue-600 dark:bg-[#E8601C] dark:hover:bg-orange-600 sm:dark:hover:bg-[#E8601C]/10 sm:dark:hover:text-[#E8601C] sm:bg-transparent transition-colors sm:border-transparent cursor-pointer"
-=======
-                                                            className="p-1.5 rounded-md text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
->>>>>>> origin/main
                                                         >
                                                             <ArrowRight className="h-3.5 w-3.5" />
                                                         </button>

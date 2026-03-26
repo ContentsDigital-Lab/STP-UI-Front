@@ -271,21 +271,12 @@ export default function StationsPage() {
                     <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">สถานี</h1>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">สถานีการทำงานในกระบวนการผลิต</p>
                 </div>
-<<<<<<< HEAD
                 <div className="flex items-center gap-2 sm:gap-3">
                     <Button variant="outline" className="gap-2 text-xs sm:text-sm rounded-xl h-10 sm:h-11 px-4 font-bold border-slate-200 dark:border-slate-700" onClick={() => router.push("/stations/designer")}>
                         <Settings2 className="h-4 w-4" />
                         <span className="hidden sm:inline">จัดการ</span> Template
                     </Button>
                     <Button className="gap-2 text-xs sm:text-sm rounded-xl h-10 sm:h-11 px-5 font-bold bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0" onClick={() => setShowCreate(true)}>
-=======
-                <div className="flex items-center gap-2">
-                    <Button variant="outline" className="gap-2 text-sm rounded-xl h-10" onClick={() => router.push("/stations/designer")}>
-                        <Settings2 className="h-4 w-4" />
-                        <span className="hidden sm:inline">จัดการ</span> Template
-                    </Button>
-                    <Button className="gap-2 text-sm rounded-xl h-10 bg-blue-600 hover:bg-blue-700 text-white" onClick={() => setShowCreate(true)}>
->>>>>>> origin/main
                         <Plus className="h-4 w-4" />
                         สร้างสถานี
                     </Button>
@@ -311,39 +302,24 @@ export default function StationsPage() {
 
             {/* Station grid */}
             {stations.length > 0 && (
-<<<<<<< HEAD
                 <div className="grid grid-cols-1 gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-=======
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
->>>>>>> origin/main
                     {stations.map((station) => {
                         const color        = getColorOption(colorMap[station._id] ?? station.colorId);
                         const tmplId       = resolveTemplateId(station.templateId);
                         const templateName = tmplId ? tmplNames[tmplId] : undefined;
 
                         return (
-<<<<<<< HEAD
                             <div key={station._id} className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all p-5 sm:p-6 flex flex-col gap-4 group">
                                 {/* Name badge + actions */}
                                 <div className="flex items-start justify-between gap-2">
                                     <span className={`text-sm font-bold px-3 py-1.5 rounded-xl ${color.cls}`}>
-=======
-                            <div key={station._id} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 p-4 flex flex-col gap-3 group hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
-                                {/* Name badge + actions */}
-                                <div className="flex items-start justify-between gap-2">
-                                    <span className={`text-sm font-semibold px-2.5 py-1 rounded-lg ${color.cls}`}>
->>>>>>> origin/main
                                         {station.name}
                                     </span>
                                     <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                                         <button
                                             type="button"
                                             onClick={() => setEditing({ ...station, colorId: colorMap[station._id] ?? station.colorId ?? "sky" })}
-<<<<<<< HEAD
                                             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-=======
-                                            className="p-1.5 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
->>>>>>> origin/main
                                             title="แก้ไข"
                                         >
                                             <Pencil className="h-3.5 w-3.5" />
@@ -351,11 +327,7 @@ export default function StationsPage() {
                                         <button
                                             type="button"
                                             onClick={() => setDeleting(station)}
-<<<<<<< HEAD
                                             className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-=======
-                                            className="p-1.5 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
->>>>>>> origin/main
                                             title="ลบ"
                                         >
                                             <Trash2 className="h-3.5 w-3.5" />
@@ -366,7 +338,6 @@ export default function StationsPage() {
                                 {/* Template assignment */}
                                 <div className="flex-1">
                                     {loadingTmpl ? (
-<<<<<<< HEAD
                                         <div className="rounded-xl border border-slate-100 dark:border-slate-800 px-3 py-2 flex items-center gap-1.5">
                                             <Loader2 className="h-3 w-3 animate-spin text-slate-400" />
                                             <span className="text-xs text-slate-400 font-medium">กำลังโหลด...</span>
@@ -380,30 +351,13 @@ export default function StationsPage() {
                                         <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 px-3 py-2 text-center">
                                             <span className="text-xs text-slate-400 font-medium">ยังไม่ได้กำหนด template</span>
                                         </div>
-=======
-                                        <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                                            <Loader2 className="h-3 w-3 animate-spin" />
-                                            กำลังโหลด...
-                                        </div>
-                                    ) : templateName ? (
-                                        <div className="flex items-center gap-1.5">
-                                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                                            <span className="text-xs text-slate-600 dark:text-slate-400 font-medium truncate">{templateName}</span>
-                                        </div>
-                                    ) : (
-                                        <span className="text-xs text-slate-400 italic">ยังไม่ได้กำหนด template</span>
->>>>>>> origin/main
                                     )}
                                 </div>
 
                                 {/* Enter station button */}
                                 <Button
                                     size="sm"
-<<<<<<< HEAD
                                     className="w-full h-10 gap-1.5 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white shadow-md shadow-blue-500/15 dark:shadow-orange-500/15 border-0 transition-all"
-=======
-                                    className="w-full h-9 gap-1.5 text-xs rounded-lg bg-blue-600 hover:bg-blue-700 text-white"
->>>>>>> origin/main
                                     disabled={!tmplId}
                                     onClick={() => router.push(`/stations/${station._id}`)}
                                 >
@@ -419,21 +373,12 @@ export default function StationsPage() {
                     <button
                         type="button"
                         onClick={() => setShowCreate(true)}
-<<<<<<< HEAD
                         className="rounded-3xl border-2 border-dashed border-slate-300 dark:border-slate-700 p-5 sm:p-6 flex flex-col items-center justify-center gap-3 hover:border-blue-400 dark:hover:border-[#E8601C] hover:bg-blue-50/30 dark:hover:bg-[#E8601C]/5 transition-all min-h-[200px]"
                     >
                         <div className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800">
                             <Plus className="h-5 w-5 text-slate-400" />
                         </div>
                         <span className="text-sm text-slate-400 font-bold">สร้างสถานีใหม่</span>
-=======
-                        className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 p-4 flex flex-col items-center justify-center gap-2 hover:border-blue-300 dark:hover:border-blue-800 hover:bg-blue-50/50 dark:hover:bg-blue-500/5 transition-all min-h-[160px]"
-                    >
-                        <div className="h-9 w-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-                            <Plus className="h-4 w-4 text-slate-400" />
-                        </div>
-                        <span className="text-sm text-slate-400 font-medium">สร้างสถานีใหม่</span>
->>>>>>> origin/main
                     </button>
                 </div>
             )}
