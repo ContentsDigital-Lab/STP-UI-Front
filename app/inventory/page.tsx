@@ -972,7 +972,7 @@ export default function InventoryPage() {
                                         key={i}
                                         onClick={() => setCurrentPage(i + 1)}
                                         className={`h-9 w-9 rounded-xl flex items-center justify-center text-xs font-bold transition-all ${currentPage === i + 1
-                                            ? "bg-[#E8601C] text-white shadow-lg shadow-orange-500/20"
+                                            ? "bg-blue-600 dark:bg-[#E8601C] text-white shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20"
                                             : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500"
                                             }`}
                                     >

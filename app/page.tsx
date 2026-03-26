@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   TrendingUp,
   AlertTriangle,
@@ -14,7 +14,12 @@ import {
   ArrowRight,
   ChevronLeft,
   ChevronRight,
-  LayoutDashboard
+  LayoutDashboard,
+  ClipboardList,
+  Timer,
+  Users,
+  Zap,
+  BarChart3,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { Button } from "@/components/ui/button";
@@ -28,28 +33,98 @@ import {
   AreaChart,
   Area,
   XAxis,
-  YAxis
+  YAxis,
+  BarChart,
+  Bar,
+  Cell,
 } from 'recharts';
 import { useWebSocket } from "@/lib/hooks/use-socket";
+import { requestsApi } from "@/lib/api/requests";
+import { ordersApi } from "@/lib/api/orders";
+import { OrderRequest, Order } from "@/lib/api/types";
+
+// ── helpers ──
+function getDayLabel(date: Date) {
+  return date.toLocaleDateString("th-TH", { weekday: "short" });
+}
+function isSameDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
 
 export default function DashboardPage() {
   const { t } = useLanguage();
   const [isActivityOpen, setIsActivityOpen] = useState(true);
 
-  // WebSocket for real-time updates (v8 Socket.io + Rooms)
-  const dashboardEvents = [
-    'order:updated',
-    'inventory:updated',
-    'log:updated',
-    'request:updated',
-    'withdrawal:updated',
-    'claim:updated'
-  ];
+  // ── real data ──
+  const [allRequests, setAllRequests] = useState<OrderRequest[]>([]);
+  const [allOrders, setAllOrders] = useState<Order[]>([]);
+  const [dataLoaded, setDataLoaded] = useState(false);
 
+  const fetchLiveData = useCallback(async () => {
+    try {
+      const [rRes, oRes] = await Promise.all([requestsApi.getAll(), ordersApi.getAll()]);
+      if (rRes.success && rRes.data) setAllRequests(rRes.data);
+      if (oRes.success && oRes.data) setAllOrders(oRes.data);
+    } catch (e) { console.error(e); }
+    finally { setDataLoaded(true); }
+  }, []);
+  useEffect(() => { fetchLiveData(); }, [fetchLiveData]);
+
+  // WebSocket for real-time updates
+  const dashboardEvents = [
+    'order:updated', 'inventory:updated', 'log:updated',
+    'request:updated', 'withdrawal:updated', 'claim:updated'
+  ];
   useWebSocket('dashboard', dashboardEvents, (event: string) => {
-    console.log(`[Dashboard] Received ${event}, update signal received`);
-    // Ideally, specific fragments of the dashboard would refresh here.
+    console.log(`[Dashboard] Received ${event}, refreshing…`);
+    fetchLiveData();
   });
+
+  // ── Request Analytics ──
+  const requestAnalytics = useMemo(() => {
+    const now = new Date();
+
+    // 1) requests per day (last 7 days) for bar chart
+    const days: { label: string; count: number; date: Date }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now); d.setDate(d.getDate() - i);
+      days.push({ label: getDayLabel(d), count: 0, date: d });
+    }
+    allRequests.forEach(r => {
+      const rd = new Date(r.createdAt);
+      const slot = days.find(d => isSameDay(d.date, rd));
+      if (slot) slot.count++;
+    });
+
+    // 2) pending (no assignedTo)
+    const pending = allRequests.filter(r => !r.assignedTo).length;
+
+    // 3) approaching deadline (within 3 days)
+    const threeDays = new Date(now); threeDays.setDate(threeDays.getDate() + 3);
+    const approaching = allRequests.filter(r => {
+      if (!r.deadline) return false;
+      const dl = new Date(r.deadline);
+      return dl >= now && dl <= threeDays;
+    }).length;
+
+    // 4) completion rate - orders completed vs total
+    const totalOrders = allOrders.length;
+    const completedOrders = allOrders.filter(o => o.status === "completed").length;
+    const completionRate = totalOrders > 0 ? Math.round((completedOrders / totalOrders) * 100) : 0;
+
+    // 5) week-over-week trend
+    const weekAgo = new Date(now); weekAgo.setDate(weekAgo.getDate() - 7);
+    const twoWeeksAgo = new Date(now); twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+    const thisWeek = allRequests.filter(r => new Date(r.createdAt) >= weekAgo).length;
+    const lastWeek = allRequests.filter(r => { const d = new Date(r.createdAt); return d >= twoWeeksAgo && d < weekAgo; }).length;
+    const trendPct = lastWeek > 0 ? Math.round(((thisWeek - lastWeek) / lastWeek) * 100) : (thisWeek > 0 ? 100 : 0);
+
+    // 6) team capacity: in_progress orders
+    const inProgress = allOrders.filter(o => o.status === "in_progress").length;
+    const pendingOrders = allOrders.filter(o => o.status === "pending").length;
+
+    return { days, pending, approaching, completionRate, thisWeek, trendPct, inProgress, pendingOrders, totalOrders, completedOrders };
+  }, [allRequests, allOrders]);
 
   const kpis = [
     {
@@ -124,32 +199,45 @@ export default function DashboardPage() {
           <Badge variant="outline" className="px-3 py-1 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 font-medium rounded-lg shadow-sm text-xs sm:text-sm">
             Last updated: Just now
           </Badge>
-          <Button className="bg-primary hover:bg-primary/90 shadow-primary/20 dark:bg-[#E8601C] dark:hover:bg-[#E8601C]/90 dark:shadow-orange-500/20 text-white font-bold rounded-xl shadow-lg px-4 sm:px-6 text-sm transition-colors">
+          <Button className="bg-blue-600 hover:bg-blue-700 shadow-blue-500/20 dark:bg-[#E8601C] dark:hover:bg-[#E8601C]/90 dark:shadow-orange-500/20 text-white font-bold rounded-xl shadow-lg px-4 sm:px-6 text-sm transition-colors border-0">
             Export Report
           </Button>
         </div>
       </div>
 
       {/* KPI Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
         {kpis.map((kpi, i) => (
-          <Card key={i} className="border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-all rounded-3xl overflow-hidden group">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 rounded-2xl bg-blue-50 text-primary dark:bg-[#E8601C]/10 dark:text-[#E8601C] group-hover:scale-110 transition-transform">
-                  <kpi.icon className="h-6 w-6" />
-                </div>
-                <Badge className="bg-blue-50 text-primary dark:bg-[#E8601C]/10 dark:text-[#E8601C] border-none font-bold rounded-lg group-hover:px-3 transition-all">
-                  {kpi.change}
-                </Badge>
+          <div key={i} className="relative overflow-hidden bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all group flex flex-col justify-between min-h-[140px] sm:min-h-[160px]">
+            <div className={`absolute top-0 right-0 w-24 h-24 sm:w-32 sm:h-32 rounded-bl-full -z-0 transition-transform group-hover:scale-110 ${
+                kpi.color === 'amber' ? 'bg-amber-50 dark:bg-amber-900/10' :
+                kpi.color === 'emerald' ? 'bg-emerald-50 dark:bg-emerald-900/10' :
+                kpi.color === 'indigo' ? 'bg-indigo-50 dark:bg-indigo-900/10' :
+                'bg-blue-50 dark:bg-[#E8601C]/5'
+            }`} />
+            <div className="relative z-10 flex items-start sm:items-center justify-between mb-4 sm:mb-6">
+              <div className={`h-10 w-10 sm:h-14 sm:w-14 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors duration-300 ${
+                  kpi.color === 'amber' ? 'bg-amber-100/50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 group-hover:bg-amber-600 dark:group-hover:bg-amber-500 group-hover:text-white dark:group-hover:text-white' :
+                  kpi.color === 'emerald' ? 'bg-emerald-100/50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-600 dark:group-hover:bg-emerald-500 group-hover:text-white dark:group-hover:text-white' :
+                  kpi.color === 'indigo' ? 'bg-indigo-100/50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 dark:group-hover:bg-indigo-500 group-hover:text-white dark:group-hover:text-white' :
+                  'bg-blue-100/50 dark:bg-[#E8601C]/10 text-blue-600 dark:text-[#E8601C] group-hover:bg-blue-600 dark:group-hover:bg-[#E8601C] group-hover:text-white dark:group-hover:text-white'
+              }`}>
+                <kpi.icon className="h-5 w-5 sm:h-7 sm:w-7" />
               </div>
-              <div>
-                <p className="text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{kpi.title}</p>
-                <h3 className="text-3xl font-bold text-slate-900 dark:text-white mt-1 tracking-tight">{kpi.value}</h3>
-                <p className="text-[11px] text-slate-400 mt-2 font-medium">{kpi.description}</p>
-              </div>
-            </CardContent>
-          </Card>
+              <Badge className={`border-none font-bold rounded-lg px-2 sm:px-2.5 py-0.5 sm:py-1 text-[9px] sm:text-[10px] tracking-widest uppercase transition-all shadow-none ${
+                  kpi.isPositive
+                    ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'
+                    : 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+              }`}>
+                {kpi.change}
+              </Badge>
+            </div>
+            <div className="relative z-10">
+              <p className="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-400 mb-0.5 sm:mb-1 line-clamp-1 break-words leading-tight">{kpi.title}</p>
+              <h3 className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight leading-none mb-1 sm:mb-2">{kpi.value}</h3>
+              <p className="hidden sm:block text-[10px] sm:text-xs text-slate-400 font-medium truncate">{kpi.description}</p>
+            </div>
+          </div>
         ))}
       </div>
 
@@ -260,12 +348,105 @@ export default function DashboardPage() {
         )}
       </div>
 
+      {/* ── Request Analytics Section ── */}
+      {dataLoaded && (
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6 lg:gap-8">
+          {/* Bar Chart - 3 cols */}
+          <Card className="lg:col-span-3 border border-slate-200 dark:border-slate-800 shadow-sm rounded-3xl overflow-hidden bg-white dark:bg-slate-900">
+            <CardHeader className="flex flex-row items-center justify-between border-b border-slate-50 dark:border-slate-800 pb-6">
+              <div>
+                <CardTitle className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5 text-blue-600 dark:text-[#E8601C]" />
+                  คำขอเข้าใหม่ (7 วัน)
+                </CardTitle>
+                <CardDescription className="font-medium">จำนวนคำสั่งซื้อที่เข้ามาในแต่ละวัน</CardDescription>
+              </div>
+              <Badge className={`border-none font-bold rounded-lg px-2.5 py-1 text-[10px] tracking-widest uppercase shadow-none ${
+                requestAnalytics.trendPct >= 0
+                  ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
+                  : "bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400"
+              }`}>
+                {requestAnalytics.trendPct >= 0 ? "+" : ""}{requestAnalytics.trendPct}% vs สัปดาห์ก่อน
+              </Badge>
+            </CardHeader>
+            <CardContent className="pt-8">
+              <div className="h-[220px] sm:h-[260px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={requestAnalytics.days} barSize={32} barGap={8}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" opacity={0.5} />
+                    <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 700, fill: '#64748B' }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 600, fill: '#94A3B8' }} allowDecimals={false} />
+                    <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontWeight: 'bold' }} formatter={(value: number) => [`${value} รายการ`, 'คำขอ']} />
+                    <Bar dataKey="count" radius={[8, 8, 4, 4]}>
+                      {requestAnalytics.days.map((entry, idx) => (
+                        <Cell key={idx} fill={idx === requestAnalytics.days.length - 1 ? '#2563EB' : '#CBD5E1'} className="dark:fill-[#E8601C] dark:[&:not(:last-child)]:fill-slate-700" />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Right side - 4 mini KPIs - 2 cols */}
+          <div className="lg:col-span-2 grid grid-cols-2 gap-3 sm:gap-4 content-start">
+            {/* Pending requests */}
+            <div className="relative overflow-hidden bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm group hover:shadow-lg hover:-translate-y-0.5 transition-all">
+              <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-3 sm:mb-4">
+                <Timer className="h-4 w-4 sm:h-5 sm:w-5" />
+              </div>
+              <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest mb-0.5">รออนุมัติ</p>
+              <h3 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white leading-none">{requestAnalytics.pending}</h3>
+              <p className="text-[10px] text-slate-400 font-medium mt-1">รายการ</p>
+            </div>
+
+            {/* Approaching deadline */}
+            <div className={`relative overflow-hidden p-4 sm:p-6 rounded-3xl border shadow-sm group hover:shadow-lg hover:-translate-y-0.5 transition-all ${
+              requestAnalytics.approaching > 0
+                ? "bg-red-50/50 dark:bg-red-950/20 border-red-200 dark:border-red-900/50"
+                : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
+            }`}>
+              <div className={`h-9 w-9 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl flex items-center justify-center mb-3 sm:mb-4 ${
+                requestAnalytics.approaching > 0
+                  ? "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400"
+                  : "bg-slate-100 dark:bg-slate-800 text-slate-400"
+              }`}>
+                <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5" />
+              </div>
+              <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest mb-0.5">ใกล้ Deadline</p>
+              <h3 className={`text-2xl sm:text-3xl font-black leading-none ${requestAnalytics.approaching > 0 ? "text-red-600 dark:text-red-400" : "text-slate-900 dark:text-white"}`}>{requestAnalytics.approaching}</h3>
+              <p className="text-[10px] text-slate-400 font-medium mt-1">ภายใน 3 วัน</p>
+            </div>
+
+            {/* Completion rate */}
+            <div className="relative overflow-hidden bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm group hover:shadow-lg hover:-translate-y-0.5 transition-all">
+              <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-3 sm:mb-4">
+                <Zap className="h-4 w-4 sm:h-5 sm:w-5" />
+              </div>
+              <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest mb-0.5">ทีมทำงานทัน</p>
+              <h3 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white leading-none">{requestAnalytics.completionRate}%</h3>
+              <p className="text-[10px] text-slate-400 font-medium mt-1">{requestAnalytics.completedOrders}/{requestAnalytics.totalOrders} ออเดอร์</p>
+            </div>
+
+            {/* In-progress / capacity */}
+            <div className="relative overflow-hidden bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm group hover:shadow-lg hover:-translate-y-0.5 transition-all">
+              <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl bg-blue-50 dark:bg-[#E8601C]/10 text-blue-600 dark:text-[#E8601C] flex items-center justify-center mb-3 sm:mb-4">
+                <Users className="h-4 w-4 sm:h-5 sm:w-5" />
+              </div>
+              <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest mb-0.5">กำลังผลิต</p>
+              <h3 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white leading-none">{requestAnalytics.inProgress}</h3>
+              <p className="text-[10px] text-slate-400 font-medium mt-1">+ {requestAnalytics.pendingOrders} รอคิว</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Quick Navigation / Tools */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
         {[
-          { icon: Package, title: "Stock Manager", desc: "Add or adjust items", link: "/inventory" },
-          { icon: History, title: "Activity Logs", desc: "Detailed audit trail", link: "/inventory" },
-          { icon: Activity, title: "System Health", desc: "Production line status", link: "/" },
+          { icon: ClipboardList, title: "คำสั่งซื้อใหม่", desc: "สร้างคำสั่งซื้อจากลูกค้า", link: "/request/create" },
+          { icon: Package, title: "คลังกระจก", desc: "จัดการสต๊อกและวัสดุ", link: "/inventory" },
+          { icon: Activity, title: "ติดตามการผลิต", desc: "สถานะสายการผลิต", link: "/production" },
         ].map((tool, i) => (
           <Link href={tool.link} key={i}>
             <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-200 dark:border-slate-800 hover:border-primary dark:hover:border-[#E8601C] transition-all group cursor-pointer">

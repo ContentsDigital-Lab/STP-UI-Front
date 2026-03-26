@@ -170,98 +170,126 @@ export default function PricingSettingsPage() {
     };
 
     return (
-        <div className="max-w-5xl mx-auto w-full space-y-6 pb-16">
+        <div className="max-w-[1400px] mx-auto w-full space-y-6 sm:space-y-8 pb-16 pt-4">
+            <Button variant="ghost" className="mb-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => window.history.back()}>
+                <ChevronLeft className="h-4 w-4 mr-2" />
+                กลับ
+            </Button>
             {/* Header */}
-            <div className="flex items-center justify-between gap-4 pb-5 border-b border-slate-200 dark:border-slate-800">
-                <div className="flex items-center gap-3">
-                    <Link href="/settings">
-                        <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl">
-                            <ChevronLeft className="h-4 w-4" />
-                        </Button>
-                    </Link>
-                    <div className="flex items-center gap-2.5">
-                        <div className="p-2 bg-[#E8601C]/10 rounded-xl">
-                            <DollarSign className="h-5 w-5 text-[#E8601C]" />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 pb-6 border-b border-slate-200 dark:border-slate-800">
+                <div className="flex flex-col gap-1">
+                    <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white flex items-center gap-3">
+                        <div className="p-2.5 bg-blue-600/10 dark:bg-[#E8601C]/10 rounded-2xl text-blue-600 dark:text-[#E8601C]">
+                            <DollarSign className="h-7 w-7" />
                         </div>
-                        <div>
-                            <h1 className="text-xl font-bold text-slate-900 dark:text-white">ตั้งค่าราคากระจก</h1>
-                            <p className="text-xs text-slate-500">ราคาแนะนำที่จะ auto-fill ในหน้าสร้างบิล</p>
-                        </div>
-                    </div>
+                        ตั้งค่าราคากระจก
+                    </h1>
+                    <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">
+                        ราคาแนะนำที่จะ Auto-fill ในหน้าสร้างบิล
+                    </p>
                 </div>
-                <div className="flex gap-2">
-                    <Button variant="outline" size="sm" className="h-9 rounded-xl gap-1.5 text-xs" onClick={handleReset}>
-                        <RotateCcw className="h-3.5 w-3.5" /> รีเซ็ต
+                <div className="flex gap-3 w-full sm:w-auto">
+                    <Button
+                        variant="ghost"
+                        onClick={handleReset}
+                        className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 font-bold px-4 h-12 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 gap-2 shrink-0 transition-all flex-1 sm:flex-none"
+                    >
+                        <RotateCcw className="h-4 w-4" /> <span className="hidden sm:inline">รีเซ็ต</span>
                     </Button>
                     <Button
-                        size="sm"
-                        className="h-9 rounded-xl gap-1.5 text-xs bg-[#E8601C] hover:bg-[#E8601C]/90 text-white"
                         onClick={handleSave}
                         disabled={saving}
+                        className="bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-[#D65415] text-white font-bold px-6 h-12 rounded-xl shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 gap-2 shrink-0 transition-all flex-1 sm:flex-none border-0"
                     >
-                        <Save className="h-3.5 w-3.5" /> {saving ? "กำลังบันทึก..." : saved ? "บันทึก ✓" : "บันทึก"}
+                        <Save className="h-4 w-4" /> {saving ? "กำลังบันทึก..." : saved ? "บันทึกแล้ว ✓" : "บันทึกการตั้งค่า"}
                     </Button>
                 </div>
             </div>
 
             {/* Info banner */}
-            <div className="flex items-start gap-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-2xl p-4 text-sm text-blue-700 dark:text-blue-300">
-                <Info className="h-4 w-4 shrink-0 mt-0.5" />
-                <div>
-                    <p className="font-semibold mb-0.5">วิธีใช้</p>
-                    <p className="text-xs leading-relaxed">
-                        ราคาที่ตั้งไว้จะถูก <strong>auto-fill อัตโนมัติ</strong> เมื่อเลือกประเภทกระจก + ความหนาในหน้าสร้างบิล
-                        ยังสามารถแก้ไขราคาเฉพาะออเดอร์ได้ในหน้าสร้างบิลโดยตรง
+            <div className="flex items-start gap-4 bg-blue-50/80 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 rounded-3xl p-6 text-sm text-blue-800 dark:text-blue-300 shadow-sm relative overflow-hidden group">
+                <div className="p-2.5 bg-blue-100 dark:bg-blue-800/40 rounded-2xl shrink-0 group-hover:scale-110 transition-transform">
+                    <Info className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div className="pt-1">
+                    <p className="font-extrabold text-base mb-1.5 text-blue-900 dark:text-blue-100">วิธีใช้งานตารางราคา</p>
+                    <p className="font-medium text-blue-700/80 dark:text-blue-300/80 leading-relaxed mb-3">
+                        ราคาที่ตั้งไว้จะถูกนำไป <strong>Auto-fill</strong> อัตโนมัติในหน้าสร้างบิล ตามประเภทกระจกและความหนาที่คุณเลือก 
+                        (คุณยังสามารถแก้ไขราคาเฉพาะบิลนั้นๆ ได้ในหน้าสร้างบิลโดยตรง)
                     </p>
-                    <p className="text-xs leading-relaxed mt-1">
-                        <strong>ราคา/ตร.ฟ.</strong> = ราคาเนื้อกระจกต่อตารางฟุต &nbsp;|&nbsp;
-                        <strong>เจียร/ม.</strong> = ค่าเจียรขอบต่อเมตร (50 = กระจกบาง, 75 = กระจกหนา/พิเศษ)
-                    </p>
+                    <ul className="space-y-1 font-medium text-xs bg-white/50 dark:bg-slate-900/50 p-3 rounded-xl border border-blue-100 dark:border-blue-800/30 inline-block w-full sm:w-auto">
+                        <li><strong className="text-blue-900 dark:text-blue-200">ราคา/ตร.ฟ.</strong> = ราคาเนื้อกระจกต่อตารางฟุต</li>
+                        <li><strong className="text-blue-900 dark:text-blue-200">เจียร/ม.</strong> = ค่าเจียรขอบต่อเมตร (ปกติ 50 สำหรับกระจกบาง, 75+ สำหรับกระจกหนา)</li>
+                    </ul>
                 </div>
             </div>
 
-            {/* Global service rates */}
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-card p-5 space-y-4">
-                <h2 className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
-                    ค่าบริการทั่วไป
-                </h2>
-                <div className="grid grid-cols-2 gap-4 max-w-sm">
-                    <div className="space-y-1.5">
-                        <Label className="text-xs font-semibold text-slate-500">ราคา/รู (ค่าเจาะ) ฿</Label>
-                        <Input
-                            type="number" min={0}
-                            value={settings.holePriceEach}
-                            onChange={e => { setSettings(p => ({ ...p, holePriceEach: parseFloat(e.target.value) || 0 })); setSaved(false); }}
-                            className="h-10 rounded-xl font-bold text-sm"
-                        />
-                        <p className="text-[10px] text-slate-400">นับจากจำนวน cutout ที่วาดใน designer</p>
+            {/* Global service rates & Formula */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 sm:p-8 shadow-sm space-y-6">
+                    <div className="flex items-center gap-3">
+                        <div className="h-2 w-2 rounded-full bg-slate-800 dark:bg-slate-200" />
+                        <h2 className="text-lg font-bold text-slate-800 dark:text-white">
+                            ค่าบริการทั่วไป (หักลบอัตโนมัติ)
+                        </h2>
                     </div>
-                    <div className="space-y-1.5">
-                        <Label className="text-xs font-semibold text-slate-500">ราคา/บาก (ค่าบาก) ฿</Label>
-                        <Input
-                            type="number" min={0}
-                            value={settings.notchPrice}
-                            onChange={e => { setSettings(p => ({ ...p, notchPrice: parseFloat(e.target.value) || 0 })); setSaved(false); }}
-                            className="h-10 rounded-xl font-bold text-sm"
-                        />
-                        <p className="text-[10px] text-slate-400">กรอกจำนวนบากในหน้าสร้างบิล</p>
+                    
+                    <div className="grid grid-cols-2 gap-4 sm:gap-6">
+                        <div className="space-y-2">
+                            <Label className="text-xs font-bold text-slate-500 uppercase tracking-wide">ราคาเจาะรู (฿)</Label>
+                            <Input
+                                type="number" min={0}
+                                value={settings.holePriceEach}
+                                onChange={e => { setSettings(p => ({ ...p, holePriceEach: parseFloat(e.target.value) || 0 })); setSaved(false); }}
+                                className="h-12 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 font-bold text-lg px-4"
+                            />
+                            <p className="text-[10px] sm:text-xs text-slate-400 font-medium leading-tight">คำนวณจาก Cutout ที่วาด</p>
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-xs font-bold text-slate-500 uppercase tracking-wide">ราคาบากมุม (฿)</Label>
+                            <Input
+                                type="number" min={0}
+                                value={settings.notchPrice}
+                                onChange={e => { setSettings(p => ({ ...p, notchPrice: parseFloat(e.target.value) || 0 })); setSaved(false); }}
+                                className="h-12 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 font-bold text-lg px-4"
+                            />
+                            <p className="text-[10px] sm:text-xs text-slate-400 font-medium leading-tight">ระบุจำนวนตอนสร้างบิล</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Formula reminder */}
+                <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40 p-6 sm:p-8 space-y-3 relative overflow-hidden">
+                    <div className="relative z-10 flex flex-col h-full justify-between">
+                        <div>
+                            <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-4">สูตรคำนวณราคาต่อแผ่น</h2>
+                            <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-300 font-medium">
+                                <li className="flex gap-2"><span>•</span> <span>= <strong>กว้าง(ม) × สูง(ม) × 10.764</strong> × ราคา/ตร.ฟ.</span></li>
+                                <li className="flex gap-2"><span>•</span> <span>+ <strong>2 × (กว้าง + สูง)</strong> × ราคาเจียร/ม.</span></li>
+                                <li className="flex gap-2"><span>•</span> <span>+ <strong>จำนวน Cutout</strong> × ราคาเจาะรู</span></li>
+                                <li className="flex gap-2"><span>•</span> <span>+ <strong>จำนวนบากมุม</strong> × ราคาบากมุม</span></li>
+                            </ul>
+                        </div>
+                        <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700/50">
+                            <p className="text-[11px] text-slate-400 font-medium italic">* 10.764 คือตัวแปลงอัตราส่วน 1 ตร.ม. ไปเป็น ตร.ฟ.</p>
+                        </div>
                     </div>
                 </div>
             </div>
 
             {/* Glass price table */}
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-card overflow-hidden">
+            <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden flex flex-col">
                 {/* Type tabs */}
-                <div className="flex overflow-x-auto border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50">
+                <div className="flex overflow-x-auto bg-slate-100 dark:bg-slate-900/80 p-2 gap-1 border-b border-slate-200 dark:border-slate-800 hide-scrollbar">
                     {glassTypes.map(type => (
                         <button
                             key={type}
                             type="button"
                             onClick={() => setActiveType(type)}
-                            className={`shrink-0 px-4 py-3 text-xs font-bold whitespace-nowrap border-b-2 transition-colors ${
+                            className={`shrink-0 px-5 py-2.5 rounded-2xl text-sm font-bold whitespace-nowrap transition-all ${
                                 activeType === type
-                                    ? "border-[#E8601C] text-[#E8601C] bg-white dark:bg-slate-900"
-                                    : "border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                                    ? "bg-white dark:bg-slate-800 text-blue-600 dark:text-[#E8601C] shadow-sm ring-1 ring-slate-200 dark:ring-slate-700"
+                                    : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-800/50"
                             }`}
                         >
                             {type}
@@ -269,98 +297,91 @@ export default function PricingSettingsPage() {
                     ))}
                 </div>
 
-                <div className="p-5 space-y-4">
-                    <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{TYPE_LABELS[activeType] ?? activeType}</p>
-                        <div className="flex items-center gap-1.5">
+                <div className="p-6 sm:p-8 space-y-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+                        <h2 className="text-xl font-bold text-slate-800 dark:text-white">{TYPE_LABELS[activeType] ?? activeType}</h2>
+                        <div className="flex items-center gap-2">
                             <Input
-                                type="number" min={1}
-                                placeholder="mm"
+                                type="text"
+                                placeholder="เช่น 5mm"
                                 value={newThicknessInput}
-                                onChange={e => setNewThicknessInput(e.target.value.replace(/[^0-9]/g, ''))}
+                                onChange={e => setNewThicknessInput(e.target.value)}
                                 onKeyDown={e => { if (e.key === 'Enter') handleAddThickness(); }}
-                                className="h-8 w-16 rounded-lg text-xs font-bold text-center"
+                                className="h-10 w-28 rounded-xl text-sm font-bold text-center bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
                             />
-                            <button
+                            <Button
                                 type="button"
+                                variant="outline"
                                 onClick={handleAddThickness}
-                                className="flex items-center gap-1 h-8 px-2.5 rounded-lg text-[11px] font-bold text-[#E8601C] hover:bg-[#E8601C]/5 border border-[#E8601C]/20 transition-colors"
+                                className="h-10 rounded-xl text-xs font-bold text-blue-600 dark:text-[#E8601C] hover:bg-blue-50 dark:hover:bg-[#E8601C]/5 border-blue-200 dark:border-[#E8601C]/20 hover:border-blue-300 dark:hover:border-[#E8601C]/40 gap-1.5"
                             >
-                                <Plus className="h-3 w-3" />
-                                เพิ่มความหนา
-                            </button>
+                                <Plus className="h-4 w-4" /> เพิ่มความหนา
+                            </Button>
                         </div>
                     </div>
 
                     {/* Table header */}
-                    <div className="grid grid-cols-[80px_1fr_1fr_32px] gap-3 pb-2 border-b border-slate-100 dark:border-slate-800">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase">ความหนา</span>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase">ราคา/ตร.ฟ. (฿)</span>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase">เจียร/ม. (฿)</span>
+                    <div className="grid grid-cols-[80px_1fr_1fr_40px] sm:grid-cols-[100px_1fr_1fr_40px] gap-2 sm:gap-4 px-2 pb-2">
+                        <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider">ความหนา</span>
+                        <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider text-center sm:text-left">ราคา/ตร.ฟ. (฿)</span>
+                        <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider text-center sm:text-left">เจียร/ม. (฿)</span>
                         <span />
                     </div>
 
                     {/* Rows per thickness */}
-                    {(typeThicknesses[activeType] ?? ALL_THICKNESSES).map(thickness => {
-                        const row = settings.glassPrices[activeType]?.[thickness];
-                        const defRow = DEFAULT_PRICING.glassPrices[activeType]?.[thickness];
-                        const hasValue = !!row;
-                        return (
-                            <div key={thickness} className="grid grid-cols-[80px_1fr_1fr_32px] gap-3 items-center group">
-                                <span className="text-sm font-bold text-slate-600 dark:text-slate-300">{thickness}</span>
-                                <Input
-                                    type="number" min={0}
-                                    placeholder={defRow ? String(defRow.pricePerSqFt) : "0"}
-                                    value={row?.pricePerSqFt ?? ""}
-                                    onChange={e => updateGlassPrice(activeType, thickness, "pricePerSqFt", parseFloat(e.target.value) || 0)}
-                                    className={`h-9 rounded-xl text-xs font-bold ${!hasValue ? "opacity-50" : ""}`}
-                                />
-                                <Input
-                                    type="number" min={0}
-                                    placeholder={defRow ? String(defRow.grindingRate) : "50"}
-                                    value={row?.grindingRate ?? ""}
-                                    onChange={e => updateGlassPrice(activeType, thickness, "grindingRate", parseFloat(e.target.value) || 0)}
-                                    className={`h-9 rounded-xl text-xs font-bold ${!hasValue ? "opacity-50" : ""}`}
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setTypeThicknesses(prev => ({
-                                            ...prev,
-                                            [activeType]: (prev[activeType] ?? []).filter(t => t !== thickness),
-                                        }));
-                                        setSettings(prev => {
-                                            const updated = { ...prev, glassPrices: { ...prev.glassPrices } };
-                                            if (updated.glassPrices[activeType]) {
-                                                const copy = { ...updated.glassPrices[activeType] };
-                                                delete copy[thickness];
-                                                updated.glassPrices[activeType] = copy;
-                                            }
-                                            return updated;
-                                        });
-                                        setSaved(false);
-                                        toast.success(`ลบ ${thickness} ออกจาก ${activeType} แล้ว`);
-                                    }}
-                                    className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 opacity-0 group-hover:opacity-100 transition-all"
-                                    title={`ลบ ${thickness}`}
-                                >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                            </div>
-                        );
-                    })}
-
+                    <div className="space-y-3">
+                        {(typeThicknesses[activeType] ?? ALL_THICKNESSES).map(thickness => {
+                            const row = settings.glassPrices[activeType]?.[thickness];
+                            const defRow = DEFAULT_PRICING.glassPrices[activeType]?.[thickness];
+                            const hasValue = !!row;
+                            return (
+                                <div key={thickness} className="grid grid-cols-[80px_1fr_1fr_40px] sm:grid-cols-[100px_1fr_1fr_40px] gap-2 sm:gap-4 items-center group bg-slate-50/50 dark:bg-slate-800/20 p-2 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                                    <div className="flex items-center h-full sm:px-2">
+                                        <span className="text-sm sm:text-base font-extrabold text-slate-700 dark:text-slate-200">{thickness}</span>
+                                    </div>
+                                    <Input
+                                        type="number" min={0}
+                                        placeholder={defRow ? String(defRow.pricePerSqFt) : "0"}
+                                        value={row?.pricePerSqFt ?? ""}
+                                        onChange={e => updateGlassPrice(activeType, thickness, "pricePerSqFt", parseFloat(e.target.value) || 0)}
+                                        className={`h-11 sm:h-12 rounded-xl text-sm sm:text-base font-bold bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus:border-blue-600 dark:focus:border-[#E8601C] focus:ring-blue-600/20 dark:focus:ring-[#E8601C]/20 text-center sm:text-left px-2 sm:px-4 ${!hasValue ? "opacity-60 grayscale" : ""}`}
+                                    />
+                                    <Input
+                                        type="number" min={0}
+                                        placeholder={defRow ? String(defRow.grindingRate) : "50"}
+                                        value={row?.grindingRate ?? ""}
+                                        onChange={e => updateGlassPrice(activeType, thickness, "grindingRate", parseFloat(e.target.value) || 0)}
+                                        className={`h-11 sm:h-12 rounded-xl text-sm sm:text-base font-bold bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus:border-blue-600 dark:focus:border-[#E8601C] focus:ring-blue-600/20 dark:focus:ring-[#E8601C]/20 text-center sm:text-left px-2 sm:px-4 ${!hasValue ? "opacity-60 grayscale" : ""}`}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setTypeThicknesses(prev => ({
+                                                ...prev,
+                                                [activeType]: (prev[activeType] ?? []).filter(t => t !== thickness),
+                                            }));
+                                            setSettings(prev => {
+                                                const updated = { ...prev, glassPrices: { ...prev.glassPrices } };
+                                                if (updated.glassPrices[activeType]) {
+                                                    const copy = { ...updated.glassPrices[activeType] };
+                                                    delete copy[thickness];
+                                                    updated.glassPrices[activeType] = copy;
+                                                }
+                                                return updated;
+                                            });
+                                            setSaved(false);
+                                            toast.success(`ลบ ${thickness} ออกจาก ${activeType} แล้ว`);
+                                        }}
+                                        className="h-10 w-10 flex items-center justify-center rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/40 opacity-0 group-hover:opacity-100 transition-all ml-auto sm:ml-0"
+                                        title={`ลบ ${thickness}`}
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
-            </div>
-
-            {/* Formula reminder */}
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40 p-4 text-xs text-slate-500 space-y-1">
-                <p className="font-bold text-slate-600 dark:text-slate-300 mb-2">สูตรคำนวณราคาต่อแผ่น</p>
-                <p>= <strong>กว้าง(ม) × สูง(ม) × 10.764</strong> × ราคา/ตร.ฟ.</p>
-                <p>+ <strong>2 × (กว้าง + สูง)</strong> × ราคาเจียร/ม.</p>
-                <p>+ <strong>จำนวน cutout</strong> × ราคา/รู</p>
-                <p>+ <strong>จำนวนบาก</strong> × ราคา/บาก</p>
-                <p className="pt-1 text-[10px] text-slate-400">10.764 = ตัวแปลง 1 ตร.ม. → ตร.ฟ. (อิงสูตรตาราง Excel ของร้าน)</p>
             </div>
         </div>
     );
