@@ -7,7 +7,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
     Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -16,7 +15,7 @@ import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-    Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
+    Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
 import {
     DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
@@ -204,62 +203,62 @@ export default function ClaimsPage() {
     };
 
     const decisionBadge = (decision?: "destroy" | "keep") => {
-        if (!decision) return <Badge variant="outline" className="text-muted-foreground">รอตัดสิน</Badge>;
-        if (decision === "destroy") return <Badge variant="destructive">ทำลาย</Badge>;
-        return <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">เก็บไว้</Badge>;
+        if (!decision) return <span className="text-xs font-medium px-2 py-1 rounded-md bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400">รอตัดสิน</span>;
+        if (decision === "destroy") return <span className="text-xs font-medium px-2 py-1 rounded-md bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400">ทำลาย</span>;
+        return <span className="text-xs font-medium px-2 py-1 rounded-md bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">เก็บไว้</span>;
     };
 
     const sourceBadge = (source: "customer" | "worker") => (
-        <Badge variant={source === "customer" ? "default" : "outline"}>
+        <span className={`text-xs font-medium px-2 py-1 rounded-md ${source === "customer" ? "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"}`}>
             {source === "customer" ? "ลูกค้า" : "พนักงาน"}
-        </Badge>
+        </span>
     );
 
     return (
-        <div className="flex flex-col gap-4 sm:gap-6 lg:gap-8 max-w-[1600px] mx-auto w-full overflow-x-hidden">
+        <div className="space-y-6 max-w-[1440px] mx-auto w-full">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 pb-6 border-b border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="flex items-center gap-3 text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white leading-normal pt-2 pb-1">
-                        <ShieldAlert className="h-7 w-7 sm:h-8 sm:w-8 shrink-0" />
-                        รายการเคลม
-                    </h1>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm sm:text-base font-medium mt-1">บันทึกและติดตามการเคลมวัสดุแบบเรียลไทม์</p>
+                    <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">รายการเคลม</h1>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">บันทึกและติดตามการเคลมวัสดุแบบเรียลไทม์</p>
                 </div>
-                <Button onClick={() => setIsCreateOpen(true)} className="gap-2 w-full sm:w-auto">
+                <Button onClick={() => setIsCreateOpen(true)} className="gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl h-10 px-5 text-sm">
                     <Plus className="h-4 w-4" />
                     เพิ่มรายการเคลม
                 </Button>
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {[
-                    { label: "รายการทั้งหมด", value: claims.length },
-                    { label: "รอตัดสิน", value: claims.filter((c) => !c.decision).length },
-                    { label: "ทำลาย", value: claims.filter((c) => c.decision === "destroy").length },
-                    { label: "เก็บไว้", value: claims.filter((c) => c.decision === "keep").length },
+                    { label: "รายการทั้งหมด", value: claims.length, accent: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10", icon: ShieldAlert },
+                    { label: "รอตัดสิน", value: claims.filter((c) => !c.decision).length, accent: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10", icon: ShieldAlert },
+                    { label: "ทำลาย", value: claims.filter((c) => c.decision === "destroy").length, accent: "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10", icon: Trash2 },
+                    { label: "เก็บไว้", value: claims.filter((c) => c.decision === "keep").length, accent: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10", icon: ClipboardCheck },
                 ].map((stat) => (
-                    <div key={stat.label} className="rounded-lg border bg-card p-4">
-                        <p className="text-xs text-muted-foreground">{stat.label}</p>
-                        <p className="mt-1 text-2xl font-bold">{isLoading ? "-" : stat.value}</p>
+                    <div key={stat.label} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 p-4 sm:p-5">
+                        <div className={`h-9 w-9 rounded-lg flex items-center justify-center mb-3 ${stat.accent}`}>
+                            <stat.icon className="h-[18px] w-[18px]" />
+                        </div>
+                        <p className="text-[13px] text-slate-500 dark:text-slate-400 mb-0.5">{stat.label}</p>
+                        <p className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">{isLoading ? "-" : stat.value}</p>
                     </div>
                 ))}
             </div>
 
             {/* Filters */}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                 <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                     <Input
                         placeholder="ค้นหาตามวัสดุหรือคำอธิบาย..."
-                        className="pl-9"
+                        className="pl-9 h-10 rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-sm"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />
                 </div>
                 <Select value={sourceFilter} onValueChange={(v) => setSourceFilter(v ?? "all")}>
-                    <SelectTrigger className="w-[150px]">
+                    <SelectTrigger className="h-10 w-full sm:w-40 rounded-xl text-sm">
                         <SelectValue placeholder="แหล่งที่มา" />
                     </SelectTrigger>
                     <SelectContent>
@@ -269,7 +268,7 @@ export default function ClaimsPage() {
                     </SelectContent>
                 </Select>
                 <Select value={decisionFilter} onValueChange={(v) => setDecisionFilter(v ?? "all")}>
-                    <SelectTrigger className="w-[160px]">
+                    <SelectTrigger className="h-10 w-full sm:w-44 rounded-xl text-sm">
                         <SelectValue placeholder="ผลการตัดสิน" />
                     </SelectTrigger>
                     <SelectContent>
@@ -282,20 +281,20 @@ export default function ClaimsPage() {
             </div>
 
             {/* Table */}
-            <div className="rounded-lg border bg-card overflow-hidden">
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 overflow-hidden">
                 <div className="overflow-x-auto">
                 <Table>
                     <TableHeader>
-                        <TableRow>
-                            <TableHead>วันที่เคลม</TableHead>
-                            <TableHead>Order</TableHead>
-                            <TableHead>วัสดุ</TableHead>
-                            <TableHead>แหล่งที่มา</TableHead>
-                            <TableHead>รายละเอียด</TableHead>
-                            <TableHead>ผลการตัดสิน</TableHead>
-                            <TableHead>รายงานโดย</TableHead>
-                            <TableHead>อนุมัติโดย</TableHead>
-                            <TableHead className="w-12" />
+                        <TableRow className="border-slate-100 dark:border-slate-800 hover:bg-transparent">
+                            <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 px-4 h-10">วันที่เคลม</TableHead>
+                            <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">Order</TableHead>
+                            <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">วัสดุ</TableHead>
+                            <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">แหล่งที่มา</TableHead>
+                            <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">รายละเอียด</TableHead>
+                            <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">ผลการตัดสิน</TableHead>
+                            <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">รายงานโดย</TableHead>
+                            <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">อนุมัติโดย</TableHead>
+                            <TableHead className="w-10 py-3 h-10" />
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -309,31 +308,35 @@ export default function ClaimsPage() {
                             ))
                         ) : paginated.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={9} className="py-12 text-center text-muted-foreground">
-                                    <ClipboardCheck className="mx-auto mb-2 h-8 w-8 opacity-40" />
-                                    ไม่มีข้อมูลการเคลม
+                                <TableCell colSpan={9} className="py-16 text-center border-none">
+                                    <div className="flex flex-col items-center gap-2">
+                                        <div className="h-12 w-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                                            <ClipboardCheck className="h-6 w-6 text-slate-400 dark:text-slate-500" />
+                                        </div>
+                                        <p className="text-sm text-slate-500 dark:text-slate-400">ไม่มีข้อมูลการเคลม</p>
+                                    </div>
                                 </TableCell>
                             </TableRow>
                         ) : (
                             paginated.map((c) => (
-                                <TableRow key={c._id}>
-                                    <TableCell className="text-sm">
+                                <TableRow key={c._id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 border-slate-100 dark:border-slate-800">
+                                    <TableCell className="text-sm py-3.5 px-4 text-slate-600 dark:text-slate-300">
                                         {new Date(c.claimDate ?? c.createdAt).toLocaleDateString("th-TH")}
                                     </TableCell>
-                                    <TableCell className="font-mono text-sm text-muted-foreground">
+                                    <TableCell className="font-mono text-sm text-slate-500 dark:text-slate-400 py-3.5">
                                         {getOrderLabel(c.order)}
                                     </TableCell>
-                                    <TableCell className="font-medium">{getMaterialName(c.material)}</TableCell>
-                                    <TableCell>{sourceBadge(c.source)}</TableCell>
-                                    <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground" title={c.description}>
+                                    <TableCell className="text-sm font-medium py-3.5 text-slate-900 dark:text-white">{getMaterialName(c.material)}</TableCell>
+                                    <TableCell className="py-3.5">{sourceBadge(c.source)}</TableCell>
+                                    <TableCell className="max-w-[200px] truncate text-sm text-slate-500 dark:text-slate-400 py-3.5" title={c.description}>
                                         {c.description}
                                     </TableCell>
-                                    <TableCell>{decisionBadge(c.decision)}</TableCell>
-                                    <TableCell>{getWorkerName(c.reportedBy)}</TableCell>
-                                    <TableCell>{c.approvedBy ? getWorkerName(c.approvedBy) : <span className="text-muted-foreground text-xs">-</span>}</TableCell>
-                                    <TableCell>
+                                    <TableCell className="py-3.5">{decisionBadge(c.decision)}</TableCell>
+                                    <TableCell className="text-sm py-3.5 text-slate-600 dark:text-slate-300">{getWorkerName(c.reportedBy)}</TableCell>
+                                    <TableCell className="text-sm py-3.5">{c.approvedBy ? getWorkerName(c.approvedBy) : <span className="text-slate-400 text-xs">-</span>}</TableCell>
+                                    <TableCell className="py-3.5 pr-4">
                                         <DropdownMenu>
-                                            <DropdownMenuTrigger className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-accent transition-colors">
+                                            <DropdownMenuTrigger className="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
                                                 <MoreHorizontal className="h-4 w-4" />
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
@@ -357,7 +360,7 @@ export default function ClaimsPage() {
                                                     </DropdownMenuItem>
                                                 )}
                                                 {!isManager && (
-                                                    <DropdownMenuItem disabled className="text-muted-foreground text-xs">
+                                                    <DropdownMenuItem disabled className="text-slate-400 text-xs">
                                                         ไม่มีสิทธิ์จัดการ
                                                     </DropdownMenuItem>
                                                 )}
@@ -370,40 +373,48 @@ export default function ClaimsPage() {
                     </TableBody>
                 </Table>
                 </div>
-            </div>
 
-            {/* Pagination */}
-            {!isLoading && filtered.length > ITEMS_PER_PAGE && (
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-muted-foreground">
-                    <span>แสดง {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)} จาก {filtered.length} รายการ</span>
-                    <div className="flex items-center gap-2">
-                        <Button variant="outline" size="icon" className="h-8 w-8" disabled={currentPage === 1} onClick={() => setCurrentPage((p) => p - 1)}>
-                            <ChevronLeft className="h-4 w-4" />
-                        </Button>
-                        <span className="font-medium text-foreground">{currentPage} / {totalPages}</span>
-                        <Button variant="outline" size="icon" className="h-8 w-8" disabled={currentPage === totalPages} onClick={() => setCurrentPage((p) => p + 1)}>
-                            <ChevronRight className="h-4 w-4" />
-                        </Button>
+                {/* Pagination */}
+                {!isLoading && totalPages > 1 && (
+                    <div className="px-4 py-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                        <span className="text-xs text-slate-400">{currentPage} / {totalPages}</span>
+                        <div className="flex items-center gap-1">
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-lg" disabled={currentPage === 1} onClick={() => setCurrentPage((p) => p - 1)}>
+                                <ChevronLeft className="h-4 w-4" />
+                            </Button>
+                            {[...Array(totalPages)].map((_, i) => (
+                                <button
+                                    key={i}
+                                    onClick={() => setCurrentPage(i + 1)}
+                                    className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-medium transition-colors ${currentPage === i + 1 ? "bg-blue-600 text-white" : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"}`}
+                                >
+                                    {i + 1}
+                                </button>
+                            ))}
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-lg" disabled={currentPage === totalPages} onClick={() => setCurrentPage((p) => p + 1)}>
+                                <ChevronRight className="h-4 w-4" />
+                            </Button>
+                        </div>
                     </div>
-                </div>
-            )}
+                )}
+            </div>
 
             {/* Create Dialog */}
             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                <DialogContent className="sm:max-w-lg">
+                <DialogContent className="sm:max-w-lg rounded-xl p-6">
                     <DialogHeader>
-                        <DialogTitle>เพิ่มรายการเคลมใหม่</DialogTitle>
-                        <DialogDescription>บันทึกการเคลมวัสดุที่เกี่ยวข้องกับ Order</DialogDescription>
+                        <DialogTitle className="text-lg font-bold text-slate-900 dark:text-white">เพิ่มรายการเคลมใหม่</DialogTitle>
+                        <DialogDescription className="text-sm text-slate-500 dark:text-slate-400">บันทึกการเคลมวัสดุที่เกี่ยวข้องกับ Order</DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4 py-2">
+                    <div className="space-y-4 pt-2">
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1.5">
-                                <Label>Order <span className="text-red-500">*</span></Label>
+                                <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">Order <span className="text-red-500">*</span></Label>
                                 <Select value={createForm.order} onValueChange={(v) => setCreateForm((f) => ({ ...f, order: v ?? "" }))}>
-                                    <SelectTrigger>
+                                    <SelectTrigger className="h-10 rounded-xl text-sm">
                                         <SelectValue placeholder="เลือก Order...">
                                             {(value: string | null) => {
-                                                if (!value) return <span className="text-muted-foreground">เลือก Order...</span>;
+                                                if (!value) return <span className="text-slate-400">เลือก Order...</span>;
                                                 const o = orders.find(x => x._id === value);
                                                 return o?.orderNumber ?? `#${value.slice(-6)}`;
                                             }}
@@ -419,12 +430,12 @@ export default function ClaimsPage() {
                                 </Select>
                             </div>
                             <div className="space-y-1.5">
-                                <Label>วัสดุ <span className="text-red-500">*</span></Label>
+                                <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">วัสดุ <span className="text-red-500">*</span></Label>
                                 <Select value={createForm.material} onValueChange={(v) => setCreateForm((f) => ({ ...f, material: v ?? "" }))}>
-                                    <SelectTrigger>
+                                    <SelectTrigger className="h-10 rounded-xl text-sm">
                                         <SelectValue placeholder="เลือกวัสดุ...">
                                             {(value: string | null) => {
-                                                if (!value) return <span className="text-muted-foreground">เลือกวัสดุ...</span>;
+                                                if (!value) return <span className="text-slate-400">เลือกวัสดุ...</span>;
                                                 return materials.find(x => x._id === value)?.name ?? value;
                                             }}
                                         </SelectValue>
@@ -439,9 +450,9 @@ export default function ClaimsPage() {
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1.5">
-                                <Label>แหล่งที่มา <span className="text-red-500">*</span></Label>
+                                <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">แหล่งที่มา <span className="text-red-500">*</span></Label>
                                 <Select value={createForm.source} onValueChange={(v) => setCreateForm((f) => ({ ...f, source: v as "customer" | "worker" }))}>
-                                    <SelectTrigger>
+                                    <SelectTrigger className="h-10 rounded-xl text-sm">
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -451,21 +462,22 @@ export default function ClaimsPage() {
                                 </Select>
                             </div>
                             <div className="space-y-1.5">
-                                <Label>วันที่เคลม</Label>
+                                <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">วันที่เคลม</Label>
                                 <Input
                                     type="date"
+                                    className="h-10 rounded-xl text-sm"
                                     value={createForm.claimDate}
                                     onChange={(e) => setCreateForm((f) => ({ ...f, claimDate: e.target.value }))}
                                 />
                             </div>
                         </div>
                         <div className="space-y-1.5">
-                            <Label>รายงานโดย <span className="text-red-500">*</span></Label>
+                            <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">รายงานโดย <span className="text-red-500">*</span></Label>
                             <Select value={createForm.reportedBy} onValueChange={(v) => setCreateForm((f) => ({ ...f, reportedBy: v ?? "" }))}>
-                                <SelectTrigger>
+                                <SelectTrigger className="h-10 rounded-xl text-sm">
                                     <SelectValue placeholder="เลือกผู้รายงาน...">
                                         {(value: string | null) => {
-                                            if (!value) return <span className="text-muted-foreground">เลือกผู้รายงาน...</span>;
+                                            if (!value) return <span className="text-slate-400">เลือกผู้รายงาน...</span>;
                                             return workerMap.get(value)?.name ?? value;
                                         }}
                                     </SelectValue>
@@ -478,38 +490,39 @@ export default function ClaimsPage() {
                             </Select>
                         </div>
                         <div className="space-y-1.5">
-                            <Label>รายละเอียด <span className="text-red-500">*</span></Label>
+                            <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">รายละเอียด <span className="text-red-500">*</span></Label>
                             <Textarea
                                 placeholder="อธิบายปัญหาหรือเหตุผลในการเคลม..."
+                                className="rounded-xl text-sm"
                                 rows={3}
                                 value={createForm.description}
                                 onChange={(e) => setCreateForm((f) => ({ ...f, description: e.target.value }))}
                             />
                         </div>
                     </div>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsCreateOpen(false)} disabled={isSubmitting}>ยกเลิก</Button>
-                        <Button onClick={handleCreate} disabled={isSubmitting}>
+                    <div className="flex justify-end gap-3 pt-4">
+                        <Button variant="outline" onClick={() => setIsCreateOpen(false)} disabled={isSubmitting} className="rounded-xl h-10 px-5 text-sm">ยกเลิก</Button>
+                        <Button onClick={handleCreate} disabled={isSubmitting} className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10 px-5 text-sm font-semibold">
                             {isSubmitting ? "กำลังบันทึก..." : "บันทึกการเคลม"}
                         </Button>
-                    </DialogFooter>
+                    </div>
                 </DialogContent>
             </Dialog>
 
             {/* Decision Dialog */}
             <Dialog open={!!decisionTarget} onOpenChange={() => setDecisionTarget(null)}>
-                <DialogContent className="sm:max-w-sm">
+                <DialogContent className="sm:max-w-sm rounded-xl p-6">
                     <DialogHeader>
-                        <DialogTitle>ตัดสินผลการเคลม</DialogTitle>
-                        <DialogDescription>
+                        <DialogTitle className="text-lg font-bold text-slate-900 dark:text-white">ตัดสินผลการเคลม</DialogTitle>
+                        <DialogDescription className="text-sm text-slate-500 dark:text-slate-400">
                             กำหนดผลการตัดสินสำหรับรายการเคลมนี้
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4 py-2">
+                    <div className="space-y-4 pt-2">
                         <div className="space-y-1.5">
-                            <Label>ผลการตัดสิน <span className="text-red-500">*</span></Label>
+                            <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">ผลการตัดสิน <span className="text-red-500">*</span></Label>
                             <Select value={decisionForm.decision} onValueChange={(v) => setDecisionForm((f) => ({ ...f, decision: (v ?? "") as "destroy" | "keep" | "" }))}>
-                                <SelectTrigger>
+                                <SelectTrigger className="h-10 rounded-xl text-sm">
                                     <SelectValue placeholder="เลือกผลการตัดสิน..." />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -519,12 +532,12 @@ export default function ClaimsPage() {
                             </Select>
                         </div>
                         <div className="space-y-1.5">
-                            <Label>อนุมัติโดย</Label>
+                            <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">อนุมัติโดย</Label>
                             <Select value={decisionForm.approvedBy} onValueChange={(v) => setDecisionForm((f) => ({ ...f, approvedBy: v ?? "" }))}>
-                                <SelectTrigger>
+                                <SelectTrigger className="h-10 rounded-xl text-sm">
                                     <SelectValue placeholder="เลือกผู้อนุมัติ...">
                                         {(value: string | null) => {
-                                            if (!value) return <span className="text-muted-foreground">เลือกผู้อนุมัติ...</span>;
+                                            if (!value) return <span className="text-slate-400">เลือกผู้อนุมัติ...</span>;
                                             const w = workerMap.get(value);
                                             return w ? `${w.name} (${w.role})` : value;
                                         }}
@@ -538,30 +551,33 @@ export default function ClaimsPage() {
                             </Select>
                         </div>
                     </div>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setDecisionTarget(null)} disabled={isUpdating}>ยกเลิก</Button>
-                        <Button onClick={handleUpdateDecision} disabled={isUpdating}>
+                    <div className="flex justify-end gap-3 pt-4">
+                        <Button variant="outline" onClick={() => setDecisionTarget(null)} disabled={isUpdating} className="rounded-xl h-10 px-5 text-sm">ยกเลิก</Button>
+                        <Button onClick={handleUpdateDecision} disabled={isUpdating} className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10 px-5 text-sm font-semibold">
                             {isUpdating ? "กำลังบันทึก..." : "บันทึกผลการตัดสิน"}
                         </Button>
-                    </DialogFooter>
+                    </div>
                 </DialogContent>
             </Dialog>
 
             {/* Delete Confirm Dialog */}
             <Dialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
-                <DialogContent className="sm:max-w-sm">
+                <DialogContent className="sm:max-w-sm rounded-xl p-6">
                     <DialogHeader>
-                        <DialogTitle>ยืนยันการลบ</DialogTitle>
-                        <DialogDescription>
+                        <div className="mx-auto mb-3 h-12 w-12 rounded-xl bg-red-50 dark:bg-red-500/10 flex items-center justify-center">
+                            <Trash2 className="h-6 w-6 text-red-500" />
+                        </div>
+                        <DialogTitle className="text-lg font-bold text-slate-900 dark:text-white text-center">ยืนยันการลบ</DialogTitle>
+                        <DialogDescription className="text-sm text-slate-500 dark:text-slate-400 text-center">
                             ลบรายการเคลมนี้? การกระทำนี้ไม่สามารถย้อนกลับได้
                         </DialogDescription>
                     </DialogHeader>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={isDeleting}>ยกเลิก</Button>
-                        <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
+                    <div className="flex justify-end gap-3 pt-4">
+                        <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={isDeleting} className="rounded-xl h-10 px-5 text-sm">ยกเลิก</Button>
+                        <Button variant="destructive" onClick={handleDelete} disabled={isDeleting} className="bg-red-600 hover:bg-red-700 rounded-xl h-10 px-5 text-sm font-semibold">
                             {isDeleting ? "กำลังลบ..." : "ลบรายการ"}
                         </Button>
-                    </DialogFooter>
+                    </div>
                 </DialogContent>
             </Dialog>
         </div>

@@ -7,7 +7,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
     Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -187,50 +186,50 @@ export default function WithdrawalsPage() {
     };
 
     return (
-        <div className="flex flex-col gap-4 sm:gap-6 lg:gap-8 max-w-[1600px] mx-auto w-full overflow-x-hidden">
+        <div className="space-y-6 max-w-[1440px] mx-auto w-full">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 pb-6 border-b border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="flex items-center gap-3 text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white leading-normal pt-2 pb-1">
-                        <ArrowDownFromLine className="h-7 w-7 sm:h-8 sm:w-8 shrink-0" />
-                        เบิกวัสดุ
-                    </h1>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm sm:text-base font-medium mt-1">บันทึกและติดตามการเบิกวัสดุแบบเรียลไทม์</p>
+                    <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">เบิกวัสดุ</h1>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">บันทึกและติดตามการเบิกวัสดุแบบเรียลไทม์</p>
                 </div>
-                <Button onClick={() => setIsCreateOpen(true)} className="gap-2 w-full sm:w-auto">
+                <Button onClick={() => setIsCreateOpen(true)} className="gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl h-10 px-5 text-sm">
                     <Plus className="h-4 w-4" />
                     เบิกวัสดุใหม่
                 </Button>
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {[
-                    { label: "รายการทั้งหมด", value: withdrawals.length },
-                    { label: "กระจกดิบ (Raw)", value: withdrawals.filter((w) => w.stockType === "Raw").length },
-                    { label: "กระจกนำกลับ (Reuse)", value: withdrawals.filter((w) => w.stockType === "Reuse").length },
-                    { label: "วันนี้", value: withdrawals.filter((w) => new Date(w.createdAt).toDateString() === new Date().toDateString()).length },
+                    { label: "รายการทั้งหมด", value: withdrawals.length, accent: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10", icon: ArrowDownFromLine },
+                    { label: "กระจกดิบ (Raw)", value: withdrawals.filter((w) => w.stockType === "Raw").length, accent: "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10", icon: Package },
+                    { label: "กระจกนำกลับ (Reuse)", value: withdrawals.filter((w) => w.stockType === "Reuse").length, accent: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10", icon: Package },
+                    { label: "วันนี้", value: withdrawals.filter((w) => new Date(w.createdAt).toDateString() === new Date().toDateString()).length, accent: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10", icon: Package },
                 ].map((stat) => (
-                    <div key={stat.label} className="rounded-lg border bg-card p-4">
-                        <p className="text-xs text-muted-foreground">{stat.label}</p>
-                        <p className="mt-1 text-2xl font-bold">{isLoading ? "-" : stat.value}</p>
+                    <div key={stat.label} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 p-4 sm:p-5">
+                        <div className={`h-9 w-9 rounded-lg flex items-center justify-center mb-3 ${stat.accent}`}>
+                            <stat.icon className="h-[18px] w-[18px]" />
+                        </div>
+                        <p className="text-[13px] text-slate-500 dark:text-slate-400 mb-0.5">{stat.label}</p>
+                        <p className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">{isLoading ? "-" : stat.value}</p>
                     </div>
                 ))}
             </div>
 
             {/* Filters */}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                 <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                     <Input
                         placeholder="ค้นหาตามชื่อวัสดุ..."
-                        className="pl-9"
+                        className="pl-9 h-10 rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-sm"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />
                 </div>
                 <Select value={stockTypeFilter} onValueChange={(v) => setStockTypeFilter(v ?? "all")}>
-                    <SelectTrigger className="w-[180px]">
+                    <SelectTrigger className="h-10 w-full sm:w-48 rounded-xl text-sm">
                         <SelectValue placeholder="ประเภทสต็อก" />
                     </SelectTrigger>
                     <SelectContent>
@@ -242,18 +241,18 @@ export default function WithdrawalsPage() {
             </div>
 
             {/* Table */}
-            <div className="rounded-lg border bg-card overflow-hidden">
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 overflow-hidden">
                 <div className="overflow-x-auto">
                 <Table>
                     <TableHeader>
-                        <TableRow>
-                            <TableHead>วันที่เบิก</TableHead>
-                            <TableHead>วัสดุ</TableHead>
-                            <TableHead>จำนวน</TableHead>
-                            <TableHead>ประเภท</TableHead>
-                            <TableHead>Order</TableHead>
-                            <TableHead>เบิกโดย</TableHead>
-                            {isManager && <TableHead className="w-12" />}
+                        <TableRow className="border-slate-100 dark:border-slate-800 hover:bg-transparent">
+                            <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 px-4 h-10">วันที่เบิก</TableHead>
+                            <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">วัสดุ</TableHead>
+                            <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">จำนวน</TableHead>
+                            <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">ประเภท</TableHead>
+                            <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">Order</TableHead>
+                            <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">เบิกโดย</TableHead>
+                            {isManager && <TableHead className="w-10 py-3 h-10" />}
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -267,32 +266,36 @@ export default function WithdrawalsPage() {
                             ))
                         ) : paginated.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={isManager ? 7 : 6} className="py-12 text-center text-muted-foreground">
-                                    <Package className="mx-auto mb-2 h-8 w-8 opacity-40" />
-                                    ไม่มีข้อมูลการเบิกวัสดุ
+                                <TableCell colSpan={isManager ? 7 : 6} className="py-16 text-center border-none">
+                                    <div className="flex flex-col items-center gap-2">
+                                        <div className="h-12 w-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                                            <Package className="h-6 w-6 text-slate-400 dark:text-slate-500" />
+                                        </div>
+                                        <p className="text-sm text-slate-500 dark:text-slate-400">ไม่มีข้อมูลการเบิกวัสดุ</p>
+                                    </div>
                                 </TableCell>
                             </TableRow>
                         ) : (
                             paginated.map((w) => (
-                                <TableRow key={w._id}>
-                                    <TableCell className="text-sm">
+                                <TableRow key={w._id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 border-slate-100 dark:border-slate-800">
+                                    <TableCell className="text-sm py-3.5 px-4 text-slate-600 dark:text-slate-300">
                                         {new Date(w.withdrawnDate ?? w.createdAt).toLocaleDateString("th-TH")}
                                     </TableCell>
-                                    <TableCell className="font-medium">{getMaterialName(w.material)}</TableCell>
-                                    <TableCell>{w.quantity}</TableCell>
-                                    <TableCell>
-                                        <Badge variant={w.stockType === "Raw" ? "default" : "secondary"}>
+                                    <TableCell className="text-sm font-medium py-3.5 text-slate-900 dark:text-white">{getMaterialName(w.material)}</TableCell>
+                                    <TableCell className="text-sm py-3.5 tabular-nums">{w.quantity}</TableCell>
+                                    <TableCell className="py-3.5">
+                                        <span className={`text-xs font-medium px-2 py-1 rounded-md ${w.stockType === "Raw" ? "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"}`}>
                                             {w.stockType}
-                                        </Badge>
+                                        </span>
                                     </TableCell>
-                                    <TableCell className="font-mono text-sm text-muted-foreground">
+                                    <TableCell className="font-mono text-sm text-slate-500 dark:text-slate-400 py-3.5">
                                         {getOrderLabel(w.order)}
                                     </TableCell>
-                                    <TableCell>{getWorkerName(w.withdrawnBy)}</TableCell>
+                                    <TableCell className="text-sm py-3.5 text-slate-600 dark:text-slate-300">{getWorkerName(w.withdrawnBy)}</TableCell>
                                     {isManager && (
-                                        <TableCell>
+                                        <TableCell className="py-3.5 pr-4">
                                             <DropdownMenu>
-                                                <DropdownMenuTrigger className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-accent transition-colors">
+                                                <DropdownMenuTrigger className="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
                                                     <MoreHorizontal className="h-4 w-4" />
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent align="end">
@@ -316,15 +319,28 @@ export default function WithdrawalsPage() {
             </div>
 
             {/* Pagination */}
-            {!isLoading && filtered.length > ITEMS_PER_PAGE && (
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-muted-foreground">
-                    <span>แสดง {((currentPage - 1) * ITEMS_PER_PAGE) + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)} จาก {filtered.length} รายการ</span>
-                    <div className="flex items-center gap-2">
-                        <Button variant="outline" size="icon" className="h-8 w-8" disabled={currentPage === 1} onClick={() => setCurrentPage((p) => p - 1)}>
+            {!isLoading && totalPages > 1 && (
+                <div className="px-4 py-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between -mt-6 bg-white dark:bg-slate-900 rounded-b-xl">
+                    <span className="text-xs text-slate-400">
+                        {currentPage} / {totalPages}
+                    </span>
+                    <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-lg" disabled={currentPage === 1} onClick={() => setCurrentPage((p) => p - 1)}>
                             <ChevronLeft className="h-4 w-4" />
                         </Button>
-                        <span className="font-medium text-foreground">{currentPage} / {totalPages}</span>
-                        <Button variant="outline" size="icon" className="h-8 w-8" disabled={currentPage === totalPages} onClick={() => setCurrentPage((p) => p + 1)}>
+                        {[...Array(totalPages)].map((_, i) => (
+                            <button
+                                key={i}
+                                onClick={() => setCurrentPage(i + 1)}
+                                className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-medium transition-colors ${currentPage === i + 1
+                                    ? "bg-blue-600 text-white"
+                                    : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                    }`}
+                            >
+                                {i + 1}
+                            </button>
+                        ))}
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-lg" disabled={currentPage === totalPages} onClick={() => setCurrentPage((p) => p + 1)}>
                             <ChevronRight className="h-4 w-4" />
                         </Button>
                     </div>
@@ -333,14 +349,14 @@ export default function WithdrawalsPage() {
 
             {/* Create Dialog */}
             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>เบิกวัสดุใหม่</DialogTitle>
-                        <DialogDescription>บันทึกการเบิกวัสดุออกจากคลัง ระบบจะหักสต็อกอัตโนมัติ</DialogDescription>
+                <DialogContent className="sm:max-w-md rounded-xl p-6">
+                    <DialogHeader className="mb-2">
+                        <DialogTitle className="text-lg font-bold text-slate-900 dark:text-white">เบิกวัสดุใหม่</DialogTitle>
+                        <DialogDescription className="text-sm text-slate-500">บันทึกการเบิกวัสดุออกจากคลัง ระบบจะหักสต็อกอัตโนมัติ</DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4 py-2">
+                    <div className="space-y-4">
                         <div className="space-y-1.5">
-                            <Label>Order <span className="text-red-500">*</span></Label>
+                            <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">Order <span className="text-red-400">*</span></Label>
                             <Select value={form.order} onValueChange={(v) => setForm((f) => ({ ...f, order: v ?? "" }))}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="เลือก Order...">
@@ -361,9 +377,9 @@ export default function WithdrawalsPage() {
                                 </SelectContent>
                             </Select>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1.5">
-                                <Label>ประเภทสต็อก</Label>
+                                <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">ประเภทสต็อก</Label>
                                 <Select value={form.stockType} onValueChange={(v) => setForm((f) => ({ ...f, stockType: v as "Raw" | "Reuse" }))}>
                                     <SelectTrigger>
                                         <SelectValue />
@@ -375,7 +391,7 @@ export default function WithdrawalsPage() {
                                 </Select>
                             </div>
                             <div className="space-y-1.5">
-                                <Label>วัสดุ <span className="text-red-500">*</span></Label>
+                                <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">วัสดุ <span className="text-red-400">*</span></Label>
                                 <Select value={form.material} onValueChange={(v) => setForm((f) => ({ ...f, material: v ?? "" }))}>
                                     <SelectTrigger>
                                         <SelectValue placeholder="เลือกวัสดุ...">
@@ -406,9 +422,9 @@ export default function WithdrawalsPage() {
                                 </Select>
                             </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1.5">
-                                <Label>จำนวน <span className="text-red-500">*</span></Label>
+                                <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">จำนวน <span className="text-red-400">*</span></Label>
                                 <Input
                                     type="number"
                                     min={1}
@@ -419,7 +435,7 @@ export default function WithdrawalsPage() {
                             </div>
                         </div>
                         <div className="space-y-1.5">
-                            <Label>วันที่เบิก</Label>
+                            <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">วันที่เบิก</Label>
                             <Input
                                 type="date"
                                 value={form.withdrawnDate}
@@ -427,9 +443,9 @@ export default function WithdrawalsPage() {
                             />
                         </div>
                     </div>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsCreateOpen(false)} disabled={isSubmitting}>ยกเลิก</Button>
-                        <Button onClick={handleCreate} disabled={isSubmitting}>
+                    <DialogFooter className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                        <Button variant="ghost" className="rounded-xl h-10 text-sm" onClick={() => setIsCreateOpen(false)} disabled={isSubmitting}>ยกเลิก</Button>
+                        <Button className="rounded-xl h-10 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium" onClick={handleCreate} disabled={isSubmitting}>
                             {isSubmitting ? "กำลังบันทึก..." : "บันทึกการเบิก"}
                         </Button>
                     </DialogFooter>
@@ -438,19 +454,24 @@ export default function WithdrawalsPage() {
 
             {/* Delete Confirm Dialog */}
             <Dialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
-                <DialogContent className="sm:max-w-sm">
+                <DialogContent className="sm:max-w-[360px] rounded-xl p-6">
                     <DialogHeader>
-                        <DialogTitle>ยืนยันการลบ</DialogTitle>
-                        <DialogDescription>
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="h-9 w-9 rounded-lg bg-red-50 dark:bg-red-500/10 flex items-center justify-center shrink-0">
+                                <Trash2 className="h-4 w-4 text-red-500" />
+                            </div>
+                            <DialogTitle className="text-base font-semibold text-slate-900 dark:text-white">ยืนยันการลบ</DialogTitle>
+                        </div>
+                        <DialogDescription className="text-sm text-slate-500">
                             ลบรายการเบิกวัสดุนี้? การกระทำนี้ไม่สามารถย้อนกลับได้
                         </DialogDescription>
                     </DialogHeader>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={isDeleting}>ยกเลิก</Button>
-                        <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
+                    <div className="flex gap-2.5 mt-4">
+                        <Button variant="outline" className="flex-1 rounded-xl h-10 text-sm" onClick={() => setDeleteTarget(null)} disabled={isDeleting}>ยกเลิก</Button>
+                        <Button className="flex-1 rounded-xl h-10 text-sm bg-red-600 hover:bg-red-700 text-white" onClick={handleDelete} disabled={isDeleting}>
                             {isDeleting ? "กำลังลบ..." : "ลบรายการ"}
                         </Button>
-                    </DialogFooter>
+                    </div>
                 </DialogContent>
             </Dialog>
         </div>
