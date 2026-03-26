@@ -40,13 +40,13 @@ function getStr(v: string | { name: string } | null | undefined): string {
 
 function InfoRow({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
     return (
-        <div className="flex items-start gap-4 py-3 sm:py-4 border-b border-slate-100 dark:border-slate-800/60 last:border-0 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors px-2 -mx-2 rounded-xl">
-            <div className="p-2 rounded-xl bg-blue-50 dark:bg-[#E8601C]/10 text-blue-600 dark:text-[#E8601C] shrink-0 mt-0.5">
-                <Icon className="h-4 w-4" />
+        <div className="flex items-start gap-3 sm:gap-4 py-2.5 sm:py-4 border-b border-slate-100 dark:border-slate-800/60 last:border-0 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors px-1.5 sm:px-2 -mx-1.5 sm:-mx-2 rounded-xl">
+            <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-blue-50 dark:bg-[#E8601C]/10 text-blue-600 dark:text-[#E8601C] shrink-0 mt-0.5">
+                <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </div>
             <div className="flex-1 min-w-0">
-                <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{label}</p>
-                <p className="text-sm sm:text-base font-semibold text-slate-800 dark:text-slate-200 mt-1 break-words">{value}</p>
+                <p className="text-[10px] sm:text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{label}</p>
+                <p className="text-sm sm:text-base font-semibold text-slate-800 dark:text-slate-200 mt-0.5 sm:mt-1 break-words">{value}</p>
             </div>
         </div>
     );
@@ -353,25 +353,25 @@ export default function ProductionDetailPage() {
         <div className="space-y-6">
 
             {/* Back + title */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                    <Button variant="outline" size="sm" className="h-10 w-10 p-0 rounded-xl border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800" onClick={() => router.back()}>
+            <div className="flex flex-col gap-4">
+                <div className="flex items-start gap-3">
+                    <Button variant="outline" size="sm" className="h-10 w-10 p-0 rounded-xl border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 shrink-0 mt-0.5" onClick={() => router.back()}>
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
                     <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 flex-wrap">
-                            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-                                <Factory className="h-6 w-6 text-blue-600 dark:text-[#E8601C] shrink-0" />
-                                คำสั่งผลิต {order.code ? `#${order.code}` : `#${order._id.slice(-6).toUpperCase()}`}
+                        <div className="flex items-start sm:items-center gap-2 sm:gap-3 flex-col sm:flex-row">
+                            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+                                <Factory className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600 dark:text-[#E8601C] shrink-0" />
+                                <span className="break-all">คำสั่งผลิต {order.code ? `#${order.code}` : `#${order._id.slice(-6).toUpperCase()}`}</span>
                             </h1>
-                            <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusCfg.cls}`}>
+                            <span className={`rounded-full px-3 py-1 text-xs font-bold shrink-0 ${statusCfg.cls}`}>
                                 {statusCfg.label}
                             </span>
                         </div>
-                        <p className="text-sm text-slate-500 font-medium mt-0.5">สร้างเมื่อ {fmtDate(order.createdAt)}</p>
+                        <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1">สร้างเมื่อ {fmtDate(order.createdAt)}</p>
                     </div>
                 </div>
-                <Button className="h-10 rounded-xl gap-2 font-bold w-full sm:w-auto bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 transition-all border-0" onClick={() => router.push(`/production/${id}/print`)}>
+                <Button className="h-11 rounded-xl gap-2 font-bold w-full sm:w-auto sm:self-end bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 transition-all border-0" onClick={() => router.push(`/production/${id}/print`)}>
                     <Printer className="h-4 w-4" />
                     พิมพ์ใบงาน
                 </Button>
@@ -383,9 +383,9 @@ export default function ProductionDetailPage() {
                 <div className="space-y-6">
 
                     {/* Order + Bill toggle card */}
-                    <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-200/20 dark:shadow-none p-6 sm:p-8">
+                    <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-200/20 dark:shadow-none p-5 sm:p-8">
                         {/* Tab toggle */}
-                        <div className="flex items-center gap-1.5 rounded-2xl bg-slate-100/80 dark:bg-slate-800/50 p-1 mb-6 w-fit border border-slate-200/50 dark:border-slate-700/50 backdrop-blur-sm">
+                        <div className="flex items-center gap-1 sm:gap-1.5 rounded-2xl bg-slate-100/80 dark:bg-slate-800/50 p-1 mb-5 sm:mb-6 w-full sm:w-fit border border-slate-200/50 dark:border-slate-700/50 backdrop-blur-sm">
                             <button
                                 onClick={() => setInfoTab("order")}
                                 className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition-all ${
@@ -447,7 +447,7 @@ export default function ProductionDetailPage() {
 
                 {/* ── Right: station journey ───────────────────────────── */}
                 <div className="space-y-6">
-                    <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-200/20 dark:shadow-none p-6 sm:p-8 space-y-6 flex flex-col h-full overflow-hidden">
+                    <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-200/20 dark:shadow-none p-5 sm:p-8 space-y-5 sm:space-y-6 flex flex-col h-full overflow-hidden">
                         <div className="flex items-center justify-between gap-4">
                             <h2 className="text-base font-bold flex items-center gap-2.5 text-slate-800 dark:text-slate-200">
                                 <div className="h-8 w-8 rounded-full bg-blue-50 dark:bg-[#E8601C]/10 flex items-center justify-center text-blue-600 dark:text-[#E8601C]">
@@ -465,7 +465,7 @@ export default function ProductionDetailPage() {
                             )}
                         </div>
 
-                        <div className="overflow-y-auto max-h-[400px] flex-1 relative hide-scrollbar px-2 -mx-2">
+                        <div className="overflow-y-auto max-h-[320px] sm:max-h-[400px] flex-1 relative hide-scrollbar px-1 sm:px-2 -mx-1 sm:-mx-2">
                             <StationJourney
                                 order={order}
                                 stationMap={stationMap}
@@ -522,7 +522,7 @@ export default function ProductionDetailPage() {
             {/* ── Pane list ─────────────────────────────────────────── */}
             {panes.length > 0 && (
                 <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl shadow-slate-200/20 dark:shadow-none overflow-hidden mt-6 flex flex-col">
-                    <div className="px-6 sm:px-8 py-5 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-50/50 dark:bg-slate-900/30">
+                    <div className="px-5 sm:px-8 py-4 sm:py-5 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 bg-slate-50/50 dark:bg-slate-900/30">
                         <h2 className="text-base font-bold flex items-center gap-2.5 text-slate-800 dark:text-slate-200">
                             <div className="h-8 w-8 rounded-full bg-blue-50 dark:bg-[#E8601C]/10 flex items-center justify-center">
                                 <Package className="h-4 w-4 text-blue-600 dark:text-[#E8601C]" />
@@ -542,8 +542,8 @@ export default function ProductionDetailPage() {
                         </div>
                     </div>
                     
-                    <div className="p-6 sm:p-8">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                    <div className="p-4 sm:p-8">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
                             {panes.map((pane) => {
                                 const stCfg = ({
                                     pending:            { label: "รอ",          dot: "bg-amber-400",  text: "text-amber-600 dark:text-amber-400", bg: "bg-amber-50" },
