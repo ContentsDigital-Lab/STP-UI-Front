@@ -28,14 +28,14 @@ function resolveTemplateId(templateId: unknown): string {
 // ── Color picker ──────────────────────────────────────────────────────────────
 function ColorPicker({ value, onChange }: { value: string; onChange: (id: string) => void }) {
     return (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2.5 sm:gap-2">
             {COLOR_OPTIONS.map((c) => (
                 <button
                     key={c.id}
                     type="button"
                     title={c.label}
                     onClick={() => onChange(c.id)}
-                    className={`w-7 h-7 rounded-full border-2 transition-all ${
+                    className={`w-10 h-10 sm:w-7 sm:h-7 rounded-full border-2 transition-all ${
                         value === c.id ? "border-foreground scale-110 shadow-md" : "border-transparent hover:scale-105"
                     }`}
                     style={{ backgroundColor: c.swatch }}
@@ -67,28 +67,26 @@ function StationModal({
     const canSave  = name.trim().length > 0 && (isEdit || templateId.length > 0);
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onClose}>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm sm:p-4" onClick={onClose}>
             <div
-                className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-lg w-full max-w-md p-6 space-y-5"
+                className="bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-xl border border-slate-200 dark:border-slate-800 shadow-lg w-full sm:max-w-md p-6 space-y-5 sm:space-y-4"
                 onClick={(e) => e.stopPropagation()}
             >
-                {/* Header */}
                 <div className="flex items-center justify-between">
-                    <h2 className="text-base font-semibold text-slate-900 dark:text-white">{isEdit ? "แก้ไขสถานี" : "สร้างสถานีใหม่"}</h2>
-                    <button type="button" onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-                        <X className="h-4 w-4" />
+                    <h2 className="text-lg sm:text-base font-bold sm:font-semibold text-slate-900 dark:text-white">{isEdit ? "แก้ไขสถานี" : "สร้างสถานีใหม่"}</h2>
+                    <button type="button" onClick={onClose} className="h-10 w-10 sm:h-8 sm:w-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 active:bg-slate-200 transition-colors">
+                        <X className="h-5 w-5 sm:h-4 sm:w-4" />
                     </button>
                 </div>
 
-                {/* Name */}
                 <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">ชื่อสถานี <span className="text-red-400">*</span></label>
+                    <label className="text-base sm:text-sm font-medium text-slate-700 dark:text-slate-300">ชื่อสถานี <span className="text-red-400">*</span></label>
                     <input
                         autoFocus
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         placeholder="เช่น ตัดกระจก, QC, บรรจุ..."
-                        className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-colors"
+                        className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 sm:px-3 sm:py-2 text-base sm:text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-colors"
                         onKeyDown={(e) => e.key === "Enter" && canSave && onSave({ name: name.trim(), colorId, templateId: templateId || undefined })}
                     />
                     {name.trim() && (
@@ -98,21 +96,19 @@ function StationModal({
                     )}
                 </div>
 
-                {/* Color */}
                 <div className="space-y-2">
-                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">สีป้ายชื่อ</label>
+                    <label className="text-base sm:text-sm font-medium text-slate-700 dark:text-slate-300">สีป้ายชื่อ</label>
                     <ColorPicker value={colorId} onChange={setColorId} />
                 </div>
 
-                {/* Template */}
                 <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    <label className="text-base sm:text-sm font-medium text-slate-700 dark:text-slate-300">
                         Template {!isEdit && <span className="text-red-400">*</span>}
                     </label>
                     <select
                         value={templateId}
                         onChange={(e) => setTemplateId(e.target.value)}
-                        className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-colors"
+                        className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 sm:px-3 sm:py-2 text-base sm:text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-colors"
                     >
                         <option value="">— เลือก template —</option>
                         {templates.map((t) => (
@@ -120,17 +116,16 @@ function StationModal({
                         ))}
                     </select>
                     {templates.length === 0 ? (
-                        <p className="text-xs text-slate-400">ยังไม่มี template — สร้างได้ที่ปุ่ม "จัดการ Template"</p>
+                        <p className="text-sm sm:text-xs text-slate-400">ยังไม่มี template — สร้างได้ที่ปุ่ม &quot;จัดการ Template&quot;</p>
                     ) : !isEdit && !templateId && (
-                        <p className="text-xs text-amber-600">กรุณาเลือก template ก่อนสร้างสถานี</p>
+                        <p className="text-sm sm:text-xs text-amber-600">กรุณาเลือก template ก่อนสร้างสถานี</p>
                     )}
                 </div>
 
-                {/* Actions */}
-                <div className="flex gap-2 justify-end pt-2">
-                    <Button variant="outline" size="sm" className="rounded-xl" onClick={onClose}>ยกเลิก</Button>
-                    <Button size="sm" className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white" disabled={!canSave} onClick={() => onSave({ name: name.trim(), colorId, templateId: templateId || undefined })}>
-                        <Plus className="h-3.5 w-3.5 mr-1" />
+                <div className="flex flex-col sm:flex-row gap-2 sm:justify-end pt-2">
+                    <Button variant="outline" className="rounded-xl h-12 sm:h-auto sm:rounded-xl text-base sm:text-sm order-2 sm:order-1" size="sm" onClick={onClose}>ยกเลิก</Button>
+                    <Button className="rounded-xl h-12 sm:h-auto sm:rounded-xl text-base sm:text-sm bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold sm:font-medium order-1 sm:order-2" size="sm" disabled={!canSave} onClick={() => onSave({ name: name.trim(), colorId, templateId: templateId || undefined })}>
+                        <Plus className="h-4 w-4 sm:h-3.5 sm:w-3.5 mr-1" />
                         {isEdit ? "บันทึก" : "สร้างสถานี"}
                     </Button>
                 </div>
@@ -142,18 +137,18 @@ function StationModal({
 // ── Delete confirm ────────────────────────────────────────────────────────────
 function DeleteConfirm({ name, onConfirm, onCancel }: { name: string; onConfirm: () => void; onCancel: () => void }) {
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onCancel}>
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-lg w-full max-w-sm p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
-                <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-lg bg-red-50 dark:bg-red-500/10 flex items-center justify-center shrink-0">
-                        <Trash2 className="h-4 w-4 text-red-500" />
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm sm:p-4" onClick={onCancel}>
+            <div className="bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-xl border border-slate-200 dark:border-slate-800 shadow-lg w-full sm:max-w-sm p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+                <div className="flex flex-col items-center gap-2 text-center">
+                    <div className="h-12 w-12 sm:h-9 sm:w-9 rounded-xl sm:rounded-lg bg-red-50 dark:bg-red-500/10 flex items-center justify-center">
+                        <Trash2 className="h-6 w-6 sm:h-4 sm:w-4 text-red-500" />
                     </div>
-                    <h2 className="text-base font-semibold text-slate-900 dark:text-white">ลบสถานี</h2>
+                    <h2 className="text-lg sm:text-base font-bold sm:font-semibold text-slate-900 dark:text-white">ลบสถานี</h2>
+                    <p className="text-base sm:text-sm text-slate-500">ต้องการลบสถานี <strong className="text-slate-700 dark:text-slate-300">{name}</strong> ใช่ไหม? ไม่สามารถกู้คืนได้</p>
                 </div>
-                <p className="text-sm text-slate-500">ต้องการลบสถานี <strong className="text-slate-700 dark:text-slate-300">{name}</strong> ใช่ไหม? ไม่สามารถกู้คืนได้</p>
-                <div className="flex gap-2 justify-end">
-                    <Button variant="outline" size="sm" className="rounded-xl" onClick={onCancel}>ยกเลิก</Button>
-                    <Button size="sm" className="rounded-xl bg-red-600 hover:bg-red-700 text-white" onClick={onConfirm}>ลบ</Button>
+                <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
+                    <Button variant="outline" size="sm" className="rounded-xl h-12 sm:h-auto text-base sm:text-sm order-2 sm:order-1" onClick={onCancel}>ยกเลิก</Button>
+                    <Button size="sm" className="rounded-xl h-12 sm:h-auto text-base sm:text-sm bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-bold sm:font-medium order-1 sm:order-2" onClick={onConfirm}>ลบสถานี</Button>
                 </div>
             </div>
         </div>
@@ -266,17 +261,17 @@ export default function StationsPage() {
     return (
         <div className="space-y-6 max-w-[1440px] mx-auto w-full">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">สถานี</h1>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">สถานีการทำงานในกระบวนการผลิต</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" className="gap-2 text-sm rounded-xl h-10" onClick={() => router.push("/stations/designer")}>
+                    <Button variant="outline" className="gap-2 text-sm rounded-xl h-12 sm:h-10" onClick={() => router.push("/stations/designer")}>
                         <Settings2 className="h-4 w-4" />
                         <span className="hidden sm:inline">จัดการ</span> Template
                     </Button>
-                    <Button className="gap-2 text-sm rounded-xl h-10 bg-blue-600 hover:bg-blue-700 text-white" onClick={() => setShowCreate(true)}>
+                    <Button className="gap-2 text-sm rounded-xl h-12 sm:h-10 bg-blue-600 hover:bg-blue-700 text-white font-semibold" onClick={() => setShowCreate(true)}>
                         <Plus className="h-4 w-4" />
                         สร้างสถานี
                     </Button>
@@ -290,10 +285,10 @@ export default function StationsPage() {
                         <Factory className="h-6 w-6 text-slate-400 dark:text-slate-500" />
                     </div>
                     <div className="text-center">
-                        <p className="text-sm font-medium text-slate-500 dark:text-slate-400">ยังไม่มีสถานี</p>
-                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">กด "สร้างสถานี" เพื่อเพิ่มสถานีการทำงาน</p>
+                        <p className="text-base sm:text-sm font-medium text-slate-500 dark:text-slate-400">ยังไม่มีสถานี</p>
+                        <p className="text-sm sm:text-xs text-slate-400 dark:text-slate-500 mt-0.5">กด &quot;สร้างสถานี&quot; เพื่อเพิ่มสถานีการทำงาน</p>
                     </div>
-                    <Button onClick={() => setShowCreate(true)} className="gap-2 rounded-xl h-9 bg-blue-600 hover:bg-blue-700 text-white text-sm">
+                    <Button onClick={() => setShowCreate(true)} className="gap-2 rounded-xl h-12 sm:h-9 px-6 bg-blue-600 hover:bg-blue-700 text-white text-base sm:text-sm font-bold">
                         <Plus className="h-4 w-4" />
                         สร้างสถานีแรก
                     </Button>
@@ -309,60 +304,74 @@ export default function StationsPage() {
                         const templateName = tmplId ? tmplNames[tmplId] : undefined;
 
                         return (
-                            <div key={station._id} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 p-4 flex flex-col gap-3 group hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
-                                {/* Name badge + actions */}
-                                <div className="flex items-start justify-between gap-2">
-                                    <span className={`text-sm font-semibold px-2.5 py-1 rounded-lg ${color.cls}`}>
-                                        {station.name}
-                                    </span>
-                                    <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button
-                                            type="button"
-                                            onClick={() => setEditing({ ...station, colorId: colorMap[station._id] ?? station.colorId ?? "sky" })}
-                                            className="p-1.5 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                                            title="แก้ไข"
-                                        >
-                                            <Pencil className="h-3.5 w-3.5" />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setDeleting(station)}
-                                            className="p-1.5 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
-                                            title="ลบ"
-                                        >
-                                            <Trash2 className="h-3.5 w-3.5" />
-                                        </button>
+                            <div key={station._id} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 overflow-hidden flex flex-col group sm:hover:border-slate-300 dark:sm:hover:border-slate-700 transition-colors">
+                                {/* Color bar — visible on mobile for quick identification */}
+                                <div className="h-1.5 sm:h-1" style={{ backgroundColor: color.swatch }} />
+
+                                <div className="p-4 flex flex-col gap-3 flex-1">
+                                    {/* Station info + actions */}
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="flex items-center gap-3 sm:gap-2 min-w-0">
+                                            {/* Large icon on mobile, badge on desktop */}
+                                            <div className={`h-11 w-11 sm:hidden rounded-xl flex items-center justify-center shrink-0 ${color.cls}`}>
+                                                <Factory className="h-5 w-5" />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <h3 className="text-[17px] leading-tight sm:text-sm font-bold text-slate-900 dark:text-white truncate">
+                                                    {station.name}
+                                                </h3>
+                                                {/* Desktop: color badge */}
+                                                <span className={`hidden sm:inline-block text-xs font-semibold px-2 py-0.5 rounded-md mt-0.5 ${color.cls}`}>
+                                                    {station.name}
+                                                </span>
+                                                {/* Template info */}
+                                                {loadingTmpl ? (
+                                                    <div className="flex items-center gap-1 mt-0.5 text-sm sm:text-xs text-slate-400">
+                                                        <Loader2 className="h-3 w-3 animate-spin" /> กำลังโหลด...
+                                                    </div>
+                                                ) : templateName ? (
+                                                    <div className="flex items-center gap-1 mt-0.5">
+                                                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                                                        <span className="text-sm sm:text-xs text-slate-500 dark:text-slate-400 font-medium truncate">{templateName}</span>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-sm sm:text-xs text-slate-400 italic mt-0.5 block">ยังไม่มี template</span>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Actions — always visible on mobile, hover on desktop */}
+                                        <div className="flex items-center gap-0.5 shrink-0 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                            <button
+                                                type="button"
+                                                onClick={() => setEditing({ ...station, colorId: colorMap[station._id] ?? station.colorId ?? "sky" })}
+                                                className="h-10 w-10 sm:h-7 sm:w-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 active:bg-slate-200 transition-colors"
+                                                title="แก้ไข"
+                                            >
+                                                <Pencil className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeleting(station)}
+                                                className="h-10 w-10 sm:h-7 sm:w-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 active:bg-red-100 transition-colors"
+                                                title="ลบ"
+                                            >
+                                                <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                                            </button>
+                                        </div>
                                     </div>
-                                </div>
 
-                                {/* Template assignment */}
-                                <div className="flex-1">
-                                    {loadingTmpl ? (
-                                        <div className="flex items-center gap-1.5 text-xs text-slate-400">
-                                            <Loader2 className="h-3 w-3 animate-spin" />
-                                            กำลังโหลด...
-                                        </div>
-                                    ) : templateName ? (
-                                        <div className="flex items-center gap-1.5">
-                                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                                            <span className="text-xs text-slate-600 dark:text-slate-400 font-medium truncate">{templateName}</span>
-                                        </div>
-                                    ) : (
-                                        <span className="text-xs text-slate-400 italic">ยังไม่ได้กำหนด template</span>
-                                    )}
+                                    {/* Enter station — big on mobile, normal on desktop */}
+                                    <Button
+                                        className="w-full h-14 sm:h-9 gap-2 text-base sm:text-xs rounded-xl sm:rounded-lg bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold sm:font-medium"
+                                        disabled={!tmplId}
+                                        onClick={() => router.push(`/stations/${station._id}`)}
+                                    >
+                                        <Play className="h-5 w-5 sm:h-3.5 sm:w-3.5" />
+                                        เข้าสถานี
+                                        <ChevronRight className="h-5 w-5 sm:h-3 sm:w-3 ml-auto" />
+                                    </Button>
                                 </div>
-
-                                {/* Enter station button */}
-                                <Button
-                                    size="sm"
-                                    className="w-full h-9 gap-1.5 text-xs rounded-lg bg-blue-600 hover:bg-blue-700 text-white"
-                                    disabled={!tmplId}
-                                    onClick={() => router.push(`/stations/${station._id}`)}
-                                >
-                                    <Play className="h-3.5 w-3.5" />
-                                    เข้าสถานี
-                                    {tmplId && <ChevronRight className="h-3 w-3" />}
-                                </Button>
                             </div>
                         );
                     })}
@@ -371,7 +380,7 @@ export default function StationsPage() {
                     <button
                         type="button"
                         onClick={() => setShowCreate(true)}
-                        className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 p-4 flex flex-col items-center justify-center gap-2 hover:border-blue-300 dark:hover:border-blue-800 hover:bg-blue-50/50 dark:hover:bg-blue-500/5 transition-all min-h-[160px]"
+                        className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 p-4 flex flex-col items-center justify-center gap-2 hover:border-blue-300 dark:hover:border-blue-800 hover:bg-blue-50/50 dark:hover:bg-blue-500/5 active:bg-blue-50 transition-all min-h-[160px]"
                     >
                         <div className="h-9 w-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
                             <Plus className="h-4 w-4 text-slate-400" />
