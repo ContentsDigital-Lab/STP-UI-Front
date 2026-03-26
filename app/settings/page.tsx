@@ -2,157 +2,129 @@
 
 import Link from "next/link";
 import { UserCog, ShieldAlert, Users, Bell, Tag, Settings, DollarSign } from "lucide-react";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/lib/auth/auth-context";
 
 export default function SettingsPage() {
     const { user } = useAuth();
-
-    // Only admin and manager should see the user management card
     const hasUserManagementAccess = user?.role === "admin" || user?.role === "manager";
 
+    const settngsItems = [
+        {
+            href: "/settings/users",
+            title: "User Management",
+            description: "Manage administrators, managers, and factory workers. Set permissions and view user activity.",
+            icon: UserCog,
+            color: "bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400",
+            lockedIcon: ShieldAlert,
+            lockedTitle: "User Management",
+            lockedDesc: "You do not have permission to access user management. Administrator or Manager access is required.",
+            requireAccess: true,
+        },
+        {
+            href: "/settings/customers",
+            title: "Customer Management",
+            description: "Manage customer records, contact details, and discount rates.",
+            icon: Users,
+            color: "bg-indigo-50 text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400",
+            lockedIcon: Users,
+            lockedTitle: "Customer Management",
+            lockedDesc: "You do not have permission to access customer management. Administrator or Manager access is required.",
+            requireAccess: true,
+        },
+        {
+            href: "/settings/notifications",
+            title: "การแจ้งเตือนเซ็นเซอร์",
+            description: "ตั้งค่าระดับเสียงและการแจ้งเตือนต่างๆ ให้เหมาะกับการทำงานของคุณ",
+            icon: Bell,
+            color: "bg-yellow-50 text-yellow-600 dark:bg-yellow-500/10 dark:text-yellow-400",
+            requireAccess: false,
+        },
+        {
+            href: "/settings/pricing",
+            title: "ตั้งค่าราคากระจก",
+            description: "กำหนดราคาต่อตารางฟุต และค่าบริการเพิ่มเติม เช่น เจียร เจาะ บาก",
+            icon: DollarSign,
+            color: "bg-orange-50 text-[#E8601C] dark:bg-[#E8601C]/10 dark:text-[#E8601C]",
+            lockedIcon: DollarSign,
+            lockedTitle: "ตั้งค่าราคากระจก",
+            lockedDesc: "You do not have permission to access pricing settings. Administrator or Manager access is required.",
+            requireAccess: true,
+        },
+        {
+            href: "/settings/sticker",
+            title: "ออกแบบสติ๊กเกอร์",
+            description: "จัดการเทมเพลตสติ๊กเกอร์บาร์โค้ด สินค้าและบรรจุภัณฑ์ สำหรับการผลิต",
+            icon: Tag,
+            color: "bg-violet-50 text-violet-600 dark:bg-violet-500/10 dark:text-violet-400",
+            requireAccess: true,
+            // Hidden entirely if no access (per original logic)
+            hideIfLocked: true, 
+        }
+    ];
+
     return (
-        <div className="flex flex-col gap-4 sm:gap-6 lg:gap-8 max-w-[1600px] mx-auto w-full overflow-x-hidden">
+        <div className="flex flex-col gap-6 sm:gap-8 max-w-[1600px] mx-auto w-full pb-10">
             {/* Header */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 pb-6 border-b border-slate-200 dark:border-slate-800">
                 <div>
-                    <h1 className="flex items-center gap-3 text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white leading-normal pt-2 pb-1">
-                        <Settings className="h-7 w-7 sm:h-8 sm:w-8 shrink-0" />
-                        Settings</h1>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm sm:text-base font-medium mt-1">Manage your application preferences and system settings.</p>
+                    <h1 className="flex items-center gap-3 text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-800 dark:text-white leading-normal pt-1 pb-1">
+                        <div className="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500">
+                            <Settings className="h-6 w-6 shrink-0" />
+                        </div>
+                        การตั้งค่าระบบ
+                    </h1>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm sm:text-base font-semibold mt-2">
+                        จัดการผู้ใช้งาน ข้อมูลลูกค้า และตั้งค่าพารามิเตอร์ของระบบทั้งหมด
+                    </p>
                 </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {hasUserManagementAccess ? (
-                    <Link href="/settings/users" className="block h-full cursor-pointer transition-transform hover:scale-[1.02]">
-                        <Card className="h-full shadow-sm hover:shadow-md transition-shadow bg-card/60 backdrop-blur-sm border-muted/50 border-primary/20">
-                            <CardHeader>
-                                <div className="flex items-center gap-2 mb-2">
-                                    <div className="p-2 bg-primary/10 rounded-lg text-primary">
-                                        <UserCog className="h-6 w-6" />
-                                    </div>
-                                    <CardTitle className="text-xl">User Management</CardTitle>
-                                </div>
-                                <CardDescription>
-                                    Manage administrators, managers, and factory workers. Set permissions and view user activity.
-                                </CardDescription>
-                            </CardHeader>
-                        </Card>
-                    </Link>
-                ) : (
-                    <Card className="h-full shadow-sm opacity-60">
-                        <CardHeader>
-                            <div className="flex items-center gap-2 mb-2">
-                                <div className="p-2 bg-muted rounded-lg text-muted-foreground">
-                                    <ShieldAlert className="h-6 w-6" />
-                                </div>
-                                <CardTitle className="text-xl text-muted-foreground">User Management</CardTitle>
-                            </div>
-                            <CardDescription>
-                                You do not have permission to access user management. Administrator or Manager access is required.
-                            </CardDescription>
-                        </CardHeader>
-                    </Card>
-                )}
+            <div className="grid gap-6 sm:gap-8 md:grid-cols-2 lg:grid-cols-3 pb-8">
+                {settngsItems.map((item, idx) => {
+                    const isLocked = item.requireAccess && !hasUserManagementAccess;
 
-                {hasUserManagementAccess ? (
-                    <Link href="/settings/customers" className="block h-full cursor-pointer transition-transform hover:scale-[1.02]">
-                        <Card className="h-full shadow-sm hover:shadow-md transition-shadow bg-card/60 backdrop-blur-sm border-muted/50 border-primary/20">
-                            <CardHeader>
-                                <div className="flex items-center gap-2 mb-2">
-                                    <div className="p-2 bg-accent/10 rounded-lg text-accent">
-                                        <Users className="h-6 w-6" />
-                                    </div>
-                                    <CardTitle className="text-xl">Customer Management</CardTitle>
-                                </div>
-                                <CardDescription>
-                                    Manage customer records, contact details, and discount rates.
-                                </CardDescription>
-                            </CardHeader>
-                        </Card>
-                    </Link>
-                ) : (
-                    <Card className="h-full shadow-sm opacity-60">
-                        <CardHeader>
-                            <div className="flex items-center gap-2 mb-2">
-                                <div className="p-2 bg-muted rounded-lg text-muted-foreground">
-                                    <Users className="h-6 w-6" />
-                                </div>
-                                <CardTitle className="text-xl text-muted-foreground">Customer Management</CardTitle>
-                            </div>
-                            <CardDescription>
-                                You do not have permission to access customer management. Administrator or Manager access is required.
-                            </CardDescription>
-                        </CardHeader>
-                    </Card>
-                )}
+                    if (isLocked && item.hideIfLocked) {
+                        return null;
+                    }
 
-                <Link href="/settings/notifications" className="block h-full cursor-pointer transition-transform hover:scale-[1.02]">
-                    <Card className="h-full shadow-sm hover:shadow-md transition-shadow bg-card/60 backdrop-blur-sm border-muted/50 border-primary/20">
-                        <CardHeader>
-                            <div className="flex items-center gap-2 mb-2">
-                                <div className="p-2 bg-yellow-500/10 rounded-lg text-yellow-500">
-                                    <Bell className="h-6 w-6" />
-                                </div>
-                                <CardTitle className="text-xl">การแจ้งเตือน</CardTitle>
-                            </div>
-                            <CardDescription>
-                                ตั้งค่าเสียงแจ้งเตือนและระดับเสียงตามความสำคัญของการแจ้งเตือน
-                            </CardDescription>
-                        </CardHeader>
-                    </Card>
-                </Link>
-
-                {hasUserManagementAccess ? (
-                    <Link href="/settings/pricing" className="block h-full cursor-pointer transition-transform hover:scale-[1.02]">
-                        <Card className="h-full shadow-sm hover:shadow-md transition-shadow bg-card/60 backdrop-blur-sm border-muted/50 border-primary/20">
-                            <CardHeader>
-                                <div className="flex items-center gap-2 mb-2">
-                                    <div className="p-2 bg-[#E8601C]/10 rounded-lg text-[#E8601C]">
-                                        <DollarSign className="h-6 w-6" />
+                    if (isLocked) {
+                        const Icon = item.lockedIcon || ShieldAlert;
+                        return (
+                            <div key={idx} className="rounded-3xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 p-6 sm:p-8 space-y-4 h-full opacity-70 grayscale">
+                                <div className="flex items-center gap-4">
+                                    <div className="h-12 w-12 rounded-2xl bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 flex items-center justify-center shrink-0">
+                                        <Icon className="h-6 w-6" />
                                     </div>
-                                    <CardTitle className="text-xl">ตั้งค่าราคากระจก</CardTitle>
+                                    <h3 className="text-xl font-bold text-slate-600 dark:text-slate-300">
+                                        {item.lockedTitle}
+                                    </h3>
                                 </div>
-                                <CardDescription>
-                                    กำหนดราคาต่อตร.ฟ., ค่าเจียร, ค่าเจาะ, ค่าบาก ตามประเภทและความหนากระจก
-                                </CardDescription>
-                            </CardHeader>
-                        </Card>
-                    </Link>
-                ) : (
-                    <Card className="h-full shadow-sm opacity-60">
-                        <CardHeader>
-                            <div className="flex items-center gap-2 mb-2">
-                                <div className="p-2 bg-muted rounded-lg text-muted-foreground">
-                                    <DollarSign className="h-6 w-6" />
-                                </div>
-                                <CardTitle className="text-xl text-muted-foreground">ตั้งค่าราคากระจก</CardTitle>
+                                <p className="text-sm font-medium text-slate-500 dark:text-slate-400 leading-relaxed">
+                                    {item.lockedDesc}
+                                </p>
                             </div>
-                            <CardDescription>
-                                You do not have permission to access pricing settings. Administrator or Manager access is required.
-                            </CardDescription>
-                        </CardHeader>
-                    </Card>
-                )}
+                        );
+                    }
 
-                {hasUserManagementAccess ? (
-                    <Link href="/settings/sticker" className="block h-full cursor-pointer transition-transform hover:scale-[1.02]">
-                        <Card className="h-full shadow-sm hover:shadow-md transition-shadow bg-card/60 backdrop-blur-sm border-muted/50 border-primary/20">
-                            <CardHeader>
-                                <div className="flex items-center gap-2 mb-2">
-                                    <div className="p-2 bg-violet-500/10 rounded-lg text-violet-500">
-                                        <Tag className="h-6 w-6" />
+                    const Icon = item.icon;
+                    return (
+                        <Link key={idx} href={item.href} className="block h-full cursor-pointer group outline-none">
+                            <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-200/20 dark:shadow-none p-6 sm:p-8 space-y-4 h-full transition-all duration-300 group-hover:scale-[1.03] group-hover:shadow-2xl group-hover:border-blue-200 dark:group-hover:border-slate-700 ring-4 ring-transparent group-focus-visible:ring-blue-500 dark:group-focus-visible:ring-[#E8601C]">
+                                <div className="flex items-center gap-4">
+                                    <div className={`h-12 w-12 rounded-2xl flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-110 ${item.color}`}>
+                                        <Icon className="h-6 w-6" />
                                     </div>
-                                    <CardTitle className="text-xl">ออกแบบสติ๊กเกอร์</CardTitle>
+                                    <h3 className="text-xl font-bold text-slate-800 dark:text-white group-hover:text-blue-600 dark:group-hover:text-[#E8601C] transition-colors">
+                                        {item.title}
+                                    </h3>
                                 </div>
-                                <CardDescription>
-                                    ออกแบบ template สติ๊กเกอร์ QR สำหรับพิมพ์ติดออเดอร์ในการผลิต
-                                </CardDescription>
-                            </CardHeader>
-                        </Card>
-                    </Link>
-                ) : null}
+                                <p className="text-sm font-semibold text-slate-500 dark:text-slate-400 leading-relaxed">
+                                    {item.description}
+                                </p>
+                            </div>
+                        </Link>
+                    );
+                })}
             </div>
         </div>
     );
