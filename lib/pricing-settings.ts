@@ -94,7 +94,9 @@ export function getCachedPricingSettings(): PricingSettings {
         return {
             holePriceEach: parsed.holePriceEach ?? DEFAULT_PRICING.holePriceEach,
             notchPrice:    parsed.notchPrice    ?? DEFAULT_PRICING.notchPrice,
-            glassPrices:   parsed.glassPrices   ?? DEFAULT_PRICING.glassPrices,
+            glassPrices:   Object.keys(parsed.glassPrices ?? {}).length > 0
+                ? parsed.glassPrices
+                : DEFAULT_PRICING.glassPrices,
         };
     } catch {
         return DEFAULT_PRICING;

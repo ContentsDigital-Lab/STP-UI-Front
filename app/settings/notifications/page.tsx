@@ -21,9 +21,8 @@ import {
 
 const getVolumeSteps = (lang: string) => [
     { value: 0.2, label: lang === 'th' ? "เบา" : "Quiet" },
-    { value: 0.4, label: lang === 'th' ? "ค่อนข้างเบา" : "Soft" },
-    { value: 0.6, label: lang === 'th' ? "ปานกลาง" : "Medium" },
-    { value: 0.8, label: lang === 'th' ? "ค่อนข้างดัง" : "Loud" },
+    { value: 0.46, label: lang === 'th' ? "ปานกลาง" : "Medium" },
+    { value: 0.74, label: lang === 'th' ? "ค่อนข้างดัง" : "Loud" },
     { value: 1.0, label: lang === 'th' ? "ดังสุด" : "Max" },
 ];
 
@@ -143,17 +142,34 @@ export default function NotificationSoundSettingsPage() {
                                 type="range"
                                 min="0.2"
                                 max="1.0"
-                                step="0.2"
+                                step="0.01"
                                 value={settings.volume}
                                 onChange={(e) => setSettings((s) => ({ ...s, volume: parseFloat(e.target.value) }))}
-                                className="w-full h-2.5 bg-slate-200 dark:bg-slate-800 rounded-full cursor-pointer accent-blue-600 dark:accent-[#FF8A00]"
+                                className="w-full h-2.5 bg-slate-200 dark:bg-slate-800 rounded-full cursor-pointer accent-blue-600 dark:accent-[#FF8A00] transition-all duration-75"
                             />
                         </div>
-                        <div className="flex justify-between text-[11px] font-bold text-slate-400">
-                            {getVolumeSteps(lang).map((step: any, i: number) => {
-                                if (![0, 2, 3, 4].includes(i)) return null;
+                        <div className="relative h-4 mt-2 text-[11px] font-bold text-slate-400">
+                            {getVolumeSteps(lang).map((step: any, i: number, arr: any[]) => {
+                                // Find geometrically closest label based on continuous float
+                                const closestStep = arr.reduce((prev, curr) => 
+                                    Math.abs(curr.value - settings.volume) < Math.abs(prev.value - settings.volume) ? curr : prev
+                                );
+                                const isClosest = closestStep.value === step.value;
+                                
+                                let positionClass = "absolute top-0";
+                                let positionStyle = {};
+                                
+                                if (i === 0) {
+                                    positionClass += " left-0";
+                                } else if (i === arr.length - 1) {
+                                    positionClass += " right-0";
+                                } else {
+                                    positionClass += " -translate-x-1/2";
+                                    positionStyle = { left: `${((step.value - 0.2) / 0.8) * 100}%` };
+                                }
+                                
                                 return (
-                                    <span key={step.value} className={settings.volume === step.value ? "text-blue-600 dark:text-[#FF8A00]" : "text-slate-400"}>
+                                    <span key={step.value} style={positionStyle} className={`${positionClass} transition-colors duration-200 ${isClosest ? "text-blue-600 dark:text-[#FF8A00]" : "text-slate-400"}`}>
                                         {step.label}
                                     </span>
                                 );

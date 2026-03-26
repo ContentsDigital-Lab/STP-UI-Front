@@ -501,7 +501,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                                             onClick={() => doAction(pane, "start")}
                                                             disabled={isLoading || (isCutStation && !pane.withdrawal)}
                                                             title={isCutStation && !pane.withdrawal ? "ต้องเบิกกระจกก่อนเริ่มตัด" : undefined}
-                                                            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+                                                            className="shrink-0 flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
                                                         >
                                                             {isLoading
                                                                 ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
