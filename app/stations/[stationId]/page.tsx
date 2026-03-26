@@ -236,30 +236,24 @@ export default function LiveStationPage() {
         : "";
 
     const header = (
-        <div className="flex items-center gap-3 border-b bg-card px-4 py-2.5 shrink-0">
-            <Button variant="ghost" size="sm" className="h-8 gap-1.5" onClick={() => router.push("/stations")}>
+        <div className="flex items-center gap-2 sm:gap-3 border-b bg-card px-2 sm:px-4 py-2 sm:py-2.5 shrink-0 overflow-x-auto">
+            <Button variant="ghost" size="sm" className="h-8 gap-1 sm:gap-1.5 shrink-0 px-2 sm:px-3" onClick={() => router.push("/stations")}>
                 <ArrowLeft className="h-4 w-4" />
-                สถานี
+                <span className="hidden sm:inline">สถานี</span>
             </Button>
             {station && color && (
                 <>
-                    <span className="text-muted-foreground">/</span>
-                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${color.cls}`}>
+                    <span className="text-muted-foreground shrink-0">/</span>
+                    <span className={`text-xs font-semibold px-2 sm:px-2.5 py-1 rounded-full shrink-0 ${color.cls}`}>
                         {station.name}
                     </span>
                 </>
             )}
-            {template && (
-                <>
-                    <span className="text-muted-foreground">/</span>
-                    <span className="text-sm text-muted-foreground truncate">{template.name}</span>
-                </>
-            )}
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex items-center gap-1.5 sm:gap-2 shrink-0">
                 <Button
                     variant="outline"
                     size="sm"
-                    className="h-8 gap-1.5 text-xs border-orange-200 text-orange-700 hover:bg-orange-50 hover:border-orange-300 dark:border-orange-800 dark:text-orange-400 dark:hover:bg-orange-950/30"
+                    className="h-7 sm:h-8 gap-1 sm:gap-1.5 text-xs px-2 sm:px-3 border-orange-200 text-orange-700 hover:bg-orange-50 hover:border-orange-300 dark:border-orange-800 dark:text-orange-400 dark:hover:bg-orange-950/30"
                     onClick={() => setShowWithdraw(true)}
                 >
                     <PackageOpen className="h-3.5 w-3.5" />
@@ -267,7 +261,7 @@ export default function LiveStationPage() {
                 </Button>
                 <Button
                     size="sm"
-                    className="h-8 gap-1.5 text-xs bg-red-600 hover:bg-red-700 text-white"
+                    className="h-7 sm:h-8 gap-1 sm:gap-1.5 text-xs px-2 sm:px-3 bg-red-600 hover:bg-red-700 text-white"
                     onClick={() => setShowClaim(true)}
                 >
                     <FileWarning className="h-3.5 w-3.5" />
@@ -361,9 +355,9 @@ export default function LiveStationPage() {
     }
 
     return (
-        <div className="flex h-full flex-col">
+        <div className="flex h-full flex-col overflow-x-hidden">
             {header}
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-hidden max-w-full">
                 <DesignerCanvas
                     templateName={template.name}
                     initialNodes={template.uiSchema && typeof template.uiSchema === "object" && !Array.isArray(template.uiSchema) && Object.keys(template.uiSchema).length > 0 ? template.uiSchema as Record<string, unknown> : undefined}

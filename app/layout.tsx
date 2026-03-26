@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Prompt } from "next/font/google";
+import { Noto_Sans_Thai } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { LanguageProvider } from "@/lib/i18n/language-context";
@@ -7,8 +7,8 @@ import { AuthProvider } from "@/lib/auth/auth-context";
 import { AppLayout } from "@/components/layout/app-layout";
 import { Toaster } from "sonner";
 
-const prompt = Prompt({
-  variable: "--font-prompt",
+const notoSansThai = Noto_Sans_Thai({
+  variable: "--font-noto-sans-thai",
   subsets: ["latin", "thai"],
   weight: ["300", "400", "500", "600", "700", "800", "900"],
   display: "swap",
@@ -27,7 +27,7 @@ export default function RootLayout({
   return (
     <html lang="th" suppressHydrationWarning>
       <body
-        className={`${prompt.variable} font-sans antialiased`}
+        className={`${notoSansThai.variable} font-sans antialiased`}
       >
         <ThemeProvider
           attribute="class"

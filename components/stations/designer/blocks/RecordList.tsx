@@ -409,7 +409,8 @@ export function RecordList({
                 ) : (
                     <>
                         {/* Column headers */}
-                        <div className="flex items-center gap-4 px-4 py-2 bg-muted/20 border-b text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                        <div className="overflow-x-auto">
+                        <div className="flex items-center gap-4 px-3 sm:px-4 py-2 bg-muted/20 border-b text-[10px] font-semibold text-muted-foreground uppercase tracking-wider min-w-[400px]">
                             {columns.map((c, ci) => (
                                 <span key={`phdr-${ci}`} className={WIDTH_MAP[c.width ?? "auto"]}>{c.label}</span>
                             ))}
@@ -430,7 +431,7 @@ export function RecordList({
                                     const rowId = String(row[idField] ?? i);
                                     const isSelected = selectable && selectedRecord && String(selectedRecord[idField] ?? "") === rowId;
                                     const clickable  = selectable || !!navPath;
-                                    const rowCls = `flex items-center gap-4 px-4 py-3 transition-colors ${
+                                    const rowCls = `flex items-center gap-4 px-3 sm:px-4 py-3 transition-colors min-w-[400px] ${
                                         isSelected
                                             ? "bg-primary/10 border-l-2 border-primary"
                                             : clickable
@@ -591,6 +592,7 @@ export function RecordList({
                                 })}
                             </div>
                         )}
+                        </div>
                     </>
                 )}
             </div>

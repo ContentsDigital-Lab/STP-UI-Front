@@ -186,6 +186,7 @@ export interface Withdrawal {
     quantity: number;
     stockType: "Raw" | "Reuse";
     pane?: string | Pane;
+    inventory?: string | Inventory;
     withdrawnDate: string;
     createdAt: string;
     updatedAt: string;

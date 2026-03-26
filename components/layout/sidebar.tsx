@@ -11,19 +11,29 @@ import {
     Factory,
     Package,
     Settings,
-    ChevronLeft,
-    ChevronRight,
     History,
     ArrowDownFromLine,
     ShieldAlert,
+    PanelLeftClose,
+    PanelLeftOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 
 interface SidebarProps {
     collapsed: boolean;
     setCollapsed: (collapsed: boolean) => void;
     onNavigate?: () => void;
+}
+
+interface NavItem {
+    name: string;
+    href: string;
+    icon: React.ElementType;
+}
+
+interface NavSection {
+    label: string;
+    items: NavItem[];
 }
 
 export function Sidebar({ collapsed, setCollapsed, onNavigate }: SidebarProps) {
@@ -32,94 +42,164 @@ export function Sidebar({ collapsed, setCollapsed, onNavigate }: SidebarProps) {
     const { user } = useAuth();
     const isManager = user?.role === "admin" || user?.role === "manager";
 
-    const navigation = [
-        { name: t.dashboard.label, href: "/",          icon: LayoutDashboard },
-        ...(isManager ? [{ name: t.orderRequests, href: "/request", icon: ClipboardList }] : []),
-        { name: lang === 'th' ? "ติดตามการผลิต" : "Production Tracking", href: "/production",  icon: ClipboardCheck  },
-        { name: lang === 'th' ? "สถานี" : "Stations", href: "/stations",    icon: Factory         },
-        { name: t.inventory,       href: "/inventory", icon: Package         },
-        { name: t.withdrawals,     href: "/withdrawals",        icon: ArrowDownFromLine },
-        { name: t.claims,          href: "/claims",             icon: ShieldAlert     },
-        { name: t.logs,            href: "/logs",               icon: History         },
-        { name: t.settings,        href: "/settings",           icon: Settings        },
+    const sections: NavSection[] = [
+        {
+            label: lang === "th" ? "ภาพรวม" : "Overview",
+            items: [
+                { name: t.dashboard.label, href: "/", icon: LayoutDashboard },
+            ],
+        },
+        {
+            label: lang === "th" ? "การดำเนินงาน" : "Operations",
+            items: [
+                ...(isManager
+                    ? [{ name: t.orderRequests, href: "/request", icon: ClipboardList }]
+                    : []),
+                {
+                    name: lang === "th" ? "ติดตามการผลิต" : "Production",
+                    href: "/production",
+                    icon: ClipboardCheck,
+                },
+                {
+                    name: lang === "th" ? "สถานี" : "Stations",
+                    href: "/stations",
+                    icon: Factory,
+                },
+            ],
+        },
+        {
+            label: lang === "th" ? "คลังสินค้า" : "Warehouse",
+            items: [
+                { name: t.inventory, href: "/inventory", icon: Package },
+                { name: t.withdrawals, href: "/withdrawals", icon: ArrowDownFromLine },
+                { name: t.claims, href: "/claims", icon: ShieldAlert },
+            ],
+        },
+        {
+            label: lang === "th" ? "ระบบ" : "System",
+            items: [
+                { name: t.logs, href: "/logs", icon: History },
+                { name: t.settings, href: "/settings", icon: Settings },
+            ],
+        },
     ];
 
     return (
         <div
             className={cn(
-                "relative flex h-full flex-col border-r bg-sidebar text-sidebar-foreground transition-all duration-300",
-                collapsed ? "w-[80px]" : "w-[240px]"
+                "relative flex h-full flex-col border-r border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 transition-[width] duration-200 ease-out",
+                collapsed ? "w-[4.25rem]" : "w-[15.5rem]",
             )}
         >
-            <div className="flex shrink-0 h-[72px] items-center justify-between px-4 border-b">
-                {!collapsed && (
-                    <Link href="/" className="flex items-center justify-center w-full overflow-hidden">
-                        <img
-                            src="/logo.png"
-                            alt="Standard Plus"
-                            className="w-auto h-10 object-contain drop-shadow-sm"
-                        />
-                    </Link>
-                )}
-                {collapsed && (
-                    <Link href="/" className="flex w-full justify-center overflow-hidden">
-                        <img
-                            src="/logonotname.png"
-                            alt="Standard Plus"
-                            className="w-8 h-8 sm:w-10 sm:h-10 object-contain drop-shadow-sm rounded-lg"
-                        />
-                    </Link>
-                )}
+            {/* Logo */}
+            <div className="flex shrink-0 h-14 items-center border-b border-slate-100 dark:border-slate-800/60 px-4">
+                <Link
+                    href="/"
+                    className="flex items-center gap-3 overflow-hidden"
+                    onClick={onNavigate}
+                >
+                    <img
+                        src="/logonotname.png"
+                        alt="Standard Plus"
+                        className="h-8 w-8 shrink-0"
+                    />
+                    {!collapsed && (
+                        <span className="text-[0.9375rem] font-bold text-slate-900 dark:text-white tracking-tight whitespace-nowrap">
+                            Standard<span className="text-orange-500">Plus</span>
+                        </span>
+                    )}
+                </Link>
             </div>
 
-            <nav className="flex-1 space-y-1 overflow-y-auto p-2">
-                {navigation.map((item) => {
-                    const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+            {/* Navigation */}
+            <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-2.5">
+                {sections.map((section, sIdx) => {
+                    if (section.items.length === 0) return null;
                     return (
-                        <Link
-                            key={item.href}
-                            href={item.href}
-                            onClick={onNavigate}
-                            className={cn(
-                                "group flex items-center rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-sidebar-accent hover:text-sidebar-accent-foreground dark:hover:bg-[#E8601C]/10 dark:hover:text-[#E8601C] transition-all duration-200 border-r-[4px] border-transparent",
-                                isActive
-                                    ? "bg-sidebar-accent text-sidebar-accent-foreground dark:bg-[#E8601C]/10 dark:text-[#E8601C] font-semibold border-sidebar-primary dark:border-[#E8601C]"
-                                    : "text-sidebar-foreground/70",
-                                collapsed ? "justify-center" : "justify-start"
+                        <div key={section.label} className={cn(sIdx > 0 && "mt-5")}>
+                            {/* Section label */}
+                            {!collapsed && (
+                                <p className="px-2.5 mb-1.5 text-[0.6875rem] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                                    {section.label}
+                                </p>
                             )}
-                            title={collapsed ? item.name : undefined}
-                        >
-                            <item.icon
-                                className={cn(
-                                    "flex-shrink-0 transition-colors",
-                                    collapsed ? "h-5 w-5" : "h-5 w-5 mr-3",
-                                    isActive ? "opacity-100" : "opacity-70 group-hover:opacity-100"
-                                )}
-                                aria-hidden="true"
-                            />
-                            {!collapsed && <span>{item.name}</span>}
-                        </Link>
+                            {collapsed && sIdx > 0 && (
+                                <div className="mx-3 mb-2.5 h-px bg-slate-100 dark:bg-slate-800" />
+                            )}
+
+                            {/* Items */}
+                            <div className="space-y-0.5">
+                                {section.items.map((item) => {
+                                    const isActive =
+                                        item.href === "/"
+                                            ? pathname === "/"
+                                            : pathname.startsWith(item.href);
+                                    return (
+                                        <Link
+                                            key={item.href}
+                                            href={item.href}
+                                            onClick={onNavigate}
+                                            title={collapsed ? item.name : undefined}
+                                            className={cn(
+                                                "group relative flex items-center rounded-lg text-[0.8125rem] font-medium transition-colors duration-100",
+                                                collapsed
+                                                    ? "h-10 w-10 mx-auto justify-center"
+                                                    : "h-9 px-2.5 gap-2.5",
+                                                isActive
+                                                    ? "bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400"
+                                                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200",
+                                            )}
+                                        >
+                                            {/* Active indicator */}
+                                            {isActive && !collapsed && (
+                                                <div className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-blue-600 dark:bg-blue-400" />
+                                            )}
+                                            <item.icon
+                                                className={cn(
+                                                    "shrink-0",
+                                                    collapsed ? "h-[1.125rem] w-[1.125rem]" : "h-4 w-4",
+                                                )}
+                                                strokeWidth={isActive ? 2.2 : 1.8}
+                                            />
+                                            {!collapsed && (
+                                                <span className="truncate">{item.name}</span>
+                                            )}
+                                        </Link>
+                                    );
+                                })}
+                            </div>
+                        </div>
                     );
                 })}
             </nav>
 
-            <div className="p-4 border-t flex justify-center">
-                <Button
-                    variant="ghost"
-                    size="icon"
+            {/* Collapse toggle */}
+            <div className="shrink-0 border-t border-slate-100 dark:border-slate-800/60 p-2.5">
+                <button
                     onClick={() => setCollapsed(!collapsed)}
-                    className="text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 w-full flex justify-center h-9 rounded-lg transition-colors"
-                    title={collapsed ? (lang === 'th' ? "ขยาย" : "Expand") : (lang === 'th' ? "ย่อ" : "Collapse")}
+                    className={cn(
+                        "flex items-center rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors duration-100",
+                        collapsed
+                            ? "h-10 w-10 mx-auto justify-center"
+                            : "h-9 w-full px-2.5 gap-2.5",
+                    )}
+                    title={
+                        collapsed
+                            ? lang === "th" ? "ขยาย" : "Expand"
+                            : lang === "th" ? "ย่อเมนู" : "Collapse"
+                    }
                 >
                     {collapsed ? (
-                        <ChevronRight className="h-4 w-4" />
+                        <PanelLeftOpen className="h-4 w-4" strokeWidth={1.8} />
                     ) : (
-                        <div className="flex items-center gap-2 w-full justify-center">
-                            <ChevronLeft className="h-4 w-4" />
-                            <span className="text-xs font-medium">{lang === 'th' ? "ย่อเมนู" : "Collapse Menu"}</span>
-                        </div>
+                        <>
+                            <PanelLeftClose className="h-4 w-4" strokeWidth={1.8} />
+                            <span className="text-[0.8125rem] font-medium">
+                                {lang === "th" ? "ย่อเมนู" : "Collapse"}
+                            </span>
+                        </>
                     )}
-                </Button>
+                </button>
             </div>
         </div>
     );

@@ -3,28 +3,21 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   TrendingUp,
+  TrendingDown,
   AlertTriangle,
   Boxes,
-  History,
   CheckCircle2,
   Clock,
-  TrendingDown,
-  Activity,
   Package,
   ArrowRight,
-  ChevronLeft,
-  ChevronRight,
-  LayoutDashboard,
   ClipboardList,
   Timer,
   Users,
   Zap,
   BarChart3,
+  Activity,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n/language-context";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import {
   CartesianGrid,
@@ -37,428 +30,507 @@ import {
   BarChart,
   Bar,
   Cell,
-} from 'recharts';
+} from "recharts";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { requestsApi } from "@/lib/api/requests";
 import { ordersApi } from "@/lib/api/orders";
 import { OrderRequest, Order } from "@/lib/api/types";
 
-// ── helpers ──
 function getDayLabel(date: Date) {
   return date.toLocaleDateString("th-TH", { weekday: "short" });
 }
 function isSameDay(a: Date, b: Date) {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
 }
 
 export default function DashboardPage() {
-  const { t } = useLanguage();
-  const [isActivityOpen, setIsActivityOpen] = useState(true);
+  const { t, lang } = useLanguage();
 
-  // ── real data ──
   const [allRequests, setAllRequests] = useState<OrderRequest[]>([]);
   const [allOrders, setAllOrders] = useState<Order[]>([]);
   const [dataLoaded, setDataLoaded] = useState(false);
 
   const fetchLiveData = useCallback(async () => {
     try {
-      const [rRes, oRes] = await Promise.all([requestsApi.getAll(), ordersApi.getAll()]);
+      const [rRes, oRes] = await Promise.all([
+        requestsApi.getAll(),
+        ordersApi.getAll(),
+      ]);
       if (rRes.success && rRes.data) setAllRequests(rRes.data);
       if (oRes.success && oRes.data) setAllOrders(oRes.data);
-    } catch (e) { console.error(e); }
-    finally { setDataLoaded(true); }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setDataLoaded(true);
+    }
   }, []);
-  useEffect(() => { fetchLiveData(); }, [fetchLiveData]);
-
-  // WebSocket for real-time updates
-  const dashboardEvents = [
-    'order:updated', 'inventory:updated', 'log:updated',
-    'request:updated', 'withdrawal:updated', 'claim:updated'
-  ];
-  useWebSocket('dashboard', dashboardEvents, (event: string) => {
-    console.log(`[Dashboard] Received ${event}, refreshing…`);
+  useEffect(() => {
     fetchLiveData();
-  });
+  }, [fetchLiveData]);
 
-  // ── Request Analytics ──
-  const requestAnalytics = useMemo(() => {
+  useWebSocket(
+    "dashboard",
+    [
+      "order:updated",
+      "inventory:updated",
+      "log:updated",
+      "request:updated",
+      "withdrawal:updated",
+      "claim:updated",
+    ],
+    () => fetchLiveData(),
+  );
+
+  const analytics = useMemo(() => {
     const now = new Date();
-
-    // 1) requests per day (last 7 days) for bar chart
     const days: { label: string; count: number; date: Date }[] = [];
     for (let i = 6; i >= 0; i--) {
-      const d = new Date(now); d.setDate(d.getDate() - i);
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
       days.push({ label: getDayLabel(d), count: 0, date: d });
     }
-    allRequests.forEach(r => {
+    allRequests.forEach((r) => {
       const rd = new Date(r.createdAt);
-      const slot = days.find(d => isSameDay(d.date, rd));
+      const slot = days.find((d) => isSameDay(d.date, rd));
       if (slot) slot.count++;
     });
 
-    // 2) pending (no assignedTo)
-    const pending = allRequests.filter(r => !r.assignedTo).length;
-
-    // 3) approaching deadline (within 3 days)
-    const threeDays = new Date(now); threeDays.setDate(threeDays.getDate() + 3);
-    const approaching = allRequests.filter(r => {
+    const pending = allRequests.filter((r) => !r.assignedTo).length;
+    const threeDays = new Date(now);
+    threeDays.setDate(threeDays.getDate() + 3);
+    const approaching = allRequests.filter((r) => {
       if (!r.deadline) return false;
       const dl = new Date(r.deadline);
       return dl >= now && dl <= threeDays;
     }).length;
 
-    // 4) completion rate - orders completed vs total
     const totalOrders = allOrders.length;
-    const completedOrders = allOrders.filter(o => o.status === "completed").length;
-    const completionRate = totalOrders > 0 ? Math.round((completedOrders / totalOrders) * 100) : 0;
+    const completedOrders = allOrders.filter(
+      (o) => o.status === "completed",
+    ).length;
+    const completionRate =
+      totalOrders > 0
+        ? Math.round((completedOrders / totalOrders) * 100)
+        : 0;
 
-    // 5) week-over-week trend
-    const weekAgo = new Date(now); weekAgo.setDate(weekAgo.getDate() - 7);
-    const twoWeeksAgo = new Date(now); twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
-    const thisWeek = allRequests.filter(r => new Date(r.createdAt) >= weekAgo).length;
-    const lastWeek = allRequests.filter(r => { const d = new Date(r.createdAt); return d >= twoWeeksAgo && d < weekAgo; }).length;
-    const trendPct = lastWeek > 0 ? Math.round(((thisWeek - lastWeek) / lastWeek) * 100) : (thisWeek > 0 ? 100 : 0);
+    const weekAgo = new Date(now);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const twoWeeksAgo = new Date(now);
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+    const thisWeek = allRequests.filter(
+      (r) => new Date(r.createdAt) >= weekAgo,
+    ).length;
+    const lastWeek = allRequests.filter((r) => {
+      const d = new Date(r.createdAt);
+      return d >= twoWeeksAgo && d < weekAgo;
+    }).length;
+    const trendPct =
+      lastWeek > 0
+        ? Math.round(((thisWeek - lastWeek) / lastWeek) * 100)
+        : thisWeek > 0
+          ? 100
+          : 0;
 
-    // 6) team capacity: in_progress orders
-    const inProgress = allOrders.filter(o => o.status === "in_progress").length;
-    const pendingOrders = allOrders.filter(o => o.status === "pending").length;
+    const inProgress = allOrders.filter(
+      (o) => o.status === "in_progress",
+    ).length;
+    const pendingOrders = allOrders.filter(
+      (o) => o.status === "pending",
+    ).length;
 
-    return { days, pending, approaching, completionRate, thisWeek, trendPct, inProgress, pendingOrders, totalOrders, completedOrders };
+    return {
+      days,
+      pending,
+      approaching,
+      completionRate,
+      thisWeek,
+      trendPct,
+      inProgress,
+      pendingOrders,
+      totalOrders,
+      completedOrders,
+    };
   }, [allRequests, allOrders]);
 
-  const kpis = [
-    {
-      title: t.dashboard.total_stock,
-      value: "14,250",
-      change: "+12.5%",
-      isPositive: true,
-      icon: Boxes,
-      color: "blue",
-      description: "Across all 4 warehouses"
-    },
-    {
-      title: t.dashboard.low_stock_alerts,
-      value: "12",
-      change: "-2",
-      isPositive: true,
-      icon: AlertTriangle,
-      color: "amber",
-      description: "Needs immediate attention"
-    },
-    {
-      title: t.dashboard.pending_requests,
-      value: "28",
-      change: "+5",
-      isPositive: false,
-      icon: Clock,
-      color: "indigo",
-      description: "Awaiting supervisor approval"
-    },
-    {
-      title: t.dashboard.completed_today,
-      value: "145",
-      change: "+18%",
-      isPositive: true,
-      icon: CheckCircle2,
-      color: "emerald",
-      description: "Orders processed in 24h"
-    }
+  const chartData = [
+    { name: "Mon", stock: 4000, out: 2400 },
+    { name: "Tue", stock: 3000, out: 1398 },
+    { name: "Wed", stock: 2000, out: 9800 },
+    { name: "Thu", stock: 2780, out: 3908 },
+    { name: "Fri", stock: 1890, out: 4800 },
+    { name: "Sat", stock: 2390, out: 3800 },
+    { name: "Sun", stock: 3490, out: 4300 },
   ];
 
   const recentActivity = [
-    { id: 1, type: 'import', material: 'Clear Glass 5mm', qty: '+50', time: '10 mins ago', user: 'Somchai P.' },
-    { id: 2, type: 'withdrawal', material: 'Tempered 10mm', qty: '-12', time: '25 mins ago', user: 'Wichai R.' },
-    { id: 3, type: 'alert', material: 'Laminated 8mm', qty: 'Low Stock', time: '1 hour ago', user: 'System' },
-    { id: 4, type: 'import', material: 'Mirror 3mm', qty: '+100', time: '2 hours ago', user: 'Anan S.' },
-  ];
-
-  const chartData = [
-    { name: 'Mon', stock: 4000, out: 2400 },
-    { name: 'Tue', stock: 3000, out: 1398 },
-    { name: 'Wed', stock: 2000, out: 9800 },
-    { name: 'Thu', stock: 2780, out: 3908 },
-    { name: 'Fri', stock: 1890, out: 4800 },
-    { name: 'Sat', stock: 2390, out: 3800 },
-    { name: 'Sun', stock: 3490, out: 4300 },
+    { type: "import", material: "Clear Glass 5mm", qty: "+50", time: "10 min", user: "Somchai P." },
+    { type: "withdrawal", material: "Tempered 10mm", qty: "-12", time: "25 min", user: "Wichai R." },
+    { type: "alert", material: "Laminated 8mm", qty: "Low", time: "1 hr", user: "System" },
+    { type: "import", material: "Mirror 3mm", qty: "+100", time: "2 hr", user: "Anan S." },
   ];
 
   return (
-    <div className="flex flex-col gap-4 sm:gap-6 lg:gap-8 max-w-[1600px] mx-auto w-full overflow-x-hidden">
-      {/* Welcome Section */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 pb-6 border-b border-slate-200 dark:border-slate-800">
+    <div className="space-y-6 max-w-[1440px] mx-auto">
+      {/* ── Header ──────────────────────────────────────────── */}
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="flex items-center gap-3 text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white leading-normal pt-2 pb-1">
-            <LayoutDashboard className="h-7 w-7 sm:h-8 sm:w-8 shrink-0" />
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
             {t.dashboard.welcome}
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 text-sm sm:text-base font-medium mt-1">
-            System Operational • All stations reporting healthy
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+            {lang === "th"
+              ? "ภาพรวมระบบจัดการการผลิตกระจก"
+              : "Glass manufacturing overview"}
           </p>
-        </div>
-        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-          <Badge variant="outline" className="px-3 py-1 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 font-medium rounded-lg shadow-sm text-xs sm:text-sm">
-            Last updated: Just now
-          </Badge>
-          <Button className="bg-blue-600 hover:bg-blue-700 shadow-blue-500/20 dark:bg-[#E8601C] dark:hover:bg-[#E8601C]/90 dark:shadow-orange-500/20 text-white font-bold rounded-xl shadow-lg px-4 sm:px-6 text-sm transition-colors border-0">
-            Export Report
-          </Button>
         </div>
       </div>
 
-      {/* KPI Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
-        {kpis.map((kpi, i) => (
-          <div key={i} className="relative overflow-hidden bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all group flex flex-col justify-between min-h-[140px] sm:min-h-[160px]">
-            <div className={`absolute top-0 right-0 w-24 h-24 sm:w-32 sm:h-32 rounded-bl-full -z-0 transition-transform group-hover:scale-110 ${
-                kpi.color === 'amber' ? 'bg-amber-50 dark:bg-amber-900/10' :
-                kpi.color === 'emerald' ? 'bg-emerald-50 dark:bg-emerald-900/10' :
-                kpi.color === 'indigo' ? 'bg-indigo-50 dark:bg-indigo-900/10' :
-                'bg-blue-50 dark:bg-[#E8601C]/5'
-            }`} />
-            <div className="relative z-10 flex items-start sm:items-center justify-between mb-4 sm:mb-6">
-              <div className={`h-10 w-10 sm:h-14 sm:w-14 rounded-xl sm:rounded-2xl flex items-center justify-center transition-colors duration-300 ${
-                  kpi.color === 'amber' ? 'bg-amber-100/50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 group-hover:bg-amber-600 dark:group-hover:bg-amber-500 group-hover:text-white dark:group-hover:text-white' :
-                  kpi.color === 'emerald' ? 'bg-emerald-100/50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-600 dark:group-hover:bg-emerald-500 group-hover:text-white dark:group-hover:text-white' :
-                  kpi.color === 'indigo' ? 'bg-indigo-100/50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 dark:group-hover:bg-indigo-500 group-hover:text-white dark:group-hover:text-white' :
-                  'bg-blue-100/50 dark:bg-[#E8601C]/10 text-blue-600 dark:text-[#E8601C] group-hover:bg-blue-600 dark:group-hover:bg-[#E8601C] group-hover:text-white dark:group-hover:text-white'
-              }`}>
-                <kpi.icon className="h-5 w-5 sm:h-7 sm:w-7" />
+      {/* ── KPI Row ─────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[
+          {
+            label: t.dashboard.total_stock,
+            value: "14,250",
+            change: "+12.5%",
+            positive: true,
+            icon: Boxes,
+            accent: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10",
+          },
+          {
+            label: t.dashboard.low_stock_alerts,
+            value: "12",
+            change: "-2",
+            positive: true,
+            icon: AlertTriangle,
+            accent: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10",
+          },
+          {
+            label: t.dashboard.pending_requests,
+            value: "28",
+            change: "+5",
+            positive: false,
+            icon: Clock,
+            accent: "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10",
+          },
+          {
+            label: t.dashboard.completed_today,
+            value: "145",
+            change: "+18%",
+            positive: true,
+            icon: CheckCircle2,
+            accent: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10",
+          },
+        ].map((kpi, i) => (
+          <div
+            key={i}
+            className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 p-4 sm:p-5"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className={`h-9 w-9 rounded-lg flex items-center justify-center ${kpi.accent}`}>
+                <kpi.icon className="h-[18px] w-[18px]" />
               </div>
-              <Badge className={`border-none font-bold rounded-lg px-2 sm:px-2.5 py-0.5 sm:py-1 text-[9px] sm:text-[10px] tracking-widest uppercase transition-all shadow-none ${
-                  kpi.isPositive
-                    ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'
-                    : 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400'
-              }`}>
+              <span
+                className={`text-xs font-semibold ${
+                  kpi.positive
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : "text-red-500 dark:text-red-400"
+                }`}
+              >
                 {kpi.change}
-              </Badge>
+              </span>
             </div>
-            <div className="relative z-10">
-              <p className="text-xs sm:text-sm font-bold text-slate-500 dark:text-slate-400 mb-0.5 sm:mb-1 line-clamp-1 break-words leading-tight">{kpi.title}</p>
-              <h3 className="text-3xl sm:text-4xl font-black text-slate-900 dark:text-white tracking-tight leading-none mb-1 sm:mb-2">{kpi.value}</h3>
-              <p className="hidden sm:block text-[10px] sm:text-xs text-slate-400 font-medium truncate">{kpi.description}</p>
-            </div>
+            <p className="text-[13px] text-slate-500 dark:text-slate-400 mb-0.5">
+              {kpi.label}
+            </p>
+            <p className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
+              {kpi.value}
+            </p>
           </div>
         ))}
       </div>
 
-      {/* Floating Toggle Button */}
-      <button
-        onClick={() => setIsActivityOpen(!isActivityOpen)}
-        className="fixed top-1/2 right-0 -translate-y-1/2 z-50 flex items-center justify-center w-8 h-16 bg-white dark:bg-slate-800 border border-r-0 border-slate-200 dark:border-slate-700 shadow-[-4px_0_15px_-3px_rgba(0,0,0,0.1)] rounded-l-xl hover:bg-slate-50 dark:hover:bg-slate-700 transition-all group"
-      >
-        {isActivityOpen ? (
-          <ChevronRight className="text-slate-400 group-hover:text-primary dark:group-hover:text-[#E8601C]" size={20} />
-        ) : (
-          <ChevronLeft className="text-slate-400 group-hover:text-primary dark:group-hover:text-[#E8601C]" size={20} />
-        )}
-      </button>
-
-      <div className={`grid grid-cols-1 ${isActivityOpen ? 'lg:grid-cols-3' : 'lg:grid-cols-1'} gap-4 sm:gap-6 lg:gap-8`}>
-        {/* Main Chart Section */}
-        <Card className={`${isActivityOpen ? 'lg:col-span-2' : 'lg:col-span-1'} border border-slate-200 dark:border-slate-800 shadow-sm rounded-3xl overflow-hidden bg-white dark:bg-slate-900 transition-all duration-300`}>
-          <CardHeader className="flex flex-row items-center justify-between border-b border-slate-50 dark:border-slate-800 pb-6">
+      {/* ── Charts Row ──────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Area Chart */}
+        <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 p-5">
+          <div className="flex items-center justify-between mb-6">
             <div>
-              <CardTitle className="text-xl font-bold text-slate-900 dark:text-white">{t.dashboard.inventory_flow}</CardTitle>
-              <CardDescription className="font-medium">Daily balance vs outgoing materials</CardDescription>
+              <h2 className="text-[15px] font-semibold text-slate-900 dark:text-white">
+                {t.dashboard.inventory_flow}
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {lang === "th" ? "ยอดสต็อก vs เบิกออก รายวัน" : "Daily stock vs outgoing"}
+              </p>
             </div>
-            <div className="flex gap-2">
-              <Button variant="ghost" size="sm" className="font-bold text-xs rounded-lg">7D</Button>
-              <Button variant="outline" size="sm" className="font-bold text-xs rounded-lg border-primary text-primary dark:border-[#E8601C] dark:text-[#E8601C]">30D</Button>
+            <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5">
+              <button className="px-3 py-1 text-xs font-medium text-slate-500 dark:text-slate-400 rounded-md hover:bg-white dark:hover:bg-slate-700 transition-colors">
+                7D
+              </button>
+              <button className="px-3 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-700 rounded-md shadow-sm">
+                30D
+              </button>
             </div>
-          </CardHeader>
-          <CardContent className="pt-8">
-            <div className="h-[250px] sm:h-[300px] lg:h-[350px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData}>
-                  <defs>
-                    <linearGradient id="colorStock" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#1B4B9A" stopOpacity={0.1} />
-                      <stop offset="95%" stopColor="#1B4B9A" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="colorOut" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#E8601C" stopOpacity={0.1} />
-                      <stop offset="95%" stopColor="#E8601C" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" opacity={0.5} />
-                  <XAxis
-                    dataKey="name"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 12, fontWeight: 600, fill: '#64748B' }}
-                  />
-                  <YAxis
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 12, fontWeight: 600, fill: '#64748B' }}
-                  />
-                  <Tooltip
-                    contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontWeight: 'bold' }}
-                  />
-                  <Area type="monotone" dataKey="stock" stroke="#1B4B9A" strokeWidth={3} fillOpacity={1} fill="url(#colorStock)" />
-                  <Area type="monotone" dataKey="out" stroke="#E8601C" strokeWidth={3} fillOpacity={1} fill="url(#colorOut)" />
-                </AreaChart>
-              </ResponsiveContainer>
+          </div>
+          <div className="h-[260px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="gStock" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#2563eb" stopOpacity={0.08} />
+                    <stop offset="100%" stopColor="#2563eb" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="gOut" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.08} />
+                    <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.5} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#94a3b8" }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#94a3b8" }} width={40} />
+                <Tooltip
+                  contentStyle={{
+                    borderRadius: "10px",
+                    border: "1px solid #e2e8f0",
+                    boxShadow: "0 4px 12px -2px rgba(0,0,0,0.06)",
+                    fontSize: "12px",
+                  }}
+                />
+                <Area type="monotone" dataKey="stock" stroke="#2563eb" strokeWidth={2} fill="url(#gStock)" />
+                <Area type="monotone" dataKey="out" stroke="#f59e0b" strokeWidth={2} fill="url(#gOut)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="flex items-center gap-5 mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <span className="size-2.5 rounded-full bg-blue-600" />
+              Stock
             </div>
-          </CardContent>
-        </Card>
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <span className="size-2.5 rounded-full bg-amber-500" />
+              Outgoing
+            </div>
+          </div>
+        </div>
 
-        {/* Recent Activity Section */}
-        {isActivityOpen && (
-          <Card className="border border-slate-200 dark:border-slate-800 shadow-sm rounded-3xl overflow-hidden bg-white dark:bg-slate-900 animate-in fade-in slide-in-from-right-8 duration-300">
-            <CardHeader className="border-b border-slate-50 dark:border-slate-800">
-              <CardTitle className="text-xl font-bold text-slate-900 dark:text-white">{t.dashboard.recent_activity}</CardTitle>
-              <CardDescription className="font-medium">Latest stock movements</CardDescription>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <div className="space-y-6">
-                {recentActivity.map((activity, i) => (
-                  <div key={i} className="flex gap-4 group">
-                    <div className={`h-11 w-11 rounded-2xl shrink-0 flex items-center justify-center ${activity.type === 'import' ? 'bg-emerald-50 text-emerald-600' :
-                        activity.type === 'withdrawal' ? 'bg-orange-50 text-orange-600' :
-                          'bg-red-50 text-red-600 animate-pulse'
-                      }`}>
-                      {activity.type === 'import' ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
-                    </div>
-                    <div className="flex flex-col flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-bold text-slate-900 dark:text-white truncate group-hover:text-primary dark:group-hover:text-[#E8601C] transition-colors">
-                          {activity.material}
-                        </p>
-                        <span className={`text-xs font-bold ${activity.type === 'import' ? 'text-emerald-500' :
-                            activity.type === 'withdrawal' ? 'text-orange-500' : 'text-red-500'
-                          }`}>
-                          {activity.qty}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between mt-1">
-                        <p className="text-xs text-slate-400 font-medium">{activity.user}</p>
-                        <p className="text-[10px] text-slate-400 font-medium uppercase">{activity.time}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                <Button variant="ghost" className="w-full text-slate-500 font-bold hover:text-primary dark:hover:text-[#E8601C] gap-2 py-6 rounded-2xl group transition-all">
-                  View Full Logs
-                  <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-                </Button>
+        {/* Activity Feed */}
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 p-5 flex flex-col">
+          <h2 className="text-[15px] font-semibold text-slate-900 dark:text-white mb-1">
+            {t.dashboard.recent_activity}
+          </h2>
+          <p className="text-xs text-slate-400 mb-5">
+            {lang === "th" ? "ความเคลื่อนไหวล่าสุด" : "Latest movements"}
+          </p>
+          <div className="flex-1 space-y-1">
+            {recentActivity.map((a, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-3 rounded-lg p-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+              >
+                <div
+                  className={`h-8 w-8 rounded-lg shrink-0 flex items-center justify-center ${
+                    a.type === "import"
+                      ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400"
+                      : a.type === "withdrawal"
+                        ? "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400"
+                        : "bg-red-50 text-red-500 dark:bg-red-500/10 dark:text-red-400"
+                  }`}
+                >
+                  {a.type === "import" ? (
+                    <TrendingUp className="h-3.5 w-3.5" />
+                  ) : a.type === "withdrawal" ? (
+                    <TrendingDown className="h-3.5 w-3.5" />
+                  ) : (
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-medium text-slate-700 dark:text-slate-300 truncate">
+                    {a.material}
+                  </p>
+                  <p className="text-[11px] text-slate-400">{a.user} · {a.time}</p>
+                </div>
+                <span
+                  className={`text-xs font-semibold shrink-0 ${
+                    a.type === "import"
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : a.type === "withdrawal"
+                        ? "text-amber-600 dark:text-amber-400"
+                        : "text-red-500 dark:text-red-400"
+                  }`}
+                >
+                  {a.qty}
+                </span>
               </div>
-            </CardContent>
-          </Card>
-        )}
+            ))}
+          </div>
+          <Link
+            href="/logs"
+            className="mt-3 flex items-center justify-center gap-1.5 h-9 rounded-lg text-[13px] font-medium text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+          >
+            {lang === "th" ? "ดูทั้งหมด" : "View all"}
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
       </div>
 
-      {/* ── Request Analytics Section ── */}
+      {/* ── Request Analytics ───────────────────────────────── */}
       {dataLoaded && (
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6 lg:gap-8">
-          {/* Bar Chart - 3 cols */}
-          <Card className="lg:col-span-3 border border-slate-200 dark:border-slate-800 shadow-sm rounded-3xl overflow-hidden bg-white dark:bg-slate-900">
-            <CardHeader className="flex flex-row items-center justify-between border-b border-slate-50 dark:border-slate-800 pb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+          {/* Bar Chart */}
+          <div className="lg:col-span-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 p-5">
+            <div className="flex items-center justify-between mb-6">
               <div>
-                <CardTitle className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5 text-blue-600 dark:text-[#E8601C]" />
-                  คำขอเข้าใหม่ (7 วัน)
-                </CardTitle>
-                <CardDescription className="font-medium">จำนวนคำสั่งซื้อที่เข้ามาในแต่ละวัน</CardDescription>
+                <h2 className="text-[15px] font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  {lang === "th" ? "คำขอเข้าใหม่ (7 วัน)" : "New Requests (7 days)"}
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {lang === "th" ? "จำนวนคำสั่งซื้อรายวัน" : "Daily order requests"}
+                </p>
               </div>
-              <Badge className={`border-none font-bold rounded-lg px-2.5 py-1 text-[10px] tracking-widest uppercase shadow-none ${
-                requestAnalytics.trendPct >= 0
-                  ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
-                  : "bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400"
-              }`}>
-                {requestAnalytics.trendPct >= 0 ? "+" : ""}{requestAnalytics.trendPct}% vs สัปดาห์ก่อน
-              </Badge>
-            </CardHeader>
-            <CardContent className="pt-8">
-              <div className="h-[220px] sm:h-[260px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={requestAnalytics.days} barSize={32} barGap={8}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" opacity={0.5} />
-                    <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 700, fill: '#64748B' }} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 600, fill: '#94A3B8' }} allowDecimals={false} />
-                    <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontWeight: 'bold' }} formatter={(value: number) => [`${value} รายการ`, 'คำขอ']} />
-                    <Bar dataKey="count" radius={[8, 8, 4, 4]}>
-                      {requestAnalytics.days.map((entry, idx) => (
-                        <Cell key={idx} fill={idx === requestAnalytics.days.length - 1 ? '#2563EB' : '#CBD5E1'} className="dark:fill-[#E8601C] dark:[&:not(:last-child)]:fill-slate-700" />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Right side - 4 mini KPIs - 2 cols */}
-          <div className="lg:col-span-2 grid grid-cols-2 gap-3 sm:gap-4 content-start">
-            {/* Pending requests */}
-            <div className="relative overflow-hidden bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm group hover:shadow-lg hover:-translate-y-0.5 transition-all">
-              <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-3 sm:mb-4">
-                <Timer className="h-4 w-4 sm:h-5 sm:w-5" />
-              </div>
-              <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest mb-0.5">รออนุมัติ</p>
-              <h3 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white leading-none">{requestAnalytics.pending}</h3>
-              <p className="text-[10px] text-slate-400 font-medium mt-1">รายการ</p>
+              <span
+                className={`text-xs font-semibold px-2 py-1 rounded-md ${
+                  analytics.trendPct >= 0
+                    ? "text-emerald-600 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-500/10"
+                    : "text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-500/10"
+                }`}
+              >
+                {analytics.trendPct >= 0 ? "+" : ""}
+                {analytics.trendPct}%
+              </span>
             </div>
-
-            {/* Approaching deadline */}
-            <div className={`relative overflow-hidden p-4 sm:p-6 rounded-3xl border shadow-sm group hover:shadow-lg hover:-translate-y-0.5 transition-all ${
-              requestAnalytics.approaching > 0
-                ? "bg-red-50/50 dark:bg-red-950/20 border-red-200 dark:border-red-900/50"
-                : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
-            }`}>
-              <div className={`h-9 w-9 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl flex items-center justify-center mb-3 sm:mb-4 ${
-                requestAnalytics.approaching > 0
-                  ? "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400"
-                  : "bg-slate-100 dark:bg-slate-800 text-slate-400"
-              }`}>
-                <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5" />
-              </div>
-              <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest mb-0.5">ใกล้ Deadline</p>
-              <h3 className={`text-2xl sm:text-3xl font-black leading-none ${requestAnalytics.approaching > 0 ? "text-red-600 dark:text-red-400" : "text-slate-900 dark:text-white"}`}>{requestAnalytics.approaching}</h3>
-              <p className="text-[10px] text-slate-400 font-medium mt-1">ภายใน 3 วัน</p>
+            <div className="h-[220px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={analytics.days} barSize={28}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.5} />
+                  <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#94a3b8" }} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#94a3b8" }} allowDecimals={false} width={30} />
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: "10px",
+                      border: "1px solid #e2e8f0",
+                      boxShadow: "0 4px 12px -2px rgba(0,0,0,0.06)",
+                      fontSize: "12px",
+                    }}
+                    formatter={(value: number) => [`${value}`, lang === "th" ? "รายการ" : "requests"]}
+                  />
+                  <Bar dataKey="count" radius={[6, 6, 2, 2]}>
+                    {analytics.days.map((_, idx) => (
+                      <Cell
+                        key={idx}
+                        fill={idx === analytics.days.length - 1 ? "#2563eb" : "#e2e8f0"}
+                        className={idx === analytics.days.length - 1 ? "dark:fill-blue-500" : "dark:fill-slate-700"}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             </div>
+          </div>
 
-            {/* Completion rate */}
-            <div className="relative overflow-hidden bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm group hover:shadow-lg hover:-translate-y-0.5 transition-all">
-              <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-3 sm:mb-4">
-                <Zap className="h-4 w-4 sm:h-5 sm:w-5" />
+          {/* Mini KPIs */}
+          <div className="lg:col-span-2 grid grid-cols-2 gap-3 content-start">
+            {[
+              {
+                label: lang === "th" ? "รออนุมัติ" : "Pending",
+                value: analytics.pending,
+                sub: lang === "th" ? "รายการ" : "items",
+                icon: Timer,
+                accent: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10",
+              },
+              {
+                label: lang === "th" ? "ใกล้ Deadline" : "Due Soon",
+                value: analytics.approaching,
+                sub: lang === "th" ? "ภายใน 3 วัน" : "within 3 days",
+                icon: AlertTriangle,
+                accent: analytics.approaching > 0
+                  ? "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10"
+                  : "text-slate-400 bg-slate-100 dark:bg-slate-800",
+                danger: analytics.approaching > 0,
+              },
+              {
+                label: lang === "th" ? "อัตราสำเร็จ" : "Completion",
+                value: `${analytics.completionRate}%`,
+                sub: `${analytics.completedOrders}/${analytics.totalOrders}`,
+                icon: Zap,
+                accent: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10",
+              },
+              {
+                label: lang === "th" ? "กำลังผลิต" : "In Progress",
+                value: analytics.inProgress,
+                sub: `+${analytics.pendingOrders} ${lang === "th" ? "รอคิว" : "queued"}`,
+                icon: Users,
+                accent: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10",
+              },
+            ].map((m, i) => (
+              <div
+                key={i}
+                className={`bg-white dark:bg-slate-900 p-4 rounded-xl border ${
+                  m.danger
+                    ? "border-red-200 dark:border-red-900/40"
+                    : "border-slate-200/60 dark:border-slate-800"
+                }`}
+              >
+                <div className={`h-8 w-8 rounded-lg flex items-center justify-center mb-3 ${m.accent}`}>
+                  <m.icon className="h-4 w-4" />
+                </div>
+                <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-0.5">
+                  {m.label}
+                </p>
+                <p
+                  className={`text-2xl font-bold tracking-tight leading-none ${
+                    m.danger
+                      ? "text-red-600 dark:text-red-400"
+                      : "text-slate-900 dark:text-white"
+                  }`}
+                >
+                  {m.value}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-1">{m.sub}</p>
               </div>
-              <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest mb-0.5">ทีมทำงานทัน</p>
-              <h3 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white leading-none">{requestAnalytics.completionRate}%</h3>
-              <p className="text-[10px] text-slate-400 font-medium mt-1">{requestAnalytics.completedOrders}/{requestAnalytics.totalOrders} ออเดอร์</p>
-            </div>
-
-            {/* In-progress / capacity */}
-            <div className="relative overflow-hidden bg-white dark:bg-slate-900 p-4 sm:p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm group hover:shadow-lg hover:-translate-y-0.5 transition-all">
-              <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-xl sm:rounded-2xl bg-blue-50 dark:bg-[#E8601C]/10 text-blue-600 dark:text-[#E8601C] flex items-center justify-center mb-3 sm:mb-4">
-                <Users className="h-4 w-4 sm:h-5 sm:w-5" />
-              </div>
-              <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest mb-0.5">กำลังผลิต</p>
-              <h3 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white leading-none">{requestAnalytics.inProgress}</h3>
-              <p className="text-[10px] text-slate-400 font-medium mt-1">+ {requestAnalytics.pendingOrders} รอคิว</p>
-            </div>
+            ))}
           </div>
         </div>
       )}
 
-      {/* Quick Navigation / Tools */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
+      {/* ── Quick Links ─────────────────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {[
-          { icon: ClipboardList, title: "คำสั่งซื้อใหม่", desc: "สร้างคำสั่งซื้อจากลูกค้า", link: "/request/create" },
-          { icon: Package, title: "คลังกระจก", desc: "จัดการสต๊อกและวัสดุ", link: "/inventory" },
-          { icon: Activity, title: "ติดตามการผลิต", desc: "สถานะสายการผลิต", link: "/production" },
-        ].map((tool, i) => (
-          <Link href={tool.link} key={i}>
-            <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-200 dark:border-slate-800 hover:border-primary dark:hover:border-[#E8601C] transition-all group cursor-pointer">
-              <div className="flex items-center gap-4">
-                <div className="h-12 w-12 rounded-2xl bg-white dark:bg-slate-900 flex items-center justify-center text-slate-400 group-hover:bg-primary dark:group-hover:bg-[#E8601C] group-hover:text-white shadow-sm transition-all">
-                  <tool.icon className="h-6 w-6" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-slate-900 dark:text-white group-hover:text-primary dark:group-hover:text-[#E8601C] transition-colors">{tool.title}</h4>
-                  <p className="text-sm text-slate-400 font-medium">{tool.desc}</p>
-                </div>
+          {
+            icon: ClipboardList,
+            title: lang === "th" ? "คำสั่งซื้อใหม่" : "New Order",
+            desc: lang === "th" ? "สร้างคำสั่งซื้อจากลูกค้า" : "Create customer order",
+            href: "/request/create",
+          },
+          {
+            icon: Package,
+            title: lang === "th" ? "คลังกระจก" : "Inventory",
+            desc: lang === "th" ? "จัดการสต็อกและวัสดุ" : "Manage stock & materials",
+            href: "/inventory",
+          },
+          {
+            icon: Activity,
+            title: lang === "th" ? "ติดตามการผลิต" : "Production",
+            desc: lang === "th" ? "สถานะสายการผลิต" : "Production line status",
+            href: "/production",
+          },
+        ].map((link) => (
+          <Link key={link.href} href={link.href}>
+            <div className="group flex items-center gap-4 p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 hover:border-blue-200 dark:hover:border-blue-800/40 transition-colors">
+              <div className="h-10 w-10 rounded-lg bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-400 group-hover:bg-blue-50 dark:group-hover:bg-blue-500/10 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                <link.icon className="h-5 w-5" />
               </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                  {link.title}
+                </p>
+                <p className="text-xs text-slate-400 truncate">{link.desc}</p>
+              </div>
+              <ArrowRight className="ml-auto h-4 w-4 text-slate-300 dark:text-slate-600 group-hover:text-blue-400 transition-colors shrink-0" />
             </div>
           </Link>
         ))}

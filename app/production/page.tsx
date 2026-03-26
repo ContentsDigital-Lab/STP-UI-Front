@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
     ClipboardList, Search, RefreshCw, ChevronDown, ChevronRight, ChevronLeft,
     AlertCircle, User, Package, ArrowRight, MapPin,
-    CalendarDays, Printer, QrCode, X, CheckCheck, Wifi, WifiOff, ClipboardCheck,
+    CalendarDays, Printer, QrCode, X, CheckCheck, Wifi, WifiOff,
 } from "lucide-react";
 import { QrCodeModal } from "@/components/qr/QrCodeModal";
 import { Button } from "@/components/ui/button";
@@ -169,10 +169,6 @@ export default function ProductionPage() {
     const [expanded,  setExpanded]  = useState<Set<string>>(new Set());
     const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
     const [qrTarget,  setQrTarget]  = useState<{ code: string; label: string; url: string } | null>(null);
-    const [qrPane,    setQrPane]    = useState<Pane | null>(null);
-    const [currentPage, setCurrentPage] = useState(1);
-    const ITEMS_PER_PAGE = 10;
-
     const loadPanes = useCallback(async () => {
         const pRes = await panesApi.getAll({ limit: 100 }).catch(() => null);
         if (pRes?.success) {
@@ -286,25 +282,21 @@ export default function ProductionPage() {
 
     return (
         <>
-        <div className="flex flex-col gap-4 sm:gap-6 lg:gap-8 max-w-[1600px] mx-auto w-full overflow-x-hidden">
+        <div className="space-y-6 max-w-[1440px] mx-auto w-full">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 pb-6 border-b border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="flex items-center gap-3 text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white leading-normal pt-2 pb-1">
-                        <ClipboardCheck className="h-7 w-7 sm:h-8 sm:w-8 shrink-0" />
+                    <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
                         ติดตามการผลิต
                     </h1>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm sm:text-base font-medium mt-1">ติดตามสถานะบิล ออเดอร์ และสถานีการผลิต</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">ติดตามสถานะบิล ออเดอร์ และสถานีการผลิต</p>
                 </div>
-                <div className="flex items-center gap-2 self-start sm:self-auto">
-                    <span className={`flex items-center gap-1 text-xs ${wsStatus === "open" ? "text-green-600 dark:text-green-400" : "text-muted-foreground"}`}>
-                        {wsStatus === "open"
-                            ? <Wifi className="h-3.5 w-3.5" />
-                            : <WifiOff className="h-3.5 w-3.5" />
-                        }
+                <div className="flex items-center gap-2">
+                    <span className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg ${wsStatus === "open" ? "text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-500/10" : "text-slate-400 bg-slate-100 dark:bg-slate-800"}`}>
+                        {wsStatus === "open" ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
                         <span className="hidden sm:inline">{wsStatus === "open" ? "Live" : "ออฟไลน์"}</span>
                     </span>
-                    <Button variant="outline" size="sm" className="gap-1.5" onClick={load} disabled={loading}>
+                    <Button variant="outline" size="sm" className="gap-1.5 rounded-xl h-9 text-sm" onClick={load} disabled={loading}>
                         <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
                         รีเฟรช
                     </Button>
@@ -312,90 +304,74 @@ export default function ProductionPage() {
             </div>
 
             {/* Summary cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {[
-                    { label: "บิลทั้งหมด", count: totalBills,     icon: ClipboardList, bg: "bg-slate-50 dark:bg-slate-800/50", iconBg: "bg-slate-100 dark:bg-slate-700/50", iconColor: "text-slate-500 dark:text-slate-400" },
-                    { label: "รอตรวจสอบ",  count: pendingBills,   icon: AlertCircle,   bg: "bg-amber-50 dark:bg-amber-950/20", iconBg: "bg-amber-100 dark:bg-amber-900/30", iconColor: "text-amber-600 dark:text-amber-400" },
-                    { label: "กำลังผลิต",  count: activeBills,    icon: RefreshCw,     bg: "bg-blue-50 dark:bg-blue-950/20", iconBg: "bg-blue-100 dark:bg-blue-900/30", iconColor: "text-blue-600 dark:text-blue-400" },
-                    { label: "เสร็จแล้ว",  count: completedBills, icon: CheckCheck,    bg: "bg-green-50 dark:bg-green-950/20", iconBg: "bg-green-100 dark:bg-green-900/30", iconColor: "text-green-600 dark:text-green-400" },
-                ].map(({ label, count, icon: Icon, bg, iconBg, iconColor }) => (
-                    <div key={label} className={`rounded-2xl border border-slate-200 dark:border-slate-800 p-5 ${bg} transition-all hover:shadow-md`}>
-                        <div className="flex items-center gap-3 mb-3">
-                            <div className={`h-9 w-9 rounded-xl ${iconBg} flex items-center justify-center`}>
-                                <Icon className={`h-4 w-4 ${iconColor}`} />
-                            </div>
-                            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{label}</span>
+                    { label: "บิลทั้งหมด", count: totalBills,     icon: ClipboardList, accent: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10" },
+                    { label: "รอตรวจสอบ",  count: pendingBills,   icon: AlertCircle,   accent: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10" },
+                    { label: "กำลังผลิต",  count: activeBills,    icon: RefreshCw,     accent: "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10" },
+                    { label: "เสร็จแล้ว",  count: completedBills, icon: CheckCheck,    accent: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10" },
+                ].map(({ label, count, icon: Icon, accent }) => (
+                    <div key={label} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 p-4 sm:p-5">
+                        <div className={`h-9 w-9 rounded-lg flex items-center justify-center mb-3 ${accent}`}>
+                            <Icon className="h-[18px] w-[18px]" />
                         </div>
-                        <p className="text-3xl font-bold text-slate-900 dark:text-white">{loading ? "…" : count}</p>
+                        <p className="text-[13px] text-slate-500 dark:text-slate-400 mb-0.5">{label}</p>
+                        <p className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">{loading ? "…" : count}</p>
                     </div>
                 ))}
             </div>
 
+            {/* Search */}
+            <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Input
+                    placeholder="ค้นหา ลูกค้า, รหัสบิล, วัสดุ, สถานี, สถานะ..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-9 pr-9 h-10 w-full rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-sm"
+                />
+                {search && (
+                    <button
+                        onClick={() => setSearch("")}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                    >
+                        <X className="h-3.5 w-3.5" />
+                    </button>
+                )}
+            </div>
+            {!loading && search && (
+                <p className="text-xs text-slate-400 -mt-4">
+                    พบ <span className="font-medium text-slate-600 dark:text-slate-300">{filtered.length}</span> จาก {bills.length} บิล · <button className="text-blue-600 dark:text-blue-400 underline underline-offset-2" onClick={() => setSearch("")}>ล้าง</button>
+                </p>
+            )}
+
             {/* Main content card */}
-            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden">
-                {/* Search */}
-                <div className="p-5 sm:p-6 border-b border-slate-100 dark:border-slate-800">
-                    <div className="relative w-full">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                        <Input
-                            placeholder="ค้นหา ลูกค้า, รหัสบิล, รหัสออเดอร์, วัสดุ, สถานี, สถานะ, ผู้รับผิดชอบ..."
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            className="pl-11 pr-10 h-12 w-full rounded-2xl bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 font-medium"
-                        />
-                        {search && (
-                            <button
-                                onClick={() => setSearch("")}
-                                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors"
-                            >
-                                <X className="h-4 w-4" />
-                            </button>
-                        )}
-                    </div>
-                    {!loading && (search || filtered.length < bills.length) && (
-                        <p className="text-xs text-slate-400 mt-2 pl-1">
-                            {search
-                                ? <>พบ <span className="font-bold text-slate-600 dark:text-slate-300">{filtered.length}</span> จาก {bills.length} บิล · ค้นหา &ldquo;{search}&rdquo; · <button className="text-blue-600 dark:text-[#E8601C] underline underline-offset-2 font-semibold" onClick={() => setSearch("")}>ล้าง</button></>
-                                : <>แสดง {filtered.length} บิล</>
-                            }
-                        </p>
-                    )}
-                </div>
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 overflow-hidden">
 
             {/* Bill list */}
             {loading ? (
                 <div className="divide-y divide-slate-100 dark:divide-slate-800">
                     {Array.from({ length: 4 }).map((_, i) => (
-                        <div key={i} className="px-5 sm:px-6 py-5 flex items-start gap-4 animate-pulse">
-                            <div className="h-4 w-4 rounded bg-slate-200 dark:bg-slate-700 mt-0.5 shrink-0" />
-                            <div className="flex-1 space-y-2.5">
-                                <div className="flex items-center gap-3">
-                                    <div className="h-4 w-28 rounded-lg bg-slate-200 dark:bg-slate-700" />
-                                    <div className="h-3.5 w-14 rounded-lg bg-slate-100 dark:bg-slate-800" />
-                                    <div className="h-3.5 w-24 rounded-lg bg-slate-100 dark:bg-slate-800" />
-                                </div>
-                                <div className="flex gap-1.5">
-                                    <div className="h-5 w-16 rounded-full bg-slate-100 dark:bg-slate-800" />
-                                    <div className="h-5 w-20 rounded-full bg-slate-100 dark:bg-slate-800" />
-                                </div>
+                        <div key={i} className="px-4 py-3.5 flex items-center gap-3 animate-pulse">
+                            <div className="h-4 w-4 rounded bg-slate-200 dark:bg-slate-700 shrink-0" />
+                            <div className="flex-1 space-y-2">
+                                <div className="h-4 w-32 rounded bg-slate-200 dark:bg-slate-700" />
+                                <div className="h-3 w-48 rounded bg-slate-100 dark:bg-slate-800" />
                             </div>
-                            <div className="hidden sm:flex gap-6 shrink-0">
+                            <div className="hidden sm:flex gap-4 shrink-0">
                                 {[1, 2, 3].map(j => (
-                                    <div key={j} className="text-center space-y-1">
-                                        <div className="h-5 w-8 rounded bg-slate-200 dark:bg-slate-700 mx-auto" />
-                                        <div className="h-3 w-10 rounded bg-slate-100 dark:bg-slate-800 mx-auto" />
-                                    </div>
+                                    <div key={j} className="h-4 w-10 rounded bg-slate-100 dark:bg-slate-800" />
                                 ))}
                             </div>
                         </div>
                     ))}
                 </div>
             ) : filtered.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 space-y-3">
-                    <div className="h-16 w-16 rounded-3xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center">
-                        <AlertCircle className="h-8 w-8 text-slate-300 dark:text-slate-600" />
+                <div className="flex flex-col items-center justify-center py-16 space-y-2">
+                    <div className="h-12 w-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                        <AlertCircle className="h-6 w-6 text-slate-400 dark:text-slate-500" />
                     </div>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 font-bold">ไม่พบข้อมูลที่ค้นหา</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">ไม่พบข้อมูลที่ค้นหา</p>
                 </div>
             ) : (
                 <div className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -490,10 +466,10 @@ export default function ProductionPage() {
 
                                 {/* ── Order rows ── */}
                                 {isOpen && (
-                                    <div className="border-t border-slate-100 dark:border-slate-800 divide-y divide-slate-50 dark:divide-slate-800/50 bg-slate-50/30 dark:bg-slate-800/10">
+                                    <div className="border-t border-slate-100 dark:border-slate-800 divide-y divide-slate-50 dark:divide-slate-800/50">
                                         {/* Column headers */}
-                                        <div className="px-5 sm:px-8 py-3 flex items-center gap-4 text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest bg-slate-50/80 dark:bg-slate-800/50 backdrop-blur-sm sticky top-0 z-10">
-                                            <div className="w-5 shrink-0" /> {/* Spacer for chevron */}
+                                        <div className="px-4 sm:px-6 py-2.5 flex items-center gap-4 text-[11px] font-medium text-slate-400 dark:text-slate-500 bg-slate-50/80 dark:bg-slate-800/30">
+                                            <div className="w-5 shrink-0" />
                                             <div className="w-20 shrink-0">รหัส</div>
                                             <div className="w-40 shrink-0 hidden sm:block">วัสดุ / ชิ้น</div>
                                             <div className="flex-1">สถานีปัจจุบัน</div>
@@ -512,9 +488,9 @@ export default function ProductionPage() {
                                             const isOrderOpen = expandedOrders.has(order._id);
 
                                             return (
-                                                <div key={order._id} className="relative group/order bg-white dark:bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                                <div key={order._id} className="relative group/order hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
                                                     <div
-                                                        className="px-5 sm:px-8 py-4 flex items-center gap-4 cursor-pointer"
+                                                        className="px-4 sm:px-6 py-3 flex items-center gap-4 cursor-pointer"
                                                         onClick={() => orderPanes.length > 0 ? toggleOrder(order._id) : router.push(`/production/${order._id}`)}
                                                     >
                                                         {/* Expand indicator */}
@@ -541,7 +517,7 @@ export default function ProductionPage() {
                                                                     return (
                                                                         <div className="flex items-center gap-2">
                                                                             <span className="text-xs text-slate-500">{order.quantity} ชิ้น</span>
-                                                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${done === orderPanes.length ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"}`}>
+                                                                            <span className={`text-[10px] font-medium ${done === orderPanes.length ? "text-green-600 dark:text-green-400" : "text-blue-600 dark:text-blue-400"}`}>
                                                                                 {done}/{orderPanes.length} เสร็จ
                                                                             </span>
                                                                         </div>
@@ -573,22 +549,31 @@ export default function ProductionPage() {
 
                                                         {/* Status */}
                                                         <div className="w-24 flex justify-end shrink-0 pr-2">
-                                                            <span className={`inline-flex items-center gap-1.5 text-xs font-bold ${cfg.cls} px-2.5 py-1 rounded-full bg-white dark:bg-slate-900 shadow-sm border border-slate-100 dark:border-slate-800`}>
+                                                            <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${cfg.cls}`}>
                                                                 <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${cfg.dot}`} />
                                                                 <span className="hidden sm:inline">{cfg.label}</span>
                                                             </span>
                                                         </div>
                                                     </div>
 
+<<<<<<< HEAD
                                                     {/* Actions (Inline on mobile, Floating on Desktop) */}
                                                     <div className="flex sm:absolute sm:right-6 sm:top-1/2 sm:-translate-y-1/2 items-center justify-end gap-2 sm:gap-1 px-5 pb-4 sm:px-0 sm:pb-0 opacity-100 sm:opacity-0 sm:group-hover/order:opacity-100 transition-all sm:translate-x-2 sm:group-hover/order:translate-x-0 sm:bg-white/90 sm:dark:bg-slate-900/90 sm:backdrop-blur-md sm:shadow-lg sm:border sm:border-slate-200 sm:dark:border-slate-700 sm:rounded-xl sm:p-1 z-10 w-full sm:w-auto mt-[-8px] sm:mt-0">
+=======
+                                                    {/* Floating Actions on Hover */}
+                                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover/order:opacity-100 transition-all bg-white dark:bg-slate-900 shadow-sm border border-slate-200 dark:border-slate-700 rounded-lg p-0.5 z-10">
+>>>>>>> origin/main
                                                         <button
                                                             type="button"
                                                             title="พิมพ์ใบงาน"
                                                             onClick={(e) => { e.stopPropagation(); router.push(`/production/${order._id}/print`); }}
+<<<<<<< HEAD
                                                             className="flex-1 sm:flex-none flex items-center justify-center p-2.5 sm:p-1.5 rounded-xl sm:rounded-lg text-slate-500 hover:text-blue-600 dark:hover:text-[#E8601C] bg-slate-50 hover:bg-blue-50 dark:bg-slate-800/50 dark:hover:bg-[#E8601C]/10 transition-colors border border-slate-200/50 dark:border-slate-700/50 sm:border-transparent sm:bg-transparent"
+=======
+                                                            className="p-1.5 rounded-md text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
+>>>>>>> origin/main
                                                         >
-                                                            <Printer className="h-4 w-4" />
+                                                            <Printer className="h-3.5 w-3.5" />
                                                         </button>
                                                         {order.code && (
                                                             <button
@@ -602,39 +587,45 @@ export default function ProductionPage() {
                                                                         url:   `${window.location.origin}/production/${order._id}`,
                                                                     });
                                                                 }}
+<<<<<<< HEAD
                                                                 className="flex-1 sm:flex-none flex items-center justify-center p-2.5 sm:p-1.5 rounded-xl sm:rounded-lg text-slate-500 hover:text-blue-600 dark:hover:text-[#E8601C] bg-slate-50 hover:bg-blue-50 dark:bg-slate-800/50 dark:hover:bg-[#E8601C]/10 transition-colors border border-slate-200/50 dark:border-slate-700/50 sm:border-transparent sm:bg-transparent"
+=======
+                                                                className="p-1.5 rounded-md text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
+>>>>>>> origin/main
                                                             >
-                                                                <QrCode className="h-4 w-4" />
+                                                                <QrCode className="h-3.5 w-3.5" />
                                                             </button>
                                                         )}
                                                         <button
                                                             type="button"
                                                             title="ดูรายละเอียด"
                                                             onClick={(e) => { e.stopPropagation(); router.push(`/production/${order._id}`); }}
+<<<<<<< HEAD
                                                             className="flex-1 sm:flex-none flex items-center justify-center p-2.5 sm:p-1.5 rounded-xl sm:rounded-lg text-white sm:text-slate-500 bg-blue-600 hover:bg-blue-700 sm:hover:bg-blue-50 sm:hover:text-blue-600 dark:bg-[#E8601C] dark:hover:bg-orange-600 sm:dark:hover:bg-[#E8601C]/10 sm:dark:hover:text-[#E8601C] sm:bg-transparent transition-colors sm:border-transparent cursor-pointer"
+=======
+                                                            className="p-1.5 rounded-md text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
+>>>>>>> origin/main
                                                         >
-                                                            <ArrowRight className="h-4 w-4" />
+                                                            <ArrowRight className="h-3.5 w-3.5" />
                                                         </button>
                                                     </div>
 
                                                     {/* Inline pane list */}
                                                     {isOrderOpen && orderPanes.length > 0 && (
-                                                        <div className="pl-14 sm:pl-[120px] pr-5 sm:pr-8 py-4 bg-slate-50/50 dark:bg-slate-900/30 border-t border-slate-100 dark:border-slate-800/50">
-                                                            <div className="flex items-center gap-2 mb-3">
-                                                                <div className="h-5 w-5 rounded-md bg-blue-100 dark:bg-slate-800 flex items-center justify-center">
-                                                                    <Package className="h-3 w-3 text-blue-600 dark:text-slate-400" />
-                                                                </div>
-                                                                <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-widest">รายการกระจก</span>
-                                                                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400">{orderPanes.length} ชิ้น</span>
+                                                        <div className="pl-12 sm:pl-[100px] pr-4 sm:pr-6 py-3 bg-slate-50/50 dark:bg-slate-800/10 border-t border-slate-100 dark:border-slate-800/50">
+                                                            <div className="flex items-center gap-2 mb-2.5">
+                                                                <Package className="h-3.5 w-3.5 text-slate-400" />
+                                                                <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">รายการกระจก</span>
+                                                                <span className="text-[11px] text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">{orderPanes.length} ชิ้น</span>
                                                             </div>
-                                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+                                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-1.5">
                                                                 {orderPanes.map(pane => {
                                                                     const pSt = ({
-                                                                        pending:            { label: "รอ",          dot: "bg-amber-400",  text: "text-amber-600", bg: "bg-amber-50" },
-                                                                        in_progress:        { label: "กำลังทำ",     dot: "bg-blue-500",   text: "text-blue-600", bg: "bg-blue-50" },
-                                                                        completed:          { label: "เสร็จ",       dot: "bg-green-500",  text: "text-green-600", bg: "bg-green-50" },
-                                                                        awaiting_scan_out:  { label: "รอสแกนออก",  dot: "bg-amber-500",  text: "text-amber-600", bg: "bg-amber-50" },
-                                                                    } as Record<string, { label: string; dot: string; text: string; bg: string }>)[pane.currentStatus] ?? { label: pane.currentStatus, dot: "bg-gray-400", text: "text-gray-500", bg: "bg-gray-50" };
+                                                                        pending:            { label: "รอ",          dot: "bg-amber-400",  text: "text-amber-600" },
+                                                                        in_progress:        { label: "กำลังทำ",     dot: "bg-blue-500",   text: "text-blue-600" },
+                                                                        completed:          { label: "เสร็จ",       dot: "bg-green-500",  text: "text-green-600" },
+                                                                        awaiting_scan_out:  { label: "รอสแกนออก",  dot: "bg-amber-500",  text: "text-amber-600" },
+                                                                    } as Record<string, { label: string; dot: string; text: string }>)[pane.currentStatus] ?? { label: pane.currentStatus, dot: "bg-gray-400", text: "text-gray-500" };
                                                                     const stName = (() => {
                                                                         if (pane.currentStation === "queue") return "คิว";
                                                                         if (pane.currentStation === "ready") return "พร้อมส่ง";
@@ -646,32 +637,27 @@ export default function ProductionPage() {
                                                                         <button
                                                                             key={pane._id}
                                                                             type="button"
-                                                                            onClick={() => setQrPane(pane)}
-                                                                            className="group/pane relative overflow-hidden flex flex-col gap-1.5 p-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-[#E8601C]/50 hover:shadow-md transition-all text-left"
+                                                                            onClick={() => setQrTarget({
+                                                                                code: order.code ?? order._id.slice(-6).toUpperCase(),
+                                                                                label: `${getName(order.material)} — ${getName(order.customer)} (ชิ้นที่ ${pane.paneNumber})`,
+                                                                                url: `${window.location.origin}/production/${order._id}`
+                                                                            })}
+                                                                            className="group/pane flex items-center gap-2.5 p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 hover:border-blue-200 dark:hover:border-blue-800 transition-colors text-left"
                                                                         >
-                                                                            <div className="flex items-center justify-between w-full">
-                                                                                <div className="flex items-center gap-1.5">
-                                                                                    <QrCode className="h-3.5 w-3.5 text-slate-400 group-hover/pane:text-blue-500 dark:group-hover/pane:text-[#E8601C] transition-colors" />
-                                                                                    <span className="font-mono text-xs font-bold text-slate-800 dark:text-slate-200">{pane.paneNumber}</span>
-                                                                                </div>
-                                                                                <span className={`flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md ${pSt.bg} dark:bg-transparent ${pSt.text}`}>
-                                                                                    <span className={`h-1.5 w-1.5 rounded-full shadow-sm ${pSt.dot}`} />
-                                                                                    {pSt.label}
-                                                                                </span>
-                                                                            </div>
-                                                                            <div className="flex items-center justify-between w-full mt-1">
-                                                                                {pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0) ? (
-                                                                                    <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-900 px-1.5 rounded">
+                                                                            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                                                                <QrCode className="h-3 w-3 text-slate-400 group-hover/pane:text-blue-500 dark:group-hover/pane:text-blue-400 transition-colors shrink-0" />
+                                                                                <span className="font-mono text-xs font-medium text-slate-800 dark:text-slate-200">{pane.paneNumber}</span>
+                                                                                {pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0) && (
+                                                                                    <span className="text-[10px] text-slate-400 font-mono">
                                                                                         {pane.dimensions.width}×{pane.dimensions.height}
                                                                                     </span>
-                                                                                ) : (
-                                                                                    <span />
                                                                                 )}
-                                                                                <div className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 px-1.5 rounded border border-slate-100 dark:border-slate-700">
-                                                                                    <MapPin className="h-3 w-3" />
-                                                                                    <span className="truncate max-w-[80px] font-medium">{stName}</span>
-                                                                                </div>
                                                                             </div>
+                                                                            <span className="text-[10px] text-slate-400 truncate max-w-[60px]">{stName}</span>
+                                                                            <span className={`flex items-center gap-1 text-[10px] ${pSt.text} shrink-0`}>
+                                                                                <span className={`h-1.5 w-1.5 rounded-full ${pSt.dot}`} />
+                                                                                {pSt.label}
+                                                                            </span>
                                                                         </button>
                                                                     );
                                                                 })}
@@ -703,41 +689,38 @@ export default function ProductionPage() {
             )}
             {/* Pagination */}
             {!loading && totalPages > 1 && (
-                <div className="p-5 sm:p-6 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                        หน้า {page} / {totalPages}
-                        <span className="ml-1 opacity-60">({filtered.length} บิล)</span>
+                <div className="px-4 py-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                    <span className="text-xs text-slate-400">
+                        {page} / {totalPages}
                     </span>
-                    <div className="flex gap-2">
+                    <div className="flex items-center gap-1">
                         <Button
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
                             disabled={page === 1}
                             onClick={() => setPage(p => Math.max(1, p - 1))}
-                            className="h-9 px-3 rounded-xl border-slate-200 dark:border-slate-800 font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                            className="h-8 w-8 p-0 rounded-lg"
                         >
                             <ChevronLeft className="h-4 w-4" />
                         </Button>
-                        <div className="flex gap-1">
-                            {[...Array(totalPages)].map((_, i) => (
-                                <button
-                                    key={i}
-                                    onClick={() => setPage(i + 1)}
-                                    className={`h-9 w-9 rounded-xl flex items-center justify-center text-xs font-bold transition-all ${page === i + 1
-                                        ? "bg-blue-600 dark:bg-[#E8601C] text-white shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20"
-                                        : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400"
-                                        }`}
-                                >
-                                    {i + 1}
-                                </button>
-                            ))}
-                        </div>
+                        {[...Array(totalPages)].map((_, i) => (
+                            <button
+                                key={i}
+                                onClick={() => setPage(i + 1)}
+                                className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-medium transition-colors ${page === i + 1
+                                    ? "bg-blue-600 text-white"
+                                    : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                    }`}
+                            >
+                                {i + 1}
+                            </button>
+                        ))}
                         <Button
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
                             disabled={page === totalPages}
                             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                            className="h-9 px-3 rounded-xl border-slate-200 dark:border-slate-800 font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                            className="h-8 w-8 p-0 rounded-lg"
                         >
                             <ChevronRight className="h-4 w-4" />
                         </Button>
@@ -753,17 +736,6 @@ export default function ProductionPage() {
                 label={qrTarget.label}
                 value={qrTarget.url}
                 onClose={() => setQrTarget(null)}
-            />
-        )}
-        {qrPane && (
-            <QrCodeModal
-                code={qrPane.paneNumber}
-                label={[
-                    qrPane.glassTypeLabel,
-                    qrPane.dimensions ? `${qrPane.dimensions.width}×${qrPane.dimensions.height}${qrPane.dimensions.thickness > 0 ? ` (${qrPane.dimensions.thickness}mm)` : ""}` : "",
-                ].filter(Boolean).join(" — ")}
-                value={qrPane.qrCode || `STDPLUS:${qrPane.paneNumber}`}
-                onClose={() => setQrPane(null)}
             />
         )}
         </>
