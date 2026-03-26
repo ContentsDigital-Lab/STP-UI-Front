@@ -5,8 +5,6 @@ import Link from "next/link";
 import {
     Plus,
     Search,
-    Filter,
-    ArrowUpRight,
     TrendingUp,
     AlertTriangle,
     Boxes,
@@ -16,8 +14,6 @@ import {
     ChevronRight,
     MoreHorizontal,
     History,
-    CheckCircle2,
-    Clock,
     Shield,
     X,
     Settings2,
@@ -49,7 +45,6 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
-    DialogFooter,
     DialogDescription,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -634,29 +629,39 @@ export default function InventoryPage() {
         </>
     );
 
+    const topMaterialName = globalStats.topMaterials[0]
+        ? (getMaterialInfo(globalStats.topMaterials[0].material)?.name || "N/A")
+        : "—";
+
+    type StatRow =
+        | { key: string; kind: "stat"; label: string; value: string; icon: typeof Boxes; accent: string }
+        | { key: string; kind: "low"; label: string; value: number };
+
+    const statRows: StatRow[] = [
+        { key: "total", kind: "stat", label: it.totalItems, value: String(globalStats.totalItems), icon: Boxes, accent: "text-blue-600 bg-blue-50 dark:bg-blue-950/30 dark:text-blue-400" },
+        { key: "low", kind: "low", label: it.lowStock, value: globalStats.lowStockCount },
+        { key: "qty", kind: "stat", label: it.totalQuantity, value: globalStats.totalQuantity.toLocaleString(), icon: TrendingUp, accent: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 dark:text-emerald-400" },
+        { key: "top", kind: "stat", label: it.mostStocked, value: topMaterialName, icon: Package, accent: "text-indigo-600 bg-indigo-50 dark:bg-indigo-950/30 dark:text-indigo-400" },
+    ];
+
     return (
-        <div className="flex flex-col gap-4 sm:gap-6 lg:gap-8 max-w-[1600px] mx-auto w-full overflow-x-hidden">
+        <div className="space-y-6 max-w-[1440px] mx-auto w-full">
             {/* Page Header */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 pb-6 border-b border-slate-200 dark:border-slate-800">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h1 className="flex items-center gap-3 text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white leading-normal pt-2 pb-1">
-                        <Package className="h-7 w-7 sm:h-8 sm:w-8 shrink-0" />
-                        {it.title}
-                    </h1>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm sm:text-base font-medium mt-1">
-                        {it.subtitle}
-                    </p>
+                    <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{it.title}</h1>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{it.subtitle}</p>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto shrink-0">
                     <Link href="/inventory/materials" className="w-full sm:w-auto">
-                        <Button variant="outline" className="w-full gap-2 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900 transition-all font-bold rounded-xl h-11">
+                        <Button variant="outline" className="w-full gap-2 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-xl h-10">
                             <Settings2 className="h-4 w-4" />
                             {it.manageMaterials}
                         </Button>
                     </Link>
                     <Button
                         onClick={() => setIsImportOpen(true)}
-                        className="w-full sm:w-auto gap-2 bg-[#E8601C] hover:bg-[#E8601C]/90 text-white shadow-lg shadow-orange-500/20 px-8 transition-all font-bold rounded-xl h-11"
+                        className="w-full sm:w-auto gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10"
                     >
                         <Plus className="h-4 w-4" />
                         {it.importStock}
@@ -664,200 +669,132 @@ export default function InventoryPage() {
                 </div>
             </div>
 
-            {/* Dashboard Actionable Cards - Visual Hierarchy & Click-to-Filter */}
+            {/* Stat cards */}
             {!isLoading && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-                    {/* Total Stock Items */}
-                    <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between min-h-[140px]">
-                        <div className="flex items-center justify-between mb-4">
-                            <div className="h-12 w-12 rounded-2xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-[#1B4B9A] dark:text-blue-400 group-hover:bg-[#1B4B9A] group-hover:text-white transition-colors">
-                                <Boxes className="h-6 w-6" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {statRows.map((item) => {
+                        if (item.kind === "low") {
+                            return (
+                                <button
+                                    key={item.key}
+                                    type="button"
+                                    onClick={() => {
+                                        setShowLowStockOnly(!showLowStockOnly);
+                                        setCurrentPage(1);
+                                    }}
+                                    className={`text-left bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 p-4 sm:p-5 transition-colors ${showLowStockOnly
+                                        ? "border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20"
+                                        : "hover:border-slate-300 dark:hover:border-slate-700"
+                                        }`}
+                                >
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${showLowStockOnly
+                                            ? "bg-red-200 dark:bg-red-900 text-red-700 dark:text-red-300"
+                                            : "bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400"
+                                            }`}>
+                                            <AlertTriangle className="h-4 w-4" />
+                                        </div>
+                                    </div>
+                                    <p className={showLowStockOnly ? "mt-3 text-xs font-semibold text-red-600 dark:text-red-400" : "mt-3 text-xs font-semibold text-slate-500 dark:text-slate-400"}>
+                                        {item.label}
+                                    </p>
+                                    <p className={`mt-1 text-xl font-semibold tabular-nums ${showLowStockOnly ? "text-red-800 dark:text-red-200" : "text-slate-900 dark:text-white"}`}>
+                                        {item.value}
+                                    </p>
+                                </button>
+                            );
+                        }
+                        const Icon = item.icon;
+                        return (
+                            <div
+                                key={item.key}
+                                className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 p-4 sm:p-5"
+                            >
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${item.accent}`}>
+                                        <Icon className="h-4 w-4" />
+                                    </div>
+                                </div>
+                                <p className="mt-3 text-xs font-semibold text-slate-500 dark:text-slate-400">{item.label}</p>
+                                <p className="mt-1 text-xl font-semibold text-slate-900 dark:text-white truncate" title={item.value}>
+                                    {item.value}
+                                </p>
                             </div>
-                            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-50 dark:bg-slate-800/50 px-2 py-1 rounded-lg">
-                                ENJOY OVERVIEW
-                            </span>
-                        </div>
-                        <div>
-                            <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">{it.totalItems}</p>
-                            <div className="flex items-baseline gap-2 mt-1">
-                                <h3 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">{globalStats.totalItems}</h3>
-                                <span className="text-[11px] font-semibold text-emerald-500 flex items-center bg-emerald-50 dark:bg-emerald-900/20 px-1.5 py-0.5 rounded-md">
-                                    <ArrowUpRight className="h-3 w-3 mr-0.5" />
-                                    Active
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Low Stock Card - CLICK TO FILTER */}
-                    <button
-                        onClick={() => {
-                            setShowLowStockOnly(!showLowStockOnly);
-                            setCurrentPage(1);
-                        }}
-                        className={`text-left p-6 rounded-3xl border transition-all flex flex-col justify-between hover:scale-[1.02] active:scale-[0.98] min-h-[140px] shadow-sm ${showLowStockOnly
-                            ? 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800 shadow-lg shadow-red-200/30 text-red-800 dark:text-red-300'
-                            : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-red-200 dark:hover:border-red-900 group'
-                            }`}
-                    >
-                        <div className="flex items-center justify-between mb-4">
-                            <div className={`h-12 w-12 rounded-2xl flex items-center justify-center transition-colors ${showLowStockOnly ? 'bg-red-200 dark:bg-red-900 text-red-700 dark:text-red-300' : 'bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400'
-                                }`}>
-                                <AlertTriangle className="h-6 w-6" />
-                            </div>
-                            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider ${showLowStockOnly ? 'bg-red-200 dark:bg-red-900 text-red-700 dark:text-red-300' : 'bg-red-100/50 dark:bg-red-900/30 text-red-600 dark:text-red-400'
-                                }`}>
-                                <span className="relative flex h-2 w-2">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-                                </span>
-                                {showLowStockOnly ? 'Active Filter' : 'Alert'}
-                            </div>
-                        </div>
-                        <div>
-                            <p className={`text-sm font-semibold ${showLowStockOnly ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-400'}`}>{it.lowStock}</p>
-                            <h3 className="text-3xl font-bold tracking-tight mt-1">
-                                {globalStats.lowStockCount}
-                            </h3>
-                        </div>
-                    </button>
-
-                    {/* Total Volume */}
-                    <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between min-h-[140px]">
-                        <div className="flex items-center justify-between mb-4">
-                            <div className="h-12 w-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-                                <TrendingUp className="h-6 w-6" />
-                            </div>
-                            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-50 dark:bg-slate-800/50 px-2 py-1 rounded-lg">
-                                Aggregate
-                            </span>
-                        </div>
-                        <div>
-                            <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">{it.totalQuantity}</p>
-                            <div className="flex items-baseline gap-2 mt-1">
-                                <h3 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">{globalStats.totalQuantity.toLocaleString()}</h3>
-                                <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase">UNITS</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Quick Insight - Dynamic */}
-                    <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between overflow-hidden relative min-h-[140px]">
-                        <div className="flex items-center justify-between mb-4">
-                            <div className="h-12 w-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                                <CheckCircle2 className="h-6 w-6" />
-                            </div>
-                            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest bg-slate-50 dark:bg-slate-800/50 px-2 py-1 rounded-lg">
-                                Healthy Flow
-                            </span>
-                        </div>
-                        <div>
-                            <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">{it.mostStocked}</p>
-                            <h4 className="text-lg font-bold text-slate-900 dark:text-white truncate group-hover:text-blue-600 dark:group-hover:text-[#E8601C] transition-colors mt-1">
-                                {globalStats.topMaterials[0]
-                                    ? (getMaterialInfo(globalStats.topMaterials[0].material)?.name || "N/A")
-                                    : "---"}
-                            </h4>
-                        </div>
-                    </div>
+                        );
+                    })}
                 </div>
             )}
 
-            {/* Filter & Search Bar */}
-            <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
-                <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr_1fr_auto] items-end gap-6 pb-2">
-                    {/* Search Field */}
-                    <div className="space-y-2">
-                        <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
-                            <Search className="h-3 w-3" />
-                            Quick Search
-                        </Label>
-                        <div className="relative group">
-                            <Input
-                                placeholder={it.searchPlaceholder}
-                                value={searchQuery}
-                                onChange={(e) => {
-                                    setSearchQuery(e.target.value);
-                                    setCurrentPage(1);
-                                }}
-                                className="pl-4 pr-10 h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 focus:ring-[#E8601C] focus:border-[#E8601C] rounded-2xl transition-all font-medium text-sm"
-                            />
-                            {searchQuery && (
-                                <button
-                                    onClick={() => setSearchQuery("")}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                                >
-                                    <X className="h-4 w-4" />
-                                </button>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Area Filter */}
-                    <div className="space-y-2">
-                        <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
-                            <Warehouse className="h-3 w-3" />
-                            {it.area}
-                        </Label>
-                        <Select value={locationFilter} onValueChange={(val) => { setLocationFilter(val || "all"); setCurrentPage(1); }}>
-                            <SelectTrigger className="h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-medium text-sm focus:ring-[#E8601C]">
-                                <SelectValue placeholder="All Areas" className="text-left" />
-                            </SelectTrigger>
-                            <SelectContent className="rounded-2xl border-slate-200 dark:border-slate-800 min-w-[max-content]">
-                                <SelectItem value="all" className="font-medium py-2.5 pr-8">All Areas</SelectItem>
-                                {locations.map(loc => (
-                                    <SelectItem key={loc} value={loc} className="font-medium py-2.5 pr-8 min-w-[max-content]">{loc}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    {/* Glass Type Filter */}
-                    <div className="space-y-2">
-                        <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
-                            <Package className="h-3 w-3" />
-                            {it.glassType}
-                        </Label>
-                        <Select value={glassTypeFilter} onValueChange={(val) => { setGlassTypeFilter(val || "all"); setCurrentPage(1); }}>
-                            <SelectTrigger className="h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-medium text-sm focus:ring-[#E8601C]">
-                                <SelectValue placeholder="All Types" className="text-left" />
-                            </SelectTrigger>
-                            <SelectContent className="rounded-2xl border-slate-200 dark:border-slate-800 min-w-[max-content]">
-                                <SelectItem value="all" className="font-medium py-2.5 pr-8">All Types</SelectItem>
-                                {glassTypes.map(type => (
-                                    <SelectItem key={type} value={type} className="font-medium py-2.5 pr-8 min-w-[max-content]">{type}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    {/* Reset */}
-                    <div className="flex items-center pb-0.5">
-                        {(searchQuery || locationFilter !== "all" || glassTypeFilter !== "all" || showLowStockOnly) && (
-                            <Button
-                                variant="ghost"
-                                onClick={resetFilters}
-                                className="h-12 rounded-2xl text-slate-500 hover:text-[#E8601C] font-bold px-4"
-                            >
-                                {it.clearFilters}
-                            </Button>
-                        )}
-                    </div>
+            {/* Filter & Search */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                <div className="relative flex-1 min-w-0">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" aria-hidden />
+                    <Input
+                        placeholder={it.searchPlaceholder}
+                        value={searchQuery}
+                        onChange={(e) => {
+                            setSearchQuery(e.target.value);
+                            setCurrentPage(1);
+                        }}
+                        className="pl-9 pr-9 h-10 w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl text-sm focus-visible:ring-2 focus-visible:ring-blue-600/20 focus-visible:border-blue-600"
+                        aria-label={it.searchPlaceholder}
+                    />
+                    {searchQuery && (
+                        <button
+                            type="button"
+                            onClick={() => setSearchQuery("")}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                            aria-label="Clear search"
+                        >
+                            <X className="h-4 w-4" />
+                        </button>
+                    )}
                 </div>
+                <Select value={locationFilter} onValueChange={(val) => { setLocationFilter(val || "all"); setCurrentPage(1); }}>
+                    <SelectTrigger className="h-10 w-full sm:w-[min(100%,200px)] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-blue-600/20" aria-label={it.area}>
+                        <SelectValue placeholder="All Areas" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800 min-w-[max-content]">
+                        <SelectItem value="all" className="py-2 pr-8">All Areas</SelectItem>
+                        {locations.map(loc => (
+                            <SelectItem key={loc} value={loc} className="py-2 pr-8 min-w-[max-content]">{loc}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+                <Select value={glassTypeFilter} onValueChange={(val) => { setGlassTypeFilter(val || "all"); setCurrentPage(1); }}>
+                    <SelectTrigger className="h-10 w-full sm:w-[min(100%,200px)] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-blue-600/20" aria-label={it.glassType}>
+                        <SelectValue placeholder="All Types" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800 min-w-[max-content]">
+                        <SelectItem value="all" className="py-2 pr-8">All Types</SelectItem>
+                        {glassTypes.map(type => (
+                            <SelectItem key={type} value={type} className="py-2 pr-8 min-w-[max-content]">{type}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+                {(searchQuery || locationFilter !== "all" || glassTypeFilter !== "all" || showLowStockOnly) && (
+                    <Button
+                        variant="ghost"
+                        onClick={resetFilters}
+                        className="h-10 shrink-0 rounded-xl text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 px-3"
+                    >
+                        {it.clearFilters}
+                    </Button>
+                )}
             </div>
 
             {/* Main Table Content */}
-            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden">
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 overflow-hidden">
                 <div className="overflow-x-auto">
                     <Table>
                         <TableHeader>
                             <TableRow className="border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
-                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 px-6 text-slate-500 dark:text-slate-400">{it.table.identity}</TableHead>
-                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400">{it.table.area}</TableHead>
-                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400">{it.table.health}</TableHead>
-                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400">{it.table.type}</TableHead>
-                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-center text-slate-500 dark:text-slate-400">{it.table.quantity}</TableHead>
-                                <TableHead className="text-right py-5 pr-6"></TableHead>
+                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 h-10 py-3 px-4">{it.table.identity}</TableHead>
+                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 h-10 py-3 px-4">{it.table.area}</TableHead>
+                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 h-10 py-3 px-4">{it.table.health}</TableHead>
+                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 h-10 py-3 px-4">{it.table.type}</TableHead>
+                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 h-10 py-3 px-4 text-center">{it.table.quantity}</TableHead>
+                                <TableHead className="text-right h-10 py-3 px-4"></TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -882,27 +819,27 @@ export default function InventoryPage() {
                                             className={`group border-slate-100 dark:border-slate-800 transition-colors cursor-pointer ${rowBg}`}
                                             onClick={() => openDetails(inv)}
                                         >
-                                            <TableCell className="py-5 px-6">
+                                            <TableCell className="py-3.5 px-4">
                                                 <div className="flex flex-col">
-                                                    <span className="font-bold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-[#E8601C] transition-colors">
+                                                    <span className="text-sm font-medium text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                                                         {mat?.name || it.table.unknown}
                                                     </span>
-                                                    <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase flex items-center mt-1">
+                                                    <span className="text-xs text-slate-400 dark:text-slate-500 flex items-center mt-0.5">
                                                         {mat?.specDetails?.thickness && <span className="mr-2">{addMmUnit(mat.specDetails.thickness)}</span>}
                                                         {mat?.specDetails?.color && <span>{mat.specDetails.color}</span>}
                                                     </span>
                                                 </div>
                                             </TableCell>
-                                            <TableCell className="py-5">
+                                            <TableCell className="py-3.5 px-4">
                                                 <div className="flex items-center gap-2">
-                                                    <div className="h-2.5 w-2.5 rounded-full shadow-sm" style={{ backgroundColor: inv.storageColor || locationColors[inv.location] || '#94a3b8' }}></div>
-                                                    <span className="font-bold text-slate-600 dark:text-slate-300 text-sm italic">{inv.location}</span>
+                                                    <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: inv.storageColor || locationColors[inv.location] || '#94a3b8' }}></div>
+                                                    <span className="text-sm text-slate-600 dark:text-slate-300">{inv.location}</span>
                                                 </div>
                                             </TableCell>
-                                            <TableCell className="py-5">
+                                            <TableCell className="py-3.5 px-4">
                                                 <Badge
                                                     variant="secondary"
-                                                    className={`rounded-lg px-2 py-0.5 font-bold uppercase text-[10px] tracking-wider ${isLow
+                                                    className={`rounded-md px-2 py-0.5 text-xs font-medium ${isLow
                                                         ? "bg-red-50 dark:bg-red-900/20 text-red-600 border-red-100 dark:border-red-900/50"
                                                         : "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 border-emerald-100 dark:border-emerald-900/50"
                                                         }`}
@@ -910,23 +847,23 @@ export default function InventoryPage() {
                                                     {statusText}
                                                 </Badge>
                                             </TableCell>
-                                            <TableCell className="py-5">
-                                                <span className={`text-[11px] font-semibold tracking-widest uppercase px-2 py-1 rounded-md ${inv.stockType === "Raw"
-                                                    ? "bg-blue-50 dark:bg-blue-900/30 text-[#1B4B9A] dark:text-blue-400"
+                                            <TableCell className="py-3.5 px-4">
+                                                <span className={`text-xs font-medium px-2 py-0.5 rounded-md ${inv.stockType === "Raw"
+                                                    ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400"
                                                     : "bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
                                                     }`}>
                                                     {inv.stockType}
                                                 </span>
                                             </TableCell>
-                                            <TableCell className="py-5 text-center">
-                                                <span className="text-xl font-bold text-slate-900 dark:text-white group-hover:scale-110 inline-block transition-transform tabular-nums">
+                                            <TableCell className="py-3.5 px-4 text-center">
+                                                <span className="text-sm font-medium text-slate-900 dark:text-white tabular-nums">
                                                     {inv.quantity.toLocaleString()}
                                                 </span>
                                             </TableCell>
-                                            <TableCell className="py-5 pr-6 text-right" onClick={(e) => e.stopPropagation()}>
+                                            <TableCell className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                                                 <button
                                                     onClick={() => openDetails(inv)}
-                                                    className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-xl transition-all text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                                                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-slate-900 dark:hover:text-white"
                                                 >
                                                     <MoreHorizontal className="h-5 w-5" />
                                                 </button>
@@ -938,10 +875,10 @@ export default function InventoryPage() {
                                 <TableRow>
                                     <TableCell colSpan={6} className="py-20 text-center">
                                         <div className="flex flex-col items-center gap-3">
-                                            <div className="h-16 w-16 rounded-3xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-300 dark:text-slate-700">
-                                                <Boxes className="h-8 w-8" />
+                                            <div className="h-14 w-14 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-300 dark:text-slate-700">
+                                                <Boxes className="h-7 w-7" />
                                             </div>
-                                            <p className="text-slate-500 dark:text-slate-400 font-medium tracking-tight">ไม่พบข้อมูลที่ต้องการ</p>
+                                            <p className="text-sm text-slate-500 dark:text-slate-400">ไม่พบข้อมูลที่ต้องการ</p>
                                         </div>
                                     </TableCell>
                                 </TableRow>
@@ -952,40 +889,39 @@ export default function InventoryPage() {
 
                 {/* Pagination */}
                 {totalPages > 1 && (
-                    <div className="p-6 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                        <span className="text-xs font-semibold text-slate-400 uppercase tracking-widest">
-                            Showing page {currentPage} of {totalPages}
+                    <div className="px-4 py-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+                        <span className="text-xs text-slate-400 tabular-nums">
+                            {currentPage} / {totalPages}
                         </span>
-                        <div className="flex gap-2">
+                        <div className="flex items-center gap-1">
                             <Button
-                                variant="outline"
-                                size="sm"
+                                variant="ghost"
+                                size="icon"
                                 disabled={currentPage === 1}
                                 onClick={() => setCurrentPage(prev => prev - 1)}
-                                className="h-9 px-3 rounded-xl border-slate-200 dark:border-slate-800 font-bold"
+                                className="h-8 w-8 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white"
                             >
                                 <ChevronLeft className="h-4 w-4" />
                             </Button>
-                            <div className="flex gap-1">
-                                {[...Array(totalPages)].map((_, i) => (
-                                    <button
-                                        key={i}
-                                        onClick={() => setCurrentPage(i + 1)}
-                                        className={`h-9 w-9 rounded-xl flex items-center justify-center text-xs font-bold transition-all ${currentPage === i + 1
-                                            ? "bg-blue-600 dark:bg-[#E8601C] text-white shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20"
-                                            : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500"
-                                            }`}
-                                    >
-                                        {i + 1}
-                                    </button>
-                                ))}
-                            </div>
+                            {[...Array(totalPages)].map((_, i) => (
+                                <button
+                                    key={i}
+                                    type="button"
+                                    onClick={() => setCurrentPage(i + 1)}
+                                    className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-medium transition-colors ${currentPage === i + 1
+                                        ? "bg-blue-600 text-white"
+                                        : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                        }`}
+                                >
+                                    {i + 1}
+                                </button>
+                            ))}
                             <Button
-                                variant="outline"
-                                size="sm"
+                                variant="ghost"
+                                size="icon"
                                 disabled={currentPage === totalPages}
                                 onClick={() => setCurrentPage(prev => prev + 1)}
-                                className="h-9 px-3 rounded-xl border-slate-200 dark:border-slate-800 font-bold"
+                                className="h-8 w-8 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white"
                             >
                                 <ChevronRight className="h-4 w-4" />
                             </Button>
@@ -996,7 +932,7 @@ export default function InventoryPage() {
 
             {/* Item Detail Side Panel */}
             <Sheet open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-                <SheetContent showCloseButton={false} className="sm:max-w-[420px] border-l border-slate-200 dark:border-slate-800 p-0 overflow-y-auto bg-white dark:bg-slate-950 flex flex-col">
+                <SheetContent showCloseButton={false} className="sm:max-w-[420px] border-l border-slate-200 dark:border-slate-800 p-0 overflow-y-auto bg-white dark:bg-slate-950 flex flex-col shadow-none">
                     {selectedInventory && (() => {
                         const mat = getMaterialInfo(selectedInventory.material);
                         const isLowStock = mat?.reorderPoint != null && selectedInventory.quantity <= mat.reorderPoint;
@@ -1007,12 +943,12 @@ export default function InventoryPage() {
                             <div className="flex flex-col flex-1 min-h-0">
 
                                 {/* ── Header ── */}
-                                <div className="px-6 pt-6 pb-5 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
+                                <div className="px-6 pt-6 pb-5 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-950">
                                     {/* Close + meta row */}
                                     <div className="flex items-center justify-between mb-4">
                                         <div className="flex items-center gap-2">
                                             <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${isLowStock ? "bg-red-500" : "bg-emerald-500"}`} />
-                                            <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+                                            <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">
                                                 #{selectedInventory._id.slice(-6).toUpperCase()}
                                             </span>
                                             <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full ${selectedInventory.stockType === 'Raw'
@@ -1041,21 +977,21 @@ export default function InventoryPage() {
                                     </div>
 
                                     {/* Stock quantity + health bar */}
-                                    <div className="mt-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700">
+                                    <div className="mt-4 p-3 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800">
                                         <div className="flex items-end justify-between mb-2">
                                             <div>
-                                                <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-0.5">{it.detail.currentStock}</p>
-                                                <p className={`text-4xl font-bold tabular-nums tracking-tighter leading-none ${isLowStock ? "text-red-600 dark:text-red-400" : "text-slate-900 dark:text-white"}`}>
+                                                <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-0.5">{it.detail.currentStock}</p>
+                                                <p className={`text-3xl font-semibold tabular-nums tracking-tight leading-none ${isLowStock ? "text-red-600 dark:text-red-400" : "text-slate-900 dark:text-white"}`}>
                                                     {selectedInventory.quantity.toLocaleString()}
                                                 </p>
                                             </div>
                                             <div className="text-right">
                                                 {mat?.reorderPoint != null && (
-                                                    <p className="text-[10px] font-semibold text-slate-400 uppercase">
+                                                    <p className="text-xs text-slate-400">
                                                         {lang === 'th' ? 'จุดสั่งซื้อ' : 'Reorder at'} {mat.reorderPoint}
                                                     </p>
                                                 )}
-                                                <p className={`text-xs font-bold uppercase ${isLowStock ? "text-red-500" : "text-emerald-600"}`}>
+                                                <p className={`text-xs font-medium ${isLowStock ? "text-red-500" : "text-emerald-600"}`}>
                                                     {isLowStock ? it.table.lowStock : it.table.healthy}
                                                 </p>
                                             </div>
@@ -1075,12 +1011,12 @@ export default function InventoryPage() {
                                 <div className="flex-1 overflow-y-auto">
 
                                     {/* Technical Specs */}
-                                    <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800">
+                                    <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-950">
                                         <div className="flex items-center gap-2 mb-3">
-                                            <Shield className="h-3.5 w-3.5 text-[#E8601C]" />
-                                            <h3 className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.2em]">{it.detail.technical}</h3>
+                                            <Shield className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                                            <h3 className="text-xs font-medium text-slate-400 uppercase tracking-wider">{it.detail.technical}</h3>
                                         </div>
-                                        <div className="divide-y divide-slate-100 dark:divide-slate-800 rounded-xl border border-slate-100 dark:border-slate-800 overflow-hidden bg-slate-50 dark:bg-slate-900">
+                                        <div className="space-y-2">
                                             {[
                                                 { label: lang === 'th' ? 'ประเภทสต็อก' : 'Stock Type', value: selectedInventory.stockType },
                                                 mat?.specDetails?.thickness ? { label: lang === 'th' ? 'ความหนา' : 'Thickness', value: addMmUnit(mat.specDetails.thickness) } : null,
@@ -1096,22 +1032,22 @@ export default function InventoryPage() {
                                                 } : null,
                                                 mat?.reorderPoint != null ? { label: lang === 'th' ? 'จุดสั่งซื้อ' : 'Reorder Point', value: mat.reorderPoint.toString() } : null,
                                             ].filter(Boolean).map((row, i) => (
-                                                <div key={i} className="flex items-center justify-between px-4 py-2.5">
-                                                    <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">{row!.label}</span>
-                                                    <span className="text-[11px] font-semibold text-slate-900 dark:text-white">{row!.value}</span>
+                                                <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-900">
+                                                    <span className="text-xs text-slate-500 dark:text-slate-400">{row!.label}</span>
+                                                    <span className="text-xs font-medium text-slate-900 dark:text-white text-right">{row!.value}</span>
                                                 </div>
                                             ))}
                                         </div>
                                     </div>
 
                                     {/* Flow Logs */}
-                                    <div className="px-6 py-5">
+                                    <div className="px-6 py-5 bg-white dark:bg-slate-950">
                                         <div className="flex items-center justify-between mb-3">
                                             <div className="flex items-center gap-2">
-                                                <History className="h-3.5 w-3.5 text-[#E8601C]" />
-                                                <h3 className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.2em]">{it.detail.logs}</h3>
+                                                <History className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                                                <h3 className="text-xs font-medium text-slate-400 uppercase tracking-wider">{it.detail.logs}</h3>
                                             </div>
-                                            <span className="text-[9px] font-bold uppercase tracking-widest text-slate-300 dark:text-slate-600">{it.detail.last30}</span>
+                                            <span className="text-xs text-slate-400">{it.detail.last30}</span>
                                         </div>
 
                                         {isLoadingLogs ? (
@@ -1205,8 +1141,8 @@ export default function InventoryPage() {
                                                             {/* Content */}
                                                             <div className="flex-1 min-w-0">
                                                                 <div className="flex items-center justify-between gap-2">
-                                                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{actionLabel}</span>
-                                                                    <span className={`text-sm font-bold tabular-nums shrink-0 ${qtyColor}`}>
+                                                                    <span className="text-xs font-medium text-slate-800 dark:text-slate-200">{actionLabel}</span>
+                                                                    <span className={`text-sm font-medium tabular-nums shrink-0 ${qtyColor}`}>
                                                                         {isUpdate
                                                                             ? <svg className="h-4 w-4 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" /></svg>
                                                                             : `${isPositive ? '+' : ''}${log.quantityChanged.toLocaleString()}`
@@ -1262,25 +1198,25 @@ export default function InventoryPage() {
                                         ) : (
                                             <div className="py-10 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center text-center">
                                                 <History className="h-7 w-7 text-slate-200 dark:text-slate-800 mb-2" />
-                                                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">{it.detail.noLogs}</p>
+                                                <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">{it.detail.noLogs}</p>
                                             </div>
                                         )}
                                     </div>
                                 </div>
 
                                 {/* ── Footer ── */}
-                                <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 grid grid-cols-2 gap-2">
+                                <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-950 grid grid-cols-2 gap-2">
                                     <Button
                                         onClick={() => handleDelete(selectedInventory._id)}
                                         variant="outline"
-                                        className="rounded-xl h-11 border-red-200 dark:border-red-900 text-red-600 hover:bg-red-50 dark:hover:bg-red-950 font-bold"
+                                        className="rounded-xl h-10 border-red-200 dark:border-red-900 text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
                                     >
                                         <Trash2 className="h-4 w-4 mr-1.5" />
                                         {it.detail.delete}
                                     </Button>
                                     <Button
                                         onClick={() => openMoveDialog(selectedInventory)}
-                                        className="rounded-xl h-11 bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-[#E8601C] dark:hover:bg-[#E8601C] hover:text-white transition-all font-bold gap-2"
+                                        className="rounded-xl h-10 bg-blue-600 hover:bg-blue-700 text-white gap-2"
                                     >
                                         <ArrowRightLeft className="h-4 w-4" />
                                         {it.detail.moveStock}
@@ -1301,32 +1237,32 @@ export default function InventoryPage() {
                     setLocationDropdownOpen(false);
                 }
             }}>
-                <DialogContent className="sm:max-w-[520px] border-slate-200 dark:border-slate-800 rounded-3xl p-0 bg-white dark:bg-slate-950 max-h-[90vh] overflow-y-auto">
+                <DialogContent className="sm:max-w-[520px] border-slate-200 dark:border-slate-800 rounded-xl p-0 bg-white dark:bg-slate-950 max-h-[90vh] overflow-y-auto shadow-none">
                     {/* Header */}
-                    <div className="px-8 pt-8 pb-6 border-b border-slate-100 dark:border-slate-800">
+                    <div className="px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
                         <DialogHeader>
-                            <DialogTitle className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+                            <DialogTitle className="text-xl font-semibold text-slate-900 dark:text-white tracking-tight">
                                 {it.importStock}
                             </DialogTitle>
-                            <DialogDescription className="text-slate-500 font-medium text-sm mt-1">
+                            <DialogDescription className="text-slate-500 text-sm mt-1">
                                 เพิ่มวัสดุใหม่เข้าสู่ระบบจัดการสต็อก
                             </DialogDescription>
                         </DialogHeader>
                     </div>
 
                     {/* Form Body */}
-                    <div className="px-8 py-6 space-y-6">
+                    <div className="px-6 py-5 space-y-5">
                         {/* Material Selection */}
                         <div className="space-y-2">
-                            <Label className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-                                <Package className="h-3 w-3" />
+                            <Label className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                <Package className="h-3.5 w-3.5" />
                                 เลือกวัสดุ
                             </Label>
                             <Select
                                 value={importData.material}
                                 onValueChange={(val) => setImportData({ ...importData, material: val || "" })}
                             >
-                                <SelectTrigger className="h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 rounded-xl font-medium text-slate-900 dark:text-white px-4 focus:ring-[#E8601C] focus:border-[#E8601C] text-sm">
+                                <SelectTrigger className="h-10 w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white px-3 focus-visible:ring-2 focus-visible:ring-blue-600/20 focus-visible:border-blue-600 text-sm">
                                     <SelectValue placeholder="เลือกวัสดุที่ต้องการ...">
                                         {importData.material
                                             ? materials.find(m => m._id === importData.material)?.name || importData.material
@@ -1338,7 +1274,7 @@ export default function InventoryPage() {
                                         <SelectItem
                                             key={mat._id}
                                             value={mat._id}
-                                            className="rounded-lg py-2.5 font-bold focus:text-blue-600 dark:focus:text-[#E8601C] text-sm"
+                                            className="rounded-lg py-2 text-sm focus:text-blue-600 dark:focus:text-blue-400"
                                         >
                                             <div className="flex flex-col">
                                                 <span>{mat.name}</span>
@@ -1354,8 +1290,8 @@ export default function InventoryPage() {
 
                         {/* Location - Google-style Autocomplete */}
                         <div className="space-y-2 relative">
-                            <Label className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-                                <Warehouse className="h-3 w-3" />
+                            <Label className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                <Warehouse className="h-3.5 w-3.5" />
                                 สถานที่จัดเก็บ
                             </Label>
                             <div className="relative">
@@ -1368,7 +1304,7 @@ export default function InventoryPage() {
                                         setLocationDropdownOpen(true);
                                     }}
                                     onFocus={() => setLocationDropdownOpen(true)}
-                                    className="h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-900 dark:text-white pl-4 pr-10 uppercase focus:ring-[#E8601C] focus:border-[#E8601C] text-sm"
+                                    className="h-10 w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white pl-3 pr-10 text-sm focus-visible:ring-2 focus-visible:ring-blue-600/20 focus-visible:border-blue-600"
                                     autoComplete="off"
                                 />
                                 <button
@@ -1384,7 +1320,7 @@ export default function InventoryPage() {
                             {locationDropdownOpen && filteredLocationSuggestions.length > 0 && (
                                 <div
                                     ref={locationDropdownRef}
-                                    className="absolute z-50 left-0 right-0 top-[calc(100%+4px)] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-[200px] overflow-y-auto py-1"
+                                    className="absolute z-50 left-0 right-0 top-[calc(100%+4px)] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl max-h-[200px] overflow-y-auto py-1"
                                 >
                                     {filteredLocationSuggestions.map((loc, idx) => (
                                         <button
@@ -1395,11 +1331,11 @@ export default function InventoryPage() {
                                                 setLocationDropdownOpen(false);
                                             }}
                                             className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm ${
-                                                importData.location === loc ? 'bg-orange-50 dark:bg-orange-950/20' : ''
+                                                importData.location === loc ? 'bg-blue-50 dark:bg-blue-950/30' : ''
                                             }`}
                                         >
-                                            <div className="h-2.5 w-2.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: getLocationColor(loc) }} />
-                                            <span className={`font-bold uppercase ${importData.location === loc ? 'text-[#E8601C]' : 'text-slate-700 dark:text-slate-300'}`}>
+                                            <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: getLocationColor(loc) }} />
+                                            <span className={`text-sm font-medium ${importData.location === loc ? 'text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300'}`}>
                                                 {loc}
                                             </span>
                                             {(locationUsage[loc] || 0) > 0 && (
@@ -1416,12 +1352,12 @@ export default function InventoryPage() {
                         {/* Stock Type & Quantity - Side by Side */}
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest">ประเภทสต็อก</Label>
+                                <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">ประเภทสต็อก</Label>
                                 <Select
                                     value={importData.stockType}
                                     onValueChange={(val) => setImportData({ ...importData, stockType: (val as "Raw" | "Reuse") || "Raw" })}
                                 >
-                                    <SelectTrigger className="h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 rounded-xl font-medium px-4 focus:ring-[#E8601C] text-sm">
+                                    <SelectTrigger className="h-10 w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl px-3 text-sm focus-visible:ring-2 focus-visible:ring-blue-600/20">
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
@@ -1431,13 +1367,13 @@ export default function InventoryPage() {
                                 </Select>
                             </div>
                             <div className="space-y-2">
-                                <Label className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest">จำนวน (QTY)</Label>
+                                <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">จำนวน (QTY)</Label>
                                 <div className="relative">
                                     <Input
                                         type="number"
                                         value={importData.quantity}
                                         onChange={(e) => setImportData({ ...importData, quantity: parseInt(e.target.value) || 0 })}
-                                        className="h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-900 dark:text-white pl-4 pr-10 focus:ring-[#E8601C] text-sm"
+                                        className="h-10 w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white pl-3 pr-10 text-sm focus-visible:ring-2 focus-visible:ring-blue-600/20 focus-visible:border-blue-600"
                                     />
                                     <Package className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                                 </div>
@@ -1446,11 +1382,11 @@ export default function InventoryPage() {
                     </div>
 
                     {/* Footer */}
-                    <div className="px-8 py-6 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-3">
+                    <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2">
                         <Button
                             variant="ghost"
                             onClick={() => setIsImportOpen(false)}
-                            className="rounded-xl h-11 font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white px-6 text-sm"
+                            className="rounded-xl h-10 text-slate-500 hover:text-slate-900 dark:hover:text-white px-4 text-sm"
                         >
                             ยกเลิก
                         </Button>
@@ -1460,7 +1396,7 @@ export default function InventoryPage() {
                                 handleImport();
                             }}
                             disabled={isSubmitting || !importData.material || !importData.location}
-                            className={`rounded-xl h-11 min-w-[140px] font-bold tracking-tight text-white transition-all shadow-lg text-sm ${isSubmitting ? "bg-slate-400" : "bg-slate-900 dark:bg-white dark:text-slate-900 hover:bg-[#E8601C] dark:hover:bg-[#E8601C] dark:hover:text-white"
+                            className={`rounded-xl h-10 min-w-[140px] text-white text-sm ${isSubmitting ? "bg-slate-400" : "bg-blue-600 hover:bg-blue-700"
                                 }`}
                         >
                             {isSubmitting ? "Processing..." : "ยืนยันนำเข้าสต็อก"}
@@ -1474,19 +1410,19 @@ export default function InventoryPage() {
                 setIsMoveOpen(open);
                 if (!open) resetMoveForm();
             }}>
-                <DialogContent className="sm:max-w-[480px] border-slate-200 dark:border-slate-800 rounded-3xl p-0 bg-white dark:bg-slate-950 max-h-[90vh] overflow-y-auto">
+                <DialogContent className="sm:max-w-[480px] border-slate-200 dark:border-slate-800 rounded-xl p-0 bg-white dark:bg-slate-950 max-h-[90vh] overflow-y-auto shadow-none">
                     {/* Header */}
-                    <div className="px-8 pt-8 pb-6 border-b border-slate-100 dark:border-slate-800">
+                    <div className="px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
                         <DialogHeader>
                             <div className="flex items-center gap-3 mb-1">
-                                <div className="h-9 w-9 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                                <div className="h-9 w-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
                                     <ArrowRightLeft className="h-4 w-4 text-slate-600 dark:text-slate-300" />
                                 </div>
-                                <DialogTitle className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
+                                <DialogTitle className="text-xl font-semibold text-slate-900 dark:text-white tracking-tight">
                                     {it.detail.moveStock}
                                 </DialogTitle>
                             </div>
-                            <DialogDescription className="text-slate-500 font-medium text-sm mt-1">
+                            <DialogDescription className="text-slate-500 text-sm mt-1">
                                 {it.detail.moveStockDesc}
                             </DialogDescription>
                         </DialogHeader>
@@ -1499,12 +1435,12 @@ export default function InventoryPage() {
                             getMatId(inv.material) === getMatId(moveSource.material)
                         );
                         return (
-                            <div className="px-8 py-6 space-y-6">
+                            <div className="px-6 py-5 space-y-5">
                                 {/* Source Info Card */}
-                                <div className="rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-4 space-y-1">
-                                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{it.detail.moveSource}</p>
-                                    <p className="text-sm font-bold text-slate-900 dark:text-white">{sourceMat?.name || "N/A"}</p>
-                                    <div className="flex items-center gap-3 text-[11px] text-slate-500 font-medium">
+                                <div className="rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-3 space-y-1">
+                                    <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">{it.detail.moveSource}</p>
+                                    <p className="text-sm font-medium text-slate-900 dark:text-white">{sourceMat?.name || "N/A"}</p>
+                                    <div className="flex items-center gap-3 text-xs text-slate-500">
                                         <span className="flex items-center gap-1">
                                             <MapPin className="h-3 w-3" />
                                             {moveSource.location}
@@ -1512,7 +1448,7 @@ export default function InventoryPage() {
                                         <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold uppercase ${moveSource.stockType === 'Raw' ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-600'}`}>
                                             {moveSource.stockType}
                                         </span>
-                                        <span className="ml-auto font-bold text-slate-700 dark:text-slate-200">
+                                        <span className="ml-auto font-medium text-slate-700 dark:text-slate-200">
                                             {lang === 'th' ? 'มี' : 'Stock:'} {moveSource.quantity.toLocaleString()}
                                         </span>
                                     </div>
@@ -1520,8 +1456,8 @@ export default function InventoryPage() {
 
                                 {/* Quantity */}
                                 <div className="space-y-2">
-                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                                        <Package className="h-3 w-3" />
+                                    <Label className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                        <Package className="h-3.5 w-3.5" />
                                         {it.detail.moveQtyLabel}
                                     </Label>
                                     <div className="flex items-center gap-3">
@@ -1531,9 +1467,9 @@ export default function InventoryPage() {
                                             max={moveSource.quantity}
                                             value={moveQty}
                                             onChange={(e) => setMoveQty(Math.min(moveSource.quantity, Math.max(1, parseInt(e.target.value) || 1)))}
-                                            className="h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-900 dark:text-white text-lg px-4 focus:ring-[#E8601C] focus:border-[#E8601C]"
+                                            className="h-10 w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white text-base px-3 focus-visible:ring-2 focus-visible:ring-blue-600/20 focus-visible:border-blue-600"
                                         />
-                                        <span className="text-xs text-slate-400 font-bold whitespace-nowrap">
+                                        <span className="text-xs text-slate-400 whitespace-nowrap">
                                             / {moveSource.quantity.toLocaleString()}
                                         </span>
                                     </div>
@@ -1549,9 +1485,9 @@ export default function InventoryPage() {
                                                 key={b.label}
                                                 type="button"
                                                 onClick={() => setMoveQty(b.val)}
-                                                className={`flex-1 text-[10px] font-semibold py-1.5 rounded-lg border transition-colors ${moveQty === b.val
-                                                    ? 'bg-[#E8601C] text-white border-[#E8601C]'
-                                                    : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:border-[#E8601C] hover:text-[#E8601C]'}`}
+                                                className={`flex-1 text-xs font-medium py-1.5 rounded-lg border transition-colors ${moveQty === b.val
+                                                    ? 'bg-blue-600 text-white border-blue-600'
+                                                    : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:border-blue-300 hover:text-blue-600 dark:hover:text-blue-400'}`}
                                             >
                                                 {b.label}
                                             </button>
@@ -1561,16 +1497,16 @@ export default function InventoryPage() {
 
                                 {/* Destination Type Toggle */}
                                 <div className="space-y-3">
-                                    <Label className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                                        <Warehouse className="h-3 w-3" />
+                                    <Label className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                        <Warehouse className="h-3.5 w-3.5" />
                                         {it.detail.moveDest}
                                     </Label>
                                     <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
                                         <button
                                             type="button"
                                             onClick={() => setMoveDestType("existing")}
-                                            className={`py-2.5 rounded-lg text-xs font-bold transition-all ${moveDestType === "existing"
-                                                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm'
+                                            className={`py-2.5 rounded-lg text-xs font-medium transition-colors ${moveDestType === "existing"
+                                                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white'
                                                 : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
                                         >
                                             {it.detail.existingSlot}
@@ -1578,8 +1514,8 @@ export default function InventoryPage() {
                                         <button
                                             type="button"
                                             onClick={() => setMoveDestType("new")}
-                                            className={`py-2.5 rounded-lg text-xs font-bold transition-all ${moveDestType === "new"
-                                                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm'
+                                            className={`py-2.5 rounded-lg text-xs font-medium transition-colors ${moveDestType === "new"
+                                                ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white'
                                                 : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
                                         >
                                             {it.detail.newLocation}
@@ -1590,7 +1526,7 @@ export default function InventoryPage() {
                                     {moveDestType === "existing" && (
                                         sameMatSlots.length === 0 ? (
                                             <div className="py-6 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 flex items-center justify-center">
-                                                <p className="text-xs text-slate-400 font-bold">{it.detail.noDest}</p>
+                                                <p className="text-xs text-slate-400">{it.detail.noDest}</p>
                                             </div>
                                         ) : (
                                             <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
@@ -1599,22 +1535,22 @@ export default function InventoryPage() {
                                                         key={slot._id}
                                                         type="button"
                                                         onClick={() => setMoveDestId(slot._id)}
-                                                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-left transition-all ${moveDestId === slot._id
-                                                            ? 'border-[#E8601C] bg-orange-50 dark:bg-orange-950/20'
+                                                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-left transition-colors ${moveDestId === slot._id
+                                                            ? 'border-blue-600 bg-blue-50 dark:bg-blue-950/30'
                                                             : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 bg-white dark:bg-slate-900'}`}
                                                     >
                                                         <div>
-                                                            <p className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                                                            <p className="text-sm font-medium text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                                                                 <MapPin className="h-3 w-3 text-slate-400" />
                                                                 {slot.location}
                                                             </p>
-                                                            <p className={`text-[10px] font-semibold uppercase mt-0.5 ${slot.stockType === 'Raw' ? 'text-blue-500' : 'text-amber-500'}`}>
+                                                            <p className={`text-xs font-medium mt-0.5 ${slot.stockType === 'Raw' ? 'text-blue-500' : 'text-amber-500'}`}>
                                                                 {slot.stockType}
                                                             </p>
                                                         </div>
                                                         <div className="text-right">
-                                                            <p className="text-sm font-bold text-slate-700 dark:text-slate-300">{slot.quantity.toLocaleString()}</p>
-                                                            <p className="text-[9px] text-slate-400 uppercase font-bold">{lang === 'th' ? 'ปัจจุบัน' : 'current'}</p>
+                                                            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{slot.quantity.toLocaleString()}</p>
+                                                            <p className="text-xs text-slate-400">{lang === 'th' ? 'ปัจจุบัน' : 'current'}</p>
                                                         </div>
                                                     </button>
                                                 ))}
@@ -1625,8 +1561,8 @@ export default function InventoryPage() {
                                     {/* New location form */}
                                     {moveDestType === "new" && (
                                         <div className="space-y-1.5 relative">
-                                            <Label className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                                                <Warehouse className="h-3 w-3" />
+                                            <Label className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                                <Warehouse className="h-3.5 w-3.5" />
                                                 {lang === 'th' ? 'ตำแหน่งจัดเก็บ' : 'Storage Location'}
                                             </Label>
                                             <div className="relative">
@@ -1639,7 +1575,7 @@ export default function InventoryPage() {
                                                         setMoveLocationDropdownOpen(true);
                                                     }}
                                                     onFocus={() => setMoveLocationDropdownOpen(true)}
-                                                    className="h-11 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-900 dark:text-white pl-4 pr-10 focus:ring-[#E8601C] focus:border-[#E8601C] text-sm"
+                                                    className="h-10 w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white pl-3 pr-10 text-sm focus-visible:ring-2 focus-visible:ring-blue-600/20 focus-visible:border-blue-600"
                                                     autoComplete="off"
                                                 />
                                                 <button
@@ -1653,7 +1589,7 @@ export default function InventoryPage() {
                                             {moveLocationDropdownOpen && moveFilteredLocationSuggestions.length > 0 && (
                                                 <div
                                                     ref={moveLocationDropdownRef}
-                                                    className="absolute z-50 left-0 right-0 top-[calc(100%+4px)] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-[180px] overflow-y-auto py-1"
+                                                    className="absolute z-50 left-0 right-0 top-[calc(100%+4px)] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl max-h-[180px] overflow-y-auto py-1"
                                                 >
                                                     {moveFilteredLocationSuggestions.map((loc) => (
                                                         <button
@@ -1663,13 +1599,13 @@ export default function InventoryPage() {
                                                                 setMoveDestLocation(loc);
                                                                 setMoveLocationDropdownOpen(false);
                                                             }}
-                                                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm ${moveDestLocation === loc ? 'bg-orange-50 dark:bg-orange-950/20' : ''}`}
+                                                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm ${moveDestLocation === loc ? 'bg-blue-50 dark:bg-blue-950/30' : ''}`}
                                                         >
                                                             <div
                                                                 className="h-2.5 w-2.5 rounded-full shrink-0"
                                                                 style={{ backgroundColor: getGlassColor(sourceMat?.specDetails?.color) }}
                                                             />
-                                                            <span className="font-bold text-slate-800 dark:text-slate-200 uppercase">{loc}</span>
+                                                            <span className="text-sm font-medium text-slate-800 dark:text-slate-200">{loc}</span>
                                                             {locationUsage[loc] > 0 && (
                                                                 <span className="ml-auto text-[10px] text-slate-400 font-medium">{locationUsage[loc]}x</span>
                                                             )}
@@ -1685,11 +1621,11 @@ export default function InventoryPage() {
                     })()}
 
                     {/* Footer */}
-                    <div className="px-8 py-6 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-3">
+                    <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2">
                         <Button
                             variant="ghost"
                             onClick={() => setIsMoveOpen(false)}
-                            className="rounded-xl h-11 font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white px-6 text-sm"
+                            className="rounded-xl h-10 text-slate-500 hover:text-slate-900 dark:hover:text-white px-4 text-sm"
                         >
                             {lang === 'th' ? 'ยกเลิก' : 'Cancel'}
                         </Button>
@@ -1703,7 +1639,7 @@ export default function InventoryPage() {
                                 (moveDestType === "existing" && !moveDestId) ||
                                 (moveDestType === "new" && !moveDestLocation.trim())
                             }
-                            className="rounded-xl h-11 min-w-[150px] font-bold text-white bg-slate-900 dark:bg-white dark:text-slate-900 hover:bg-[#E8601C] dark:hover:bg-[#E8601C] dark:hover:text-white transition-all shadow-lg text-sm disabled:opacity-50"
+                            className="rounded-xl h-10 min-w-[150px] text-white bg-blue-600 hover:bg-blue-700 text-sm disabled:opacity-50"
                         >
                             <ArrowRightLeft className="h-4 w-4 mr-2" />
                             {isMoveSubmitting ? it.detail.moving : it.detail.confirmMove}

@@ -1,11 +1,8 @@
 "use client";
 
 import * as React from "react";
-import {
-    Menu, Moon, Sun, Globe,
-    LayoutDashboard, ClipboardList, ClipboardCheck, Factory,
-    Package, ArrowDownFromLine, ShieldAlert, History, Settings, Pencil,
-} from "lucide-react";
+import { Menu, Moon, Sun, Globe, Minus, Plus } from "lucide-react";
+import { useFontSize } from "@/lib/hooks/use-font-size";
 import { useTheme } from "next-themes";
 import { usePathname, useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/i18n/language-context";
@@ -24,25 +21,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
-// Map route prefixes to their sidebar icons
-const PAGE_ICONS: { prefix: string; icon: React.ElementType }[] = [
-    { prefix: "/stations/designer", icon: Pencil },
-    { prefix: "/stations",          icon: Factory },
-    { prefix: "/request",           icon: ClipboardList },
-    { prefix: "/production",        icon: ClipboardCheck },
-    { prefix: "/inventory",         icon: Package },
-    { prefix: "/withdrawals",       icon: ArrowDownFromLine },
-    { prefix: "/claims",            icon: ShieldAlert },
-    { prefix: "/logs",              icon: History },
-    { prefix: "/settings",          icon: Settings },
-];
-
 interface HeaderProps {
     onMenuClick: () => void;
-    title?: string;
 }
 
-export function Header({ onMenuClick, title }: HeaderProps) {
+export function Header({ onMenuClick }: HeaderProps) {
     const pathname = usePathname();
     const { theme, setTheme } = useTheme();
     const { lang, setLang, t } = useLanguage();
@@ -54,6 +37,8 @@ export function Header({ onMenuClick, title }: HeaderProps) {
     React.useEffect(() => {
         setMounted(true);
     }, []);
+
+    const { fontSize, decrease, increase, canDecrease, canIncrease } = useFontSize();
 
     const toggleTheme = () => {
         setTheme(theme === "dark" ? "light" : "dark");
@@ -71,16 +56,14 @@ export function Header({ onMenuClick, title }: HeaderProps) {
     };
 
     return (
-        <header className="sticky top-0 z-10 flex shrink-0 h-[72px] items-center gap-x-2 sm:gap-x-4 border-b bg-background px-3 shadow-sm sm:px-4 md:px-6 lg:px-8">
+        <header className="sticky top-0 z-10 flex shrink-0 h-14 items-center gap-x-2 sm:gap-x-4 border-b border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 sm:px-4 md:px-6 lg:px-8">
             <Button variant="ghost" size="icon" className="-m-1.5 p-2 text-foreground lg:hidden" onClick={onMenuClick}>
                 <span className="sr-only">Open sidebar</span>
                 <Menu className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden="true" />
             </Button>
 
             <div className="flex flex-1 gap-x-2 sm:gap-x-4 self-stretch lg:gap-x-6">
-                <div className="flex flex-1 items-center min-w-0">
-                    <h1 className="text-base sm:text-xl font-semibold font-sans text-foreground truncate">{title || t.dashboard.label}</h1>
-                </div>
+                <div className="flex-1" />
                 <div className="flex items-center gap-x-2 sm:gap-x-4 lg:gap-x-6">
                     <Button
                         variant="ghost"
@@ -88,9 +71,32 @@ export function Header({ onMenuClick, title }: HeaderProps) {
                         className="rounded-full bg-muted/50 hover:bg-muted font-bold px-2 sm:px-3 flex items-center gap-1 sm:gap-1.5"
                         title={t.language}
                     >
-                        <Globe className="h-4 w-4 text-primary dark:text-[#E8601C]" />
+                        <Globe className="h-4 w-4 text-slate-500" />
                         <span className="text-foreground">{mounted ? (lang === "th" ? "TH" : "EN") : "TH"}</span>
                     </Button>
+
+                    {/* Font Size Control */}
+                    <div className="hidden sm:flex items-center gap-0.5 bg-muted/50 rounded-full px-1 h-9">
+                        <button
+                            onClick={decrease}
+                            disabled={!canDecrease}
+                            className="h-7 w-7 rounded-full flex items-center justify-center text-slate-500 hover:bg-background hover:text-slate-700 dark:hover:text-slate-300 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                            title="ลดขนาดตัวอักษร"
+                        >
+                            <Minus className="h-3.5 w-3.5" />
+                        </button>
+                        <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 w-5 text-center tabular-nums select-none">
+                            {mounted ? fontSize : 16}
+                        </span>
+                        <button
+                            onClick={increase}
+                            disabled={!canIncrease}
+                            className="h-7 w-7 rounded-full flex items-center justify-center text-slate-500 hover:bg-background hover:text-slate-700 dark:hover:text-slate-300 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                            title="เพิ่มขนาดตัวอักษร"
+                        >
+                            <Plus className="h-3.5 w-3.5" />
+                        </button>
+                    </div>
 
                     <Button
                         variant="ghost"
@@ -121,12 +127,12 @@ export function Header({ onMenuClick, title }: HeaderProps) {
                             <span className="sr-only">Open user menu</span>
                             <Avatar className="h-8 w-8">
                                 <AvatarImage src="" alt="@shadcn" />
-                                <AvatarFallback className="bg-primary/20 text-primary dark:bg-[#E8601C]/20 dark:text-[#E8601C]">
+                                <AvatarFallback className="bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400 text-xs font-semibold">
                                     {user?.name?.substring(0, 2).toUpperCase() || "SP"}
                                 </AvatarFallback>
                             </Avatar>
                             <span className="hidden lg:flex lg:items-center">
-                                <span className="ml-4 text-sm font-semibold leading-6 text-foreground group-hover:text-primary dark:group-hover:text-[#E8601C] transition-colors" aria-hidden="true">
+                                <span className="ml-3 text-sm font-medium leading-6 text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white transition-colors" aria-hidden="true">
                                     {user ? user.name : "Admin User"}
                                 </span>
                             </span>

@@ -18,7 +18,6 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
     Select,
     SelectContent,
@@ -26,14 +25,6 @@ import {
     SelectTrigger,
     SelectValue
 } from "@/components/ui/select";
-import {
-    Pagination,
-    PaginationContent,
-    PaginationItem,
-    PaginationLink,
-    PaginationNext,
-    PaginationPrevious,
-} from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
     Sheet,
@@ -53,8 +44,6 @@ import {
     History,
     Wifi,
     WifiOff,
-    Package,
-    Link2,
     RefreshCw,
     ChevronRight,
     TrendingUp,
@@ -62,7 +51,6 @@ import {
     Layers,
     User,
     X,
-    ArrowRightLeft,
     Cpu,
     CheckCircle2,
     Circle,
@@ -413,26 +401,18 @@ export default function MaterialLogsPage() {
     const renderActionBadge = (log: MaterialLog) => {
         const effectiveAction = getEffectiveAction(log, moveSourceIds);
         const meta = ACTION_LABELS[effectiveAction];
-        if (!meta) return <span className="px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-600">{log.actionType}</span>;
+        if (!meta) return <span className="px-2 py-0.5 rounded-md text-xs bg-slate-100 text-slate-600">{log.actionType}</span>;
         const label = lang === "th" ? meta.th : meta.en;
-        const icons: Record<string, React.ReactNode> = {
-            import: <ArrowDownRight className="h-3 w-3" />,
-            import_move: <ArrowRightLeft className="h-3 w-3" />,
-            withdraw: <ArrowUpRight className="h-3 w-3" />,
-            withdraw_move: <ArrowRightLeft className="h-3 w-3" />,
-            claim: <FileWarning className="h-3 w-3" />,
-            cut: <Scissors className="h-3 w-3" />,
-        };
         const colorMap: Record<string, string> = {
-            emerald: "bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/40",
-            orange: "bg-orange-50 text-orange-700 border-orange-100 dark:bg-orange-950/30 dark:text-orange-400 dark:border-orange-900/40",
-            red: "bg-red-50 text-red-700 border-red-100 dark:bg-red-950/30 dark:text-red-400 dark:border-red-900/40",
-            blue: "bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/40",
-            violet: "bg-violet-50 text-violet-700 border-violet-100 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-900/40",
+            emerald: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+            orange: "bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400",
+            red: "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400",
+            blue: "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400",
+            violet: "bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400",
         };
         return (
-            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border ${colorMap[meta.color]}`}>
-                {label} {icons[effectiveAction]}
+            <span className={`text-xs font-medium px-2 py-1 rounded-md ${colorMap[meta.color]}`}>
+                {label}
             </span>
         );
     };
@@ -468,9 +448,8 @@ export default function MaterialLogsPage() {
             : String(log.order);
         if (!orderId) return <span className="text-slate-300 dark:text-slate-700">—</span>;
         return (
-            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#1B4B9A] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 px-2 py-0.5 rounded-lg border border-blue-100 dark:border-blue-900/40">
-                <Package className="h-3 w-3" />
-                {orderId.slice(-6).toUpperCase()}
+            <span className="text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-2 py-1 rounded-md">
+                #{orderId.slice(-6).toUpperCase()}
             </span>
         );
     };
@@ -480,18 +459,12 @@ export default function MaterialLogsPage() {
         const typeLabel = REF_TYPE_LABELS[log.referenceType];
         const label = typeLabel ? (lang === "th" ? typeLabel.th : typeLabel.en) : log.referenceType;
         const colorClass = log.referenceType === "withdrawal"
-            ? "text-orange-700 bg-orange-50 border-orange-100 dark:text-orange-400 dark:bg-orange-950/30 dark:border-orange-900/40"
-            : "text-red-700 bg-red-50 border-red-100 dark:text-red-400 dark:bg-red-950/30 dark:border-red-900/40";
+            ? "text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-500/10"
+            : "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10";
         return (
-            <div className="flex flex-col gap-0.5">
-                <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded border ${colorClass}`}>
-                    <Link2 className="h-2.5 w-2.5" />
-                    {label}
-                </span>
-                <span className="text-[10px] font-mono text-slate-400 ml-0.5">
-                    #{log.referenceId.slice(-6).toUpperCase()}
-                </span>
-            </div>
+            <span className={`text-xs font-medium px-2 py-1 rounded-md ${colorClass}`}>
+                {label} #{log.referenceId.slice(-6).toUpperCase()}
+            </span>
         );
     };
 
@@ -517,171 +490,142 @@ export default function MaterialLogsPage() {
 
     return (
         <>
-        <div className="flex flex-col gap-4 sm:gap-6 lg:gap-8 max-w-[1600px] mx-auto w-full overflow-x-hidden">
+        <div className="space-y-6 max-w-[1440px] mx-auto w-full">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 pb-6 border-b border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="flex items-center gap-3 text-3xl sm:text-4xl font-bold tracking-tight text-slate-900 dark:text-white leading-normal pt-2 pb-1">
-                        <History className="h-7 w-7 sm:h-8 sm:w-8 shrink-0" />
-                        {t.logs}
-                    </h1>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm sm:text-base font-medium mt-1">
+                    <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{t.logs}</h1>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
                         {lang === "th"
                             ? "ติดตามความเคลื่อนไหวของวัสดุ ตั้งแต่นำเข้าคลัง ตัด เบิก ไปจนถึงส่งงานลูกค้า"
                             : "Track all material movements — from import, cut, withdraw to customer delivery"}
                     </p>
                 </div>
 
-                <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-                    {/* WebSocket Status */}
-                    <div className={`flex items-center gap-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-xl text-xs font-bold border ${wsStatus === "open"
-                        ? "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/40"
+                <div className="flex items-center gap-2">
+                    <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${wsStatus === "open"
+                        ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                         : wsStatus === "connecting"
-                            ? "bg-yellow-50 dark:bg-yellow-950/30 text-yellow-700 dark:text-yellow-400 border-yellow-100 dark:border-yellow-900/40"
-                            : "bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700"
+                            ? "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                            : "bg-slate-100 dark:bg-slate-800 text-slate-500"
                         }`}>
                         {wsStatus === "open"
-                            ? <><Wifi className="h-3.5 w-3.5" /> Live</>
+                            ? <><Wifi className="h-3 w-3" /> Live</>
                             : wsStatus === "connecting"
-                                ? <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> {lang === "th" ? "กำลังเชื่อมต่อ" : "Connecting"}</>
-                                : <><WifiOff className="h-3.5 w-3.5" /> Offline</>
+                                ? <><RefreshCw className="h-3 w-3 animate-spin" /> {lang === "th" ? "เชื่อมต่อ..." : "Connecting"}</>
+                                : <><WifiOff className="h-3 w-3" /> Offline</>
                         }
                     </div>
-
-                    {/* Stats Card */}
-                    <div className="flex items-center gap-2 sm:gap-3 bg-white dark:bg-slate-900 p-2 sm:p-3 lg:px-5 lg:py-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                        <div className="flex flex-col">
-                            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">
-                                {lang === "th" ? "รายการทั้งหมด" : "Total Records"}
-                            </span>
-                            <span className="text-xl font-bold text-slate-900 dark:text-white leading-none">
-                                {filteredLogs.length.toLocaleString()}
-                            </span>
-                        </div>
-                        {lastUpdated && (
-                            <div className="flex flex-col border-l border-slate-100 dark:border-slate-800 pl-3">
-                                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">
-                                    {lang === "th" ? "อัปเดตล่าสุด" : "Last update"}
-                                </span>
-                                <span className="text-[11px] font-semibold text-slate-500 leading-none">
-                                    {lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-                                </span>
-                            </div>
-                        )}
-                    </div>
+                    {lastUpdated && (
+                        <span className="text-xs text-slate-400 hidden sm:inline">
+                            {lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                        </span>
+                    )}
                 </div>
             </div>
 
-            {/* Filter & Search Bar */}
-            <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr_1fr_1fr_auto] items-end gap-5">
-                    <div className="space-y-2">
-                        <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1.5">
-                            <Search className="h-3 w-3" />
-                            {lang === "th" ? "ค้นหา" : "Search"}
-                        </Label>
-                        <Input
-                            placeholder={lang === "th" ? "ค้นหาด้วยชื่อวัสดุ, ออเดอร์, อ้างอิง..." : "Search material, order, reference..."}
-                            value={searchQuery}
-                            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-                            className="h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-medium text-sm"
-                        />
+            {/* Stats */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                {[
+                    { label: lang === "th" ? "รายการทั้งหมด" : "Total Records", value: filteredLogs.length, accent: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10", icon: History },
+                    { label: lang === "th" ? "นำเข้า" : "Imported", value: logs.filter(l => l.actionType === "import").length, accent: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10", icon: ArrowDownRight },
+                    { label: lang === "th" ? "เบิกออก" : "Withdrawn", value: logs.filter(l => l.actionType === "withdraw").length, accent: "text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-500/10", icon: ArrowUpRight },
+                    { label: lang === "th" ? "ตัด/เคลม" : "Cut/Claim", value: logs.filter(l => l.actionType === "cut" || l.actionType === "claim").length, accent: "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10", icon: Scissors },
+                ].map((stat) => (
+                    <div key={stat.label} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 p-4 sm:p-5">
+                        <div className={`h-9 w-9 rounded-lg flex items-center justify-center mb-3 ${stat.accent}`}>
+                            <stat.icon className="h-[18px] w-[18px]" />
+                        </div>
+                        <p className="text-[13px] text-slate-500 dark:text-slate-400 mb-0.5">{stat.label}</p>
+                        <p className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">{isLoading ? "-" : stat.value.toLocaleString()}</p>
                     </div>
+                ))}
+            </div>
 
-                    <div className="space-y-2">
-                        <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">
-                            {lang === "th" ? "การกระทำ" : "Action"}
-                        </Label>
-                        <Select value={actionFilter} onValueChange={(v) => { setActionFilter(v || "all"); setCurrentPage(1); }}>
-                            <SelectTrigger className="h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm">
-                                <SelectValue placeholder={lang === "th" ? "ทั้งหมด" : "All"} />
-                            </SelectTrigger>
-                            <SelectContent className="rounded-2xl">
-                                <SelectItem value="all" className="font-bold">{lang === "th" ? "ทั้งหมด" : "All"}</SelectItem>
-                                <SelectItem value="import" className="font-bold text-emerald-600">{lang === "th" ? "นำเข้าคลัง" : "Import"}</SelectItem>
-                                <SelectItem value="withdraw" className="font-bold text-orange-600">{lang === "th" ? "เบิกออก" : "Withdraw"}</SelectItem>
-                                <SelectItem value="claim" className="font-bold text-red-600">{lang === "th" ? "เคลม" : "Claim"}</SelectItem>
-                                <SelectItem value="cut" className="font-bold text-blue-600">{lang === "th" ? "ตัด/แปรรูป" : "Cut"}</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">
-                            {lang === "th" ? "ประเภทสต็อก" : "Stock Type"}
-                        </Label>
-                        <Select value={stockTypeFilter} onValueChange={(v) => { setStockTypeFilter(v || "all"); setCurrentPage(1); }}>
-                            <SelectTrigger className="h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm">
-                                <SelectValue placeholder={lang === "th" ? "ทั้งหมด" : "All"} />
-                            </SelectTrigger>
-                            <SelectContent className="rounded-2xl">
-                                <SelectItem value="all" className="font-bold">{lang === "th" ? "ทั้งหมด" : "All"}</SelectItem>
-                                <SelectItem value="Raw" className="font-bold">{lang === "th" ? "วัตถุดิบ (Raw)" : "Raw"}</SelectItem>
-                                <SelectItem value="Reuse" className="font-bold">{lang === "th" ? "นำกลับมาใช้ (Reuse)" : "Reuse"}</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">
-                            {lang === "th" ? "ช่วงเวลา" : "Period"}
-                        </Label>
-                        <Select value={dateFilter} onValueChange={(v) => { setDateFilter(v || "all"); setCurrentPage(1); }}>
-                            <SelectTrigger className="h-12 w-full bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm">
-                                <SelectValue placeholder={lang === "th" ? "ทุกช่วงเวลา" : "All Time"} />
-                            </SelectTrigger>
-                            <SelectContent className="rounded-2xl">
-                                <SelectItem value="all" className="font-bold">{lang === "th" ? "ทุกช่วงเวลา" : "All Time"}</SelectItem>
-                                <SelectItem value="today" className="font-bold">{lang === "th" ? "วันนี้" : "Today"}</SelectItem>
-                                <SelectItem value="7days" className="font-bold">{lang === "th" ? "7 วันที่ผ่านมา" : "Last 7 Days"}</SelectItem>
-                                <SelectItem value="30days" className="font-bold">{lang === "th" ? "30 วันที่ผ่านมา" : "Last 30 Days"}</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    <div className="flex items-center pb-1">
-                        {hasActiveFilters && (
-                            <Button variant="ghost" onClick={resetFilters} className="h-10 rounded-xl text-slate-500 hover:text-slate-700 font-bold px-4">
-                                <FilterX className="h-4 w-4 mr-2" />
-                                {lang === "th" ? "ล้าง" : "Clear"}
-                            </Button>
-                        )}
-                    </div>
+            {/* Filters */}
+            <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
+                <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <Input
+                        placeholder={lang === "th" ? "ค้นหาด้วยชื่อวัสดุ, ออเดอร์, อ้างอิง..." : "Search material, order, reference..."}
+                        value={searchQuery}
+                        onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                        className="pl-9 h-10 rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-sm"
+                    />
                 </div>
+                <Select value={actionFilter} onValueChange={(v) => { setActionFilter(v || "all"); setCurrentPage(1); }}>
+                    <SelectTrigger className="h-10 w-full lg:w-40 rounded-xl text-sm">
+                        <SelectValue placeholder={lang === "th" ? "การกระทำ" : "Action"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">{lang === "th" ? "ทุกการกระทำ" : "All Actions"}</SelectItem>
+                        <SelectItem value="import">{lang === "th" ? "นำเข้าคลัง" : "Import"}</SelectItem>
+                        <SelectItem value="withdraw">{lang === "th" ? "เบิกออก" : "Withdraw"}</SelectItem>
+                        <SelectItem value="claim">{lang === "th" ? "เคลม" : "Claim"}</SelectItem>
+                        <SelectItem value="cut">{lang === "th" ? "ตัด/แปรรูป" : "Cut"}</SelectItem>
+                    </SelectContent>
+                </Select>
+                <Select value={stockTypeFilter} onValueChange={(v) => { setStockTypeFilter(v || "all"); setCurrentPage(1); }}>
+                    <SelectTrigger className="h-10 w-full lg:w-40 rounded-xl text-sm">
+                        <SelectValue placeholder={lang === "th" ? "ประเภทสต็อก" : "Stock Type"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">{lang === "th" ? "ทุกประเภท" : "All Types"}</SelectItem>
+                        <SelectItem value="Raw">{lang === "th" ? "วัตถุดิบ (Raw)" : "Raw"}</SelectItem>
+                        <SelectItem value="Reuse">{lang === "th" ? "นำกลับมาใช้ (Reuse)" : "Reuse"}</SelectItem>
+                    </SelectContent>
+                </Select>
+                <Select value={dateFilter} onValueChange={(v) => { setDateFilter(v || "all"); setCurrentPage(1); }}>
+                    <SelectTrigger className="h-10 w-full lg:w-44 rounded-xl text-sm">
+                        <SelectValue placeholder={lang === "th" ? "ช่วงเวลา" : "Period"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">{lang === "th" ? "ทุกช่วงเวลา" : "All Time"}</SelectItem>
+                        <SelectItem value="today">{lang === "th" ? "วันนี้" : "Today"}</SelectItem>
+                        <SelectItem value="7days">{lang === "th" ? "7 วันที่ผ่านมา" : "Last 7 Days"}</SelectItem>
+                        <SelectItem value="30days">{lang === "th" ? "30 วันที่ผ่านมา" : "Last 30 Days"}</SelectItem>
+                    </SelectContent>
+                </Select>
+                {hasActiveFilters && (
+                    <Button variant="ghost" onClick={resetFilters} className="h-10 rounded-xl text-slate-500 hover:text-slate-700 px-3">
+                        <FilterX className="h-4 w-4 mr-1.5" />
+                        {lang === "th" ? "ล้าง" : "Clear"}
+                    </Button>
+                )}
             </div>
 
             {/* Main Table */}
-            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden">
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 overflow-hidden">
                 <div className="overflow-x-auto">
                     <Table>
                         <TableHeader>
-                            <TableRow className="border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
-                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 px-6 text-slate-500 dark:text-slate-400 whitespace-nowrap text-center">
+                            <TableRow className="border-slate-100 dark:border-slate-800 hover:bg-transparent">
+                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 px-4 h-10 whitespace-nowrap">
                                     {lang === "th" ? "วันเวลา" : "Date / Time"}
                                 </TableHead>
-                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 text-center">
+                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">
                                     {lang === "th" ? "วัสดุ" : "Material"}
                                 </TableHead>
-                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 text-center">
+                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">
                                     {lang === "th" ? "การกระทำ" : "Action"}
                                 </TableHead>
-                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 whitespace-nowrap text-center">
-                                    {lang === "th" ? "จำนวนที่เปลี่ยน" : "Qty Changed"}
+                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10 whitespace-nowrap">
+                                    {lang === "th" ? "จำนวน" : "Qty"}
                                 </TableHead>
-                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 whitespace-nowrap text-center">
-                                    {lang === "th" ? "ประเภทสต็อก" : "Stock Type"}
+                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10 whitespace-nowrap">
+                                    {lang === "th" ? "ประเภท" : "Type"}
                                 </TableHead>
-                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 text-center">
+                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">
                                     {lang === "th" ? "ออเดอร์" : "Order"}
                                 </TableHead>
-                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 whitespace-nowrap text-center">
-                                    {lang === "th" ? "สถานที่จัดเก็บ" : "Location"}
+                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10 whitespace-nowrap">
+                                    {lang === "th" ? "สถานที่" : "Location"}
                                 </TableHead>
-                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 text-center">
-                                    {lang === "th" ? "อ้างอิง" : "Reference"}
+                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">
+                                    {lang === "th" ? "อ้างอิง" : "Ref"}
                                 </TableHead>
-                                <TableHead className="font-bold text-xs uppercase tracking-widest py-5 text-slate-500 dark:text-slate-400 pr-6 whitespace-nowrap text-center">
-                                    {lang === "th" ? "ผู้ดำเนินการ" : "Performed By"}
+                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10 whitespace-nowrap">
+                                    {lang === "th" ? "ผู้ดำเนินการ" : "By"}
                                 </TableHead>
                             </TableRow>
                         </TableHeader>
@@ -695,57 +639,45 @@ export default function MaterialLogsPage() {
                                         <TableRow
                                             key={log._id}
                                             onClick={() => openDetail(log, logs)}
-                                            className="group hover:bg-slate-50 dark:hover:bg-slate-800/50 border-slate-100 dark:border-slate-800 transition-colors cursor-pointer"
+                                            className="group hover:bg-slate-50/60 dark:hover:bg-slate-800/40 border-slate-100 dark:border-slate-800 transition-colors cursor-pointer"
                                         >
-                                            {/* Date/Time */}
-                                            <TableCell className="py-4 px-6">
+                                            <TableCell className="py-3.5 px-4">
                                                 <div className="flex flex-col">
-                                                    <span className="font-bold text-slate-900 dark:text-white text-[13px]">
+                                                    <span className="text-sm font-medium text-slate-900 dark:text-white">
                                                         {new Date(log.createdAt).toLocaleDateString(
                                                             lang === "th" ? "th-TH" : "en-US",
                                                             { day: "2-digit", month: "short", year: "numeric" }
                                                         )}
                                                     </span>
-                                                    <span className="text-[11px] font-semibold text-slate-500 flex items-center gap-1 mt-0.5">
-                                                        <Clock className="h-3 w-3" />
+                                                    <span className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+                                                        <Clock className="h-2.5 w-2.5" />
                                                         {new Date(log.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                                                     </span>
                                                 </div>
                                             </TableCell>
 
-                                            {/* Material */}
-                                            <TableCell className="py-4">
-                                                <div className="flex flex-col">
-                                                    <span className="font-bold text-slate-900 dark:text-white text-sm group-hover:text-[#1B4B9A] transition-colors">
-                                                        {materialName || "—"}
-                                                    </span>
-                                                    {log.stockType && (
-                                                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">
-                                                            {log.stockType}
-                                                        </span>
-                                                    )}
-                                                </div>
+                                            <TableCell className="py-3.5">
+                                                <span className="text-sm font-medium text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                                                    {materialName || "—"}
+                                                </span>
                                             </TableCell>
 
-                                            {/* Action */}
-                                            <TableCell className="py-4">
+                                            <TableCell className="py-3.5">
                                                 {renderActionBadge(log)}
                                             </TableCell>
 
-                                            {/* Qty Changed */}
-                                            <TableCell className="py-4">
+                                            <TableCell className="py-3.5">
                                                 {renderQuantityChanged(log.quantityChanged)}
                                             </TableCell>
 
-                                            {/* Stock Type */}
-                                            <TableCell className="py-4">
+                                            <TableCell className="py-3.5">
                                                 {(() => {
                                                     const stockType = log.stockType ?? (log.referenceId && !log.referenceType ? invMap.get(log.referenceId)?.stockType : undefined);
                                                     if (!stockType) return <span className="text-slate-300 dark:text-slate-700">—</span>;
                                                     return (
-                                                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-lg border ${stockType === "Raw"
-                                                            ? "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
-                                                            : "bg-violet-50 text-violet-700 border-violet-100 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-900/40"
+                                                        <span className={`text-xs font-medium px-2 py-1 rounded-md ${stockType === "Raw"
+                                                            ? "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                                                            : "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                                                             }`}>
                                                             {stockType}
                                                         </span>
@@ -753,62 +685,39 @@ export default function MaterialLogsPage() {
                                                 })()}
                                             </TableCell>
 
-                                            {/* Order */}
-                                            <TableCell className="py-4">
+                                            <TableCell className="py-3.5">
                                                 {renderOrderRef(log)}
                                             </TableCell>
 
-                                            {/* Location */}
-                                            <TableCell className="py-4">
+                                            <TableCell className="py-3.5">
                                                 {(() => {
                                                     const moveLocs = getMoveLocations(log, moveSourceIds, invMap, parentLogMap, logById);
                                                     if (moveLocs) {
                                                         return (
-                                                            <div className="flex items-center gap-1 text-[11px] font-semibold text-violet-700 dark:text-violet-400">
-                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border bg-violet-50 border-violet-100 dark:bg-violet-950/30 dark:border-violet-900/40">
-                                                                    <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
-                                                                    {moveLocs.from ?? '?'}
-                                                                </span>
+                                                            <div className="flex items-center gap-1 text-[11px] font-medium text-violet-600 dark:text-violet-400">
+                                                                <span className="px-1.5 py-0.5 rounded bg-violet-50 dark:bg-violet-500/10">{moveLocs.from ?? '?'}</span>
                                                                 <ChevronRight className="h-3 w-3 text-slate-400 shrink-0" />
-                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border bg-violet-50 border-violet-100 dark:bg-violet-950/30 dark:border-violet-900/40">
-                                                                    <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
-                                                                    {moveLocs.to ?? '?'}
-                                                                </span>
+                                                                <span className="px-1.5 py-0.5 rounded bg-violet-50 dark:bg-violet-500/10">{moveLocs.to ?? '?'}</span>
                                                             </div>
                                                         );
                                                     }
                                                     const loc = getLocation(log, invMap);
                                                     if (!loc) return <span className="text-slate-300 dark:text-slate-700">—</span>;
-                                                    const isUpdate = log.quantityChanged === 0 && log.actionType === "import";
                                                     return (
-                                                        <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg border ${isUpdate
-                                                            ? "bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/40"
-                                                            : "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
-                                                            }`}>
-                                                            <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
-                                                            {loc}
-                                                        </span>
+                                                        <span className="text-sm text-slate-600 dark:text-slate-400">{loc}</span>
                                                     );
                                                 })()}
                                             </TableCell>
 
-                                            {/* Reference */}
-                                            <TableCell className="py-4">
+                                            <TableCell className="py-3.5">
                                                 {renderReference(log)}
                                             </TableCell>
 
-                                            {/* Performed By */}
-                                            <TableCell className="py-4 pr-6">
+                                            <TableCell className="py-3.5">
                                                 {(() => {
                                                     const name = resolveWorkerName(log.worker, workerMap);
                                                     if (!name) return <span className="text-slate-300 dark:text-slate-700">—</span>;
-                                                    const role = typeof log.worker === "object" ? (log.worker as Worker).role : workerMap.get(String(log.worker))?.role;
-                                                    return (
-                                                        <div className="flex flex-col">
-                                                            <span className="text-sm font-bold text-slate-800 dark:text-slate-200">{name}</span>
-                                                            {role && <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">{role}</span>}
-                                                        </div>
-                                                    );
+                                                    return <span className="text-sm text-slate-600 dark:text-slate-300">{name}</span>;
                                                 })()}
                                             </TableCell>
                                         </TableRow>
@@ -816,10 +725,12 @@ export default function MaterialLogsPage() {
                                 })
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={9} className="h-40 text-center">
-                                        <div className="flex flex-col items-center justify-center text-slate-400 dark:text-slate-500">
-                                            <History className="h-10 w-10 mb-3 opacity-20" />
-                                            <p className="font-bold text-sm">
+                                    <TableCell colSpan={9} className="py-16 text-center border-none">
+                                        <div className="flex flex-col items-center gap-2">
+                                            <div className="h-12 w-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                                                <History className="h-6 w-6 text-slate-400 dark:text-slate-500" />
+                                            </div>
+                                            <p className="text-sm text-slate-500 dark:text-slate-400">
                                                 {lang === "th" ? "ไม่พบประวัติการทำรายการ" : "No logs found"}
                                             </p>
                                         </div>
@@ -829,96 +740,72 @@ export default function MaterialLogsPage() {
                         </TableBody>
                     </Table>
                 </div>
-            </div>
 
-            {/* Hint */}
-            {!isLoading && paginatedLogs.length > 0 && (
-                <p className="text-center text-[11px] text-slate-400 font-medium -mt-2">
-                    {lang === "th" ? "คลิกที่แถวเพื่อดูรายละเอียดการเคลื่อนไหวของวัสดุนั้น" : "Click any row to view the full movement history for that material"}
-                </p>
-            )}
-
-            {/* Pagination */}
-            {!isLoading && totalPages > 1 && (
-                <div className="flex justify-center pb-10">
-                    <Pagination>
-                        <PaginationContent className="bg-white dark:bg-slate-900 p-1.5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800">
-                            <PaginationItem>
-                                <PaginationPrevious
-                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                    className={`rounded-xl h-9 px-4 font-bold ${currentPage === 1 ? "opacity-50 pointer-events-none" : "cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800"}`}
-                                />
-                            </PaginationItem>
+                {/* Pagination */}
+                {!isLoading && totalPages > 1 && (
+                    <div className="px-4 py-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                        <span className="text-xs text-slate-400">{currentPage} / {totalPages}</span>
+                        <div className="flex items-center gap-1">
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-lg" disabled={currentPage === 1} onClick={() => setCurrentPage(p => Math.max(1, p - 1))}>
+                                <ChevronRight className="h-4 w-4 rotate-180" />
+                            </Button>
                             {Array.from({ length: totalPages }, (_, i) => i + 1)
                                 .filter(p => p === 1 || p === totalPages || Math.abs(currentPage - p) <= 1)
                                 .map((page, i, arr) => {
                                     if (i > 0 && arr[i - 1] !== page - 1) {
-                                        return <PaginationItem key={`e-${page}`}><span className="px-4 py-2 text-slate-400">…</span></PaginationItem>;
+                                        return <span key={`e-${page}`} className="px-1 text-xs text-slate-400">…</span>;
                                     }
                                     return (
-                                        <PaginationItem key={page}>
-                                            <PaginationLink
-                                                onClick={() => setCurrentPage(page)}
-                                                isActive={currentPage === page}
-                                                className={`rounded-xl h-9 w-9 font-bold cursor-pointer ${currentPage === page ? "bg-[#1B4B9A] text-white hover:bg-[#1B4B9A]/90 hover:text-white" : "hover:bg-slate-100 dark:hover:bg-slate-800"}`}
-                                            >
-                                                {page}
-                                            </PaginationLink>
-                                        </PaginationItem>
+                                        <button
+                                            key={page}
+                                            onClick={() => setCurrentPage(page)}
+                                            className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-medium transition-colors ${currentPage === page ? "bg-blue-600 text-white" : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"}`}
+                                        >
+                                            {page}
+                                        </button>
                                     );
                                 })}
-                            <PaginationItem>
-                                <PaginationNext
-                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                    className={`rounded-xl h-9 px-4 font-bold ${currentPage === totalPages ? "opacity-50 pointer-events-none" : "cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800"}`}
-                                />
-                            </PaginationItem>
-                        </PaginationContent>
-                    </Pagination>
-                </div>
-            )}
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-lg" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}>
+                                <ChevronRight className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    </div>
+                )}
+            </div>
         </div>
 
         {/* ─── Detail Sheet Panel ─────────────────────────────────────────────── */}
         <Sheet open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-            <SheetContent side="right" showCloseButton={false} className="w-full sm:w-[560px] lg:w-[640px] p-0 flex flex-col gap-0 overflow-hidden">
+            <SheetContent side="right" showCloseButton={false} className="w-full sm:w-[560px] lg:w-[640px] p-0 flex flex-col gap-0 overflow-hidden bg-white dark:bg-slate-900">
 
                 {/* Panel Header */}
-                <SheetHeader className="px-7 pt-7 pb-5 border-b border-slate-100 dark:border-slate-800 shrink-0">
+                <SheetHeader className="px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
                     <div className="flex items-start justify-between gap-4">
                         <div className="flex flex-col gap-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                                <div className="h-8 w-8 rounded-xl bg-[#1B4B9A]/10 dark:bg-[#1B4B9A]/20 flex items-center justify-center">
-                                    <Layers className="h-4 w-4 text-[#1B4B9A]" />
-                                </div>
-                                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">
-                                    {lang === "th" ? "รายละเอียดการเคลื่อนไหว" : "Material Movement Detail"}
-                                </span>
-                            </div>
-                            <SheetTitle className="text-xl font-bold text-slate-900 dark:text-white leading-tight truncate">
+                            <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">
+                                {lang === "th" ? "รายละเอียดการเคลื่อนไหว" : "Movement Detail"}
+                            </span>
+                            <SheetTitle className="text-lg font-bold text-slate-900 dark:text-white leading-tight truncate">
                                 {selectedLog ? getMaterialName(selectedLog) : "—"}
                             </SheetTitle>
                             <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                                {/* Current location badge */}
                                 {detailInventory && (
-                                    <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-[#1B4B9A]/10 text-[#1B4B9A] dark:text-blue-400 border border-[#1B4B9A]/20">
-                                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
+                                    <span className="text-xs font-medium px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400">
                                         {detailInventory.location}
                                     </span>
                                 )}
                                 {detailInventory?.stockType && (
-                                    <span className={`inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-lg border ${detailInventory.stockType === "Raw" ? "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700" : "bg-violet-50 text-violet-700 border-violet-100 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-900/40"}`}>
+                                    <span className={`text-xs font-medium px-2 py-1 rounded-md ${detailInventory.stockType === "Raw" ? "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400" : "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"}`}>
                                         {detailInventory.stockType}
                                     </span>
                                 )}
                                 {detailInventory && (
-                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 px-2.5 py-1 rounded-lg border border-emerald-100 dark:border-emerald-900/40">
-                                        <Layers className="h-3 w-3" />
+                                    <span className="text-xs font-medium px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
                                         {lang === "th" ? "คงเหลือ" : "Stock"} {detailInventory.quantity.toLocaleString()}
                                     </span>
                                 )}
                             </div>
-                            <SheetDescription className="text-sm text-slate-500 font-medium mt-1">
+                            <SheetDescription className="text-sm text-slate-500 mt-1">
                                 {lang === "th"
                                     ? `ประวัติการเคลื่อนไหวทั้งหมด ${detailLogs.length} รายการ`
                                     : `${detailLogs.length} movement records in total`}
@@ -928,7 +815,7 @@ export default function MaterialLogsPage() {
                             variant="ghost"
                             size="icon"
                             onClick={() => setIsDetailOpen(false)}
-                            className="shrink-0 h-8 w-8 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
+                            className="shrink-0 h-8 w-8 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
                         >
                             <X className="h-4 w-4" />
                             <span className="sr-only">Close</span>
@@ -939,80 +826,44 @@ export default function MaterialLogsPage() {
                 <div className="flex-1 overflow-y-auto">
 
                         {/* Summary Stats */}
-                        <div className="px-7 py-5 border-b border-slate-100 dark:border-slate-800">
-                            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-3">
+                        <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800">
+                            <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-3">
                                 {lang === "th" ? "สรุปการเคลื่อนไหว" : "Movement Summary"}
                             </p>
-                            <div className="grid grid-cols-2 gap-3">
-                                {/* Net */}
-                                <div className={`col-span-2 rounded-2xl p-4 border ${detailStats.net >= 0
-                                    ? "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/40"
-                                    : "bg-red-50 dark:bg-red-950/20 border-red-100 dark:border-red-900/40"
+                            <div className="grid grid-cols-2 gap-2">
+                                <div className={`col-span-2 rounded-lg p-3 ${detailStats.net >= 0
+                                    ? "bg-emerald-50 dark:bg-emerald-500/10"
+                                    : "bg-red-50 dark:bg-red-500/10"
                                     }`}>
-                                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-1">
-                                        {lang === "th" ? "ยอดสุทธิ (นำเข้า - ออก)" : "Net Change (In - Out)"}
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-0.5">
+                                        {lang === "th" ? "ยอดสุทธิ" : "Net Change"}
                                     </p>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-1.5">
                                         {detailStats.net >= 0
-                                            ? <TrendingUp className="h-5 w-5 text-emerald-600" />
-                                            : <TrendingDown className="h-5 w-5 text-red-600" />
+                                            ? <TrendingUp className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                            : <TrendingDown className="h-4 w-4 text-red-600 dark:text-red-400" />
                                         }
-                                        <span className={`text-2xl font-bold tabular-nums ${detailStats.net >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400"}`}>
+                                        <span className={`text-xl font-bold tabular-nums ${detailStats.net >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
                                             {detailStats.net >= 0 ? "+" : ""}{detailStats.net.toLocaleString()}
                                         </span>
                                     </div>
                                 </div>
 
-                                {/* Import */}
-                                <div className="rounded-2xl p-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-                                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">
-                                        {lang === "th" ? "นำเข้าคลัง" : "Imported"}
-                                    </p>
-                                    <div className="flex items-center gap-1.5">
-                                        <ArrowDownRight className="h-4 w-4 text-emerald-500" />
-                                        <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
-                                            +{detailStats.totalImport.toLocaleString()}
-                                        </span>
-                                    </div>
+                                <div className="rounded-lg p-3 bg-slate-50 dark:bg-slate-800/50">
+                                    <p className="text-[11px] text-slate-400 mb-0.5">{lang === "th" ? "นำเข้า" : "Import"}</p>
+                                    <span className="text-base font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">+{detailStats.totalImport.toLocaleString()}</span>
                                 </div>
-
-                                {/* Withdraw */}
-                                <div className="rounded-2xl p-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-                                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">
-                                        {lang === "th" ? "เบิกออก" : "Withdrawn"}
-                                    </p>
-                                    <div className="flex items-center gap-1.5">
-                                        <ArrowUpRight className="h-4 w-4 text-orange-500" />
-                                        <span className="text-lg font-bold text-orange-600 dark:text-orange-400 tabular-nums">
-                                            -{detailStats.totalWithdraw.toLocaleString()}
-                                        </span>
-                                    </div>
+                                <div className="rounded-lg p-3 bg-slate-50 dark:bg-slate-800/50">
+                                    <p className="text-[11px] text-slate-400 mb-0.5">{lang === "th" ? "เบิกออก" : "Withdraw"}</p>
+                                    <span className="text-base font-bold text-orange-600 dark:text-orange-400 tabular-nums">-{detailStats.totalWithdraw.toLocaleString()}</span>
                                 </div>
-
-                                {/* Cut */}
-                                <div className="rounded-2xl p-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-                                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">
-                                        {lang === "th" ? "ตัด/แปรรูป" : "Cut"}
-                                    </p>
-                                    <div className="flex items-center gap-1.5">
-                                        <Scissors className="h-4 w-4 text-blue-500" />
-                                        <span className="text-lg font-bold text-blue-600 dark:text-blue-400 tabular-nums">
-                                            -{detailStats.totalCut.toLocaleString()}
-                                        </span>
-                                    </div>
+                                <div className="rounded-lg p-3 bg-slate-50 dark:bg-slate-800/50">
+                                    <p className="text-[11px] text-slate-400 mb-0.5">{lang === "th" ? "ตัด/แปรรูป" : "Cut"}</p>
+                                    <span className="text-base font-bold text-blue-600 dark:text-blue-400 tabular-nums">-{detailStats.totalCut.toLocaleString()}</span>
                                 </div>
-
-                                {/* Claim */}
-                                <div className="rounded-2xl p-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-                                    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">
-                                        {lang === "th" ? "เคลม" : "Claimed"}
-                                    </p>
-                                    <div className="flex items-center gap-1.5">
-                                        <FileWarning className="h-4 w-4 text-red-500" />
-                                        <span className="text-lg font-bold text-red-600 dark:text-red-400 tabular-nums">
-                                            -{detailStats.totalClaim.toLocaleString()}
-                                        </span>
-                                    </div>
+                                <div className="rounded-lg p-3 bg-slate-50 dark:bg-slate-800/50">
+                                    <p className="text-[11px] text-slate-400 mb-0.5">{lang === "th" ? "เคลม" : "Claim"}</p>
+                                    <span className="text-base font-bold text-red-600 dark:text-red-400 tabular-nums">-{detailStats.totalClaim.toLocaleString()}</span>
                                 </div>
                             </div>
                         </div>
@@ -1031,8 +882,8 @@ export default function MaterialLogsPage() {
                             }
                             const panePositions = [...byPane.values()];
                             return (
-                                <div className="px-7 py-5 border-b border-slate-100 dark:border-slate-800">
-                                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-3">
+                                <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800">
+                                    <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-3">
                                         {lang === "th" ? `กระจกที่ตัดจากวัสดุนี้ (${panePositions.length} ชิ้น)` : `Panes cut from this material (${panePositions.length})`}
                                     </p>
                                     <div className="flex flex-col gap-2">
@@ -1074,34 +925,32 @@ export default function MaterialLogsPage() {
                         })()}
 
                         {/* Merged Timeline */}
-                        <div className="px-7 py-5">
-                            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-5">
+                        <div className="px-6 py-5">
+                            <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-4">
                                 {lang === "th" ? "ไทม์ไลน์ทั้งหมด" : "Full Timeline"}
-                                <span className="ml-2 normal-case font-bold text-slate-300 dark:text-slate-600">
+                                <span className="ml-1.5 normal-case text-slate-300 dark:text-slate-600">
                                     ({lang === "th" ? "เก่าสุดขึ้นก่อน" : "oldest first"})
                                 </span>
                             </p>
 
                             {timelineLoading ? (
-                                <div className="flex flex-col gap-4">
+                                <div className="flex flex-col gap-3">
                                     {[...Array(4)].map((_, i) => (
                                         <div key={i} className="relative pl-7">
                                             <div className="absolute left-0 top-1.5 w-3 h-3 rounded-full bg-slate-200 dark:bg-slate-700 animate-pulse" />
-                                            <div className="rounded-2xl border border-slate-100 dark:border-slate-800 p-4 space-y-2">
-                                                <div className="h-5 w-24 rounded-full bg-slate-100 dark:bg-slate-800 animate-pulse" />
-                                                <div className="h-3.5 w-40 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
-                                                <div className="flex gap-2 pt-2 border-t border-slate-50 dark:border-slate-800">
-                                                    <div className="h-6 w-16 rounded-lg bg-slate-100 dark:bg-slate-800 animate-pulse" />
-                                                    <div className="h-6 w-20 rounded-lg bg-slate-100 dark:bg-slate-800 animate-pulse" />
-                                                </div>
+                                            <div className="rounded-lg border border-slate-100 dark:border-slate-800 p-3 space-y-2">
+                                                <div className="h-4 w-24 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                                                <div className="h-3 w-40 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
                                             </div>
                                         </div>
                                     ))}
                                 </div>
                             ) : timeline.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center py-16 text-slate-400 dark:text-slate-600">
-                                    <History className="h-10 w-10 mb-3 opacity-20" />
-                                    <p className="font-bold text-sm">{lang === "th" ? "ไม่พบประวัติ" : "No history found"}</p>
+                                <div className="flex flex-col items-center justify-center py-16">
+                                    <div className="h-12 w-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-2">
+                                        <History className="h-6 w-6 text-slate-400 dark:text-slate-500" />
+                                    </div>
+                                    <p className="text-sm text-slate-500 dark:text-slate-400">{lang === "th" ? "ไม่พบประวัติ" : "No history found"}</p>
                                 </div>
                             ) : (
                                 <div className="relative">
@@ -1122,49 +971,46 @@ export default function MaterialLogsPage() {
                                                 const moveLocs = getMoveLocations(matLog, moveSourceIds, invMap, parentLogMap, logById);
                                                 const singleLoc = !moveLocs ? getLocation(matLog, invMap) : null;
                                                 return (
-                                                    <div key={matLog._id} className="relative pl-7 pb-6">
+                                                    <div key={matLog._id} className="relative pl-7 pb-4">
                                                         <div className="absolute left-0 top-1.5">{renderActionDot(matLog)}</div>
-                                                        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-4 hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
-                                                            <div className="flex items-start justify-between gap-3 mb-3">
+                                                        <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-800 p-3 hover:border-slate-200 dark:hover:border-slate-700 transition-colors">
+                                                            <div className="flex items-start justify-between gap-3 mb-2">
                                                                 <div className="flex flex-col gap-1">
                                                                     {renderActionBadge(matLog)}
-                                                                    <div className="flex items-center gap-1 text-[11px] text-slate-400 font-bold mt-1">
-                                                                        <Clock className="h-3 w-3" />
+                                                                    <div className="flex items-center gap-1 text-[11px] text-slate-400 mt-0.5">
+                                                                        <Clock className="h-2.5 w-2.5" />
                                                                         {new Date(matLog.createdAt).toLocaleString(lang === "th" ? "th-TH" : "en-US", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                                                                     </div>
                                                                 </div>
                                                                 <div className="text-right shrink-0">{renderQuantityChanged(matLog.quantityChanged)}</div>
                                                             </div>
-                                                            <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-50 dark:border-slate-800">
+                                                            <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-50 dark:border-slate-800">
                                                                 {stockType && (
-                                                                    <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg border ${stockType === "Raw" ? "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700" : "bg-violet-50 text-violet-700 border-violet-100 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-900/40"}`}>{stockType}</span>
+                                                                    <span className={`text-[11px] font-medium px-2 py-0.5 rounded-md ${stockType === "Raw" ? "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400" : "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"}`}>{stockType}</span>
                                                                 )}
                                                                 {singleLoc && (
-                                                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-100 dark:border-slate-700">
-                                                                        <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>
-                                                                        {singleLoc}
-                                                                    </span>
+                                                                    <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 px-2 py-0.5 rounded-md">{singleLoc}</span>
                                                                 )}
                                                                 {moveLocs && (
-                                                                    <div className="flex items-center gap-1 text-[11px] font-semibold text-violet-700 dark:text-violet-400 flex-wrap">
-                                                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border bg-violet-50 border-violet-100 dark:bg-violet-950/30 dark:border-violet-900/40"><svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>{lang === "th" ? "จาก" : "From"}: {moveLocs.from ?? '?'}</span>
+                                                                    <div className="flex items-center gap-1 text-[11px] font-medium text-violet-600 dark:text-violet-400">
+                                                                        <span className="px-1.5 py-0.5 rounded bg-violet-50 dark:bg-violet-500/10">{moveLocs.from ?? '?'}</span>
                                                                         <ChevronRight className="h-3 w-3 text-slate-400 shrink-0" />
-                                                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border bg-violet-50 border-violet-100 dark:bg-violet-950/30 dark:border-violet-900/40"><svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/></svg>{lang === "th" ? "ไปยัง" : "To"}: {moveLocs.to ?? '?'}</span>
+                                                                        <span className="px-1.5 py-0.5 rounded bg-violet-50 dark:bg-violet-500/10">{moveLocs.to ?? '?'}</span>
                                                                     </div>
                                                                 )}
                                                                 {workerName && (
-                                                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-100 dark:border-slate-700">
-                                                                        <User className="h-3 w-3" />{workerName}{workerRole ? ` · ${workerRole}` : ''}
+                                                                    <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 px-2 py-0.5 rounded-md">
+                                                                        <User className="h-2.5 w-2.5 inline mr-1" />{workerName}
                                                                     </span>
                                                                 )}
                                                                 {ordId && (
-                                                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#1B4B9A] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 px-2.5 py-1 rounded-lg border border-blue-100 dark:border-blue-900/40">
-                                                                        <Package className="h-3 w-3" />{lang === "th" ? "ออเดอร์" : "Order"} #{ordId.slice(-6).toUpperCase()}
+                                                                    <span className="text-[11px] font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 rounded-md">
+                                                                        #{ordId.slice(-6).toUpperCase()}
                                                                     </span>
                                                                 )}
                                                                 {matLog.referenceType && matLog.referenceId && (
-                                                                    <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg border ${matLog.referenceType === "withdrawal" ? "text-orange-700 bg-orange-50 border-orange-100 dark:text-orange-400 dark:bg-orange-950/30 dark:border-orange-900/40" : "text-red-700 bg-red-50 border-red-100 dark:text-red-400 dark:bg-red-950/30 dark:border-red-900/40"}`}>
-                                                                        <Link2 className="h-3 w-3" />{REF_TYPE_LABELS[matLog.referenceType]?.[lang] ?? matLog.referenceType} #{matLog.referenceId.slice(-6).toUpperCase()}
+                                                                    <span className={`text-[11px] font-medium px-2 py-0.5 rounded-md ${matLog.referenceType === "withdrawal" ? "text-orange-600 bg-orange-50 dark:text-orange-400 dark:bg-orange-500/10" : "text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-500/10"}`}>
+                                                                        {REF_TYPE_LABELS[matLog.referenceType]?.[lang] ?? matLog.referenceType} #{matLog.referenceId.slice(-6).toUpperCase()}
                                                                     </span>
                                                                 )}
                                                             </div>
@@ -1185,38 +1031,32 @@ export default function MaterialLogsPage() {
                                                     complete: { label: lang === "th" ? "เสร็จสิ้น" : "Completed",       icon: <CheckCircle2 className="h-3 w-3" />, dot: "bg-emerald-500", cls: "bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/40" },
                                                 }[paneLog.action];
                                                 return (
-                                                    <div key={paneLog._id} className="relative pl-7 pb-6">
+                                                    <div key={paneLog._id} className="relative pl-7 pb-4">
                                                         <div className={`absolute left-0 top-1.5 w-3 h-3 rounded-full ${actionCfg?.dot ?? "bg-slate-400"}`} />
-                                                        <div className="bg-indigo-50/40 dark:bg-indigo-950/10 rounded-2xl border border-indigo-100 dark:border-indigo-900/30 p-4 hover:border-indigo-200 dark:hover:border-indigo-800 transition-colors">
-                                                            <div className="flex items-start justify-between gap-3 mb-3">
+                                                        <div className="bg-slate-50/50 dark:bg-slate-800/30 rounded-lg border border-slate-100 dark:border-slate-800 p-3 hover:border-slate-200 dark:hover:border-slate-700 transition-colors">
+                                                            <div className="flex items-start justify-between gap-3 mb-2">
                                                                 <div className="flex flex-col gap-1">
-                                                                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border ${actionCfg?.cls ?? ""}`}>
+                                                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium border ${actionCfg?.cls ?? ""}`}>
                                                                         {actionCfg?.icon}
                                                                         {actionCfg?.label ?? paneLog.action}
                                                                     </span>
-                                                                    <div className="flex items-center gap-1 text-[11px] text-slate-400 font-bold mt-1">
-                                                                        <Clock className="h-3 w-3" />
+                                                                    <div className="flex items-center gap-1 text-[11px] text-slate-400 mt-0.5">
+                                                                        <Clock className="h-2.5 w-2.5" />
                                                                         {new Date(paneLog.createdAt).toLocaleString(lang === "th" ? "th-TH" : "en-US", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                                                                     </div>
                                                                 </div>
-                                                                <div className="flex items-center gap-1 shrink-0">
-                                                                    <Cpu className="h-3.5 w-3.5 text-indigo-400" />
-                                                                    <span className="font-mono text-xs font-bold text-indigo-700 dark:text-indigo-300">{pane?.paneNumber ?? "—"}</span>
-                                                                </div>
+                                                                <span className="font-mono text-xs font-medium text-slate-600 dark:text-slate-300 shrink-0">{pane?.paneNumber ?? "—"}</span>
                                                             </div>
-                                                            <div className="flex flex-wrap gap-2 pt-2 border-t border-indigo-100/50 dark:border-indigo-900/20">
-                                                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
-                                                                    <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-                                                                    {paneLog.station}
-                                                                </span>
+                                                            <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+                                                                <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 px-2 py-0.5 rounded-md">{paneLog.station}</span>
                                                                 {order && (
-                                                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#1B4B9A] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 px-2.5 py-1 rounded-lg border border-blue-100 dark:border-blue-900/40">
-                                                                        <Package className="h-3 w-3" />{lang === "th" ? "ออเดอร์" : "Order"} #{(order._id ?? "").slice(-6).toUpperCase()}
+                                                                    <span className="text-[11px] font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 rounded-md">
+                                                                        #{(order._id ?? "").slice(-6).toUpperCase()}
                                                                     </span>
                                                                 )}
                                                                 {workerName && (
-                                                                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
-                                                                        <User className="h-3 w-3" />{workerName}
+                                                                    <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 px-2 py-0.5 rounded-md">
+                                                                        <User className="h-2.5 w-2.5 inline mr-1" />{workerName}
                                                                     </span>
                                                                 )}
                                                             </div>
@@ -1233,14 +1073,14 @@ export default function MaterialLogsPage() {
                     </div>
 
                 {/* Panel Footer */}
-                <div className="shrink-0 px-7 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900">
+                <div className="shrink-0 px-6 py-3 border-t border-slate-100 dark:border-slate-800">
                     <div className="flex items-center justify-between">
-                        <span className="text-[11px] text-slate-400 font-bold">
-                            {lang === "th" ? "ข้อมูล ณ เวลา" : "Data as of"} {lastUpdated?.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) ?? "—"}
+                        <span className="text-xs text-slate-400">
+                            {lang === "th" ? "ข้อมูล ณ" : "As of"} {lastUpdated?.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) ?? "—"}
                         </span>
-                        <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                        <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
                             <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                            {lang === "th" ? "อัปเดตอัตโนมัติผ่าน WebSocket" : "Auto-updating via WebSocket"}
+                            Live
                         </div>
                     </div>
                 </div>
