@@ -5,9 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import {
     ArrowLeft, Loader2, AlertCircle, Factory,
     User, Package, Calendar, MapPin, Hash, Clock,
-    Printer, Info, CheckCheck, ChevronRight, QrCode,
+    Printer, Info, CheckCheck, ChevronRight,
 } from "lucide-react";
-import { QrCodeModal } from "@/components/qr/QrCodeModal";
 import { Button } from "@/components/ui/button";
 import { ordersApi } from "@/lib/api/orders";
 import { panesApi } from "@/lib/api/panes";
@@ -57,16 +56,37 @@ const fmtDate = (d?: string) =>
 
 // ── station journey ───────────────────────────────────────────────────────────
 function StationJourney({
-    order, stationMap, colorMap,
+    order, stationMap, colorMap, panes,
 }: {
     order: Order;
     stationMap: Map<string, Station>;
     colorMap: Record<string, string>;
+    panes: Pane[];
 }) {
     const stationIds  = order.stations ?? [];
-    const currentIdx  = order.currentStationIndex ?? 0;
     const isDone      = order.status === "completed";
     const isCancelled = order.status === "cancelled";
+    const total       = panes.length;
+
+    const stationIdxMap = new Map<string, number>();
+    stationIds.forEach((sid, i) => {
+        stationIdxMap.set(sid, i);
+        const s = stationMap.get(sid);
+        if (s?.name) stationIdxMap.set(s.name, i);
+    });
+    const stStats = new Map<string, { here: number; passed: number }>();
+    for (const sid of stationIds) stStats.set(sid, { here: 0, passed: 0 });
+    if (total > 0) {
+        for (const p of panes) {
+            const pIdx = stationIdxMap.get(p.currentStation) ?? -1;
+            const done = p.currentStatus === "completed";
+            for (let i = 0; i < stationIds.length; i++) {
+                const s = stStats.get(stationIds[i])!;
+                if (done || pIdx > i) s.passed++;
+                else if (pIdx === i) s.here++;
+            }
+        }
+    }
 
     if (!stationIds.length) {
         return (
@@ -85,9 +105,21 @@ function StationJourney({
                 const station  = stationMap.get(sid);
                 const colorId  = colorMap[sid] ?? station?.colorId ?? "sky";
                 const color    = getColorOption(colorId);
-                const isPast   = isDone || idx < currentIdx;
-                const isCur    = !isDone && !isCancelled && idx === currentIdx;
-                const isFuture = !isDone && !isCancelled && idx > currentIdx;
+                const st       = stStats.get(sid) ?? { here: 0, passed: 0 };
+                const pct      = total > 0 ? Math.round((st.passed / total) * 100) : 0;
+
+                let isPast: boolean, isCur: boolean, isFuture: boolean;
+                if (total > 0) {
+                    isPast   = isDone || st.passed === total;
+                    isCur    = !isDone && !isCancelled && st.here > 0;
+                    isFuture = !isDone && !isCancelled && !isPast && !isCur;
+                } else {
+                    const currentIdx = order.currentStationIndex ?? 0;
+                    isPast   = isDone || idx < currentIdx;
+                    isCur    = !isDone && !isCancelled && idx === currentIdx;
+                    isFuture = !isDone && !isCancelled && idx > currentIdx;
+                }
+
                 const isFirst  = idx === 0;
                 const isLast   = idx === stationIds.length - 1;
 
@@ -163,28 +195,58 @@ function StationJourney({
                                             >
                                                 {station?.name ?? sid}
                                             </span>
-                                            {isCur && (
-                                                <div className="text-[11px] font-semibold mt-0.5 flex items-center gap-1 text-blue-600 dark:text-[#E8601C]">
-                                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                                    กำลังดำเนินการ...
+                                            {!isCancelled && total > 0 ? (
+                                                <div className="text-[11px] font-semibold mt-0.5 flex items-center gap-1">
+                                                    {st.here > 0 ? (
+                                                        <span className="text-blue-600 dark:text-[#E8601C] flex items-center gap-1">
+                                                            <Loader2 className="h-3 w-3 animate-spin" />
+                                                            {st.here} ชิ้นอยู่ที่นี่
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-slate-400 dark:text-slate-500 font-medium">
+                                                            0 ชิ้น
+                                                        </span>
+                                                    )}
                                                 </div>
-                                            )}
-                                            {isPast && !isCur && (
-                                                <div className="text-[11px] font-medium text-green-600 dark:text-green-400 mt-0.5 flex items-center gap-1">
-                                                    <CheckCheck className="h-3 w-3" />
-                                                    เสร็จแล้ว
-                                                </div>
-                                            )}
+                                            ) : !isCancelled && total === 0 ? (
+                                                <>
+                                                    {isCur && (
+                                                        <div className="text-[11px] font-semibold mt-0.5 flex items-center gap-1 text-blue-600 dark:text-[#E8601C]">
+                                                            <Loader2 className="h-3 w-3 animate-spin" />
+                                                            กำลังดำเนินการ...
+                                                        </div>
+                                                    )}
+                                                    {isPast && !isCur && (
+                                                        <div className="text-[11px] font-medium text-green-600 dark:text-green-400 mt-0.5 flex items-center gap-1">
+                                                            <CheckCheck className="h-3 w-3" />
+                                                            เสร็จแล้ว
+                                                        </div>
+                                                    )}
+                                                </>
+                                            ) : null}
                                         </div>
                                     </div>
                                     {isCur && (
                                         <div className="flex items-center gap-1.5 px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-md border border-slate-200 dark:border-slate-700 shrink-0 relative">
                                             <span className="h-1.5 w-1.5 rounded-full animate-ping absolute left-2 bg-blue-500 dark:bg-[#E8601C]" />
                                             <span className="h-1.5 w-1.5 rounded-full relative bg-blue-500 dark:bg-[#E8601C]" />
-                                            <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase">Active</span>
+                                            <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase">
+                                                {total > 0 ? `${st.here} ชิ้น` : "Active"}
+                                            </span>
                                         </div>
                                     )}
                                 </div>
+
+                                {total > 0 && !isCancelled && (
+                                    <div className="mt-2.5 w-full h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                                        <div
+                                            className={`h-full rounded-full transition-all duration-500 ${
+                                                isPast ? "bg-green-500" : isCur ? "bg-blue-500 dark:bg-[#E8601C]" : "bg-slate-300 dark:bg-slate-600"
+                                            }`}
+                                            style={{ width: `${pct}%` }}
+                                        />
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -277,7 +339,6 @@ export default function ProductionDetailPage() {
     const [billOrders, setBillOrders] = useState<Order[]>([]);
     const [stations,   setStations]   = useState<Station[]>([]);
     const [panes,      setPanes]      = useState<Pane[]>([]);
-    const [qrPane,     setQrPane]     = useState<Pane | null>(null);
     const [colorMap,   setColorMap]   = useState<Record<string, string>>({});
     const [loading,    setLoading]    = useState(true);
     const [error,      setError]      = useState<string | null>(null);
@@ -347,6 +408,21 @@ export default function ProductionDetailPage() {
     );
 
     const statusCfg = ORDER_STATUS[order.status as keyof typeof ORDER_STATUS] ?? ORDER_STATUS.pending;
+
+    const stationLookup = new Map<string, number>();
+    (order.stations ?? []).forEach((sid, i) => {
+        stationLookup.set(sid, i);
+        const st = stationMap.get(sid);
+        if (st?.name) stationLookup.set(st.name, i);
+    });
+
+    const doneStationCount = (() => {
+        const ids = order.stations ?? [];
+        if (!ids.length || !panes.length) return order.status === "completed" ? ids.length : 0;
+        return ids.filter((_, idx) =>
+            panes.every(p => p.currentStatus === "completed" || (stationLookup.get(p.currentStation) ?? -1) > idx)
+        ).length;
+    })();
 
     return (
         <>
@@ -459,7 +535,7 @@ export default function ProductionDetailPage() {
                                 <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700 whitespace-nowrap">
                                     {order.status === "completed"
                                         ? `ผ่านแล้ว ${order.stations.length} สถานี`
-                                        : `${(order.currentStationIndex ?? 0) + 1} / ${order.stations.length} สถานี`
+                                        : `${doneStationCount} / ${order.stations.length} สถานีเสร็จ`
                                     }
                                 </span>
                             )}
@@ -470,6 +546,7 @@ export default function ProductionDetailPage() {
                                 order={order}
                                 stationMap={stationMap}
                                 colorMap={colorMap}
+                                panes={panes}
                             />
                         </div>
 
@@ -492,8 +569,13 @@ export default function ProductionDetailPage() {
                                         const station = stationMap.get(sid);
                                         const colorId = colorMap[sid] ?? station?.colorId ?? "sky";
                                         const color   = getColorOption(colorId);
-                                        const isDone  = order.status === "completed" || idx < (order.currentStationIndex ?? 0);
-                                        const isCur   = order.status !== "completed" && idx === (order.currentStationIndex ?? 0);
+                                        const pHere   = panes.filter(p => (stationLookup.get(p.currentStation) ?? -1) === idx).length;
+                                        const pPassed = panes.length > 0 ? panes.filter(p => {
+                                            if (p.currentStatus === "completed") return true;
+                                            return (stationLookup.get(p.currentStation) ?? -1) > idx;
+                                        }).length : 0;
+                                        const isDone  = order.status === "completed" || (panes.length > 0 ? pPassed === panes.length : idx < (order.currentStationIndex ?? 0));
+                                        const isCur   = order.status !== "completed" && order.status !== "cancelled" && (panes.length > 0 ? pHere > 0 : idx === (order.currentStationIndex ?? 0));
                                         return (
                                             <span
                                                 key={sid}
@@ -561,15 +643,13 @@ export default function ProductionDetailPage() {
                                 })();
 
                                 return (
-                                    <button
+                                    <div
                                         key={pane._id}
-                                        type="button"
-                                        onClick={() => setQrPane(pane)}
-                                        className="group/pane relative overflow-hidden flex flex-col gap-2.5 p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-[#E8601C]/50 hover:shadow-lg hover:-translate-y-0.5 shadow-sm transition-all text-left w-full"
+                                        className="relative overflow-hidden flex flex-col gap-2.5 p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm text-left w-full"
                                     >
                                         <div className="flex items-center justify-between w-full">
                                             <div className="flex items-center gap-2.5">
-                                                <QrCode className="h-4 w-4 text-slate-300 group-hover/pane:text-blue-500 dark:group-hover/pane:text-[#E8601C] transition-colors" />
+                                                <Package className="h-4 w-4 text-slate-300" />
                                                 <span className="font-mono text-sm font-bold text-slate-800 dark:text-slate-200">{pane.paneNumber}</span>
                                             </div>
                                             <span className={`flex items-center gap-1.5 text-[10px] font-bold px-2 py-1 rounded-lg ${stCfg.bg} dark:bg-transparent ${stCfg.text} border border-transparent dark:border-slate-800`}>
@@ -591,11 +671,11 @@ export default function ProductionDetailPage() {
                                             </div>
                                         </div>
                                         {pane.currentStatus === "completed" && (
-                                            <div className="absolute top-0 right-0 p-1.5 bg-green-500 rounded-bl-2xl translate-x-2 -translate-y-2 group-hover/pane:translate-x-0 group-hover/pane:translate-y-0 transition-transform opacity-0 group-hover/pane:opacity-100">
+                                            <div className="absolute top-0 right-0 p-1.5 bg-green-500 rounded-bl-2xl">
                                                 <CheckCheck className="h-4 w-4 text-white" />
                                             </div>
                                         )}
-                                    </button>
+                                    </div>
                                 );
                             })}
                         </div>
@@ -604,17 +684,6 @@ export default function ProductionDetailPage() {
             )}
         </div>
 
-        {qrPane && (
-            <QrCodeModal
-                code={qrPane.paneNumber}
-                label={[
-                    qrPane.glassTypeLabel,
-                    qrPane.dimensions ? `${qrPane.dimensions.width}×${qrPane.dimensions.height}${qrPane.dimensions.thickness > 0 ? ` (${qrPane.dimensions.thickness}mm)` : ""}` : "",
-                ].filter(Boolean).join(" — ")}
-                value={qrPane.qrCode || `STDPLUS:${qrPane.paneNumber}`}
-                onClose={() => setQrPane(null)}
-            />
-        )}
         </>
     );
 }
