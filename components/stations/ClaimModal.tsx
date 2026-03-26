@@ -120,6 +120,8 @@ export function ClaimModal({ stationId, onClose }: ClaimModalProps) {
             let res = await claimsApi.createFromPane({
                 paneNumber: pane.paneNumber,
                 description: description.trim(),
+                source: "worker",
+                reportedBy: user?._id,
             });
 
             if (!res.success) {
@@ -144,6 +146,8 @@ export function ClaimModal({ stationId, onClose }: ClaimModalProps) {
                     res = await claimsApi.createFromPane({
                         paneNumber: pane.paneNumber,
                         description: description.trim(),
+                        source: "worker",
+                        reportedBy: user?._id,
                         photos: photos.length ? photos : undefined,
                     });
                 }

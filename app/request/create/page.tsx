@@ -260,6 +260,21 @@ export default function CreateBillPage() {
     // ── Pricing calc for active pane ─────────────────────────────────────────
     const pricingCalc = useMemo(() => calcPanePrice(ap), [ap]);
 
+    // ── Auto-fill pricePerSqFt + grindingRate when glassType & thickness are set ──
+    useEffect(() => {
+        if (!ap.glassType || !ap.thickness) return;
+        const suggested = pricingSettings.glassPrices[ap.glassType]?.[ap.thickness];
+        if (!suggested) return;
+        // Only auto-fill if price is still 0 OR was previously auto-filled (not user-edited)
+        if (ap.pricePerSqFt !== 0 && !ap.priceAutoFilled) return;
+        setPanes(prev => prev.map((p, i) =>
+            i === activeTabRef.current
+                ? { ...p, pricePerSqFt: suggested.pricePerSqFt, grindingRate: suggested.grindingRate, priceAutoFilled: true }
+                : p
+        ));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [ap.glassType, ap.thickness, pricingSettings]);
+
     // ── Sync computed price → estimatedPrice on active pane ──────────────────
     useEffect(() => {
         if (ap.pricePerSqFt > 0) {
