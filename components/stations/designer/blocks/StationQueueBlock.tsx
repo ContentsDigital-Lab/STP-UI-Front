@@ -323,9 +323,9 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
             </div>
 
             {/* Scan input */}
-            <div className="flex items-center gap-2">
-                <div className="relative flex-1">
-                    <ScanBarcode className={`absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none ${scanningCount > 0 ? "text-primary animate-pulse" : "text-muted-foreground/50"}`} />
+            <div className="flex flex-col sm:flex-row gap-1.5 sm:gap-2">
+                <div className="relative flex-1 min-w-0">
+                    <ScanBarcode className={`absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none ${scanningCount > 0 ? "text-primary animate-pulse" : "text-muted-foreground/50"}`} />
                     <input
                         ref={inputRef}
                         type="text"
@@ -333,15 +333,16 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                         onKeyDown={handleKeyDown}
                         autoComplete="off"
                         autoFocus
-                        className="w-full rounded-xl border bg-background pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 placeholder:text-muted-foreground/40"
+                        className="w-full rounded-xl border bg-background pl-9 sm:pl-10 pr-3 sm:pr-4 py-2 sm:py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 placeholder:text-muted-foreground/40"
                     />
                 </div>
                 <button
                     onClick={() => setShowCamera(true)}
                     title="สแกนด้วยกล้อง"
-                    className="shrink-0 rounded-xl border border-input bg-background px-3 py-2.5 hover:bg-muted transition-colors"
+                    className="shrink-0 rounded-xl bg-blue-600 hover:bg-blue-500 active:bg-blue-700 sm:bg-background sm:hover:bg-muted sm:border sm:border-input px-2.5 sm:px-3 py-2.5 transition-colors flex items-center justify-center gap-1.5 sm:w-auto"
                 >
-                    <Camera className="h-4 w-4 text-muted-foreground" />
+                    <Camera className="h-4 w-4 text-white sm:text-muted-foreground" />
+                    <span className="sm:hidden text-xs font-medium text-white">สแกนเข้าด้วยกล้อง</span>
                 </button>
             </div>
 
@@ -444,16 +445,16 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                                     }`} />
 
                                                     {/* Pane info */}
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center gap-2 flex-wrap">
-                                                            <span className="font-mono text-xs font-bold text-foreground leading-none">
+                                                    <div className="flex-1 min-w-0 overflow-hidden">
+                                                        <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+                                                            <span className="font-mono text-xs font-bold text-foreground leading-none shrink-0">
                                                                 {pane.paneNumber}
                                                             </span>
                                                             {pane.glassTypeLabel && (
-                                                                <span className="text-[10px] text-muted-foreground">{pane.glassTypeLabel}</span>
+                                                                <span className="text-[10px] text-muted-foreground truncate">{pane.glassTypeLabel}</span>
                                                             )}
                                                             {pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0) && (
-                                                                <span className="text-[10px] text-muted-foreground/60">
+                                                                <span className="text-[10px] text-muted-foreground/60 shrink-0">
                                                                     {pane.dimensions.width}×{pane.dimensions.height}
                                                                     {pane.dimensions.thickness > 0 && ` (${pane.dimensions.thickness}mm)`}
                                                                 </span>
@@ -500,25 +501,27 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                                             onClick={() => doAction(pane, "start")}
                                                             disabled={isLoading || (isCutStation && !pane.withdrawal)}
                                                             title={isCutStation && !pane.withdrawal ? "ต้องเบิกกระจกก่อนเริ่มตัด" : undefined}
-                                                            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+                                                            className="shrink-0 flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
                                                         >
                                                             {isLoading
                                                                 ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                                                 : <Play className="h-3.5 w-3.5" />
                                                             }
-                                                            เริ่มดำเนินการ
+                                                            <span className="hidden sm:inline">เริ่มดำเนินการ</span>
+                                                            <span className="sm:hidden">เริ่ม</span>
                                                         </button>
                                                     ) : (
                                                         <button
                                                             onClick={() => doAction(pane, "complete")}
                                                             disabled={isLoading}
-                                                            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+                                                            className="shrink-0 flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
                                                         >
                                                             {isLoading
                                                                 ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                                                 : <CheckCheck className="h-3.5 w-3.5" />
                                                             }
-                                                            เสร็จสิ้น
+                                                            <span className="hidden sm:inline">เสร็จสิ้น</span>
+                                                            <span className="sm:hidden">เสร็จ</span>
                                                         </button>
                                                     )}
                                                 </div>

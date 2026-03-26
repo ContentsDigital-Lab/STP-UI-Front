@@ -24,7 +24,8 @@ export function CanvasContainer({ children, className = "" }: CanvasContainerPro
             ref={(ref) => { ref && connect(drag(ref)); }}
             className={`
                 relative flex flex-col gap-3
-                min-h-[500px] w-full p-5
+                min-h-[500px] w-full
+                ${isPreview ? "p-1 sm:p-3 lg:p-5 overflow-x-hidden" : "p-5"}
                 ${isPreview
                     ? "bg-background"
                     : `rounded-xl border-2 border-dashed ${selected ? "border-primary/40 bg-primary/5" : "border-muted-foreground/20 bg-background"}`

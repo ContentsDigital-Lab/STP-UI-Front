@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { UserCog, ShieldAlert, Users, Bell, Tag, Settings, DollarSign } from "lucide-react";
+import { UserCog, Users, Bell, Tag, Settings, DollarSign } from "lucide-react";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/lib/auth/auth-context";
 
@@ -40,21 +40,7 @@ export default function SettingsPage() {
                             </CardHeader>
                         </Card>
                     </Link>
-                ) : (
-                    <Card className="h-full shadow-sm opacity-60">
-                        <CardHeader>
-                            <div className="flex items-center gap-2 mb-2">
-                                <div className="p-2 bg-muted rounded-lg text-muted-foreground">
-                                    <ShieldAlert className="h-6 w-6" />
-                                </div>
-                                <CardTitle className="text-xl text-muted-foreground">User Management</CardTitle>
-                            </div>
-                            <CardDescription>
-                                You do not have permission to access user management. Administrator or Manager access is required.
-                            </CardDescription>
-                        </CardHeader>
-                    </Card>
-                )}
+                ) : null}
 
                 {hasUserManagementAccess ? (
                     <Link href="/settings/customers" className="block h-full cursor-pointer transition-transform hover:scale-[1.02]">
@@ -72,21 +58,7 @@ export default function SettingsPage() {
                             </CardHeader>
                         </Card>
                     </Link>
-                ) : (
-                    <Card className="h-full shadow-sm opacity-60">
-                        <CardHeader>
-                            <div className="flex items-center gap-2 mb-2">
-                                <div className="p-2 bg-muted rounded-lg text-muted-foreground">
-                                    <Users className="h-6 w-6" />
-                                </div>
-                                <CardTitle className="text-xl text-muted-foreground">Customer Management</CardTitle>
-                            </div>
-                            <CardDescription>
-                                You do not have permission to access customer management. Administrator or Manager access is required.
-                            </CardDescription>
-                        </CardHeader>
-                    </Card>
-                )}
+                ) : null}
 
                 <Link href="/settings/notifications" className="block h-full cursor-pointer transition-transform hover:scale-[1.02]">
                     <Card className="h-full shadow-sm hover:shadow-md transition-shadow bg-card/60 backdrop-blur-sm border-muted/50 border-primary/20">
@@ -120,21 +92,7 @@ export default function SettingsPage() {
                             </CardHeader>
                         </Card>
                     </Link>
-                ) : (
-                    <Card className="h-full shadow-sm opacity-60">
-                        <CardHeader>
-                            <div className="flex items-center gap-2 mb-2">
-                                <div className="p-2 bg-muted rounded-lg text-muted-foreground">
-                                    <DollarSign className="h-6 w-6" />
-                                </div>
-                                <CardTitle className="text-xl text-muted-foreground">ตั้งค่าราคากระจก</CardTitle>
-                            </div>
-                            <CardDescription>
-                                You do not have permission to access pricing settings. Administrator or Manager access is required.
-                            </CardDescription>
-                        </CardHeader>
-                    </Card>
-                )}
+                ) : null}
 
                 {hasUserManagementAccess ? (
                     <Link href="/settings/sticker" className="block h-full cursor-pointer transition-transform hover:scale-[1.02]">

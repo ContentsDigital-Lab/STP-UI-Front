@@ -237,10 +237,10 @@ export function DesignerCanvas({ templateName, initialNodes, onSave, saving, onS
                         {/* Canvas */}
                         <main
                             ref={mainRef}
-                            className={`flex-1 min-w-0 overflow-auto p-8 transition-colors ${
+                            className={`flex-1 min-w-0 transition-colors ${
                                 isPreview
-                                    ? "bg-white dark:bg-slate-950 [&_*]:!cursor-default"
-                                    : "bg-slate-100 dark:bg-slate-900/60"
+                                    ? "p-2 sm:p-4 lg:p-8 bg-white dark:bg-slate-950 [&_*]:!cursor-default overflow-y-auto overflow-x-hidden"
+                                    : "p-8 bg-slate-100 dark:bg-slate-900/60 overflow-auto"
                             }`}
                         >
                             {isPreview && !previewOnly && (

@@ -169,7 +169,6 @@ export default function ProductionPage() {
     const [expanded,  setExpanded]  = useState<Set<string>>(new Set());
     const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
     const [qrTarget,  setQrTarget]  = useState<{ code: string; label: string; url: string } | null>(null);
-    const [qrPane,    setQrPane]    = useState<Pane | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const ITEMS_PER_PAGE = 10;
 
@@ -637,13 +636,10 @@ export default function ProductionPage() {
                                                                     return st?.name ?? pane.currentStation;
                                                                 })();
                                                                 return (
-                                                                    <button
+                                                                    <div
                                                                         key={pane._id}
-                                                                        type="button"
-                                                                        onClick={() => setQrPane(pane)}
-                                                                        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/30 border border-border/50 hover:bg-muted/60 hover:border-primary/30 transition-colors cursor-pointer text-left w-full"
+                                                                        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/30 border border-border/50 text-left w-full"
                                                                     >
-                                                                        <QrCode className="h-3 w-3 text-muted-foreground/40 shrink-0" />
                                                                         <span className="font-mono text-[11px] font-bold shrink-0">{pane.paneNumber}</span>
                                                                         <span className={`flex items-center gap-1 text-[10px] font-medium ${pSt.text}`}>
                                                                             <span className={`h-1.5 w-1.5 rounded-full ${pSt.dot}`} />
@@ -655,7 +651,7 @@ export default function ProductionPage() {
                                                                             </span>
                                                                         )}
                                                                         <span className="ml-auto text-[10px] text-muted-foreground truncate">{stName}</span>
-                                                                    </button>
+                                                                    </div>
                                                                 );
                                                             })}
                                                         </div>
@@ -715,17 +711,6 @@ export default function ProductionPage() {
                 label={qrTarget.label}
                 value={qrTarget.url}
                 onClose={() => setQrTarget(null)}
-            />
-        )}
-        {qrPane && (
-            <QrCodeModal
-                code={qrPane.paneNumber}
-                label={[
-                    qrPane.glassTypeLabel,
-                    qrPane.dimensions ? `${qrPane.dimensions.width}×${qrPane.dimensions.height}${qrPane.dimensions.thickness > 0 ? ` (${qrPane.dimensions.thickness}mm)` : ""}` : "",
-                ].filter(Boolean).join(" — ")}
-                value={qrPane.qrCode || `STDPLUS:${qrPane.paneNumber}`}
-                onClose={() => setQrPane(null)}
             />
         )}
         </>

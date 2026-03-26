@@ -60,7 +60,7 @@ import { Customer, Worker, Material } from "@/lib/api/types";
 import { materialsApi } from "@/lib/api/materials";
 import jsPDF from "jspdf";
 import { toast } from "sonner";
-import { getCachedPricingSettings, cachePricingSettings, type PricingSettings } from "@/lib/pricing-settings";
+import { getCachedPricingSettings, cachePricingSettings, DEFAULT_PRICING, type PricingSettings } from "@/lib/pricing-settings";
 import { pricingSettingsApi } from "@/lib/api/pricing-settings";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 
@@ -303,8 +303,15 @@ export default function CreateBillPage() {
     useEffect(() => {
         pricingSettingsApi.get().then(res => {
             if (res.data) {
-                setPricingSettings(res.data);
-                cachePricingSettings(res.data);
+                // Merge: if server has empty glassPrices (old DB document), fall back to defaults
+                const merged: PricingSettings = {
+                    ...res.data,
+                    glassPrices: Object.keys(res.data.glassPrices ?? {}).length > 0
+                        ? res.data.glassPrices
+                        : DEFAULT_PRICING.glassPrices,
+                };
+                setPricingSettings(merged);
+                cachePricingSettings(merged);
             }
         }).catch(() => {});
     }, []);
