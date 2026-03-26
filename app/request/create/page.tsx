@@ -62,6 +62,7 @@ import jsPDF from "jspdf";
 import { toast } from "sonner";
 import { getCachedPricingSettings, cachePricingSettings, DEFAULT_PRICING, type PricingSettings } from "@/lib/pricing-settings";
 import { pricingSettingsApi } from "@/lib/api/pricing-settings";
+import { jobTypesApi, type JobType } from "@/lib/api/job-types";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 
 // ─── Multi-pane spec type ────────────────────────────────────────────────────
@@ -82,6 +83,9 @@ interface PaneSpec {
     notchQty: number;
     notchPrice: number;
     priceAutoFilled: boolean;
+    rawGlassType: string;
+    rawGlassColor: string;
+    sheetsPerPane: number;
 }
 
 let _paneIdSeq = 0;
@@ -101,6 +105,9 @@ const createDefaultPane = (ps: PricingSettings): PaneSpec => ({
     notchQty: 0,
     notchPrice: ps.notchPrice,
     priceAutoFilled: false,
+    rawGlassType: "",
+    rawGlassColor: "",
+    sheetsPerPane: 1,
 });
 
 const EDGE_THRESHOLD = 5; // mm — cutout within this distance of an edge counts as a notch
@@ -250,6 +257,8 @@ export default function CreateBillPage() {
     const [glassTypeOpen, setGlassTypeOpen] = useState(false);
     const [glassTypeSearch, setGlassTypeSearch] = useState("");
     const [glassTypes, setGlassTypes] = useState(['Clear', 'Tinted', 'Tempered', 'Laminated', 'Low-E', 'Reflective', 'Frosted', 'Patterned']);
+    const [jobTypeOptions, setJobTypeOptions] = useState<JobType[]>([]);
+    const [rawGlassTypeOptions, setRawGlassTypeOptions] = useState<string[]>([]);
     const [thicknessOpen, setThicknessOpen] = useState(false);
     const [thicknessSearch, setThicknessSearch] = useState("");
     const [thicknesses, setThicknesses] = useState(['3mm', '5mm', '6mm', '8mm', '10mm', '12mm', '15mm', '19mm']);
@@ -317,6 +326,18 @@ export default function CreateBillPage() {
         }).catch(() => {});
     }, []);
 
+    // ── Load job types from API ───────────────────────────────────────────────
+    useEffect(() => {
+        jobTypesApi.getAll().then(res => {
+            if (res.success && res.data && res.data.length > 0) {
+                const active = res.data.filter(jt => jt.isActive);
+                setJobTypeOptions(active);
+                // Replace glassTypes list with job type codes from API
+                setGlassTypes(active.map(jt => jt.code));
+            }
+        }).catch(() => {/* fallback to hardcoded defaults */});
+    }, []);
+
     // ── Subscribe to pricing:updated WebSocket event ─────────────────────────
     useWebSocket('pricing', ['pricing:updated'], (event, data) => {
         if (event === 'pricing:updated') {
@@ -349,22 +370,19 @@ export default function CreateBillPage() {
                 if (workerRes.success && workerRes.data) setWorkers(workerRes.data);
 
                 if (matRes?.success && matRes.data) {
-                    const extraTypes = new Set<string>();
+                    const rawTypes = new Set<string>();
                     const extraThicknesses = new Set<string>();
                     for (const mat of matRes.data) {
                         const gt = mat.specDetails?.glassType?.trim();
                         const th = mat.specDetails?.thickness?.trim();
-                        if (gt) extraTypes.add(gt);
+                        if (gt) rawTypes.add(gt);
                         if (th) {
                             const num = parseInt(th);
                             extraThicknesses.add(isNaN(num) ? th : `${num}mm`);
                         }
                     }
-                    setGlassTypes(prev => {
-                        const merged = [...prev];
-                        for (const t of extraTypes) if (!merged.includes(t)) merged.push(t);
-                        return merged;
-                    });
+                    // rawGlassTypeOptions = ชนิดกระจกดิบจากคลัง (Clear, Tinted, ...)
+                    if (rawTypes.size > 0) setRawGlassTypeOptions([...rawTypes]);
                     setThicknesses(prev => {
                         const merged = new Set(prev);
                         for (const t of extraThicknesses) merged.add(t);
@@ -463,9 +481,11 @@ export default function CreateBillPage() {
         const currentThicknessValid = !typeThicknesses || typeThicknesses.includes(ap.thickness);
         const newThickness = currentThicknessValid ? ap.thickness : "";
         const suggested = newThickness ? pricingSettings.glassPrices[type]?.[newThickness] : null;
+        const jt = jobTypeOptions.find(j => j.code === type);
         updatePane({
             glassType: type,
             thickness: newThickness,
+            sheetsPerPane: jt?.sheetsPerPane ?? (/laminated/i.test(type) ? 2 : 1),
             ...(suggested ? { pricePerSqFt: suggested.pricePerSqFt, grindingRate: suggested.grindingRate, priceAutoFilled: true } : { pricePerSqFt: 0, grindingRate: 50, priceAutoFilled: false }),
         });
         setGlassTypeSearch(type);
@@ -571,14 +591,29 @@ export default function CreateBillPage() {
                 let panesCreated = 0;
                 for (const pane of validPanes) {
                     const thicknessMm = parseFloat(pane.thickness) || 0;
-                    const glassSpec = `${pane.glassType} ${pane.thickness} (${pane.glassWidth}×${pane.glassHeight}mm)`;
+                    const glassSpec = [
+                        pane.glassType,
+                        pane.thickness,
+                        pane.rawGlassType ? `(ดิบ: ${pane.rawGlassColor ? pane.rawGlassColor + ' ' : ''}${pane.rawGlassType} ${pane.thickness}mm×${pane.sheetsPerPane}แผ่น)` : null,
+                        `${pane.glassWidth}×${pane.glassHeight}mm`,
+                    ].filter(Boolean).join(' ');
                     const qty = Math.max(1, pane.quantity);
                     for (let i = 0; i < qty; i++) {
                         try {
                             await panesApi.create({
                                 request: requestId,
                                 dimensions: { width: pane.glassWidth, height: pane.glassHeight, thickness: thicknessMm },
+                                glassType: pane.glassType,
                                 glassTypeLabel: glassSpec,
+                                jobType: pane.glassType,
+                                ...(pane.rawGlassType ? {
+                                    rawGlass: {
+                                        glassType: pane.rawGlassType,
+                                        color: pane.rawGlassColor,
+                                        thickness: parseFloat(pane.thickness) || 0,
+                                        sheetsPerPane: pane.sheetsPerPane,
+                                    },
+                                } : {}),
                                 currentStation: "Order_Reless",
                             } as Record<string, unknown>);
                             panesCreated++;
@@ -1078,12 +1113,12 @@ export default function CreateBillPage() {
                             )}
                         </div>
 
-                        {/* Glass Specifications (per-pane) */}
+                        {/* ลักษณะงาน (per-pane) */}
                         <div className="space-y-3">
                             <div className="flex items-center gap-2">
                                 <Package className="h-4 w-4 text-primary dark:text-[#E8601C]" />
                                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">
-                                    {lang === 'th' ? 'ข้อมูลกระจก' : 'Glass Specification'}
+                                    {lang === 'th' ? 'ลักษณะงาน' : 'Job Type'}
                                 </h3>
                             </div>
 
@@ -1129,9 +1164,13 @@ export default function CreateBillPage() {
                                                                 const suggested = newThickness
                                                                     ? (pricingSettings.glassPrices[type]?.[newThickness] ?? DEFAULT_PRICING.glassPrices[type]?.[newThickness])
                                                                     : null;
+                                                                const jt = jobTypeOptions.find(j => j.code === type);
+                                                                const rawSuggest = jt?.defaultRawGlassTypes?.[0];
                                                                 updatePane({
                                                                     glassType: type,
                                                                     thickness: newThickness,
+                                                                    sheetsPerPane: jt?.sheetsPerPane ?? (/laminated/i.test(type) ? 2 : 1),
+                                                                    ...(rawSuggest && !ap.rawGlassType ? { rawGlassType: rawSuggest } : {}),
                                                                     ...(suggested ? { pricePerSqFt: suggested.pricePerSqFt, grindingRate: suggested.grindingRate, priceAutoFilled: true } : { pricePerSqFt: 0, grindingRate: 50, priceAutoFilled: false }),
                                                                 });
                                                                 setGlassTypeSearch(type);
@@ -1248,6 +1287,76 @@ export default function CreateBillPage() {
                                         )}
                                     </div>
                                 </div>
+                            </div>
+
+                            {/* กระจกดิบสำหรับเบิก */}
+                            <div className="pt-3 border-t border-slate-200 dark:border-slate-700 space-y-3">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                                    <Layers className="h-3 w-3" />
+                                    {lang === 'th' ? 'กระจกดิบที่ใช้ (สำหรับเบิกจากคลัง)' : 'Raw Glass for Withdrawal'}
+                                </p>
+
+                                {/* rawGlassType */}
+                                <Select
+                                    value={ap.rawGlassType}
+                                    onValueChange={(v) => updatePane({ rawGlassType: v ?? "" })}
+                                >
+                                    <SelectTrigger className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm focus:ring-[#E8601C]">
+                                        <SelectValue placeholder={lang === 'th' ? 'ชนิดกระจกดิบ...' : 'Raw glass type...'} />
+                                    </SelectTrigger>
+                                    <SelectContent className="rounded-2xl">
+                                        {(rawGlassTypeOptions.length > 0
+                                            ? rawGlassTypeOptions
+                                            : ['Clear', 'Tinted', 'Reflective', 'Frosted', 'Patterned']
+                                        ).map(t => (
+                                            <SelectItem key={t} value={t} className="font-semibold">{t}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+
+                                {/* rawGlassColor quick-select */}
+                                <div className="space-y-1.5">
+                                    <Label className="text-[10px] font-semibold text-slate-400 uppercase">
+                                        {lang === 'th' ? 'สีกระจก' : 'Glass Color'}
+                                    </Label>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {['ใส', 'เขียว', 'ชา', 'เทา', 'บรอนซ์'].map(color => (
+                                            <button
+                                                key={color}
+                                                type="button"
+                                                onClick={() => updatePane({ rawGlassColor: ap.rawGlassColor === color ? '' : color })}
+                                                className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition-colors ${
+                                                    ap.rawGlassColor === color
+                                                        ? 'bg-[#E8601C] text-white border-[#E8601C]'
+                                                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-[#E8601C]/50'
+                                                }`}
+                                            >
+                                                {color}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* sheetsPerPane */}
+                                <div className="space-y-1.5">
+                                    <Label className="text-[10px] font-semibold text-slate-400 uppercase">
+                                        {lang === 'th' ? 'จำนวนแผ่นดิบต่อชิ้น' : 'Sheets/pane'}
+                                    </Label>
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        max={10}
+                                        value={ap.sheetsPerPane}
+                                        onChange={(e) => updatePane({ sheetsPerPane: Math.max(1, parseInt(e.target.value) || 1) })}
+                                        className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm px-4 focus:ring-[#E8601C]"
+                                    />
+                                </div>
+
+                                {ap.sheetsPerPane > 1 && (
+                                    <p className="text-[11px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 rounded-xl border border-amber-100 dark:border-amber-900/30">
+                                        ⚠️ จะเบิกกระจกดิบ <span className="font-bold">{ap.sheetsPerPane} แผ่น</span> ต่อชิ้น — ระบบจะหักสต็อกตามจำนวนนี้
+                                    </p>
+                                )}
                             </div>
                         </div>
 

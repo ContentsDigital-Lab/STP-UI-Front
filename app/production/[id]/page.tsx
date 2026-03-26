@@ -17,7 +17,6 @@ import { useWebSocket } from "@/lib/hooks/use-socket";
 import { getColorOption } from "@/lib/stations/stations-store";
 import { Order, OrderRequest, Station, Pane } from "@/lib/api/types";
 
-// ── color storage ─────────────────────────────────────────────────────────────
 const COLOR_STORAGE_KEY = "std_station_colors";
 function loadColorMap(): Record<string, string> {
     if (typeof window === "undefined") return {};

@@ -137,6 +137,13 @@ export interface Pane {
     glassTypeLabel: string;
     processes: string[];
     edgeTasks: PaneEdgeTask[];
+    jobType?: string;
+    rawGlass?: {
+        glassType: string;
+        color: string;
+        thickness: number;
+        sheetsPerPane: number;
+    };
     withdrawal?: string;
     remakeOf?: string;
     startedAt?: string;

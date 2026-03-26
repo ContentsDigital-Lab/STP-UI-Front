@@ -84,9 +84,9 @@ function CellValue({ col, value }: { col: ColumnDef; value: unknown }) {
         return <span className="font-medium text-foreground">{isNaN(num) ? str : num.toLocaleString("th-TH") + " ฿"}</span>;
     }
     if (col.type === "date") {
-        try {
-            return <span className="text-muted-foreground">{new Date(str).toLocaleDateString("th-TH")}</span>;
-        } catch { return <span>{str}</span>; }
+        const d = new Date(str);
+        if (!str || isNaN(d.getTime())) return <span className="text-muted-foreground/50">—</span>;
+        return <span className="text-muted-foreground">{d.toLocaleDateString("th-TH")}</span>;
     }
     if (col.type === "badge") {
         return <span className="inline-flex items-center rounded bg-muted px-2 py-0.5 text-[11px] font-mono">{str}</span>;

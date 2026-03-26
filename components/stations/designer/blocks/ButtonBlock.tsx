@@ -262,6 +262,33 @@ export function ButtonBlock({
                 ...(orderId   ? { order:   orderId   } : {}),
             };
 
+            // When a record is selected, its customer/material always take precedence
+            // over whatever the form dropdowns have — prevents mismatched orders
+            if (src) {
+                const srcCustomer = extractId(src.customer);
+                const srcMaterial = extractId(src.material);
+                if (srcCustomer) body.customer = srcCustomer;
+                if (srcMaterial) body.material = srcMaterial;
+            }
+
+            // ── Order-specific validation (after body is fully built) ─────────
+            const isOrderEndpoint = /\/orders$/.test(actionEndpoint.trim());
+            if (isOrderEndpoint) {
+                const orderErrors: string[] = [];
+                if (!body.customer) orderErrors.push("ลูกค้า");
+                if (!body.material) orderErrors.push("วัสดุ/กระจก");
+                const qty = Number(body.quantity);
+                if (!body.quantity || isNaN(qty) || qty < 1) orderErrors.push("จำนวน (ต้องมากกว่า 0)");
+                const stations = (body.stations ?? []) as unknown[];
+                if (!Array.isArray(stations) || stations.length === 0) orderErrors.push("สถานีผลิต (เลือกอย่างน้อย 1 สถานี)");
+                if (orderErrors.length > 0) {
+                    setErrorMsg(`ข้อมูลไม่ครบ: ${orderErrors.join(", ")}`);
+                    setFeedback("error");
+                    setTimeout(() => setFeedback(""), 6000);
+                    return;
+                }
+            }
+
             setFeedback("loading");
             setErrorMsg("");
             if (process.env.NODE_ENV !== "production") {

@@ -419,7 +419,7 @@ export default function ProductionPage() {
                                             <div className="flex items-center gap-1 flex-wrap">
                                                 {allStationIds.map((sid) => {
                                                     const station = stationMap.get(sid);
-                                                    const colorId = colorMap[sid] ?? station?.colorId ?? "sky";
+                                                    const colorId = station?.colorId ?? "sky";
                                                     const color   = getColorOption(colorId);
                                                     return (
                                                         <span
