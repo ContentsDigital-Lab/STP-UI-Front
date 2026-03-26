@@ -445,26 +445,33 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                                     }`} />
 
                                                     {/* Pane info */}
-                                                    <div className="flex-1 min-w-0 overflow-hidden">
-                                                        <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+                                                    <div className="flex-1 min-w-0">
+                                                        {/* Line 1: pane number + withdrawal badge */}
+                                                        <div className="flex items-center gap-1.5">
                                                             <span className="font-mono text-xs font-bold text-foreground leading-none shrink-0">
                                                                 {pane.paneNumber}
                                                             </span>
-                                                            {pane.glassTypeLabel && (
-                                                                <span className="text-[10px] text-muted-foreground truncate">{pane.glassTypeLabel}</span>
-                                                            )}
-                                                            {pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0) && (
-                                                                <span className="text-[10px] text-muted-foreground/60 shrink-0">
-                                                                    {pane.dimensions.width}×{pane.dimensions.height}
-                                                                    {pane.dimensions.thickness > 0 && ` (${pane.dimensions.thickness}mm)`}
-                                                                </span>
-                                                            )}
                                                             {isCutStation && (
                                                                 pane.withdrawal
-                                                                    ? <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">เบิกแล้ว</span>
-                                                                    : <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-950/30 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800">ยังไม่เบิก</span>
+                                                                    ? <span className="whitespace-nowrap text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 shrink-0">เบิกแล้ว</span>
+                                                                    : <span className="whitespace-nowrap text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-950/30 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800 shrink-0">ยังไม่เบิก</span>
                                                             )}
                                                         </div>
+                                                        {/* Line 2: glass type label + dimensions */}
+                                                        {(pane.glassTypeLabel || (pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0))) && (
+                                                            <div className="flex items-center gap-1 mt-0.5 min-w-0">
+                                                                {pane.glassTypeLabel && (
+                                                                    <span className="text-[10px] text-muted-foreground truncate">{pane.glassTypeLabel}</span>
+                                                                )}
+                                                                {pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0) && (
+                                                                    <span className="text-[10px] text-muted-foreground/60 shrink-0">
+                                                                        {pane.dimensions.width}×{pane.dimensions.height}
+                                                                        {pane.dimensions.thickness > 0 && ` (${pane.dimensions.thickness}mm)`}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                        {/* Line 3: phase status */}
                                                         <span className={`text-[10px] font-medium mt-0.5 block ${
                                                             phase === "started"
                                                                 ? "text-blue-600 dark:text-blue-400"
