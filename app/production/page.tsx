@@ -611,7 +611,7 @@ export default function ProductionPage() {
                                                             type="button"
                                                             title="ดูรายละเอียด"
                                                             onClick={(e) => { e.stopPropagation(); router.push(`/production/${order._id}`); }}
-                                                            className="flex-1 sm:flex-none flex items-center justify-center p-2.5 sm:p-1.5 rounded-xl sm:rounded-lg text-white sm:text-slate-500 bg-blue-600 hover:bg-blue-700 sm:hover:text-blue-600 dark:bg-[#E8601C] sm:dark:hover:text-[#E8601C] sm:bg-transparent transition-colors sm:border-transparent cursor-pointer"
+                                                            className="flex-1 sm:flex-none flex items-center justify-center p-2.5 sm:p-1.5 rounded-xl sm:rounded-lg text-white sm:text-slate-500 bg-blue-600 hover:bg-blue-700 sm:hover:bg-blue-50 sm:hover:text-blue-600 dark:bg-[#E8601C] dark:hover:bg-orange-600 sm:dark:hover:bg-[#E8601C]/10 sm:dark:hover:text-[#E8601C] sm:bg-transparent transition-colors sm:border-transparent cursor-pointer"
                                                         >
                                                             <ArrowRight className="h-4 w-4" />
                                                         </button>
