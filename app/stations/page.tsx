@@ -270,12 +270,12 @@ export default function StationsPage() {
                     </h1>
                     <p className="text-slate-500 dark:text-slate-400 text-sm sm:text-base font-medium mt-1">สถานีการทำงานในกระบวนการผลิต</p>
                 </div>
-                <div className="flex items-center gap-2">
-                    <Button variant="outline" className="gap-2 text-xs sm:text-sm" onClick={() => router.push("/stations/designer")}>
+                <div className="flex items-center gap-2 sm:gap-3">
+                    <Button variant="outline" className="gap-2 text-xs sm:text-sm rounded-xl h-10 sm:h-11 px-4 font-bold border-slate-200 dark:border-slate-700" onClick={() => router.push("/stations/designer")}>
                         <Settings2 className="h-4 w-4" />
                         <span className="hidden sm:inline">จัดการ</span> Template
                     </Button>
-                    <Button className="gap-2 text-xs sm:text-sm" onClick={() => setShowCreate(true)}>
+                    <Button className="gap-2 text-xs sm:text-sm rounded-xl h-10 sm:h-11 px-5 font-bold bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0" onClick={() => setShowCreate(true)}>
                         <Plus className="h-4 w-4" />
                         สร้างสถานี
                     </Button>
@@ -301,24 +301,24 @@ export default function StationsPage() {
 
             {/* Station grid */}
             {stations.length > 0 && (
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                <div className="grid grid-cols-1 gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {stations.map((station) => {
                         const color        = getColorOption(colorMap[station._id] ?? station.colorId);
                         const tmplId       = resolveTemplateId(station.templateId);
                         const templateName = tmplId ? tmplNames[tmplId] : undefined;
 
                         return (
-                            <div key={station._id} className="rounded-2xl border bg-card p-5 flex flex-col gap-4 hover:shadow-md transition-shadow">
+                            <div key={station._id} className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all p-5 sm:p-6 flex flex-col gap-4 group">
                                 {/* Name badge + actions */}
                                 <div className="flex items-start justify-between gap-2">
-                                    <span className={`text-sm font-semibold px-3 py-1.5 rounded-xl ${color.cls}`}>
+                                    <span className={`text-sm font-bold px-3 py-1.5 rounded-xl ${color.cls}`}>
                                         {station.name}
                                     </span>
-                                    <div className="flex items-center gap-0.5 shrink-0">
+                                    <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                                         <button
                                             type="button"
                                             onClick={() => setEditing({ ...station, colorId: colorMap[station._id] ?? station.colorId ?? "sky" })}
-                                            className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-foreground hover:bg-muted transition-colors"
+                                            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                                             title="แก้ไข"
                                         >
                                             <Pencil className="h-3.5 w-3.5" />
@@ -326,7 +326,7 @@ export default function StationsPage() {
                                         <button
                                             type="button"
                                             onClick={() => setDeleting(station)}
-                                            className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                                             title="ลบ"
                                         >
                                             <Trash2 className="h-3.5 w-3.5" />
@@ -337,18 +337,18 @@ export default function StationsPage() {
                                 {/* Template assignment */}
                                 <div className="flex-1">
                                     {loadingTmpl ? (
-                                        <div className="rounded-lg border border-muted/40 px-3 py-1.5 flex items-center gap-1.5">
-                                            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground/40" />
-                                            <span className="text-xs text-muted-foreground/40">กำลังโหลด...</span>
+                                        <div className="rounded-xl border border-slate-100 dark:border-slate-800 px-3 py-2 flex items-center gap-1.5">
+                                            <Loader2 className="h-3 w-3 animate-spin text-slate-400" />
+                                            <span className="text-xs text-slate-400 font-medium">กำลังโหลด...</span>
                                         </div>
                                     ) : templateName ? (
-                                        <div className="flex items-center gap-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 px-3 py-1.5">
-                                            <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
-                                            <span className="text-xs text-emerald-700 dark:text-emerald-300 font-medium truncate">{templateName}</span>
+                                        <div className="flex items-center gap-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 px-3 py-2">
+                                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                                            <span className="text-xs text-emerald-700 dark:text-emerald-300 font-bold truncate">{templateName}</span>
                                         </div>
                                     ) : (
-                                        <div className="rounded-lg border border-dashed border-muted-foreground/25 px-3 py-1.5 text-center">
-                                            <span className="text-xs text-muted-foreground/50">ยังไม่ได้กำหนด template</span>
+                                        <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 px-3 py-2 text-center">
+                                            <span className="text-xs text-slate-400 font-medium">ยังไม่ได้กำหนด template</span>
                                         </div>
                                     )}
                                 </div>
@@ -356,7 +356,7 @@ export default function StationsPage() {
                                 {/* Enter station button */}
                                 <Button
                                     size="sm"
-                                    className="w-full h-9 gap-1.5 text-xs"
+                                    className="w-full h-10 gap-1.5 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white shadow-md shadow-blue-500/15 dark:shadow-orange-500/15 border-0 transition-all"
                                     disabled={!tmplId}
                                     onClick={() => router.push(`/stations/${station._id}`)}
                                 >
@@ -372,12 +372,12 @@ export default function StationsPage() {
                     <button
                         type="button"
                         onClick={() => setShowCreate(true)}
-                        className="rounded-2xl border-2 border-dashed border-muted-foreground/20 p-5 flex flex-col items-center justify-center gap-2 hover:border-primary/40 hover:bg-primary/5 transition-all min-h-[180px]"
+                        className="rounded-3xl border-2 border-dashed border-slate-300 dark:border-slate-700 p-5 sm:p-6 flex flex-col items-center justify-center gap-3 hover:border-blue-400 dark:hover:border-[#E8601C] hover:bg-blue-50/30 dark:hover:bg-[#E8601C]/5 transition-all min-h-[200px]"
                     >
-                        <div className="p-2.5 rounded-xl bg-muted/60">
-                            <Plus className="h-5 w-5 text-muted-foreground/50" />
+                        <div className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800">
+                            <Plus className="h-5 w-5 text-slate-400" />
                         </div>
-                        <span className="text-sm text-muted-foreground/60 font-medium">สร้างสถานีใหม่</span>
+                        <span className="text-sm text-slate-400 font-bold">สร้างสถานีใหม่</span>
                     </button>
                 </div>
             )}
