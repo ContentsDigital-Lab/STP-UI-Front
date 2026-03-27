@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Bell, Check, CheckCheck } from "lucide-react";
 import {
     DropdownMenu,
@@ -28,35 +28,41 @@ export function NotificationBell() {
         }).catch(() => {});
     }, []);
 
+    const refetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const refetchNotifications = useCallback(() => {
+        if (refetchTimer.current) clearTimeout(refetchTimer.current);
+        refetchTimer.current = setTimeout(() => {
+            notificationsApi.getAll().then((res) => {
+                if (res.success) setNotifications(res.data);
+            }).catch(() => {});
+        }, 500);
+    }, []);
+
     const handleSocketEvent = useCallback((_event: string, data: unknown) => {
         const notif = data as Notification;
         if (notif?._id) {
-            setNotifications((prev) => [notif, ...prev]);
             playNotificationSound(notif.priority ?? "medium");
+            refetchNotifications();
         }
-    }, []);
+    }, [refetchNotifications]);
 
-    // join_me is emitted automatically by the hook — receives `notification` event
     useWebSocket("me", [], handleSocketEvent);
 
     const unreadCount = notifications.filter((n) => !n.readStatus).length;
 
-    const handleMarkAsRead = async (id: string) => {
-        try {
-            await notificationsApi.markAsRead(id);
-            setNotifications((prev) =>
-                prev.map((n) => (n._id === id ? { ...n, readStatus: true } : n))
-            );
-        } catch {}
+    const handleMarkAsRead = (id: string) => {
+        setNotifications((prev) =>
+            prev.map((n) => (n._id === id ? { ...n, readStatus: true } : n))
+        );
+        notificationsApi.markAsRead(id).catch(() => {});
     };
 
-    const handleMarkAllRead = async () => {
+    const handleMarkAllRead = () => {
         const unreadIds = notifications.filter((n) => !n.readStatus).map((n) => n._id);
         if (unreadIds.length === 0) return;
-        try {
-            await notificationsApi.markAllRead(unreadIds);
-            setNotifications((prev) => prev.map((n) => ({ ...n, readStatus: true })));
-        } catch {}
+        setNotifications((prev) => prev.map((n) => ({ ...n, readStatus: true })));
+        notificationsApi.markAllRead(unreadIds).catch(() => {});
     };
 
     const formatTime = (dateStr: string) => {
@@ -89,7 +95,7 @@ export function NotificationBell() {
                     {unreadCount > 0 && (
                         <button
                             className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
-                            onClick={handleMarkAllRead}
+                            onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleMarkAllRead(); }}
                         >
                             <CheckCheck className="h-3 w-3" />
                             Mark all read
@@ -104,7 +110,7 @@ export function NotificationBell() {
                     </div>
                 ) : (
                     <div className="max-h-80 overflow-y-auto">
-                        {notifications.slice(0, 20).map((notif) => (
+                        {notifications.map((notif) => (
                             <DropdownMenuItem
                                 key={notif._id}
                                 className="flex items-start gap-3 p-3 cursor-pointer"

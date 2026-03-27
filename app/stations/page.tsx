@@ -160,10 +160,8 @@ function DeleteConfirm({ name, onConfirm, onCancel }: { name: string; onConfirm:
     );
 }
 
-// ── Main page ─────────────────────────────────────────────────────────────────
-/** colorId is UI-only state; production backend has no colorId field — store in localStorage */
+// ── color migration helpers ────────────────────────────────────────────────────
 const COLOR_STORAGE_KEY = "std_station_colors";
-
 function loadColorMap(): Record<string, string> {
     if (typeof window === "undefined") return {};
     try { return JSON.parse(localStorage.getItem(COLOR_STORAGE_KEY) ?? "{}"); } catch { return {}; }
@@ -172,6 +170,8 @@ function saveColorMap(map: Record<string, string>) {
     if (typeof window === "undefined") return;
     localStorage.setItem(COLOR_STORAGE_KEY, JSON.stringify(map));
 }
+
+// ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function StationsPage() {
     const router = useRouter();

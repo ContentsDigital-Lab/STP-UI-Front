@@ -45,6 +45,8 @@ export const claimsApi = {
     createFromPane: async (data: {
         paneNumber: string;
         description: string;
+        source?: "customer" | "worker";
+        reportedBy?: string;
         photos?: string[];
     }): Promise<ApiResponse<Claim>> => {
         return fetchApi<ApiResponse<Claim>>("/claims/from-pane", {

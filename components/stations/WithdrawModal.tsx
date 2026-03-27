@@ -69,20 +69,40 @@ export function WithdrawModal({ stationId, onClose, initialPane }: WithdrawModal
         if (payload?.action === "created" && payload.data) setResult(prev => prev ?? payload.data ?? null);
     }, []));
 
-    // Fetch inventories matching pane's material after pane lookup
+    // Fetch inventories matching pane's rawGlass spec (or fallback to material ID)
     const fetchMatchingInventory = useCallback(async (p: Pane) => {
         setLoadingInv(true);
         try {
             const res = await inventoriesApi.getAll();
             if (!res.success) return;
-            const pMatId = matId(p.material);
-            const matches = res.data
-                .filter(inv => matId(inv.material) === pMatId && inv.quantity > 0)
-                .sort((a, b) => {
-                    // Raw stock first, then highest quantity
-                    if (a.stockType !== b.stockType) return a.stockType === "Raw" ? -1 : 1;
-                    return b.quantity - a.quantity;
+
+            let matches: Inventory[];
+            if (p.rawGlass?.glassType) {
+                // New path: match by rawGlass spec (glassType + optional thickness + color)
+                const rg = p.rawGlass;
+                matches = res.data.filter(inv => {
+                    if (inv.quantity <= 0) return false;
+                    const mat = typeof inv.material === "object" ? inv.material as Material : null;
+                    if (!mat?.specDetails) return false;
+                    const typeMatch = (mat.specDetails.glassType ?? "").toLowerCase() === rg.glassType.toLowerCase();
+                    const thicknessMatch = !rg.thickness || parseInt(mat.specDetails.thickness ?? "0") === rg.thickness;
+                    const colorMatch = !rg.color ||
+                        (mat.specDetails.color ?? "").toLowerCase().includes(rg.color.toLowerCase()) ||
+                        rg.color.toLowerCase().includes((mat.specDetails.color ?? "").toLowerCase());
+                    return typeMatch && thicknessMatch && colorMatch;
                 });
+            } else {
+                // Fallback: match by pane.material ID
+                const pMatId = matId(p.material);
+                matches = pMatId
+                    ? res.data.filter(inv => matId(inv.material) === pMatId && inv.quantity > 0)
+                    : [];
+            }
+
+            matches.sort((a, b) => {
+                if (a.stockType !== b.stockType) return a.stockType === "Raw" ? -1 : 1;
+                return b.quantity - a.quantity;
+            });
             setMatchingInvs(matches);
             setSelectedInv(matches[0] ?? null);
         } finally {
@@ -135,16 +155,17 @@ export function WithdrawModal({ stationId, onClose, initialPane }: WithdrawModal
             const orderId = pane.order
                 ? (typeof pane.order === "object" ? (pane.order as Order)._id : String(pane.order))
                 : null;
-            const materialId = matId(pane.material);
+            // Prefer material from selected inventory slot (rawGlass flow) over pane.material
+            const materialId = selectedInv ? matId(selectedInv.material) : matId(pane.material);
+            const sheetsNeeded = pane.rawGlass?.sheetsPerPane ?? 1;
 
             const res = await withdrawalsApi.create({
                 order: orderId ?? undefined,
                 material: materialId ?? undefined,
                 withdrawnBy: user?._id,
-                quantity: 1,
+                quantity: sheetsNeeded,
                 stockType: selectedInv?.stockType ?? "Raw",
                 pane: pane._id,
-                inventory: selectedInv?._id,
             } as Parameters<typeof withdrawalsApi.create>[0]);
 
             if (!res.success) {
@@ -294,6 +315,17 @@ export function WithdrawModal({ stationId, onClose, initialPane }: WithdrawModal
                                 )}
                             </div>
 
+                            {/* ── rawGlass info banner ── */}
+                            {pane.rawGlass?.glassType && (
+                                <div className="flex items-center gap-2 text-xs bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30 px-3 py-2 rounded-xl">
+                                    <Boxes className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                                    <span className="text-blue-700 dark:text-blue-300 font-medium">
+                                        ต้องการ <span className="font-bold">{pane.rawGlass.glassType}{pane.rawGlass.color ? ` ${pane.rawGlass.color}` : ''}{pane.rawGlass.thickness ? ` ${pane.rawGlass.thickness}mm` : ''}</span>
+                                        {' × '}<span className="font-bold">{pane.rawGlass.sheetsPerPane} แผ่น</span>
+                                    </span>
+                                </div>
+                            )}
+
                             {/* ── Inventory matching section ── */}
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between">
@@ -364,10 +396,16 @@ export function WithdrawModal({ stationId, onClose, initialPane }: WithdrawModal
                                                         </div>
                                                     </div>
                                                     <div className="shrink-0 text-right">
-                                                        <span className={`text-base font-bold ${inv.quantity <= 5 ? "text-amber-600" : "text-emerald-600 dark:text-emerald-400"}`}>
+                                                        <span className={`text-base font-bold ${
+                                                            pane.rawGlass?.sheetsPerPane && inv.quantity < pane.rawGlass.sheetsPerPane
+                                                                ? "text-red-500"
+                                                                : inv.quantity <= 5 ? "text-amber-600" : "text-emerald-600 dark:text-emerald-400"
+                                                        }`}>
                                                             {inv.quantity}
                                                         </span>
-                                                        <span className="text-[10px] text-muted-foreground block">ชิ้น</span>
+                                                        <span className="text-[10px] text-muted-foreground block">
+                                                            {pane.rawGlass?.sheetsPerPane && pane.rawGlass.sheetsPerPane > 1 ? `/ ${pane.rawGlass.sheetsPerPane} แผ่น` : 'ชิ้น'}
+                                                        </span>
                                                     </div>
                                                 </button>
                                             );
@@ -381,6 +419,13 @@ export function WithdrawModal({ stationId, onClose, initialPane }: WithdrawModal
                                 )}
                             </div>
 
+
+                            {selectedInv && pane.rawGlass?.sheetsPerPane && selectedInv.quantity < pane.rawGlass.sheetsPerPane && (
+                                <div className="flex items-center gap-2 text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 px-3 py-2.5 rounded-xl border border-red-100 dark:border-red-900/30">
+                                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                                    สต็อกไม่เพียงพอ — มี {selectedInv.quantity} แผ่น ต้องการ {pane.rawGlass.sheetsPerPane} แผ่น
+                                </div>
+                            )}
 
                             {error && (
                                 <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 px-3 py-2.5 rounded-xl border border-red-100 dark:border-red-900/30">

@@ -3,7 +3,7 @@ import { ApiResponse, Notification } from "./types";
 
 export const notificationsApi = {
     getAll: async (): Promise<ApiResponse<Notification[]>> => {
-        return fetchApi<ApiResponse<Notification[]>>("/notifications", {
+        return fetchApi<ApiResponse<Notification[]>>("/notifications?limit=100", {
             method: "GET",
         });
     },
@@ -22,14 +22,15 @@ export const notificationsApi = {
     },
 
     markAllRead: async (ids: string[]): Promise<ApiResponse<unknown>> => {
-        return Promise.all(
+        await Promise.allSettled(
             ids.map((id) =>
                 fetchApi<ApiResponse<Notification>>(`/notifications/${id}`, {
                     method: "PATCH",
                     body: JSON.stringify({ readStatus: true }),
                 })
             )
-        ).then(() => ({ success: true, message: "All marked as read", data: null }));
+        );
+        return { success: true, message: "All marked as read", data: null };
     },
 
     delete: async (id: string): Promise<ApiResponse<unknown>> => {

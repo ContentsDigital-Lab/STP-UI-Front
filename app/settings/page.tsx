@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { UserCog, ShieldAlert, Users, Bell, Tag, DollarSign } from "lucide-react";
+import { UserCog, ShieldAlert, Users, Bell, Tag, DollarSign, Layers } from "lucide-react";
 import { useAuth } from "@/lib/auth/auth-context";
 
 export default function SettingsPage() {
@@ -48,6 +48,17 @@ export default function SettingsPage() {
             lockedIcon: DollarSign,
             lockedTitle: "ตั้งค่าราคากระจก",
             lockedDesc: "You do not have permission to access pricing settings. Administrator or Manager access is required.",
+            requireAccess: true,
+        },
+        {
+            href: "/settings/job-types",
+            title: "จัดการลักษณะงาน",
+            description: "กำหนดประเภทงานกระจก เช่น ลามิเนต เทมเปอร์ พร้อมจำนวนแผ่นกระจกดิบที่ใช้ต่อช่อง",
+            icon: Layers,
+            color: "text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-500/10",
+            lockedIcon: Layers,
+            lockedTitle: "จัดการลักษณะงาน",
+            lockedDesc: "You do not have permission to access job type management. Administrator or Manager access is required.",
             requireAccess: true,
         },
         {
