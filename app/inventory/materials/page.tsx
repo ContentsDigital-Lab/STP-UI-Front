@@ -272,22 +272,24 @@ export default function MaterialsManagementPage() {
 
     return (
         <div className="flex flex-col gap-6">
-            <div className="flex items-center gap-2 mb-2">
-                <Link href="/inventory" className="p-2 rounded-lg hover:bg-muted text-muted-foreground transition-colors mr-1 sm:mr-2 shrink-0">
-                    <ChevronLeft className="h-5 w-5" />
-                </Link>
-                <div className="min-w-0">
-                    <h1 className="text-xl sm:text-3xl font-bold tracking-tight text-foreground truncate">Manage Materials</h1>
-                    <p className="text-muted-foreground text-sm hidden sm:block">Define base materials, reorder limits, and specifications.</p>
+            <div className="flex items-center justify-between mb-2">
+                <div className="flex items-start gap-3">
+                    <Link href="/inventory" className="mt-1 shrink-0 flex items-center justify-center h-8 w-8 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 transition-colors" title="กลับไปหน้าคลังกระจก">
+                        <ChevronLeft className="h-5 w-5" />
+                    </Link>
+                    <div className="space-y-1 min-w-0">
+                        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white truncate">จัดการวัสดุ</h1>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">กำหนดข้อมูลพื้นฐาน, ขนาดบรรจุ, และจุดแจ้งเตือนของวัสดุ</p>
+                    </div>
                 </div>
             </div>
 
             {/* Filter & Search Bar */}
-            <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr_1fr_1fr_auto] items-end gap-4">
+            <div className="bg-white dark:bg-slate-900 p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                <div className="grid grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr_auto] items-end gap-3 sm:gap-4">
                     {/* Search */}
-                    <div className="space-y-1.5">
-                        <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-1.5">
+                    <div className="space-y-1.5 col-span-2 lg:col-span-1">
+                        <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1.5">
                             <Search className="h-3 w-3" />
                             ค้นหา
                         </Label>
@@ -295,7 +297,7 @@ export default function MaterialsManagementPage() {
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                             <Input
                                 placeholder="ค้นหาชื่อ, ประเภท, ความหนา, สี, ขนาด..."
-                                className="pl-9 pr-9 h-10 text-sm border-slate-200 focus:ring-1 focus:ring-[#1B4B9A] bg-slate-50/50 rounded-xl"
+                                className="pl-9 pr-9 h-10 text-sm border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-blue-600 bg-slate-50/50 dark:bg-slate-800/50 rounded-xl"
                                 value={searchQuery}
                                 onChange={(e) => {
                                     setSearchQuery(e.target.value);
@@ -315,12 +317,12 @@ export default function MaterialsManagementPage() {
 
                     {/* Glass Type Filter */}
                     <div className="space-y-1.5">
-                        <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">ประเภทกระจก</Label>
-                        <Select value={glassTypeFilter} onValueChange={(val) => { if (val) setGlassTypeFilter(val); setCurrentPage(1); }}>
-                            <SelectTrigger className="h-10 w-full text-sm border-slate-200 bg-white rounded-xl">
+                        <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">ประเภทกระจก</Label>
+                        <Select value={glassTypeFilter === "all" ? "" : glassTypeFilter} onValueChange={(val) => { setGlassTypeFilter(val || "all"); setCurrentPage(1); }}>
+                            <SelectTrigger className="h-10 w-full text-sm border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl focus:ring-blue-600/20">
                                 <SelectValue placeholder="ทั้งหมด" />
                             </SelectTrigger>
-                            <SelectContent className="rounded-xl">
+                            <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
                                 <SelectItem value="all" className="focus:bg-slate-100 focus:text-slate-900">ทั้งหมด</SelectItem>
                                 {glassTypes.map(gt => (
                                     <SelectItem key={gt} value={gt!} className="focus:bg-slate-100 focus:text-slate-900">{gt}</SelectItem>
@@ -331,12 +333,12 @@ export default function MaterialsManagementPage() {
 
                     {/* Thickness Filter */}
                     <div className="space-y-1.5">
-                        <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">ความหนา</Label>
-                        <Select value={thicknessFilter} onValueChange={(val) => { if (val) setThicknessFilter(val); setCurrentPage(1); }}>
-                            <SelectTrigger className="h-10 w-full text-sm border-slate-200 bg-white rounded-xl">
+                        <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">ความหนา</Label>
+                        <Select value={thicknessFilter === "all" ? "" : thicknessFilter} onValueChange={(val) => { setThicknessFilter(val || "all"); setCurrentPage(1); }}>
+                            <SelectTrigger className="h-10 w-full text-sm border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl focus:ring-blue-600/20">
                                 <SelectValue placeholder="ทั้งหมด" />
                             </SelectTrigger>
-                            <SelectContent className="rounded-xl">
+                            <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
                                 <SelectItem value="all" className="focus:bg-slate-100 focus:text-slate-900">ทั้งหมด</SelectItem>
                                 {thicknesses.map(t => (
                                     <SelectItem key={t} value={t!} className="focus:bg-slate-100 focus:text-slate-900">{t}</SelectItem>
@@ -346,13 +348,13 @@ export default function MaterialsManagementPage() {
                     </div>
 
                     {/* Color Filter */}
-                    <div className="space-y-1.5">
-                        <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">สีกระจก</Label>
-                        <Select value={colorFilter} onValueChange={(val) => { if (val) setColorFilter(val); setCurrentPage(1); }}>
-                            <SelectTrigger className="h-10 w-full text-sm border-slate-200 bg-white rounded-xl">
+                    <div className="space-y-1.5 col-span-2 sm:col-span-1">
+                        <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">สีกระจก</Label>
+                        <Select value={colorFilter === "all" ? "" : colorFilter} onValueChange={(val) => { setColorFilter(val || "all"); setCurrentPage(1); }}>
+                            <SelectTrigger className="h-10 w-full text-sm border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl focus:ring-blue-600/20">
                                 <SelectValue placeholder="ทั้งหมด" />
                             </SelectTrigger>
-                            <SelectContent className="rounded-xl">
+                            <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
                                 <SelectItem value="all" className="focus:bg-slate-100 focus:text-slate-900">ทั้งหมด</SelectItem>
                                 {colors.map(c => (
                                     <SelectItem key={c} value={c!} className="focus:bg-slate-100 focus:text-slate-900">{c}</SelectItem>
@@ -362,7 +364,7 @@ export default function MaterialsManagementPage() {
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 mt-2 lg:mt-0 col-span-2 lg:col-span-1 pt-3 lg:pt-0 border-t border-slate-100 dark:border-slate-800/50 lg:border-t-0">
                         {hasActiveFilters && (
                             <Button
                                 variant="ghost"
@@ -371,14 +373,14 @@ export default function MaterialsManagementPage() {
                                 className="h-10 px-3 text-xs text-slate-400 hover:text-slate-600 rounded-xl"
                             >
                                 <FilterX className="h-3.5 w-3.5 mr-1" />
-                                รีเซ็ต
+                                ล้าง
                             </Button>
                         )}
                         <Button
                             onClick={() => handleOpenModal()}
-                            className="h-10 gap-2 bg-[#1B4B9A] hover:bg-[#1B4B9A]/90 text-white text-xs px-4 rounded-xl"
+                            className="h-10 gap-2 w-full lg:w-auto bg-blue-600 hover:bg-blue-700 text-white dark:bg-[#E8601C] dark:hover:bg-orange-600 rounded-xl shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0"
                         >
-                            <Plus className="h-3.5 w-3.5" />
+                            <Plus className="h-4 w-4" />
                             เพิ่มวัสดุ
                         </Button>
                     </div>
@@ -386,18 +388,18 @@ export default function MaterialsManagementPage() {
             </div>
 
             {/* Table */}
-            <div className="rounded-2xl border bg-card shadow-sm overflow-hidden">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                     <Table>
                         <TableHeader>
-                            <TableRow className="bg-slate-50/50">
-                                <TableHead className="text-[12px] font-semibold text-slate-600">ชื่อวัสดุ</TableHead>
-                                <TableHead className="text-[12px] font-semibold text-slate-600">สเปค (ประเภท/หนา/สี)</TableHead>
-                                <TableHead className="text-[12px] font-semibold text-slate-600">ขนาด (W×H)</TableHead>
-                                <TableHead className="text-[12px] font-semibold text-slate-600">จุดแจ้งเตือน</TableHead>
-                                <TableHead className="text-[12px] font-semibold text-slate-600">หน่วย</TableHead>
-                                <TableHead className="text-[12px] font-semibold text-slate-600">วันที่เพิ่ม</TableHead>
-                                <TableHead className="text-right text-[12px] font-semibold text-slate-600">จัดการ</TableHead>
+                            <TableRow className="bg-slate-50/80 dark:bg-slate-800/50 border-b-slate-200 dark:border-b-slate-800">
+                                <TableHead className="text-[12px] font-semibold text-slate-600 dark:text-slate-400">ชื่อวัสดุ</TableHead>
+                                <TableHead className="text-[12px] font-semibold text-slate-600 dark:text-slate-400">สเปค (ประเภท/หนา/สี)</TableHead>
+                                <TableHead className="text-[12px] font-semibold text-slate-600 dark:text-slate-400">ขนาด (W×H)</TableHead>
+                                <TableHead className="text-[12px] font-semibold text-slate-600 dark:text-slate-400">จุดแจ้งเตือน</TableHead>
+                                <TableHead className="text-[12px] font-semibold text-slate-600 dark:text-slate-400">หน่วย</TableHead>
+                                <TableHead className="text-[12px] font-semibold text-slate-600 dark:text-slate-400">วันที่เพิ่ม</TableHead>
+                                <TableHead className="text-right text-[12px] font-semibold text-slate-600 dark:text-slate-400">จัดการ</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -414,33 +416,33 @@ export default function MaterialsManagementPage() {
                                 paginatedMaterials.map((material) => {
                                     const hasSize = material.specDetails?.width || material.specDetails?.length;
                                     return (
-                                        <TableRow key={material._id} className="hover:bg-slate-50 transition-colors">
-                                            <TableCell className="font-medium text-[14px] text-slate-900">{material.name}</TableCell>
+                                        <TableRow key={material._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors border-b-slate-200 dark:border-b-slate-800">
+                                            <TableCell className="font-medium text-[14px] text-slate-900 dark:text-slate-200">{material.name}</TableCell>
                                             <TableCell>
-                                                <div className="flex flex-col text-[13px] space-y-0.5 text-slate-500">
-                                                    {material.specDetails?.glassType && <span><span className="font-medium text-slate-700">ประเภท:</span> {material.specDetails.glassType}</span>}
-                                                    {material.specDetails?.thickness && <span><span className="font-medium text-slate-700">หนา:</span> {material.specDetails.thickness}</span>}
-                                                    {material.specDetails?.color && <span><span className="font-medium text-slate-700">สี:</span> {material.specDetails.color}</span>}
+                                                <div className="flex flex-col text-[13px] space-y-0.5 text-slate-500 dark:text-slate-400">
+                                                    {material.specDetails?.glassType && <span><span className="font-medium text-slate-700 dark:text-slate-300">ประเภท:</span> {material.specDetails.glassType}</span>}
+                                                    {material.specDetails?.thickness && <span><span className="font-medium text-slate-700 dark:text-slate-300">หนา:</span> {material.specDetails.thickness}</span>}
+                                                    {material.specDetails?.color && <span><span className="font-medium text-slate-700 dark:text-slate-300">สี:</span> {material.specDetails.color}</span>}
                                                     {!material.specDetails?.glassType && !material.specDetails?.thickness && !material.specDetails?.color && "-"}
                                                 </div>
                                             </TableCell>
                                             <TableCell>
                                                 {hasSize ? (
-                                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900/50">
                                                         {material.specDetails?.width || "-"} × {material.specDetails?.length || "-"}
                                                     </span>
                                                 ) : (
-                                                    <span className="text-slate-300">-</span>
+                                                    <span className="text-slate-300 dark:text-slate-600">-</span>
                                                 )}
                                             </TableCell>
                                             <TableCell>
-                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-100">
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-100 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-900/50">
                                                     {material.reorderPoint}
                                                 </span>
                                             </TableCell>
-                                            <TableCell className="text-[13px] text-slate-600">{material.unit}</TableCell>
+                                            <TableCell className="text-[13px] text-slate-600 dark:text-slate-400">{material.unit}</TableCell>
                                             <TableCell>
-                                                <div className="flex flex-col text-[11px] text-slate-400">
+                                                <div className="flex flex-col text-[11px] text-slate-400 dark:text-slate-500">
                                                     <span>{new Date(material.createdAt).toLocaleDateString()}</span>
                                                     <span>{new Date(material.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                                 </div>
@@ -451,7 +453,7 @@ export default function MaterialsManagementPage() {
                                                         variant="ghost"
                                                         size="icon"
                                                         onClick={() => handleOpenModal(material)}
-                                                        className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                                        className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:text-blue-300 dark:hover:bg-blue-950/50 rounded-xl"
                                                     >
                                                         <Edit className="h-3.5 w-3.5" />
                                                     </Button>
@@ -460,7 +462,7 @@ export default function MaterialsManagementPage() {
                                                         size="icon"
                                                         onClick={() => handleDelete(material._id, material.name)}
                                                         disabled={isLoadingDeleteTarget}
-                                                        className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                        className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-950/50 rounded-xl"
                                                     >
                                                         {isLoadingDeleteTarget ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                                                     </Button>
@@ -623,7 +625,7 @@ export default function MaterialsManagementPage() {
                         <Button
                             onClick={handleSave}
                             disabled={isSubmitting || !formData.name}
-                            className="bg-[#1B4B9A] hover:bg-[#1B4B9A]/90 text-white min-w-[120px] h-9 rounded-xl"
+                            className="bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white min-w-[120px] h-9 rounded-xl font-bold shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0"
                         >
                             {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "บันทึก"}
                         </Button>

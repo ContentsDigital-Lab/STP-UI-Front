@@ -652,26 +652,26 @@ export default function InventoryPage() {
                     <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{it.title}</h1>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{it.subtitle}</p>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto shrink-0">
+                <div className="grid grid-cols-2 sm:flex sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto shrink-0">
                     <Link href="/inventory/materials" className="w-full sm:w-auto">
-                        <Button variant="outline" className="w-full gap-2 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-xl h-10">
-                            <Settings2 className="h-4 w-4" />
-                            {it.manageMaterials}
+                        <Button variant="outline" className="w-full gap-2 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-xl h-10 px-0 sm:px-4">
+                            <Settings2 className="h-4 w-4 shrink-0" />
+                            <span className="truncate">{it.manageMaterials}</span>
                         </Button>
                     </Link>
                     <Button
                         onClick={() => setIsImportOpen(true)}
-                        className="w-full sm:w-auto gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10"
+                        className="w-full sm:w-auto gap-2 bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white rounded-xl h-10 px-0 sm:px-4 shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0"
                     >
-                        <Plus className="h-4 w-4" />
-                        {it.importStock}
+                        <Plus className="h-4 w-4 shrink-0" />
+                        <span className="truncate">{it.importStock}</span>
                     </Button>
                 </div>
             </div>
 
             {/* Stat cards */}
             {!isLoading && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                     {statRows.map((item) => {
                         if (item.kind === "low") {
                             return (
@@ -682,23 +682,23 @@ export default function InventoryPage() {
                                         setShowLowStockOnly(!showLowStockOnly);
                                         setCurrentPage(1);
                                     }}
-                                    className={`text-left bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 p-4 sm:p-5 transition-colors ${showLowStockOnly
-                                        ? "border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20"
+                                    className={`text-left bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 p-3 sm:p-5 transition-colors flex flex-col justify-between ${showLowStockOnly
+                                        ? "border-red-300 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20 ring-1 ring-red-200 dark:ring-red-900"
                                         : "hover:border-slate-300 dark:hover:border-slate-700"
                                         }`}
                                 >
-                                    <div className="flex items-start justify-between gap-3">
-                                        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${showLowStockOnly
-                                            ? "bg-red-200 dark:bg-red-900 text-red-700 dark:text-red-300"
-                                            : "bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400"
+                                    <div>
+                                        <div className={`flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-lg mb-2 sm:mb-3 ${showLowStockOnly
+                                            ? "bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400"
+                                            : "bg-red-50 dark:bg-red-950/30 text-red-500 dark:text-red-400"
                                             }`}>
                                             <AlertTriangle className="h-4 w-4" />
                                         </div>
+                                        <p className={`line-clamp-1 text-[11px] sm:text-xs font-semibold ${showLowStockOnly ? "text-red-700 dark:text-red-400" : "text-slate-500 dark:text-slate-400"}`}>
+                                            {item.label}
+                                        </p>
                                     </div>
-                                    <p className={showLowStockOnly ? "mt-3 text-xs font-semibold text-red-600 dark:text-red-400" : "mt-3 text-xs font-semibold text-slate-500 dark:text-slate-400"}>
-                                        {item.label}
-                                    </p>
-                                    <p className={`mt-1 text-xl font-semibold tabular-nums ${showLowStockOnly ? "text-red-800 dark:text-red-200" : "text-slate-900 dark:text-white"}`}>
+                                    <p className={`mt-1 text-lg sm:text-xl font-bold tabular-nums truncate ${showLowStockOnly ? "text-red-800 dark:text-red-200" : "text-slate-900 dark:text-white"}`}>
                                         {item.value}
                                     </p>
                                 </button>
@@ -708,15 +708,15 @@ export default function InventoryPage() {
                         return (
                             <div
                                 key={item.key}
-                                className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 p-4 sm:p-5"
+                                className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 p-3 sm:p-5 flex flex-col justify-between"
                             >
-                                <div className="flex items-start justify-between gap-3">
-                                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${item.accent}`}>
+                                <div>
+                                    <div className={`flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-lg mb-2 sm:mb-3 ${item.accent}`}>
                                         <Icon className="h-4 w-4" />
                                     </div>
+                                    <p className="line-clamp-1 text-[11px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400">{item.label}</p>
                                 </div>
-                                <p className="mt-3 text-xs font-semibold text-slate-500 dark:text-slate-400">{item.label}</p>
-                                <p className="mt-1 text-xl font-semibold text-slate-900 dark:text-white truncate" title={item.value}>
+                                <p className="mt-1 text-lg sm:text-xl font-bold text-slate-900 dark:text-white truncate" title={item.value}>
                                     {item.value}
                                 </p>
                             </div>
@@ -752,10 +752,10 @@ export default function InventoryPage() {
                 </div>
                 <Select value={locationFilter} onValueChange={(val) => { setLocationFilter(val || "all"); setCurrentPage(1); }}>
                     <SelectTrigger className="h-10 w-full sm:w-[min(100%,200px)] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-blue-600/20" aria-label={it.area}>
-                        <SelectValue placeholder="All Areas" />
+                        <SelectValue placeholder="ทุกพื้นที่" />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800 min-w-[max-content]">
-                        <SelectItem value="all" className="py-2 pr-8">All Areas</SelectItem>
+                        <SelectItem value="all" className="py-2 pr-8">ทุกพื้นที่</SelectItem>
                         {locations.map(loc => (
                             <SelectItem key={loc} value={loc} className="py-2 pr-8 min-w-[max-content]">{loc}</SelectItem>
                         ))}
@@ -763,10 +763,10 @@ export default function InventoryPage() {
                 </Select>
                 <Select value={glassTypeFilter} onValueChange={(val) => { setGlassTypeFilter(val || "all"); setCurrentPage(1); }}>
                     <SelectTrigger className="h-10 w-full sm:w-[min(100%,200px)] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-blue-600/20" aria-label={it.glassType}>
-                        <SelectValue placeholder="All Types" />
+                        <SelectValue placeholder="ทุกประเภท" />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800 min-w-[max-content]">
-                        <SelectItem value="all" className="py-2 pr-8">All Types</SelectItem>
+                        <SelectItem value="all" className="py-2 pr-8">ทุกประเภท</SelectItem>
                         {glassTypes.map(type => (
                             <SelectItem key={type} value={type} className="py-2 pr-8 min-w-[max-content]">{type}</SelectItem>
                         ))}
@@ -1216,7 +1216,7 @@ export default function InventoryPage() {
                                     </Button>
                                     <Button
                                         onClick={() => openMoveDialog(selectedInventory)}
-                                        className="rounded-xl h-10 bg-blue-600 hover:bg-blue-700 text-white gap-2"
+                                        className="rounded-xl h-10 font-bold bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white gap-2 shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0"
                                     >
                                         <ArrowRightLeft className="h-4 w-4" />
                                         {it.detail.moveStock}
@@ -1396,7 +1396,7 @@ export default function InventoryPage() {
                                 handleImport();
                             }}
                             disabled={isSubmitting || !importData.material || !importData.location}
-                            className={`rounded-xl h-10 min-w-[140px] text-white text-sm ${isSubmitting ? "bg-slate-400" : "bg-blue-600 hover:bg-blue-700"
+                            className={`rounded-xl h-10 min-w-[140px] text-white text-sm font-bold shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0 ${isSubmitting ? "bg-slate-400" : "bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600"
                                 }`}
                         >
                             {isSubmitting ? "Processing..." : "ยืนยันนำเข้าสต็อก"}
@@ -1486,8 +1486,8 @@ export default function InventoryPage() {
                                                 type="button"
                                                 onClick={() => setMoveQty(b.val)}
                                                 className={`flex-1 text-xs font-medium py-1.5 rounded-lg border transition-colors ${moveQty === b.val
-                                                    ? 'bg-blue-600 text-white border-blue-600'
-                                                    : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:border-blue-300 hover:text-blue-600 dark:hover:text-blue-400'}`}
+                                                    ? 'bg-blue-600 text-white border-blue-600 dark:bg-[#E8601C] dark:border-[#E8601C]'
+                                                    : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:border-blue-300 hover:text-blue-600 dark:hover:border-orange-500/50 dark:hover:text-orange-400'}`}
                                             >
                                                 {b.label}
                                             </button>
@@ -1639,7 +1639,7 @@ export default function InventoryPage() {
                                 (moveDestType === "existing" && !moveDestId) ||
                                 (moveDestType === "new" && !moveDestLocation.trim())
                             }
-                            className="rounded-xl h-10 min-w-[150px] text-white bg-blue-600 hover:bg-blue-700 text-sm disabled:opacity-50"
+                            className="rounded-xl h-10 min-w-[150px] text-white font-bold bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-sm disabled:opacity-50 shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0"
                         >
                             <ArrowRightLeft className="h-4 w-4 mr-2" />
                             {isMoveSubmitting ? it.detail.moving : it.detail.confirmMove}
