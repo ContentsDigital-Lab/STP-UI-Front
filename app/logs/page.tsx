@@ -26,6 +26,7 @@ import {
     SelectValue
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Label } from "@/components/ui/label";
 import {
     Sheet,
     SheetContent,
@@ -532,70 +533,89 @@ export default function MaterialLogsPage() {
                     { label: lang === "th" ? "เบิกออก" : "Withdrawn", value: logs.filter(l => l.actionType === "withdraw").length, accent: "text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-500/10", icon: ArrowUpRight },
                     { label: lang === "th" ? "ตัด/เคลม" : "Cut/Claim", value: logs.filter(l => l.actionType === "cut" || l.actionType === "claim").length, accent: "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10", icon: Scissors },
                 ].map((stat) => (
-                    <div key={stat.label} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 p-4 sm:p-5">
-                        <div className={`h-9 w-9 rounded-lg flex items-center justify-center mb-3 ${stat.accent}`}>
-                            <stat.icon className="h-[18px] w-[18px]" />
+                    <div key={stat.label} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm">
+                        <div className={`h-8 w-8 rounded-lg flex items-center justify-center mb-2 ${stat.accent}`}>
+                            <stat.icon className="h-4 w-4" />
                         </div>
-                        <p className="text-[13px] text-slate-500 dark:text-slate-400 mb-0.5">{stat.label}</p>
-                        <p className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">{isLoading ? "-" : stat.value.toLocaleString()}</p>
+                        <p className="text-[12px] text-slate-500 dark:text-slate-400 mb-0.5">{stat.label}</p>
+                        <p className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{isLoading ? "-" : stat.value.toLocaleString()}</p>
                     </div>
                 ))}
             </div>
 
             {/* Filters */}
-            <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
-                <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                    <Input
-                        placeholder={lang === "th" ? "ค้นหาด้วยชื่อวัสดุ, ออเดอร์, อ้างอิง..." : "Search material, order, reference..."}
-                        value={searchQuery}
-                        onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-                        className="pl-9 h-10 rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-sm"
-                    />
+            <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                <div className="flex flex-col lg:flex-row items-stretch lg:items-end gap-3">
+                    <div className="relative flex-1 space-y-1.5">
+                        <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1.5">
+                            <Search className="h-3 w-3" />
+                            {lang === "th" ? "ค้นหา" : "Search"}
+                        </Label>
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            <Input
+                                placeholder={lang === "th" ? "ค้นหาด้วยชื่อวัสดุ, ออเดอร์, อ้างอิง..." : "Search material, order, reference..."}
+                                value={searchQuery}
+                                onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                                className="pl-9 h-10 rounded-xl bg-slate-50/50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-sm"
+                            />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3 lg:flex lg:gap-3">
+                        <div className="space-y-1.5 lg:w-40 shrink-0">
+                            <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">{lang === "th" ? "การกระทำ" : "Action"}</Label>
+                            <Select value={actionFilter === "all" ? "" : actionFilter} onValueChange={(v) => { setActionFilter(v || "all"); setCurrentPage(1); }}>
+                                <SelectTrigger className="h-10 w-full rounded-xl text-sm border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+                                    <SelectValue placeholder={lang === "th" ? "ทั้งหมด" : "All"} />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
+                                    <SelectItem value="all">{lang === "th" ? "ทุกการกระทำ" : "All Actions"}</SelectItem>
+                                    <SelectItem value="import">{lang === "th" ? "นำเข้าคลัง" : "Import"}</SelectItem>
+                                    <SelectItem value="withdraw">{lang === "th" ? "เบิกออก" : "Withdraw"}</SelectItem>
+                                    <SelectItem value="claim">{lang === "th" ? "เคลม" : "Claim"}</SelectItem>
+                                    <SelectItem value="cut">{lang === "th" ? "ตัด/แปรรูป" : "Cut"}</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-1.5 lg:w-40 shrink-0">
+                            <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">{lang === "th" ? "ประเภท" : "Type"}</Label>
+                            <Select value={stockTypeFilter === "all" ? "" : stockTypeFilter} onValueChange={(v) => { setStockTypeFilter(v || "all"); setCurrentPage(1); }}>
+                                <SelectTrigger className="h-10 w-full rounded-xl text-sm border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+                                    <SelectValue placeholder={lang === "th" ? "ทั้งหมด" : "All"} />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
+                                    <SelectItem value="all">{lang === "th" ? "ทุกประเภท" : "All Types"}</SelectItem>
+                                    <SelectItem value="Raw">{lang === "th" ? "วัตถุดิบ (Raw)" : "Raw"}</SelectItem>
+                                    <SelectItem value="Reuse">{lang === "th" ? "นำกลับมาใช้ (Reuse)" : "Reuse"}</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-1.5 lg:w-44 shrink-0">
+                            <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">{lang === "th" ? "ช่วงเวลา" : "Period"}</Label>
+                            <Select value={dateFilter === "all" ? "" : dateFilter} onValueChange={(v) => { setDateFilter(v || "all"); setCurrentPage(1); }}>
+                                <SelectTrigger className="h-10 w-full rounded-xl text-sm border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+                                    <SelectValue placeholder={lang === "th" ? "ทั้งหมด" : "All"} />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
+                                    <SelectItem value="all">{lang === "th" ? "ทุกช่วงเวลา" : "All Time"}</SelectItem>
+                                    <SelectItem value="today">{lang === "th" ? "วันนี้" : "Today"}</SelectItem>
+                                    <SelectItem value="7days">{lang === "th" ? "7 วันที่ผ่านมา" : "Last 7 Days"}</SelectItem>
+                                    <SelectItem value="30days">{lang === "th" ? "30 วันที่ผ่านมา" : "Last 30 Days"}</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    {hasActiveFilters && (
+                        <Button variant="ghost" onClick={resetFilters} className="h-10 rounded-xl text-slate-500 hover:text-slate-700 px-3 shrink-0 self-end">
+                            <FilterX className="h-4 w-4 mr-1.5" />
+                            {lang === "th" ? "ล้าง" : "Clear"}
+                        </Button>
+                    )}
                 </div>
-                <Select value={actionFilter} onValueChange={(v) => { setActionFilter(v || "all"); setCurrentPage(1); }}>
-                    <SelectTrigger className="h-10 w-full lg:w-40 rounded-xl text-sm">
-                        <SelectValue placeholder={lang === "th" ? "การกระทำ" : "Action"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">{lang === "th" ? "ทุกการกระทำ" : "All Actions"}</SelectItem>
-                        <SelectItem value="import">{lang === "th" ? "นำเข้าคลัง" : "Import"}</SelectItem>
-                        <SelectItem value="withdraw">{lang === "th" ? "เบิกออก" : "Withdraw"}</SelectItem>
-                        <SelectItem value="claim">{lang === "th" ? "เคลม" : "Claim"}</SelectItem>
-                        <SelectItem value="cut">{lang === "th" ? "ตัด/แปรรูป" : "Cut"}</SelectItem>
-                    </SelectContent>
-                </Select>
-                <Select value={stockTypeFilter} onValueChange={(v) => { setStockTypeFilter(v || "all"); setCurrentPage(1); }}>
-                    <SelectTrigger className="h-10 w-full lg:w-40 rounded-xl text-sm">
-                        <SelectValue placeholder={lang === "th" ? "ประเภทสต็อก" : "Stock Type"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">{lang === "th" ? "ทุกประเภท" : "All Types"}</SelectItem>
-                        <SelectItem value="Raw">{lang === "th" ? "วัตถุดิบ (Raw)" : "Raw"}</SelectItem>
-                        <SelectItem value="Reuse">{lang === "th" ? "นำกลับมาใช้ (Reuse)" : "Reuse"}</SelectItem>
-                    </SelectContent>
-                </Select>
-                <Select value={dateFilter} onValueChange={(v) => { setDateFilter(v || "all"); setCurrentPage(1); }}>
-                    <SelectTrigger className="h-10 w-full lg:w-44 rounded-xl text-sm">
-                        <SelectValue placeholder={lang === "th" ? "ช่วงเวลา" : "Period"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">{lang === "th" ? "ทุกช่วงเวลา" : "All Time"}</SelectItem>
-                        <SelectItem value="today">{lang === "th" ? "วันนี้" : "Today"}</SelectItem>
-                        <SelectItem value="7days">{lang === "th" ? "7 วันที่ผ่านมา" : "Last 7 Days"}</SelectItem>
-                        <SelectItem value="30days">{lang === "th" ? "30 วันที่ผ่านมา" : "Last 30 Days"}</SelectItem>
-                    </SelectContent>
-                </Select>
-                {hasActiveFilters && (
-                    <Button variant="ghost" onClick={resetFilters} className="h-10 rounded-xl text-slate-500 hover:text-slate-700 px-3">
-                        <FilterX className="h-4 w-4 mr-1.5" />
-                        {lang === "th" ? "ล้าง" : "Clear"}
-                    </Button>
-                )}
             </div>
 
             {/* Main Table */}
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 overflow-hidden">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                     <Table>
                         <TableHeader>
@@ -759,7 +779,7 @@ export default function MaterialLogsPage() {
                                         <button
                                             key={page}
                                             onClick={() => setCurrentPage(page)}
-                                            className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-medium transition-colors ${currentPage === page ? "bg-blue-600 text-white" : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"}`}
+                                            className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-medium transition-colors ${currentPage === page ? "bg-blue-600 dark:bg-[#E8601C] text-white" : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"}`}
                                         >
                                             {page}
                                         </button>

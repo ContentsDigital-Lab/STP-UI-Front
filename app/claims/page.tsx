@@ -217,12 +217,12 @@ export default function ClaimsPage() {
     return (
         <div className="space-y-6 max-w-[1440px] mx-auto w-full">
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">รายการเคลม</h1>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">บันทึกและติดตามการเคลมวัสดุแบบเรียลไทม์</p>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="space-y-1 min-w-0">
+                    <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white truncate">รายการเคลม</h1>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">บันทึกและติดตามการเคลมวัสดุแบบเรียลไทม์</p>
                 </div>
-                <Button onClick={() => setIsCreateOpen(true)} className="gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl h-10 px-5 text-sm">
+                <Button onClick={() => setIsCreateOpen(true)} className="gap-2 bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white font-bold rounded-xl h-10 px-5 text-sm shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0 w-full sm:w-auto shrink-0">
                     <Plus className="h-4 w-4" />
                     เพิ่มรายการเคลม
                 </Button>
@@ -236,52 +236,68 @@ export default function ClaimsPage() {
                     { label: "ทำลาย", value: claims.filter((c) => c.decision === "destroy").length, accent: "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10", icon: Trash2 },
                     { label: "เก็บไว้", value: claims.filter((c) => c.decision === "keep").length, accent: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10", icon: ClipboardCheck },
                 ].map((stat) => (
-                    <div key={stat.label} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 p-4 sm:p-5">
-                        <div className={`h-9 w-9 rounded-lg flex items-center justify-center mb-3 ${stat.accent}`}>
-                            <stat.icon className="h-[18px] w-[18px]" />
+                    <div key={stat.label} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm">
+                        <div className={`h-8 w-8 rounded-lg flex items-center justify-center mb-2 ${stat.accent}`}>
+                            <stat.icon className="h-4 w-4" />
                         </div>
-                        <p className="text-[13px] text-slate-500 dark:text-slate-400 mb-0.5">{stat.label}</p>
-                        <p className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">{isLoading ? "-" : stat.value}</p>
+                        <p className="text-[12px] text-slate-500 dark:text-slate-400 mb-0.5">{stat.label}</p>
+                        <p className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{isLoading ? "-" : stat.value}</p>
                     </div>
                 ))}
             </div>
 
             {/* Filters */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                    <Input
-                        placeholder="ค้นหาตามวัสดุหรือคำอธิบาย..."
-                        className="pl-9 h-10 rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-sm"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
+            <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
+                    <div className="relative flex-1 space-y-1.5">
+                        <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1.5">
+                            <Search className="h-3 w-3" />
+                            ค้นหา
+                        </Label>
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            <Input
+                                placeholder="ค้นหาตามวัสดุหรือคำอธิบาย..."
+                                className="pl-9 h-10 rounded-xl bg-slate-50/50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-sm focus:ring-1 focus:ring-blue-600"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 sm:flex sm:gap-3">
+                        <div className="space-y-1.5 sm:w-40 shrink-0">
+                            <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">แหล่งที่มา</Label>
+                            <Select value={sourceFilter === "all" ? "" : sourceFilter} onValueChange={(v) => setSourceFilter(v || "all")}>
+                                <SelectTrigger className="h-10 w-full rounded-xl text-sm border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-blue-600/20">
+                                    <SelectValue placeholder="ทุกแหล่ง" />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
+                                    <SelectItem value="all" className="focus:bg-slate-100">ทุกแหล่ง</SelectItem>
+                                    <SelectItem value="customer" className="focus:bg-slate-100">ลูกค้า</SelectItem>
+                                    <SelectItem value="worker" className="focus:bg-slate-100">พนักงาน</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-1.5 sm:w-44 shrink-0">
+                            <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">สถานะ</Label>
+                            <Select value={decisionFilter === "all" ? "" : decisionFilter} onValueChange={(v) => setDecisionFilter(v || "all")}>
+                                <SelectTrigger className="h-10 w-full rounded-xl text-sm border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-blue-600/20">
+                                    <SelectValue placeholder="ทุกสถานะ" />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
+                                    <SelectItem value="all" className="focus:bg-slate-100">ทุกสถานะ</SelectItem>
+                                    <SelectItem value="pending" className="focus:bg-slate-100">รอตัดสิน</SelectItem>
+                                    <SelectItem value="destroy" className="focus:bg-slate-100">ทำลาย</SelectItem>
+                                    <SelectItem value="keep" className="focus:bg-slate-100">เก็บไว้</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
                 </div>
-                <Select value={sourceFilter} onValueChange={(v) => setSourceFilter(v ?? "all")}>
-                    <SelectTrigger className="h-10 w-full sm:w-40 rounded-xl text-sm">
-                        <SelectValue placeholder="แหล่งที่มา" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">ทุกแหล่ง</SelectItem>
-                        <SelectItem value="customer">ลูกค้า</SelectItem>
-                        <SelectItem value="worker">พนักงาน</SelectItem>
-                    </SelectContent>
-                </Select>
-                <Select value={decisionFilter} onValueChange={(v) => setDecisionFilter(v ?? "all")}>
-                    <SelectTrigger className="h-10 w-full sm:w-44 rounded-xl text-sm">
-                        <SelectValue placeholder="ผลการตัดสิน" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">ทุกสถานะ</SelectItem>
-                        <SelectItem value="pending">รอตัดสิน</SelectItem>
-                        <SelectItem value="destroy">ทำลาย</SelectItem>
-                        <SelectItem value="keep">เก็บไว้</SelectItem>
-                    </SelectContent>
-                </Select>
             </div>
 
             {/* Table */}
-            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 overflow-hidden">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                 <Table>
                     <TableHeader>
@@ -386,7 +402,7 @@ export default function ClaimsPage() {
                                 <button
                                     key={i}
                                     onClick={() => setCurrentPage(i + 1)}
-                                    className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-medium transition-colors ${currentPage === i + 1 ? "bg-blue-600 text-white" : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"}`}
+                                    className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-medium transition-colors ${currentPage === i + 1 ? "bg-blue-600 dark:bg-[#E8601C] text-white" : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"}`}
                                 >
                                     {i + 1}
                                 </button>
@@ -500,9 +516,9 @@ export default function ClaimsPage() {
                             />
                         </div>
                     </div>
-                    <div className="flex justify-end gap-3 pt-4">
-                        <Button variant="outline" onClick={() => setIsCreateOpen(false)} disabled={isSubmitting} className="rounded-xl h-10 px-5 text-sm">ยกเลิก</Button>
-                        <Button onClick={handleCreate} disabled={isSubmitting} className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10 px-5 text-sm font-semibold">
+                    <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                        <Button variant="ghost" onClick={() => setIsCreateOpen(false)} disabled={isSubmitting} className="rounded-xl h-10 px-5 text-sm text-slate-500 hover:text-slate-900 dark:hover:text-white">ยกเลิก</Button>
+                        <Button onClick={handleCreate} disabled={isSubmitting} className="bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white rounded-xl h-10 px-5 text-sm font-bold shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0">
                             {isSubmitting ? "กำลังบันทึก..." : "บันทึกการเคลม"}
                         </Button>
                     </div>
@@ -551,9 +567,9 @@ export default function ClaimsPage() {
                             </Select>
                         </div>
                     </div>
-                    <div className="flex justify-end gap-3 pt-4">
-                        <Button variant="outline" onClick={() => setDecisionTarget(null)} disabled={isUpdating} className="rounded-xl h-10 px-5 text-sm">ยกเลิก</Button>
-                        <Button onClick={handleUpdateDecision} disabled={isUpdating} className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-10 px-5 text-sm font-semibold">
+                    <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                        <Button variant="ghost" onClick={() => setDecisionTarget(null)} disabled={isUpdating} className="rounded-xl h-10 px-5 text-sm text-slate-500 hover:text-slate-900 dark:hover:text-white">ยกเลิก</Button>
+                        <Button onClick={handleUpdateDecision} disabled={isUpdating} className="bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white rounded-xl h-10 px-5 text-sm font-bold shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0">
                             {isUpdating ? "กำลังบันทึก..." : "บันทึกผลการตัดสิน"}
                         </Button>
                     </div>
