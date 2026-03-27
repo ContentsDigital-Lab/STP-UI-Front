@@ -265,20 +265,19 @@ export default function StationsPage() {
 
     return (
         <div className="space-y-6 max-w-[1440px] mx-auto w-full">
-            {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row flex-wrap gap-4 sm:items-center sm:justify-between">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">สถานี</h1>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">สถานีการทำงานในกระบวนการผลิต</p>
                 </div>
-                <div className="flex items-center gap-2 sm:gap-3">
-                    <Button variant="outline" className="gap-2 text-xs sm:text-sm rounded-xl h-10 sm:h-11 px-4 font-bold border-slate-200 dark:border-slate-700" onClick={() => router.push("/stations/designer")}>
-                        <Settings2 className="h-4 w-4" />
-                        <span className="hidden sm:inline">จัดการ</span> Template
+                <div className="grid grid-cols-2 sm:flex sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto shrink-0">
+                    <Button variant="outline" className="w-full sm:w-auto gap-2 text-xs sm:text-sm rounded-xl h-10 sm:h-11 px-0 sm:px-4 font-bold border-slate-200 dark:border-slate-700" onClick={() => router.push("/stations/designer")}>
+                        <Settings2 className="h-4 w-4 shrink-0" />
+                        <span className="truncate"><span className="hidden sm:inline">จัดการ </span>Template</span>
                     </Button>
-                    <Button className="gap-2 text-xs sm:text-sm rounded-xl h-10 sm:h-11 px-5 font-bold bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0" onClick={() => setShowCreate(true)}>
-                        <Plus className="h-4 w-4" />
-                        สร้างสถานี
+                    <Button className="w-full sm:w-auto gap-2 text-xs sm:text-sm rounded-xl h-10 sm:h-11 px-0 sm:px-5 font-bold bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0" onClick={() => setShowCreate(true)}>
+                        <Plus className="h-4 w-4 shrink-0" />
+                        <span className="truncate">สร้างสถานี</span>
                     </Button>
                 </div>
             </div>
@@ -357,13 +356,15 @@ export default function StationsPage() {
                                 {/* Enter station button */}
                                 <Button
                                     size="sm"
-                                    className="w-full h-10 gap-1.5 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white shadow-md shadow-blue-500/15 dark:shadow-orange-500/15 border-0 transition-all"
+                                    className="w-full h-10 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white shadow-md shadow-blue-500/15 dark:shadow-orange-500/15 border-0 transition-all justify-between px-4 sm:px-5"
                                     disabled={!tmplId}
                                     onClick={() => router.push(`/stations/${station._id}`)}
                                 >
-                                    <Play className="h-3.5 w-3.5" />
-                                    เข้าสถานี
-                                    {tmplId && <ChevronRight className="h-3 w-3" />}
+                                    <div className="flex items-center gap-2">
+                                        <Play className="h-3.5 w-3.5" />
+                                        <span>เข้าสถานี</span>
+                                    </div>
+                                    {tmplId && <ChevronRight className="h-3.5 w-3.5 opacity-60" />}
                                 </Button>
                             </div>
                         );

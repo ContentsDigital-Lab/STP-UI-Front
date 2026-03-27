@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
     Plus, Pencil, Trash2, LayoutTemplate, Clock,
-    LayoutGrid, List, Search,
+    LayoutGrid, List, Search, ChevronLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -77,7 +77,7 @@ function TemplateCard({
                 <span>แก้ไขล่าสุด {formatDate(tmpl.updatedAt)}</span>
             </div>
             <div className="flex gap-2">
-                <Button size="sm" className="flex-1 gap-1.5" onClick={() => onEdit(tmpl._id)}>
+                <Button size="sm" className="flex-1 gap-1.5 bg-blue-600 hover:bg-blue-700 text-white dark:bg-[#E8601C] dark:hover:bg-orange-600 rounded-lg shadow-md shadow-blue-500/10 dark:shadow-orange-500/10 border-0" onClick={() => onEdit(tmpl._id)}>
                     <Pencil className="h-3.5 w-3.5" />
                     เปิดแก้ไข
                 </Button>
@@ -121,7 +121,7 @@ function TemplateRow({
                 <Clock className="h-3 w-3" />
                 <span>{formatDate(tmpl.updatedAt)}</span>
             </div>
-            <Button size="sm" className="gap-1.5 shrink-0" onClick={() => onEdit(tmpl._id)}>
+            <Button size="sm" className="gap-1.5 shrink-0 bg-blue-600 hover:bg-blue-700 text-white dark:bg-[#E8601C] dark:hover:bg-orange-600 rounded-lg shadow-sm border-0" onClick={() => onEdit(tmpl._id)}>
                 <Pencil className="h-3.5 w-3.5" />
                 เปิดแก้ไข
             </Button>
@@ -215,17 +215,26 @@ export default function StationDesignerGalleryPage() {
     return (
         <div className="space-y-6 p-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                    <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-                        <LayoutTemplate className="h-6 w-6 text-primary" />
-                        ออกแบบสถานี
-                    </h1>
-                    <p className="text-sm text-muted-foreground">ออกแบบกระบวนการผลิตแบบลากวาง</p>
+            <div className="flex flex-col sm:flex-row flex-wrap gap-4 sm:items-center sm:justify-between mb-2">
+                <div className="flex items-start gap-3">
+                    <button 
+                        onClick={() => router.push('/stations')}
+                        className="mt-1 shrink-0 flex items-center justify-center h-8 w-8 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 transition-colors"
+                        title="กลับไปหน้าสถานี"
+                    >
+                        <ChevronLeft className="h-5 w-5" />
+                    </button>
+                    <div className="space-y-1">
+                        <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            <LayoutTemplate className="h-6 w-6 text-blue-600 dark:text-[#E8601C]" />
+                            ออกแบบสถานี
+                        </h1>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">ออกแบบกระบวนการผลิตแบบลากวาง</p>
+                    </div>
                 </div>
-                <Button onClick={() => setShowCreate(true)} className="gap-2">
-                    <Plus className="h-4 w-4" />
-                    สร้าง template ใหม่
+                <Button onClick={() => setShowCreate(true)} className="w-full sm:w-auto gap-2 text-xs sm:text-sm rounded-xl h-10 sm:h-11 px-5 font-bold bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0 shrink-0">
+                    <Plus className="h-4 w-4 shrink-0" />
+                    <span className="truncate">สร้าง template ใหม่</span>
                 </Button>
             </div>
 
