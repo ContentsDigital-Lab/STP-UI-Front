@@ -35,7 +35,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Edit, Trash2, Loader2, Search, Plus, AlertTriangle } from "lucide-react";
+import { Edit, Trash2, Loader2, Search, Plus, AlertTriangle, ArrowLeft } from "lucide-react";
 
 export default function UsersManagementPage() {
     const { user, isLoading: isAuthLoading } = useAuth();
@@ -246,97 +246,122 @@ export default function UsersManagementPage() {
     };
 
     return (
-        <div className="flex flex-col gap-6">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div className="min-w-0">
-                    <h1 className="text-xl sm:text-3xl font-bold tracking-tight text-foreground">User Management</h1>
-                    <p className="text-muted-foreground text-sm">Manage user accounts and roles.</p>
+        <div className="space-y-6 max-w-[1440px] mx-auto w-full">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                    <button
+                        onClick={() => router.back()}
+                        className="h-9 w-9 rounded-full flex items-center justify-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shrink-0"
+                    >
+                        <ArrowLeft className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+                    </button>
+                    <div className="space-y-0.5 min-w-0">
+                        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white truncate">จัดการผู้ใช้</h1>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">จัดการบัญชีผู้ใช้และสิทธิ์การเข้าถึง</p>
+                    </div>
                 </div>
                 <Button
                     onClick={() => setIsCreateModalOpen(true)}
-                    className="gap-2 bg-[#1B4B9A] hover:bg-[#1B4B9A]/90 text-white w-full sm:w-auto shrink-0"
+                    className="gap-2 bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white font-bold rounded-xl h-10 px-5 text-sm shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0 w-full sm:w-auto shrink-0"
                 >
                     <Plus className="h-4 w-4" />
-                    New User
+                    เพิ่มผู้ใช้ใหม่
                 </Button>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-4 justify-between items-center bg-card p-4 rounded-lg shadow-sm border border-border/50">
-                <div className="relative w-full sm:w-72">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        placeholder="Search users..."
-                        className="pl-9"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                </div>
-                <div className="w-full sm:w-[180px]">
-                    <Select value={roleFilter} onValueChange={(val) => setRoleFilter(val || "all")}>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Filter by Role" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All Roles</SelectItem>
-                            <SelectItem value="admin">Admin</SelectItem>
-                            <SelectItem value="manager">Manager</SelectItem>
-                            <SelectItem value="worker">Worker</SelectItem>
-                        </SelectContent>
-                    </Select>
+            {/* Filters */}
+            <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
+                    <div className="relative flex-1 space-y-1.5">
+                        <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1.5">
+                            <Search className="h-3 w-3" />
+                            ค้นหา
+                        </Label>
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            <Input
+                                placeholder="ค้นหาด้วยชื่อหรือ username..."
+                                className="pl-9 h-10 rounded-xl bg-slate-50/50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-sm"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                    <div className="space-y-1.5 sm:w-44 shrink-0">
+                        <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">บทบาท</Label>
+                        <Select value={roleFilter === "all" ? "" : roleFilter} onValueChange={(val) => setRoleFilter(val || "all")}>
+                            <SelectTrigger className="h-10 w-full rounded-xl text-sm border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+                                <SelectValue placeholder="ทุกบทบาท" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
+                                <SelectItem value="all">ทุกบทบาท</SelectItem>
+                                <SelectItem value="admin">Admin</SelectItem>
+                                <SelectItem value="manager">Manager</SelectItem>
+                                <SelectItem value="worker">Worker</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
             </div>
 
-            <div className="rounded-md border bg-card overflow-hidden">
+            {/* Table */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                 <Table>
                     <TableHeader>
-                        <TableRow>
-                            <TableHead>Name</TableHead>
-                            <TableHead>Username</TableHead>
-                            <TableHead>Position</TableHead>
-                            <TableHead>Role</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
+                        <TableRow className="border-slate-100 dark:border-slate-800 hover:bg-transparent">
+                            <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 px-4 h-10">ชื่อ</TableHead>
+                            <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">Username</TableHead>
+                            <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">ตำแหน่ง</TableHead>
+                            <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">บทบาท</TableHead>
+                            <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10 text-right pr-4">จัดการ</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {filteredWorkers.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={5} className="h-24 text-center">
-                                    No users found.
+                                <TableCell colSpan={5} className="py-16 text-center border-none">
+                                    <div className="flex flex-col items-center gap-2">
+                                        <div className="h-12 w-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                                            <Search className="h-6 w-6 text-slate-400 dark:text-slate-500" />
+                                        </div>
+                                        <p className="text-sm text-slate-500 dark:text-slate-400">ไม่พบผู้ใช้</p>
+                                    </div>
                                 </TableCell>
                             </TableRow>
                         ) : (
                             filteredWorkers.map((worker) => (
-                                <TableRow key={worker._id}>
-                                    <TableCell className="font-medium">{worker.name}</TableCell>
-                                    <TableCell>{worker.username}</TableCell>
-                                    <TableCell>{worker.position}</TableCell>
-                                    <TableCell>
-                                        <Badge variant="outline" className={getRoleBadgeColor(worker.role)}>
+                                <TableRow key={worker._id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 border-slate-100 dark:border-slate-800">
+                                    <TableCell className="font-medium text-sm text-slate-900 dark:text-white py-3.5 px-4">{worker.name}</TableCell>
+                                    <TableCell className="text-sm text-slate-500 dark:text-slate-400 py-3.5">{worker.username}</TableCell>
+                                    <TableCell className="text-sm text-slate-600 dark:text-slate-300 py-3.5">{worker.position}</TableCell>
+                                    <TableCell className="py-3.5">
+                                        <Badge variant="outline" className={`text-xs font-medium px-2 py-0.5 rounded-md border-0 ${getRoleBadgeColor(worker.role)}`}>
                                             {worker.role.charAt(0).toUpperCase() + worker.role.slice(1)}
                                         </Badge>
                                     </TableCell>
-                                    <TableCell className="text-right">
+                                    <TableCell className="text-right py-3.5 pr-4">
                                         <div className="flex justify-end gap-1">
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
+                                                    className="rounded-lg h-8 w-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-800"
                                                     onClick={() => handleEditClick(worker)}
                                                     disabled={isSelf(worker._id) || (user.role === "manager" && worker.role === "admin")}
-                                                    title={isSelf(worker._id) ? "You cannot edit yourself" : user.role === "manager" && worker.role === "admin" ? "Managers cannot edit admins" : "Edit user role"}
+                                                    title={isSelf(worker._id) ? "ไม่สามารถแก้ไขตัวเองได้" : user.role === "manager" && worker.role === "admin" ? "ไม่สามารถแก้ไข Admin ได้" : "แก้ไขบทบาท"}
                                                 >
-                                                <Edit className="h-4 w-4 mr-2" />
-                                                Edit
+                                                <Edit className="h-4 w-4 text-slate-500" />
                                             </Button>
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
+                                                className="rounded-lg h-8 w-8 p-0 hover:bg-red-50 dark:hover:bg-red-950"
                                                 onClick={() => handleDeleteClick(worker)}
                                                 disabled={isSelf(worker._id) || (user.role === "manager" && worker.role === "admin")}
-                                                title={isSelf(worker._id) ? "You cannot delete yourself" : "Delete user"}
-                                                className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950 disabled:text-muted-foreground disabled:hover:bg-transparent"
+                                                title={isSelf(worker._id) ? "ไม่สามารถลบตัวเองได้" : "ลบผู้ใช้"}
                                             >
-                                                <Trash2 className="h-4 w-4" />
+                                                <Trash2 className="h-4 w-4 text-red-500" />
                                             </Button>
                                         </div>
                                     </TableCell>
@@ -349,123 +374,131 @@ export default function UsersManagementPage() {
             </div>
 
             <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-                <DialogContent className="sm:max-w-[425px]">
-                    <DialogHeader>
-                        <DialogTitle>Edit User Role</DialogTitle>
-                        <DialogDescription>
-                            Change the permissions for {selectedWorker?.name}.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">Role</label>
+                <DialogContent className="sm:max-w-[425px] rounded-2xl border-slate-200 dark:border-slate-800 p-0 bg-white dark:bg-slate-950">
+                    <div className="px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
+                        <DialogHeader>
+                            <DialogTitle className="text-xl font-semibold text-slate-900 dark:text-white">แก้ไขบทบาท</DialogTitle>
+                            <DialogDescription className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                                เปลี่ยนสิทธิ์การเข้าถึงสำหรับ {selectedWorker?.name}
+                            </DialogDescription>
+                        </DialogHeader>
+                    </div>
+                    <div className="px-6 py-5 space-y-4">
+                        <div className="space-y-1.5">
+                            <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">บทบาท</Label>
                             <Select
                                 value={editRole}
                                 onValueChange={(val) => {
                                     if (val) setEditRole(val as "admin" | "manager" | "worker");
                                 }}
                             >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select a role" />
+                                <SelectTrigger className="h-10 rounded-xl text-sm border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+                                    <SelectValue placeholder="เลือกบทบาท" />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
                                     {user?.role === "admin" && <SelectItem value="admin">Admin</SelectItem>}
                                     <SelectItem value="manager">Manager</SelectItem>
                                     <SelectItem value="worker">Worker</SelectItem>
                                 </SelectContent>
                             </Select>
-                            <p className="text-xs text-muted-foreground mt-2">
-                                {editRole === "admin" && "Admins have full access to the system."}
-                                {editRole === "manager" && "Managers can view all data and manage workers, but cannot manage admins."}
-                                {editRole === "worker" && "Workers can access standard operational tools."}
+                            <p className="text-xs text-slate-400 mt-2">
+                                {editRole === "admin" && "มีสิทธิ์เข้าถึงทุกส่วนของระบบ"}
+                                {editRole === "manager" && "ดูข้อมูลและจัดการพนักงานได้ แต่ไม่สามารถจัดการ Admin"}
+                                {editRole === "worker" && "เข้าถึงเครื่องมือปฏิบัติงานมาตรฐาน"}
                             </p>
                         </div>
                     </div>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>
-                            Cancel
+                    <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2">
+                        <Button variant="ghost" className="rounded-xl h-10 text-sm text-slate-500 hover:text-slate-900 dark:hover:text-white px-4" onClick={() => setIsEditModalOpen(false)}>
+                            ยกเลิก
                         </Button>
                         <Button
                             onClick={handleSaveRole}
                             disabled={isSaving || (user?.role === "manager" && editRole === "admin")}
-                            className="bg-[#1B4B9A] hover:bg-[#1B4B9A]/90 text-white"
+                            className="rounded-xl h-10 min-w-[120px] bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white text-sm font-bold shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0"
                         >
                             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Save changes
+                            บันทึก
                         </Button>
-                    </DialogFooter>
+                    </div>
                 </DialogContent>
             </Dialog>
 
             <Dialog open={isCreateModalOpen} onOpenChange={(open) => { setIsCreateModalOpen(open); if (!open) setCreateError(""); }}>
-                <DialogContent className="sm:max-w-[480px]">
-                    <DialogHeader>
-                        <DialogTitle>New User</DialogTitle>
-                        <DialogDescription>
-                            Create a new user account for the system.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="grid gap-4 py-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="create-name">Full Name *</Label>
+                <DialogContent className="sm:max-w-[520px] rounded-2xl border-slate-200 dark:border-slate-800 p-0 bg-white dark:bg-slate-950 max-h-[90vh] overflow-y-auto">
+                    <div className="px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
+                        <DialogHeader>
+                            <DialogTitle className="text-xl font-semibold text-slate-900 dark:text-white">เพิ่มผู้ใช้ใหม่</DialogTitle>
+                            <DialogDescription className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                                สร้างบัญชีผู้ใช้ใหม่สำหรับระบบ
+                            </DialogDescription>
+                        </DialogHeader>
+                    </div>
+                    <div className="px-6 py-5 space-y-5">
+                        <div className="space-y-1.5">
+                            <Label htmlFor="create-name" className="text-sm font-medium text-slate-700 dark:text-slate-300">ชื่อ-นามสกุล <span className="text-red-400">*</span></Label>
                             <Input
                                 id="create-name"
-                                placeholder="e.g. John Doe"
+                                placeholder="เช่น สมชาย ใจดี"
+                                className="h-10 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-sm"
                                 value={createForm.name}
                                 onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
                             />
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="create-username">Username *</Label>
+                            <div className="space-y-1.5">
+                                <Label htmlFor="create-username" className="text-sm font-medium text-slate-700 dark:text-slate-300">Username <span className="text-red-400">*</span></Label>
                                 <Input
                                     id="create-username"
-                                    placeholder="e.g. johndoe"
+                                    placeholder="เช่น somchai"
+                                    className="h-10 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-sm"
                                     value={createForm.username}
                                     onChange={(e) => setCreateForm({ ...createForm, username: e.target.value })}
                                 />
                             </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="create-password">Password *</Label>
+                            <div className="space-y-1.5">
+                                <Label htmlFor="create-password" className="text-sm font-medium text-slate-700 dark:text-slate-300">รหัสผ่าน <span className="text-red-400">*</span></Label>
                                 <Input
                                     id="create-password"
                                     type="password"
-                                    placeholder="Min. 6 characters"
+                                    placeholder="อย่างน้อย 6 ตัวอักษร"
                                     minLength={6}
+                                    className="h-10 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-sm"
                                     value={createForm.password}
                                     onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
                                 />
                                 {createForm.password.length > 0 && createForm.password.length < 6 && (
-                                    <p className="text-xs text-muted-foreground">
-                                        {6 - createForm.password.length} more character{6 - createForm.password.length !== 1 ? "s" : ""} needed
+                                    <p className="text-xs text-amber-500">
+                                        ต้องการอีก {6 - createForm.password.length} ตัวอักษร
                                     </p>
                                 )}
                             </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="create-position">Position *</Label>
+                            <div className="space-y-1.5">
+                                <Label htmlFor="create-position" className="text-sm font-medium text-slate-700 dark:text-slate-300">ตำแหน่ง <span className="text-red-400">*</span></Label>
                                 <Input
                                     id="create-position"
-                                    placeholder="e.g. Operator"
+                                    placeholder="เช่น Operator"
+                                    className="h-10 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-sm"
                                     value={createForm.position}
                                     onChange={(e) => setCreateForm({ ...createForm, position: e.target.value })}
                                 />
                             </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="create-role">Role</Label>
+                            <div className="space-y-1.5">
+                                <Label htmlFor="create-role" className="text-sm font-medium text-slate-700 dark:text-slate-300">บทบาท</Label>
                                 <Select
                                     value={createForm.role}
                                     onValueChange={(val) => {
                                         if (val) setCreateForm({ ...createForm, role: val as "admin" | "manager" | "worker" });
                                     }}
                                 >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Select a role" />
+                                    <SelectTrigger className="h-10 rounded-xl text-sm border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+                                        <SelectValue placeholder="เลือกบทบาท" />
                                     </SelectTrigger>
-                                    <SelectContent>
+                                    <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
                                         {user?.role === "admin" && <SelectItem value="admin">Admin</SelectItem>}
                                         <SelectItem value="manager">Manager</SelectItem>
                                         <SelectItem value="worker">Worker</SelectItem>
@@ -475,24 +508,24 @@ export default function UsersManagementPage() {
                         </div>
 
                         {createError && (
-                            <div className="text-sm font-medium text-destructive dark:text-red-400">
+                            <div className="text-sm font-medium text-red-500 bg-red-50 dark:bg-red-500/10 p-3 rounded-xl">
                                 {createError}
                             </div>
                         )}
                     </div>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsCreateModalOpen(false)} disabled={isCreating}>
-                            Cancel
+                    <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2">
+                        <Button variant="ghost" className="rounded-xl h-10 text-sm text-slate-500 hover:text-slate-900 dark:hover:text-white px-4" onClick={() => setIsCreateModalOpen(false)} disabled={isCreating}>
+                            ยกเลิก
                         </Button>
                         <Button
                             onClick={handleCreateUser}
                             disabled={isCreating || !createForm.name || !createForm.username || createForm.password.length < 6 || !createForm.position}
-                            className="bg-[#1B4B9A] hover:bg-[#1B4B9A]/90 text-white"
+                            className="rounded-xl h-10 min-w-[140px] bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white text-sm font-bold shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0"
                         >
                             {isCreating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Create User
+                            สร้างผู้ใช้
                         </Button>
-                    </DialogFooter>
+                    </div>
                 </DialogContent>
             </Dialog>
 

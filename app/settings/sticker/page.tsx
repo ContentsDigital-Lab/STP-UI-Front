@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { Plus, Tag, Clock, Pencil, Trash2, Search } from "lucide-react";
+import { Plus, Tag, Clock, Pencil, Trash2, Search, ArrowLeft } from "lucide-react";
 import type { StickerElement } from "./types";
 
 const StickerThumbnail = dynamic(() => import("./StickerThumbnail"), {
@@ -30,7 +30,7 @@ const ITEMS_PER_PAGE = 9;
 // ── Skeletons ─────────────────────────────────────────────────────────────────
 function SkeletonCard() {
     return (
-        <div className="rounded-xl border bg-card p-4 space-y-3">
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 space-y-3">
             <Skeleton className="h-5 w-2/3" />
             <Skeleton className="h-3 w-1/3" />
             <Skeleton className="h-3 w-1/2" />
@@ -53,7 +53,7 @@ function TemplateCard({ tmpl, deleting, onEdit, onDelete }: {
         new Date(d).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
 
     return (
-        <div className="rounded-xl border bg-card overflow-hidden hover:shadow-md transition-shadow group cursor-pointer" onClick={() => onEdit(tmpl._id)}>
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden hover:shadow-md transition-shadow group cursor-pointer" onClick={() => onEdit(tmpl._id)}>
             {/* Thumbnail preview */}
             <div className="p-3 pb-2">
                 <StickerThumbnail
@@ -68,25 +68,25 @@ function TemplateCard({ tmpl, deleting, onEdit, onDelete }: {
             {/* Info + actions */}
             <div className="px-4 pb-4 space-y-2">
                 <div className="space-y-0.5">
-                    <h3 className="font-semibold text-foreground truncate text-sm">{tmpl.name}</h3>
-                    <p className="text-xs text-muted-foreground">{tmpl.width} × {tmpl.height} mm</p>
+                    <h3 className="font-semibold text-slate-900 dark:text-white truncate text-sm">{tmpl.name}</h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{tmpl.width} × {tmpl.height} mm</p>
                 </div>
-                <div className="flex items-center gap-1 text-[11px] text-muted-foreground/70">
+                <div className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500">
                     <Clock className="h-3 w-3" />
                     <span>แก้ไขล่าสุด {fmtDate(tmpl.updatedAt)}</span>
                 </div>
                 <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                    <Button size="sm" className="flex-1 gap-1.5" onClick={() => onEdit(tmpl._id)}>
+                    <Button size="sm" className="flex-1 gap-1.5 rounded-xl h-8 bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white text-xs font-bold shadow-sm border-0" onClick={() => onEdit(tmpl._id)}>
                         <Pencil className="h-3.5 w-3.5" />
                         เปิดแก้ไข
                     </Button>
                     <Button
                         size="sm" variant="outline"
-                        className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50"
+                        className="h-8 w-8 p-0 rounded-lg border-slate-200 dark:border-slate-700 hover:bg-red-50 dark:hover:bg-red-950"
                         disabled={deleting === tmpl._id}
                         onClick={() => onDelete(tmpl._id)}
                     >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 className="h-3.5 w-3.5 text-red-500" />
                     </Button>
                 </div>
             </div>
@@ -181,32 +181,43 @@ export default function StickerGalleryPage() {
     const handleEdit = (id: string) => router.push(`/settings/sticker/${id}`);
 
     return (
-        <div className="space-y-6 p-6">
+        <div className="space-y-6 max-w-[1440px] mx-auto w-full">
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                    <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-                        <Tag className="h-6 w-6 text-violet-500" />
-                        ออกแบบสติ๊กเกอร์
-                    </h1>
-                    <p className="text-sm text-muted-foreground">จัดการ template สติ๊กเกอร์ QR สำหรับพิมพ์ติดออเดอร์</p>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                    <button
+                        onClick={() => router.back()}
+                        className="h-9 w-9 rounded-full flex items-center justify-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shrink-0"
+                    >
+                        <ArrowLeft className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+                    </button>
+                    <div className="space-y-0.5 min-w-0">
+                        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white truncate">ออกแบบสติ๊กเกอร์</h1>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">จัดการ template สติ๊กเกอร์ QR สำหรับพิมพ์ติดออเดอร์</p>
+                    </div>
                 </div>
-                <Button onClick={() => setShowCreate(true)} className="gap-2 bg-violet-600 hover:bg-violet-700">
+                <Button onClick={() => setShowCreate(true)} className="gap-2 bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white font-bold rounded-xl h-10 px-5 text-sm shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0 w-full sm:w-auto shrink-0">
                     <Plus className="h-4 w-4" />
                     สร้าง template ใหม่
                 </Button>
             </div>
 
-            {/* Toolbar */}
-            <div className="flex justify-end items-center gap-3">
-                <div className="relative flex-1 max-w-sm">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                    <input
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder="ค้นหา template..."
-                        className="w-full rounded-lg border bg-background pl-9 pr-3 py-2 text-sm outline-none focus:ring-2 focus:ring-violet-500/40"
-                    />
+            {/* Filter */}
+            <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                <div className="relative flex-1 space-y-1.5">
+                    <label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1.5">
+                        <Search className="h-3 w-3" />
+                        ค้นหา
+                    </label>
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <input
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="ค้นหา template..."
+                            className="w-full pl-9 pr-3 h-10 rounded-xl bg-slate-50/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-sm outline-none focus:ring-2 focus:ring-blue-500/40 dark:focus:ring-orange-500/40 transition-shadow"
+                        />
+                    </div>
                 </div>
             </div>
 
@@ -216,23 +227,25 @@ export default function StickerGalleryPage() {
                     {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
                 </div>
             ) : filtered.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-24 space-y-4 border-2 border-dashed rounded-xl">
-                    <Tag className="h-12 w-12 text-muted-foreground/30" />
+                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col items-center justify-center py-20 space-y-4">
+                    <div className="h-14 w-14 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                        <Tag className="h-7 w-7 text-slate-400 dark:text-slate-500" />
+                    </div>
                     <div className="text-center">
                         {search ? (
                             <>
-                                <p className="font-medium text-muted-foreground">ไม่พบ template "{search}"</p>
-                                <p className="text-sm text-muted-foreground/70">ลองค้นหาด้วยคำอื่น</p>
+                                <p className="font-medium text-slate-600 dark:text-slate-300">ไม่พบ template "{search}"</p>
+                                <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">ลองค้นหาด้วยคำอื่น</p>
                             </>
                         ) : (
                             <>
-                                <p className="font-medium text-muted-foreground">ยังไม่มี template</p>
-                                <p className="text-sm text-muted-foreground/70">กด "สร้าง template ใหม่" เพื่อเริ่มออกแบบ</p>
+                                <p className="font-medium text-slate-600 dark:text-slate-300">ยังไม่มี template</p>
+                                <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">กด "สร้าง template ใหม่" เพื่อเริ่มออกแบบ</p>
                             </>
                         )}
                     </div>
                     {!search && (
-                        <Button onClick={() => setShowCreate(true)} variant="outline" className="gap-2">
+                        <Button onClick={() => setShowCreate(true)} variant="outline" className="gap-2 rounded-xl h-10 border-slate-200 dark:border-slate-700">
                             <Plus className="h-4 w-4" />
                             สร้าง template แรก
                         </Button>
@@ -279,49 +292,52 @@ export default function StickerGalleryPage() {
             {/* Create dialog */}
             {showCreate && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowCreate(false)}>
-                    <div className="bg-card rounded-xl border shadow-xl w-full max-w-sm mx-4 p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
-                        <h2 className="text-lg font-semibold">สร้าง Sticker Template</h2>
-                        <div className="space-y-3">
+                    <div className="bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl w-full max-w-sm mx-4 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                        <div className="px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
+                            <h2 className="text-xl font-semibold text-slate-900 dark:text-white">สร้าง Sticker Template</h2>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">กำหนดชื่อและขนาดสติ๊กเกอร์</p>
+                        </div>
+                        <div className="px-6 py-5 space-y-4">
                             <div className="space-y-1.5">
-                                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">ชื่อ Template *</label>
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">ชื่อ Template <span className="text-red-400">*</span></label>
                                 <input
                                     autoFocus
                                     value={newName}
                                     onChange={(e) => setNewName(e.target.value)}
                                     placeholder="เช่น สติ๊กเกอร์ออเดอร์มาตรฐาน"
-                                    className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-violet-500/40"
+                                    className="w-full h-10 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/40 dark:focus:ring-orange-500/40"
                                     onKeyDown={(e) => e.key === "Enter" && handleCreate()}
                                 />
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1.5">
-                                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">กว้าง (mm)</label>
+                                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">กว้าง (mm)</label>
                                     <input
                                         type="number" min={10} max={300}
                                         value={newW}
                                         onChange={(e) => setNewW(Number(e.target.value))}
-                                        className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-violet-500/40"
+                                        className="w-full h-10 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/40 dark:focus:ring-orange-500/40"
                                     />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">สูง (mm)</label>
+                                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">สูง (mm)</label>
                                     <input
                                         type="number" min={10} max={300}
                                         value={newH}
                                         onChange={(e) => setNewH(Number(e.target.value))}
-                                        className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-violet-500/40"
+                                        className="w-full h-10 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/40 dark:focus:ring-orange-500/40"
                                     />
                                 </div>
                             </div>
                         </div>
-                        <div className="flex gap-2 justify-end">
-                            <Button variant="outline" onClick={() => { setShowCreate(false); setNewName(""); }}>
+                        <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2">
+                            <Button variant="ghost" className="rounded-xl h-10 text-sm text-slate-500 hover:text-slate-900 dark:hover:text-white px-4" onClick={() => { setShowCreate(false); setNewName(""); }}>
                                 ยกเลิก
                             </Button>
                             <Button
                                 disabled={!newName.trim() || creating}
                                 onClick={handleCreate}
-                                className="gap-2 bg-violet-600 hover:bg-violet-700"
+                                className="gap-2 rounded-xl h-10 min-w-[160px] bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white text-sm font-bold shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0"
                             >
                                 <Plus className="h-4 w-4" />
                                 {creating ? "กำลังสร้าง..." : "สร้างและเปิด Editor"}
