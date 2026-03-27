@@ -136,11 +136,11 @@ function CurrentStationBadge({
 
     return (
         <span
-            className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${color.cls}`}
+            className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${color.cls} max-w-full`}
         >
             <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: color.swatch }} />
-            {station?.name ?? sid}
-            <span className="text-[10px] opacity-60">({idx + 1}/{order.stations.length})</span>
+            <span className="truncate min-w-0">{station?.name ?? sid}</span>
+            <span className="text-[10px] opacity-60 shrink-0">({idx + 1}/{order.stations.length})</span>
         </span>
     );
 }
@@ -471,10 +471,10 @@ export default function ProductionPage() {
                                         <div className="px-4 sm:px-6 py-2.5 flex items-center gap-4 text-[11px] font-medium text-slate-400 dark:text-slate-500 bg-slate-50/80 dark:bg-slate-800/30">
                                             <div className="w-5 shrink-0" />
                                             <div className="w-20 shrink-0">รหัส</div>
-                                            <div className="w-40 shrink-0 hidden sm:block">วัสดุ / ชิ้น</div>
-                                            <div className="flex-1">สถานีปัจจุบัน</div>
-                                            <div className="hidden sm:block w-48">เส้นทางสถานี</div>
-                                            <div className="w-24 text-right pr-2">สถานะ</div>
+                                            <div className="w-32 lg:w-40 shrink-0 hidden sm:block">วัสดุ / ชิ้น</div>
+                                            <div className="flex-1 min-w-[100px]">สถานีปัจจุบัน</div>
+                                            <div className="w-28 md:w-36 lg:w-48 shrink-0 hidden sm:block">เส้นทางสถานี</div>
+                                            <div className="w-24 shrink-0 text-right pr-2">สถานะ</div>
                                         </div>
 
                                         {visibleOrders.length === 0 ? (
@@ -506,7 +506,7 @@ export default function ProductionPage() {
                                                         </div>
 
                                                         {/* Material + pane progress */}
-                                                        <div className="w-40 shrink-0 hidden sm:block min-w-0">
+                                                        <div className="w-32 lg:w-40 shrink-0 hidden sm:block min-w-0">
                                                             <div className="flex items-center gap-1.5 text-sm mb-1">
                                                                 <Package className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                                                                 <span className="truncate font-semibold text-slate-700 dark:text-slate-300">{getName(order.material)}</span>
@@ -537,7 +537,7 @@ export default function ProductionPage() {
                                                         </div>
 
                                                         {/* Station flow dots */}
-                                                        <div className="hidden sm:flex w-48 items-center">
+                                                        <div className="hidden sm:flex w-28 md:w-36 lg:w-48 shrink-0 items-center">
                                                             <StationFlow
                                                                 stationIds={order.stations ?? []}
                                                                 currentIdx={order.currentStationIndex ?? 0}
