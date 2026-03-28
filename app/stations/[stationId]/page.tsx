@@ -236,37 +236,34 @@ export default function LiveStationPage() {
         : "";
 
     const header = (
-        <div className="flex items-center gap-2 sm:gap-3 border-b bg-card px-2 sm:px-4 py-2 sm:py-2.5 shrink-0 overflow-x-auto">
-            <Button variant="ghost" size="sm" className="h-8 gap-1 sm:gap-1.5 shrink-0 px-2 sm:px-3" onClick={() => router.push("/stations")}>
-                <ArrowLeft className="h-4 w-4" />
-                <span className="hidden sm:inline">สถานี</span>
-            </Button>
+        <div className="flex items-center gap-2 border-b-2 border-gray-900 bg-white px-3 py-2 shrink-0">
+            <button
+                onClick={() => router.push("/stations")}
+                className="flex items-center gap-1.5 h-11 px-3 rounded-xl border-2 border-gray-900 bg-white text-gray-900 font-bold text-sm active:bg-gray-100 shrink-0"
+            >
+                <ArrowLeft className="h-5 w-5" />
+                <span className="hidden sm:inline">กลับ</span>
+            </button>
             {station && color && (
-                <>
-                    <span className="text-muted-foreground shrink-0">/</span>
-                    <span className={`text-xs font-semibold px-2 sm:px-2.5 py-1 rounded-full shrink-0 ${color.cls}`}>
-                        {station.name}
-                    </span>
-                </>
+                <span className={`text-sm font-bold px-3 py-1.5 rounded-xl shrink-0 ${color.cls}`}>
+                    {station.name}
+                </span>
             )}
-            <div className="ml-auto flex items-center gap-1.5 sm:gap-2 shrink-0">
-                <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 sm:h-8 gap-1 sm:gap-1.5 text-xs px-2 sm:px-3 border-orange-200 text-orange-700 hover:bg-orange-50 hover:border-orange-300 dark:border-orange-800 dark:text-orange-400 dark:hover:bg-orange-950/30"
+            <div className="ml-auto flex items-center gap-2 shrink-0">
+                <button
                     onClick={() => setShowWithdraw(true)}
+                    className="flex items-center gap-1.5 h-11 px-4 rounded-xl border-2 border-orange-600 bg-white text-orange-700 font-bold text-sm active:bg-orange-50"
                 >
-                    <PackageOpen className="h-3.5 w-3.5" />
-                    เบิก
-                </Button>
-                <Button
-                    size="sm"
-                    className="h-7 sm:h-8 gap-1 sm:gap-1.5 text-xs px-2 sm:px-3 bg-red-600 hover:bg-red-700 text-white"
+                    <PackageOpen className="h-5 w-5" />
+                    <span>เบิก</span>
+                </button>
+                <button
                     onClick={() => setShowClaim(true)}
+                    className="flex items-center gap-1.5 h-11 px-4 rounded-xl bg-red-600 text-white font-bold text-sm border-2 border-red-700 active:bg-red-700"
                 >
-                    <FileWarning className="h-3.5 w-3.5" />
-                    เคลม
-                </Button>
+                    <FileWarning className="h-5 w-5" />
+                    <span>เคลม</span>
+                </button>
             </div>
         </div>
     );

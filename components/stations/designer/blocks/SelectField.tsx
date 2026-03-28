@@ -214,11 +214,11 @@ export function SelectField({
         const controlled = !!effectiveKey;
         const currentValue = controlled ? String(formData[effectiveKey] ?? "") : undefined;
         return (
-            <div className="w-full space-y-1.5">
-                {label && <label className="block text-xs font-semibold text-foreground/70">{label}</label>}
+            <div className="w-full space-y-2">
+                {label && <label className="block text-sm font-bold text-gray-900">{label}</label>}
                 <div className="relative">
                     <select
-                        className="w-full rounded-lg border bg-background px-3 py-2 text-sm appearance-none pr-8 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        className="w-full rounded-xl border-2 border-gray-900 bg-white px-4 py-3 text-base font-medium text-gray-900 appearance-none pr-10 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:border-blue-700 min-h-[52px]"
                         value={controlled ? currentValue : undefined}
                         onChange={controlled ? (e) => {
                             const val = e.target.value;
@@ -242,11 +242,11 @@ export function SelectField({
                         }
                     </select>
                     {fetching
-                        ? <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground animate-spin" />
-                        : <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                        ? <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-500 animate-spin" />
+                        : <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-700 pointer-events-none" />
                     }
                 </div>
-                {isApi && <p className="text-[10px] text-emerald-600">{apiItems.length} รายการจาก {SOURCE_LABEL[dataSource] ?? dataSource}</p>}
+                {isApi && <p className="text-xs font-semibold text-emerald-700">{apiItems.length} รายการจาก {SOURCE_LABEL[dataSource] ?? dataSource}</p>}
             </div>
         );
     }
