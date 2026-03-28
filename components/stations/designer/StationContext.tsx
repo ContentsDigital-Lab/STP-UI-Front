@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface StationContextValue {
@@ -67,8 +67,12 @@ export function StationProvider({
     const [orderData,       setOrderData]       = useState<Record<string, unknown> | null>(initialOrderData   ?? null);
     const [requestData,     setRequestData]     = useState<Record<string, unknown> | null>(initialRequestData ?? null);
     const [paneData,        setPaneData]        = useState<Record<string, unknown> | null>(null);
-    const [selectedRecord,  setSelectedRecord]  = useState<Record<string, unknown> | null>(null);
+    const [selectedRecord,  setSelectedRecord]  = useState<Record<string, unknown> | null>(initialOrderData ?? null);
     const [refreshCounter,  setRefreshCounter]  = useState(0);
+
+    useEffect(() => {
+        if (initialOrderData && !selectedRecord) setSelectedRecord(initialOrderData);
+    }, [initialOrderData, selectedRecord]);
 
     const triggerRefresh = useCallback(() => setRefreshCounter((n) => n + 1), []);
 

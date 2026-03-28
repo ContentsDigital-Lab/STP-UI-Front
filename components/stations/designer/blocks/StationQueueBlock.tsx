@@ -113,7 +113,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
     }, [stationId, stationName]);
 
     useEffect(() => { fetchPanes(); }, [fetchPanes, refreshCounter]);
-    useWebSocket("pane", ["pane:updated"], () => { fetchPanes(); });
+    useWebSocket("pane", ["pane:updated"], () => { setQrPane(null); fetchPanes(); });
 
     // ── Group panes by order ──────────────────────────────────────────────────
     const orderGroups = (() => {

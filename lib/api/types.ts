@@ -70,6 +70,7 @@ export interface Customer {
 
 export interface OrderRequest {
     _id: string;
+    requestNumber?: string;
     details: {
         type: string;
         estimatedPrice: number;
@@ -160,7 +161,7 @@ export interface PaneLog {
     material?: string | Material;
     worker?: string | Worker;
     station: string;
-    action: "scan_in" | "start" | "complete";
+    action: "scan_in" | "start" | "complete" | "scan_out";
     completedAt?: string;
     createdAt: string;
     updatedAt: string;

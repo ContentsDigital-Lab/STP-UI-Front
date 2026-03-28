@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, type ReactNode } from "react";
+import { useState, useRef, useEffect, type ReactNode, type DragEvent } from "react";
 import { useEditor } from "@craftjs/core";
 import { Database, Zap, Settings2, HelpCircle, ChevronDown, Plus, Trash2, GripVertical } from "lucide-react";
 
@@ -256,6 +256,7 @@ const SOURCE_FIELDS: Record<string, { key: string; label: string; type: string }
         { key: "price",  label: "ราคา",   type: "currency" },
     ],
     "/requests": [
+        { key: "requestNumber",          label: "เลขที่บิล",        type: "badge"    },
         { key: "details.type",           label: "ประเภทงาน",        type: "text"     },
         { key: "details.estimatedPrice", label: "ราคาประมาณ",       type: "currency" },
         { key: "details.quantity",       label: "จำนวน",            type: "number"   },
@@ -267,6 +268,7 @@ const SOURCE_FIELDS: Record<string, { key: string; label: string; type: string }
         { key: "createdAt",              label: "วันที่สร้าง",      type: "date"     },
     ],
     "/orders": [
+        { key: "orderNumber",label: "เลขที่ออเดอร์",    type: "badge"    },
         { key: "status",      label: "สถานะ",             type: "status"   },
         { key: "quantity",    label: "จำนวน",             type: "number"   },
         { key: "material",    label: "วัสดุ",             type: "text"     },
@@ -313,7 +315,17 @@ const SOURCE_FIELDS: Record<string, { key: string; label: string; type: string }
         { key: "withdrawnBy",   label: "เบิกโดย",       type: "text"   },
         { key: "withdrawnDate", label: "วันที่เบิก",    type: "date"   },
     ],
+    "/panes": [
+        { key: "paneNumber",      label: "เลขที่กระจก",    type: "badge"  },
+        { key: "qrCode",          label: "QR Code",         type: "badge"  },
+        { key: "currentStation",  label: "สถานีปัจจุบัน",  type: "text"   },
+        { key: "currentStatus",   label: "สถานะ",           type: "status" },
+        { key: "glassTypeLabel",  label: "ประเภทกระจก",    type: "text"   },
+        { key: "order",           label: "ออเดอร์",         type: "text"   },
+        { key: "createdAt",       label: "วันที่สร้าง",    type: "date"   },
+    ],
     "/claims": [
+        { key: "claimNumber",label: "เลขที่เคลม",      type: "badge" },
         { key: "source",      label: "แหล่งที่มา",     type: "badge" },
         { key: "material",    label: "วัสดุ",           type: "text"  },
         { key: "description", label: "รายละเอียด",     type: "text"  },
@@ -348,7 +360,8 @@ const COLUMN_PRESETS: Record<string, ColDef[]> = {
     "/customers":     [{ key:"name",label:"ชื่อลูกค้า",type:"text",width:"lg"},{ key:"phone",label:"โทร",type:"text",width:"md"},{ key:"address",label:"ที่อยู่",type:"text",width:"lg"}],
     "/inventories":   [{ key:"material",label:"วัสดุ",type:"text",width:"lg"},{ key:"stockType",label:"ประเภท",type:"badge",width:"sm"},{ key:"quantity",label:"จำนวน",type:"number",width:"sm"},{ key:"location",label:"ตำแหน่ง",type:"text",width:"md"}],
     "/withdrawals":   [{ key:"material",label:"วัสดุ",type:"text",width:"lg"},{ key:"quantity",label:"จำนวน",type:"number",width:"sm"},{ key:"stockType",label:"ประเภท",type:"badge",width:"sm"},{ key:"withdrawnDate",label:"วันที่",type:"date",width:"md"}],
-    "/claims":        [{ key:"source",label:"จาก",type:"badge",width:"sm"},{ key:"material",label:"วัสดุ",type:"text",width:"lg"},{ key:"description",label:"รายละเอียด",type:"text",width:"lg"},{ key:"claimDate",label:"วันที่",type:"date",width:"md"}],
+    "/panes":         [{ key:"paneNumber",label:"เลขที่กระจก",type:"badge",width:"fit"},{ key:"currentStation",label:"สถานี",type:"text",width:"md"},{ key:"currentStatus",label:"สถานะ",type:"status",width:"md"},{ key:"glassTypeLabel",label:"ประเภท",type:"text",width:"md"}],
+    "/claims":        [{ key:"claimNumber",label:"เลขที่เคลม",type:"badge",width:"fit"},{ key:"source",label:"จาก",type:"badge",width:"sm"},{ key:"material",label:"วัสดุ",type:"text",width:"lg"},{ key:"description",label:"รายละเอียด",type:"text",width:"lg"},{ key:"claimDate",label:"วันที่",type:"date",width:"md"}],
     "/material-logs": [{ key:"material",label:"วัสดุ",type:"text",width:"lg"},{ key:"actionType",label:"ประเภท",type:"badge",width:"md"},{ key:"quantityChanged",label:"จำนวน",type:"number",width:"sm"},{ key:"createdAt",label:"วันที่",type:"date",width:"md"}],
     "/notifications": [{ key:"title",label:"หัวข้อ",type:"text",width:"lg"},{ key:"message",label:"ข้อความ",type:"text",width:"lg"},{ key:"priority",label:"ระดับ",type:"badge",width:"sm"},{ key:"createdAt",label:"วันที่",type:"date",width:"md"}],
 };
@@ -361,6 +374,21 @@ function ColumnEditor({ value, onChange, dataSource }: { value: unknown; onChang
     const update  = (next: ColDef[]) => onChange(JSON.stringify(next));
     const setCol  = (i: number, patch: Partial<ColDef>) => update(cols.map((c, idx) => idx === i ? { ...c, ...patch } : c));
     const delCol  = (i: number) => update(cols.filter((_, idx) => idx !== i));
+
+    const dragIdx = useRef<number | null>(null);
+    const [dragOver, setDragOver] = useState<number | null>(null);
+    const handleDragStart = (i: number) => { dragIdx.current = i; };
+    const handleDragOver  = (e: DragEvent, i: number) => { e.preventDefault(); setDragOver(i); };
+    const handleDragEnd   = () => { dragIdx.current = null; setDragOver(null); };
+    const handleDrop      = (i: number) => {
+        const from = dragIdx.current;
+        if (from === null || from === i) { handleDragEnd(); return; }
+        const next = [...cols];
+        const [moved] = next.splice(from, 1);
+        next.splice(i, 0, moved);
+        update(next);
+        handleDragEnd();
+    };
 
     const availableFields = dataSource ? (SOURCE_FIELDS[dataSource] ?? []) : [];
     const hasFieldList    = availableFields.length > 0;
@@ -398,7 +426,7 @@ function ColumnEditor({ value, onChange, dataSource }: { value: unknown; onChang
                                     type="button"
                                     onClick={() => {
                                         if (already) delCol(cols.findIndex((c) => c.key === f.key));
-                                        else update([...cols, { key: f.key, label: f.label, type: f.type, width: "auto" }]);
+                                        else update([...cols, { key: f.key, label: f.label, type: f.type, width: f.type === "badge" ? "fit" : "auto" }]);
                                     }}
                                     className={`inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border font-medium transition-all ${
                                         already
@@ -427,8 +455,18 @@ function ColumnEditor({ value, onChange, dataSource }: { value: unknown; onChang
                         </p>
                     )}
                     {cols.map((col, i) => (
-                        <div key={i} className="grid grid-cols-[auto_1fr_auto_auto] gap-1.5 items-center rounded-lg border bg-card px-2.5 py-2">
-                            <span className="text-[10px] text-muted-foreground/40 w-4 text-center shrink-0">{i + 1}</span>
+                        <div
+                            key={i}
+                            draggable
+                            onDragStart={() => handleDragStart(i)}
+                            onDragOver={(e) => handleDragOver(e, i)}
+                            onDragEnd={handleDragEnd}
+                            onDrop={() => handleDrop(i)}
+                            className={`grid grid-cols-[auto_1fr_auto_auto] gap-1.5 items-center rounded-lg border bg-card px-2.5 py-2 transition-all ${
+                                dragOver === i ? "border-primary border-dashed bg-primary/5" : ""
+                            }`}
+                        >
+                            <GripVertical className="h-3.5 w-3.5 text-muted-foreground/30 cursor-grab active:cursor-grabbing shrink-0" />
                             <input
                                 value={col.label}
                                 onChange={(e) => setCol(i, { label: e.target.value })}

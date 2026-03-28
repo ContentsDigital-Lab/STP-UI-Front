@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Editor, Frame, Element, useEditor } from "@craftjs/core";
 import { BlockPalette }      from "./BlockPalette";
 import { PropertiesPanel }   from "./PropertiesPanel";
@@ -75,6 +75,26 @@ function EditorModeSync({ enabled }: { enabled: boolean }) {
     return null;
 }
 
+/**
+ * Loads serialized node data into the editor via actions.deserialize().
+ * Unlike Frame's `data` prop, this runs inside useEffect with try-catch,
+ * so corrupt data logs an error instead of crashing the whole page.
+ */
+function NodeLoader({ data }: { data: string | undefined }) {
+    const { actions } = useEditor();
+    const loadedRef = useRef(false);
+    useEffect(() => {
+        if (loadedRef.current || !data) return;
+        loadedRef.current = true;
+        try {
+            actions.deserialize(data);
+        } catch (err) {
+            console.error("[NodeLoader] Failed to deserialize template data:", err);
+        }
+    }, [actions, data]);
+    return null;
+}
+
 export type SaveStatus = "idle" | "pending" | "saving" | "saved";
 
 /** Auto-saves 5 s after any node change. Skips the initial hydration render. */
@@ -118,25 +138,54 @@ function AutoSave({
 }
 
 /**
- * Craft.js calls Object.keys() on every node and every node's sub-properties
- * (props, linkedNodes, custom, etc.). If ANY of those values is null/undefined
- * the engine throws "Cannot convert undefined or null to object".
- * This sanitizer ensures each node and its required sub-fields are real objects.
+ * Sanitizes serialized Craft.js node data so it can be safely deserialized.
+ *
+ * Handles: missing sub-objects, missing/invalid `type`, dangling child refs,
+ * and component types not present in the resolver.
  */
-function sanitizeCraftNodes(raw: Record<string, unknown>): string | undefined {
+function sanitizeCraftNodes(raw: Record<string, unknown>, validTypes: Set<string>): string | undefined {
     const clean: Record<string, unknown> = {};
     for (const [id, node] of Object.entries(raw)) {
         if (!node || typeof node !== "object" || Array.isArray(node)) continue;
         const n = node as Record<string, unknown>;
+
+        // Validate type — must be { resolvedName: "SomeComponent" } matching a resolver key
+        let type = n.type as Record<string, unknown> | undefined;
+        if (type && typeof type === "object" && typeof type.resolvedName === "string") {
+            if (!validTypes.has(type.resolvedName)) {
+                console.warn(`[sanitizeCraftNodes] Node "${id}" has unknown type "${type.resolvedName}", skipping`);
+                continue;
+            }
+        } else if (id === "ROOT") {
+            type = { resolvedName: "CanvasContainer" };
+        } else {
+            continue;
+        }
+
         clean[id] = {
             ...n,
+            type,
             props:       (n.props && typeof n.props === "object" && !Array.isArray(n.props))       ? n.props       : {},
             custom:      (n.custom && typeof n.custom === "object" && !Array.isArray(n.custom))     ? n.custom      : {},
             linkedNodes: (n.linkedNodes && typeof n.linkedNodes === "object" && !Array.isArray(n.linkedNodes)) ? n.linkedNodes : {},
             nodes:       Array.isArray(n.nodes) ? n.nodes : [],
         };
     }
-    return "ROOT" in clean ? JSON.stringify(clean) : undefined;
+    if (!("ROOT" in clean)) return undefined;
+    // Prune references to nodes that don't exist in the clean set
+    for (const node of Object.values(clean)) {
+        const n = node as Record<string, unknown>;
+        if (Array.isArray(n.nodes)) {
+            n.nodes = (n.nodes as string[]).filter(cid => cid in clean);
+        }
+        if (n.linkedNodes && typeof n.linkedNodes === "object") {
+            const ln = n.linkedNodes as Record<string, string>;
+            for (const key of Object.keys(ln)) {
+                if (!(ln[key] in clean)) delete ln[key];
+            }
+        }
+    }
+    return JSON.stringify(clean);
 }
 
 export function DesignerCanvas({ templateName, initialNodes, onSave, saving, onSaveStatusChange, previewOnly = false, stationId, stationName, initialData, initialRequestData }: DesignerCanvasProps) {
@@ -149,6 +198,8 @@ export function DesignerCanvas({ templateName, initialNodes, onSave, saving, onS
         InfoCard, StatusIndicator, RecordList, RecordDetail, StationSequencePicker, StationHistory,
         InventoryStockBlock, OrderReleasePanel, QrScanBlock, StationQueueBlock,
     }), []);
+
+    const resolverNames = useMemo(() => new Set(Object.keys(RESOLVER)), [RESOLVER]);
 
     const [isPreview,      setIsPreview]      = useState(previewOnly);
     const [canvasSize,     setCanvasSize]     = useState<CanvasSize>({ width: 900, height: 700 });
@@ -187,6 +238,13 @@ export function DesignerCanvas({ templateName, initialNodes, onSave, saving, onS
                 <EditorModeSync enabled={!isPreview} />
                 <SelectionWatcher onSelection={handleSelection} />
                 <KeyboardShortcuts />
+                <NodeLoader data={
+                    initialNodes &&
+                    typeof initialNodes === "object" &&
+                    !Array.isArray(initialNodes)
+                        ? sanitizeCraftNodes(initialNodes, resolverNames)
+                        : undefined
+                } />
                 {/* Auto-save on every node change (1.5 s debounce) */}
                 {!previewOnly && (
                     <AutoSave
@@ -274,13 +332,7 @@ export function DesignerCanvas({ templateName, initialNodes, onSave, saving, onS
                                     : "shadow-lg ring-1 ring-black/5 rounded-sm"
                                 }
                             >
-                                <Frame data={
-                                    initialNodes &&
-                                    typeof initialNodes === "object" &&
-                                    !Array.isArray(initialNodes)
-                                        ? sanitizeCraftNodes(initialNodes)
-                                        : undefined
-                                }>
+                                <Frame>
                                     <Element
                                         is={CanvasContainer}
                                         canvas

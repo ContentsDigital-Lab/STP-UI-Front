@@ -1,7 +1,7 @@
 "use client";
 
 import { useNode } from "@craftjs/core";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Database, ChevronRight, ChevronDown, Loader2, AlertCircle, Hash, ExternalLink, QrCode as QrCodeIcon, FileText, Package, Printer } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
@@ -51,7 +51,11 @@ const SAMPLE_ROWS = [
 ];
 
 // min-w-0 + overflow-hidden prevent flex-children from overflowing
-const WIDTH_MAP = { sm: "w-16 shrink-0", md: "w-24 shrink-0", lg: "flex-1 min-w-0 overflow-hidden", auto: "flex-1 min-w-0 overflow-hidden" };
+const WIDTH_MAP: Record<string, string> = { sm: "w-20 shrink-0", md: "w-28 shrink-0", lg: "flex-1 min-w-0 overflow-hidden", auto: "flex-1 min-w-0 overflow-hidden", fit: "shrink-0 whitespace-nowrap w-auto" };
+function cellClass(col: ColumnDef): string {
+    if (col.type === "badge") return WIDTH_MAP.fit;
+    return `${WIDTH_MAP[col.width ?? "auto"]} min-w-0`;
+}
 
 // Resolve dot-notation keys and unwrap populated objects (e.g. customer → customer.name)
 function resolveValue(row: Record<string, unknown>, key: string): unknown {
@@ -89,7 +93,7 @@ function CellValue({ col, value }: { col: ColumnDef; value: unknown }) {
         return <span className="text-muted-foreground">{d.toLocaleDateString("th-TH")}</span>;
     }
     if (col.type === "badge") {
-        return <span className="inline-flex items-center rounded bg-muted px-2 py-0.5 text-[11px] font-mono">{str}</span>;
+        return <span className="inline-flex items-center rounded bg-muted px-2 py-0.5 text-[11px] font-mono whitespace-nowrap">{str}</span>;
     }
     if (col.type === "number") {
         return <span className="font-medium tabular-nums">{str}</span>;
@@ -302,6 +306,19 @@ export function RecordList({
             .catch(() => {});
     });
 
+    const autoExpandedRef = useRef(false);
+    useEffect(() => {
+        if (autoExpandedRef.current || !selectedRecord || !canShowPanes || rows.length === 0) return;
+        const rid = String(selectedRecord._id ?? selectedRecord[idField] ?? "");
+        if (!rid) return;
+        const match = rows.find(r => String(r._id ?? r[idField] ?? "") === rid);
+        if (match) {
+            autoExpandedRef.current = true;
+            toggleRowPanes(match);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [rows, selectedRecord]);
+
     // Refresh rowPanes when triggerRefresh() is called (e.g. after scan in StationQueueBlock)
     // WebSocket handles real-time for other users; this handles the local user immediately.
     useEffect(() => {
@@ -412,7 +429,7 @@ export function RecordList({
                         <div className="overflow-x-auto">
                         <div className="flex items-center gap-4 px-3 sm:px-4 py-2 bg-muted/20 border-b text-[10px] font-semibold text-muted-foreground uppercase tracking-wider min-w-[400px]">
                             {columns.map((c, ci) => (
-                                <span key={`phdr-${ci}`} className={WIDTH_MAP[c.width ?? "auto"]}>{c.label}</span>
+                                <span key={`phdr-${ci}`} className={cellClass(c)}>{c.label}</span>
                             ))}
                             {(showQrColumn || showWorkOrderColumn) && <span className="w-auto shrink-0">จัดการ</span>}
                             {navPath && <span className="w-4" />}
@@ -449,7 +466,7 @@ export function RecordList({
                                     const inner = (
                                         <>
                                             {columns.map((c, ci) => (
-                                                <span key={`pcell-${i}-${ci}`} className={`${WIDTH_MAP[c.width ?? "auto"]} min-w-0`}>
+                                                <span key={`pcell-${i}-${ci}`} className={cellClass(c)}>
                                                     <CellValue col={c} value={resolveValue(row, c.key)} />
                                                 </span>
                                             ))}
@@ -660,7 +677,7 @@ export function RecordList({
                     {/* Column headers */}
                     <div className="flex items-center gap-3 px-4 py-1.5 bg-muted/10 border-b text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">
                         {columns.map((c, ci) => (
-                            <span key={`hdr-${ci}`} className={`${WIDTH_MAP[c.width ?? "auto"]} flex items-center gap-1`}>
+                            <span key={`hdr-${ci}`} className={`${cellClass(c)} flex items-center gap-1`}>
                                 <Hash className="h-2 w-2 opacity-40" />{c.label}
                                 <span className="opacity-30 font-normal normal-case">({c.type ?? "text"})</span>
                             </span>
@@ -678,7 +695,7 @@ export function RecordList({
                             {(isApi && filtered.length > 0 ? filtered : SAMPLE_ROWS.slice(0, Math.min(3, maxRows))).map((row, i) => (
                                 <div key={i} className="flex items-center gap-3 px-4 py-2">
                                     {columns.map((c, ci) => (
-                                        <span key={`cell-${i}-${ci}`} className={`${WIDTH_MAP[c.width ?? "auto"]} min-w-0`}>
+                                        <span key={`cell-${i}-${ci}`} className={cellClass(c)}>
                                             <CellValue col={c} value={resolveValue(row as Record<string, unknown>, c.key)} />
                                         </span>
                                     ))}

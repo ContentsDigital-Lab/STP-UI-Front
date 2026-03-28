@@ -5,16 +5,17 @@ import { useParams, useRouter } from "next/navigation";
 import {
     ArrowLeft, Loader2, AlertCircle, Factory,
     User, Package, Calendar, MapPin, Hash, Clock,
-    Printer, Info, CheckCheck, ChevronRight,
+    Printer, Info, CheckCheck, ChevronRight, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ordersApi } from "@/lib/api/orders";
 import { panesApi } from "@/lib/api/panes";
 import { requestsApi } from "@/lib/api/requests";
 import { stationsApi } from "@/lib/api/stations";
+import { paneLogsApi } from "@/lib/api/pane-logs";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { getColorOption } from "@/lib/stations/stations-store";
-import { Order, OrderRequest, Station, Pane } from "@/lib/api/types";
+import { Order, OrderRequest, Station, Pane, PaneLog } from "@/lib/api/types";
 
 const COLOR_STORAGE_KEY = "std_station_colors";
 function loadColorMap(): Record<string, string> {
@@ -53,6 +54,25 @@ function InfoRow({ icon: Icon, label, value }: { icon: React.ElementType; label:
 const fmtDate = (d?: string) =>
     d ? new Date(d).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" }) : "—";
 
+const fmtTime = (d?: string) => {
+    if (!d) return "—";
+    return new Date(d).toLocaleString("th-TH", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+};
+
+function fmtDuration(ms: number): string {
+    if (ms <= 0) return "—";
+    const s = Math.floor(ms / 1000);
+    if (s < 60) return `${s} วินาที`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m} นาที`;
+    const h = Math.floor(m / 60);
+    const rm = m % 60;
+    if (h < 24) return rm > 0 ? `${h} ชม. ${rm} น.` : `${h} ชม.`;
+    const d = Math.floor(h / 24);
+    const rh = h % 24;
+    return rh > 0 ? `${d} วัน ${rh} ชม.` : `${d} วัน`;
+}
+
 // ── station journey ───────────────────────────────────────────────────────────
 function StationJourney({
     order, stationMap, colorMap, panes,
@@ -62,6 +82,7 @@ function StationJourney({
     colorMap: Record<string, string>;
     panes: Pane[];
 }) {
+    const router      = useRouter();
     const stationIds  = order.stations ?? [];
     const isDone      = order.status === "completed";
     const isCancelled = order.status === "cancelled";
@@ -164,12 +185,13 @@ function StationJourney({
                         {/* Right: Station Card */}
                         <div className="flex-1 min-w-0 py-1.5">
                             <div
-                                className={`rounded-xl p-3.5 transition-all ${
+                                onClick={() => router.push(`/stations/${sid}?orderId=${order._id}`)}
+                                className={`rounded-xl p-3.5 transition-all cursor-pointer hover:shadow-lg hover:scale-[1.01] ${
                                     isCur
                                         ? "bg-white dark:bg-slate-900 shadow-md border-2"
                                         : isPast
-                                            ? "border border-slate-200/80 dark:border-slate-800"
-                                            : "bg-slate-50 dark:bg-slate-800/20 border border-slate-200 dark:border-slate-800"
+                                            ? "border border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
+                                            : "bg-slate-50 dark:bg-slate-800/20 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
                                 }`}
                                 style={{
                                     ...(isCur ? { borderColor: color.swatch } : {}),
@@ -263,6 +285,344 @@ function StationJourney({
     );
 }
 
+// ── labeled field row helper ──────────────────────────────────────────────────
+function PaneField({ label, value, mono, accent }: { label: string; value: string | null | undefined; mono?: boolean; accent?: string }) {
+    if (!value) return null;
+    return (
+        <div className="flex items-start gap-3 py-2.5 min-w-0">
+            <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 w-24 shrink-0 pt-0.5">{label}</span>
+            <span className={`text-sm font-medium break-all min-w-0 ${accent ?? "text-slate-800 dark:text-slate-200"} ${mono ? "font-mono" : ""}`}>{value}</span>
+        </div>
+    );
+}
+
+// ── pane detail modal ─────────────────────────────────────────────────────────
+function PaneDetailModal({
+    pane, stationMap, stationByName, colorMap, onClose,
+}: {
+    pane: Pane;
+    stationMap: Map<string, Station>;
+    stationByName: Map<string, Station>;
+    colorMap: Record<string, string>;
+    onClose: () => void;
+}) {
+    const [logs, setLogs] = useState<PaneLog[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        setLoading(true);
+        paneLogsApi.getAll({ paneId: pane._id, limit: 300 })
+            .then(res => { if (res.success) setLogs(res.data ?? []); })
+            .catch(() => {})
+            .finally(() => setLoading(false));
+    }, [pane._id]);
+
+    useEffect(() => {
+        document.body.style.overflow = "hidden";
+        return () => { document.body.style.overflow = ""; };
+    }, []);
+
+    const routing = pane.routing ?? [];
+
+    const stationLogsMap = new Map<string, { scan_in?: PaneLog; start?: PaneLog; complete?: PaneLog }>();
+    for (const log of logs) {
+        const logStation = String(log.station ?? "");
+        for (const sid of routing) {
+            // sid is a station name string; also resolve via maps for fallback
+            const stById   = stationMap.get(sid);
+            const stByName = stationByName.get(sid);
+            const stationName = stById?.name ?? stByName?.name ?? sid;
+            const stationId   = stById?._id ?? stByName?._id ?? "";
+
+            if (logStation === sid || logStation === stationName || logStation === stationId) {
+                if (!stationLogsMap.has(sid)) stationLogsMap.set(sid, {});
+                const entry = stationLogsMap.get(sid)!;
+                if (log.action === "scan_in" && !entry.scan_in) entry.scan_in = log;
+                if (log.action === "start" && !entry.start) entry.start = log;
+                if (log.action === "complete" && !entry.complete) entry.complete = log;
+                break;
+            }
+        }
+    }
+
+    const currentStationIdx = routing.findIndex(sid => {
+        const station = stationMap.get(sid);
+        return sid === pane.currentStation || station?.name === pane.currentStation;
+    });
+
+    const isCompleted = pane.currentStatus === "completed";
+
+    const currentStationName = (() => {
+        if (pane.currentStation === "queue") return "คิว";
+        if (pane.currentStation === "ready") return "พร้อมส่ง";
+        if (pane.currentStation === "defected") return "ชำรุด";
+        const s = stationMap.get(pane.currentStation) ?? stationByName.get(pane.currentStation);
+        return s?.name ?? pane.currentStation;
+    })();
+
+    const heroColor = (() => {
+        if (isCompleted) return getColorOption("green");
+        if (["queue", "ready", "defected"].includes(pane.currentStation)) return getColorOption("slate");
+        if (currentStationIdx >= 0) {
+            const sid = routing[currentStationIdx];
+            const station = stationMap.get(sid) ?? stationByName.get(sid);
+            const stId = station?._id ?? sid;
+            return getColorOption(colorMap[stId] ?? station?.colorId ?? "sky");
+        }
+        return getColorOption("sky");
+    })();
+
+    const completedCount = routing.filter((_, idx) =>
+        isCompleted || (currentStationIdx >= 0 && idx < currentStationIdx)
+    ).length;
+
+    const totalMs = pane.startedAt && pane.completedAt
+        ? new Date(pane.completedAt).getTime() - new Date(pane.startedAt).getTime()
+        : 0;
+
+    const statusLabel: Record<string, string> = {
+        pending: "รอดำเนินการ",
+        in_progress: "กำลังดำเนินการ",
+        completed: "เสร็จแล้ว",
+        awaiting_scan_out: "รอสแกนออก",
+    };
+
+    const dimStr = pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0)
+        ? `${pane.dimensions.width} × ${pane.dimensions.height}${pane.dimensions.thickness > 0 ? ` × ${pane.dimensions.thickness}` : ""} mm`
+        : null;
+
+    const rawGlassStr = pane.rawGlass
+        ? [pane.rawGlass.glassType, pane.rawGlass.color, pane.rawGlass.thickness ? `${pane.rawGlass.thickness}mm` : null, pane.rawGlass.sheetsPerPane > 1 ? `${pane.rawGlass.sheetsPerPane} แผ่น/ชิ้น` : null].filter(Boolean).join(" · ")
+        : null;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 sm:p-4" onClick={onClose}>
+            <div
+                className="bg-white dark:bg-slate-900 w-full sm:max-w-lg sm:rounded-3xl rounded-t-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-h-[92vh] sm:max-h-[85vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200"
+                onClick={e => e.stopPropagation()}
+            >
+                {/* Header */}
+                <div className="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 shrink-0">
+                    <Package className="h-5 w-5 text-slate-400 shrink-0" />
+                    <span className="text-base font-bold text-slate-900 dark:text-white font-mono flex-1 truncate">{pane.paneNumber || pane._id.slice(-6).toUpperCase()}</span>
+                    <button onClick={onClose} className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 -mr-1">
+                        <X className="h-5 w-5" />
+                    </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto">
+
+                    {/* ── HERO: Where is this pane right now? ────── */}
+                    <div className="p-5 pb-4">
+                        <div className="rounded-2xl p-5" style={{ backgroundColor: `${heroColor.swatch}10` }}>
+                            {isCompleted ? (
+                                <>
+                                    <div className="flex items-center gap-2.5 mb-1.5">
+                                        <div className="h-8 w-8 rounded-full flex items-center justify-center" style={{ backgroundColor: `${heroColor.swatch}25` }}>
+                                            <CheckCheck className="h-4 w-4" style={{ color: heroColor.swatch }} />
+                                        </div>
+                                        <span className="text-sm font-bold" style={{ color: heroColor.swatch }}>ผลิตเสร็จแล้ว</span>
+                                    </div>
+                                    {totalMs > 0 && (
+                                        <p className="text-2xl font-bold text-slate-800 dark:text-white mt-1">{fmtDuration(totalMs)}</p>
+                                    )}
+                                    <p className="text-xs text-slate-500 mt-1">ผ่านแล้ว {routing.length} สถานี</p>
+                                </>
+                            ) : (
+                                <>
+                                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 flex items-center gap-1.5">
+                                        <Factory className="h-3.5 w-3.5" style={{ color: heroColor.swatch }} />
+                                        {pane.currentStatus === "awaiting_scan_out" ? "เสร็จแล้ว รอสแกนออกที่" : pane.currentStatus === "pending" ? "รอเริ่มที่" : "อยู่ที่สถานี"}
+                                    </p>
+                                    <p className="text-2xl font-bold text-slate-800 dark:text-white">{currentStationName}</p>
+                                    {pane.currentStatus === "in_progress" && (
+                                        <p className="text-xs font-semibold mt-1.5 flex items-center gap-1" style={{ color: heroColor.swatch }}>
+                                            <Loader2 className="h-3 w-3 animate-spin" />
+                                            กำลังดำเนินการ
+                                        </p>
+                                    )}
+                                </>
+                            )}
+
+                            {routing.length > 0 && (
+                                <div className="flex items-center gap-1.5 mt-4">
+                                    <div className="flex items-center flex-1 min-w-0">
+                                        {routing.map((sid, idx) => {
+                                            const st = stationMap.get(sid) ?? stationByName.get(sid);
+                                            const stId = st?._id ?? sid;
+                                            const dc = getColorOption(colorMap[stId] ?? st?.colorId ?? "sky");
+                                            const dp = isCompleted || (currentStationIdx >= 0 && idx < currentStationIdx);
+                                            const dcr = !isCompleted && idx === currentStationIdx;
+                                            return (
+                                                <div key={sid} className="flex items-center flex-1">
+                                                    <div
+                                                        className={`shrink-0 rounded-full ${dcr ? "w-3.5 h-3.5 ring-2 ring-white dark:ring-slate-900 animate-pulse" : dp ? "w-2.5 h-2.5" : "w-2 h-2 bg-slate-200 dark:bg-slate-700"}`}
+                                                        style={(dp || dcr) ? { backgroundColor: dc.swatch } : undefined}
+                                                    />
+                                                    {idx < routing.length - 1 && (
+                                                        <div
+                                                            className={`h-[3px] flex-1 mx-0.5 rounded-full ${dp ? "" : "bg-slate-200 dark:bg-slate-700"}`}
+                                                            style={dp ? { backgroundColor: `${dc.swatch}40` } : undefined}
+                                                        />
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                    <span className="text-[11px] font-bold text-slate-400 shrink-0 tabular-nums ml-2">
+                                        {isCompleted ? routing.length : completedCount}/{routing.length}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* ── Pane details — labeled fields ──────────── */}
+                    <div className="px-5 pb-3">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">ข้อมูลกระจก</p>
+                        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 px-4 py-1 divide-y divide-slate-100 dark:divide-slate-800/60">
+                            <PaneField label="หมายเลข" value={pane.paneNumber} mono />
+                            <PaneField label="QR Code" value={pane.qrCode} mono />
+                            <PaneField label="สถานะ" value={statusLabel[pane.currentStatus] ?? pane.currentStatus} accent={isCompleted ? "text-green-600 dark:text-green-400" : pane.currentStatus === "in_progress" ? "text-blue-600 dark:text-blue-400" : "text-amber-600 dark:text-amber-400"} />
+                            <PaneField label="สถานีปัจจุบัน" value={currentStationName} />
+                            <PaneField label="ขนาด" value={dimStr} />
+                            <PaneField label="กระจกดิบ" value={rawGlassStr} />
+                            {pane.jobType && <PaneField label="ประเภทงาน" value={pane.jobType} />}
+                            {pane.customRouting && <PaneField label="เส้นทาง" value="กำหนดเอง (Custom)" accent="text-violet-600 dark:text-violet-400" />}
+                            {pane.remakeOf && <PaneField label="ผลิตซ้ำจาก" value={pane.remakeOf} mono accent="text-orange-600 dark:text-orange-400" />}
+                        </div>
+                    </div>
+
+                    {/* ── Processes ──────────────────────────────── */}
+                    {(pane.processes?.length ?? 0) > 0 && (
+                        <div className="px-5 pb-3">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">กระบวนการ</p>
+                            <div className="flex flex-wrap gap-1.5">
+                                {pane.processes.map((p, i) => (
+                                    <span key={i} className="text-xs font-medium px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400">{p}</span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ── Edge tasks ─────────────────────────────── */}
+                    {(pane.edgeTasks?.length ?? 0) > 0 && (
+                        <div className="px-5 pb-3">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">งานขอบ</p>
+                            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden divide-y divide-slate-100 dark:divide-slate-800/60">
+                                {pane.edgeTasks.map((et, i) => {
+                                    const etStatus = et.status === "completed" ? "text-green-600" : et.status === "in_progress" ? "text-blue-600" : "text-slate-400";
+                                    return (
+                                        <div key={i} className="flex items-center gap-3 px-4 py-2.5">
+                                            <span className="text-xs font-bold text-slate-500 w-12 shrink-0 uppercase">{et.side}</span>
+                                            <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300 flex-1 truncate">{et.edgeProfile}{et.machineType ? ` (${et.machineType})` : ""}</span>
+                                            <span className={`text-[10px] font-bold shrink-0 ${etStatus}`}>{et.status === "completed" ? "เสร็จ" : et.status === "in_progress" ? "กำลังทำ" : "รอ"}</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ── Station journey — timeline ────────────── */}
+                    {routing.length > 0 && (
+                        <div className="px-5 pb-4">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">เส้นทางการผลิต</p>
+                            {loading ? (
+                                <div className="flex items-center justify-center py-6">
+                                    <Loader2 className="h-4 w-4 animate-spin text-slate-300" />
+                                </div>
+                            ) : (
+                                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden divide-y divide-slate-100 dark:divide-slate-800/60">
+                                    {routing.map((sid, idx) => {
+                                        const station = stationMap.get(sid) ?? stationByName.get(sid);
+                                        const stId = station?._id ?? sid;
+                                        const colorId = colorMap[stId] ?? station?.colorId ?? "sky";
+                                        const color = getColorOption(colorId);
+                                        const stLogs = stationLogsMap.get(sid) ?? {};
+                                        const isCurrent = idx === currentStationIdx && !isCompleted;
+                                        const isPassed = isCompleted || (currentStationIdx >= 0 && idx < currentStationIdx);
+                                        const isFuture = !isCurrent && !isPassed;
+
+                                        let duration: string | null = null;
+                                        if (stLogs.scan_in && stLogs.complete) {
+                                            const ms = new Date(stLogs.complete.completedAt ?? stLogs.complete.createdAt).getTime()
+                                                - new Date(stLogs.scan_in.createdAt).getTime();
+                                            if (ms > 0) duration = fmtDuration(ms);
+                                        }
+
+                                        return (
+                                            <div
+                                                key={sid}
+                                                className={`px-4 py-3 ${isCurrent ? "" : ""}`}
+                                                style={isCurrent ? { backgroundColor: `${color.swatch}08` } : undefined}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div
+                                                        className={`shrink-0 rounded-full flex items-center justify-center ${
+                                                            isCurrent ? "w-5 h-5" :
+                                                            isPassed  ? "w-4 h-4" :
+                                                                        "w-3 h-3 bg-slate-200 dark:bg-slate-700"
+                                                        }`}
+                                                        style={(isPassed || isCurrent) ? { backgroundColor: color.swatch } : undefined}
+                                                    >
+                                                        {isPassed && <CheckCheck className="h-2 w-2 text-white" />}
+                                                        {isCurrent && <div className="h-2 w-2 rounded-full bg-white animate-pulse" />}
+                                                    </div>
+
+                                                    <span className={`text-sm font-semibold flex-1 truncate ${isFuture ? "text-slate-300 dark:text-slate-600" : "text-slate-800 dark:text-white"}`}>
+                                                        {station?.name ?? sid}
+                                                    </span>
+
+                                                    {isCurrent && (
+                                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0" style={{ color: color.swatch, backgroundColor: `${color.swatch}15` }}>
+                                                            อยู่ที่นี่
+                                                        </span>
+                                                    )}
+                                                    {isPassed && duration && (
+                                                        <span className="text-[11px] font-semibold text-slate-400 shrink-0 tabular-nums">{duration}</span>
+                                                    )}
+                                                </div>
+
+                                                {/* Timestamps under each station — only for passed stations */}
+                                                {isPassed && (
+                                                    (stLogs.scan_in || stLogs.complete) ? (
+                                                        <div className="ml-8 mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-slate-400">
+                                                            {stLogs.scan_in && <span>เข้า {fmtTime(stLogs.scan_in.createdAt)}</span>}
+                                                            {stLogs.start && <span>เริ่ม {fmtTime(stLogs.start.createdAt)}</span>}
+                                                            {stLogs.complete && <span className="text-green-500">เสร็จ {fmtTime(stLogs.complete.completedAt ?? stLogs.complete.createdAt)}</span>}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="ml-8 mt-1 text-[10px] text-slate-300 dark:text-slate-600 italic">ไม่มีข้อมูลเวลา</div>
+                                                    )
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* ── Timestamps — overall ─────────────────── */}
+                    <div className="px-5 pb-5">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">ไทม์ไลน์</p>
+                        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 px-4 py-1 divide-y divide-slate-100 dark:divide-slate-800/60">
+                            <PaneField label="สร้างเมื่อ" value={fmtTime(pane.createdAt)} />
+                            <PaneField label="เริ่มผลิต" value={pane.startedAt ? fmtTime(pane.startedAt) : null} />
+                            <PaneField label="ผลิตเสร็จ" value={pane.completedAt ? fmtTime(pane.completedAt) : null} accent="text-green-600 dark:text-green-400" />
+                            <PaneField label="ส่งมอบ" value={pane.deliveredAt ? fmtTime(pane.deliveredAt) : null} accent="text-blue-600 dark:text-blue-400" />
+                            {totalMs > 0 && <PaneField label="ระยะเวลารวม" value={fmtDuration(totalMs)} accent="text-slate-800 dark:text-white" />}
+                            <PaneField label="อัพเดทล่าสุด" value={fmtTime(pane.updatedAt)} />
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // ── orders in same bill ───────────────────────────────────────────────────────
 function BillOrderList({
     orders, currentOrderId, stationMap, colorMap, onSelect,
@@ -350,6 +710,7 @@ export default function ProductionDetailPage() {
     const [loading,    setLoading]    = useState(true);
     const [error,      setError]      = useState<string | null>(null);
     const [infoTab,    setInfoTab]    = useState<"order" | "bill">("order");
+    const [selectedPane, setSelectedPane] = useState<Pane | null>(null);
 
     const stationMap = new Map(stations.map(s => [s._id, s]));
     const stationByName = new Map(stations.map(s => [s.name, s]));
@@ -446,7 +807,7 @@ export default function ProductionDetailPage() {
                         <div className="flex items-start sm:items-center gap-2 sm:gap-3 flex-col sm:flex-row">
                             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
                                 <Factory className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600 dark:text-[#E8601C] shrink-0" />
-                                <span className="break-all">คำสั่งผลิต {order.code ? `#${order.code}` : `#${order._id.slice(-6).toUpperCase()}`}</span>
+                                <span className="break-all">คำสั่งผลิต {order.orderNumber ?? (order.code ? `#${order.code}` : `#${order._id.slice(-6).toUpperCase()}`)}</span>
                             </h1>
                             <span className={`rounded-full px-3 py-1 text-xs font-bold shrink-0 ${statusCfg.cls}`}>
                                 {statusCfg.label}
@@ -531,7 +892,7 @@ export default function ProductionDetailPage() {
 
                 {/* ── Right: station journey ───────────────────────────── */}
                 <div className="space-y-6">
-                    <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-200/20 dark:shadow-none p-5 sm:p-8 space-y-5 sm:space-y-6 flex flex-col h-full overflow-hidden">
+                    <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-200/20 dark:shadow-none p-5 sm:p-8 space-y-5 sm:space-y-6">
                         <div className="flex items-center justify-between gap-4">
                             <h2 className="text-base font-bold flex items-center gap-2.5 text-slate-800 dark:text-slate-200">
                                 <div className="h-8 w-8 rounded-full bg-blue-50 dark:bg-[#E8601C]/10 flex items-center justify-center text-blue-600 dark:text-[#E8601C]">
@@ -549,7 +910,7 @@ export default function ProductionDetailPage() {
                             )}
                         </div>
 
-                        <div className="overflow-y-auto max-h-[320px] sm:max-h-[400px] flex-1 relative hide-scrollbar px-1 sm:px-2 -mx-1 sm:-mx-2">
+                        <div className="relative px-1 sm:px-2 -mx-1 sm:-mx-2">
                             <StationJourney
                                 order={order}
                                 stationMap={stationMap}
@@ -611,15 +972,15 @@ export default function ProductionDetailPage() {
             </div>
 
             {/* ── Pane list ─────────────────────────────────────────── */}
-            {panes.length > 0 && (
-                <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl shadow-slate-200/20 dark:shadow-none overflow-hidden mt-6 flex flex-col">
-                    <div className="px-5 sm:px-8 py-4 sm:py-5 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 bg-slate-50/50 dark:bg-slate-900/30">
-                        <h2 className="text-base font-bold flex items-center gap-2.5 text-slate-800 dark:text-slate-200">
-                            <div className="h-8 w-8 rounded-full bg-blue-50 dark:bg-[#E8601C]/10 flex items-center justify-center">
-                                <Package className="h-4 w-4 text-blue-600 dark:text-[#E8601C]" />
-                            </div>
-                            กระจกแต่ละชิ้น (Panes)
-                        </h2>
+            <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl shadow-slate-200/20 dark:shadow-none overflow-hidden mt-6 flex flex-col">
+                <div className="px-5 sm:px-8 py-4 sm:py-5 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 bg-slate-50/50 dark:bg-slate-900/30">
+                    <h2 className="text-base font-bold flex items-center gap-2.5 text-slate-800 dark:text-slate-200">
+                        <div className="h-8 w-8 rounded-full bg-blue-50 dark:bg-[#E8601C]/10 flex items-center justify-center">
+                            <Package className="h-4 w-4 text-blue-600 dark:text-[#E8601C]" />
+                        </div>
+                        กระจกแต่ละชิ้น (Panes)
+                    </h2>
+                    {panes.length > 0 && (
                         <div className="flex items-center gap-3">
                             <span className="text-xs font-bold text-slate-500 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
                                 {panes.filter(p => p.currentStatus === "completed").length}/{panes.length} เสร็จแล้ว
@@ -631,10 +992,20 @@ export default function ProductionDetailPage() {
                                 />
                             </div>
                         </div>
+                    )}
+                </div>
+
+                {panes.length === 0 ? (
+                    <div className="p-8 sm:p-12 flex flex-col items-center justify-center text-center">
+                        <div className="h-14 w-14 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-4">
+                            <Package className="h-7 w-7 text-slate-300 dark:text-slate-600" />
+                        </div>
+                        <p className="text-sm font-bold text-slate-500 dark:text-slate-400">ยังไม่มีกระจกในคำสั่งผลิตนี้</p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">กระจกจะปรากฏที่นี่เมื่อถูกสร้างขึ้น ({order.quantity} ชิ้น)</p>
                     </div>
-                    
-                    <div className="p-4 sm:p-8">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+                ) : (
+                <div className="p-4 sm:p-8">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
                             {panes.map((pane) => {
                                 const stCfg = ({
                                     pending:            { label: "รอ",          dot: "bg-amber-400",  text: "text-amber-600 dark:text-amber-400", bg: "bg-amber-50" },
@@ -656,9 +1027,11 @@ export default function ProductionDetailPage() {
                                 const paneColor = getColorOption(paneColorId);
 
                                 return (
-                                    <div
+                                    <button
+                                        type="button"
                                         key={pane._id}
-                                        className="relative overflow-hidden flex flex-col gap-2.5 p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm text-left w-full"
+                                        onClick={() => setSelectedPane(pane)}
+                                        className="relative overflow-hidden flex flex-col gap-2.5 p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm text-left w-full cursor-pointer hover:border-blue-300 dark:hover:border-[#E8601C]/50 hover:shadow-md transition-all group"
                                     >
                                         <div className="flex items-center justify-between w-full">
                                             <div className="flex items-center gap-2.5">
@@ -698,14 +1071,24 @@ export default function ProductionDetailPage() {
                                                 <CheckCheck className="h-4 w-4 text-white" />
                                             </div>
                                         )}
-                                    </div>
+                                    </button>
                                 );
                             })}
-                        </div>
                     </div>
                 </div>
-            )}
+                )}
+            </div>
         </div>
+
+        {selectedPane && (
+            <PaneDetailModal
+                pane={selectedPane}
+                stationMap={stationMap}
+                stationByName={stationByName}
+                colorMap={colorMap}
+                onClose={() => setSelectedPane(null)}
+            />
+        )}
 
         </>
     );

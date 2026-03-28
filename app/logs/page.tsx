@@ -915,6 +915,7 @@ export default function MaterialLogsPage() {
                                                 scan_in:  { label: lang === "th" ? "เข้าสถานี" : "At station", cls: "bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-950/30 dark:text-blue-400", dot: "bg-blue-500" },
                                                 start:    { label: lang === "th" ? "กำลังทำ"  : "In progress", cls: "bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-950/30 dark:text-amber-400", dot: "bg-amber-500" },
                                                 complete: { label: lang === "th" ? "เสร็จสิ้น" : "Complete", cls: "bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400", dot: "bg-emerald-500" },
+                                                scan_out: { label: lang === "th" ? "ออกสถานี" : "Scan out", cls: "bg-violet-50 text-violet-700 border-violet-100 dark:bg-violet-950/30 dark:text-violet-400", dot: "bg-violet-500" },
                                             }[e.action] ?? { label: e.action, cls: "bg-slate-50 text-slate-600 border-slate-200", dot: "bg-slate-400" };
                                             return (
                                                 <div key={e._id} className="flex items-center gap-2 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 px-3 py-2.5">
@@ -1049,6 +1050,7 @@ export default function MaterialLogsPage() {
                                                     scan_in:  { label: lang === "th" ? "เข้าสถานี"  : "Entered station", icon: <Circle   className="h-3 w-3" />, dot: "bg-blue-500",   cls: "bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/40"   },
                                                     start:    { label: lang === "th" ? "เริ่มงาน"   : "Started work",    icon: <Play     className="h-3 w-3" />, dot: "bg-amber-500",  cls: "bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/40" },
                                                     complete: { label: lang === "th" ? "เสร็จสิ้น" : "Completed",       icon: <CheckCircle2 className="h-3 w-3" />, dot: "bg-emerald-500", cls: "bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/40" },
+                                                    scan_out: { label: lang === "th" ? "ออกสถานี"  : "Scan out",        icon: <Circle   className="h-3 w-3" />, dot: "bg-violet-500", cls: "bg-violet-50 text-violet-700 border-violet-100 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-900/40" },
                                                 }[paneLog.action];
                                                 return (
                                                     <div key={paneLog._id} className="relative pl-7 pb-4">

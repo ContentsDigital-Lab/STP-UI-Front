@@ -239,10 +239,12 @@ export default function ProductionPage() {
             if (b.customer.toLowerCase().includes(q)) return true;
             if (b.id.toLowerCase().includes(q)) return true;
             if (b.id.slice(-6).toLowerCase().includes(q)) return true;
+            if ((b.request?.requestNumber ?? "").toLowerCase().includes(q)) return true;
             if (fmtDate(b.request?.deadline).toLowerCase().includes(q)) return true;
             // order-level fields
             return b.orders.some(o =>
                 (o.code ?? "").toLowerCase().includes(q) ||
+                (o.orderNumber ?? "").toLowerCase().includes(q) ||
                 o._id.toLowerCase().includes(q) ||
                 o._id.slice(-6).toLowerCase().includes(q) ||
                 getName(o.material).toLowerCase().includes(q) ||
@@ -404,7 +406,7 @@ export default function ProductionPage() {
                                                 <span className="font-bold text-sm text-slate-900 dark:text-white">{bill.customer}</span>
                                             </div>
                                             <span className="font-mono text-xs text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
-                                                #{bill.id.slice(-6).toUpperCase()}
+                                                {bill.orders[0]?.orderNumber ?? `#${bill.id.slice(-6).toUpperCase()}`}
                                             </span>
                                             {bill.request?.deadline && (
                                                 <div className="flex items-center gap-1 text-xs text-slate-400">
@@ -454,7 +456,7 @@ export default function ProductionPage() {
                                                     <p className="text-[10px] font-medium text-slate-400 uppercase">กระจก</p>
                                                 </div>
                                                 <div className="text-center min-w-[48px]">
-                                                    <p className={`text-lg font-bold leading-tight ${panesDone > 0 && panesDone === billPanes.length ? "text-green-600" : panesDone > 0 ? "text-blue-600" : "text-green-600"}`}>
+                                                    <p className="text-lg font-bold leading-tight text-green-600 dark:text-green-400">
                                                         {hasPanes ? panesDone : bill.completedOrders}
                                                     </p>
                                                     <p className="text-[10px] font-medium text-slate-400 uppercase">เสร็จ</p>
@@ -502,7 +504,7 @@ export default function ProductionPage() {
 
                                                         {/* Code */}
                                                         <div className="w-20 shrink-0 font-mono text-xs font-bold text-slate-900 dark:text-slate-200">
-                                                            #{order.code ?? order._id.slice(-6).toUpperCase()}
+                                                            {order.orderNumber ?? `#${order.code ?? order._id.slice(-6).toUpperCase()}`}
                                                         </div>
 
                                                         {/* Material + pane progress */}
