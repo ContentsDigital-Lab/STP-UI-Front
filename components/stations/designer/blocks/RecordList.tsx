@@ -261,15 +261,36 @@ export function RecordList({
         panesApi.getAll({ limit: 500 }).then(res => {
             if (!res.success || !Array.isArray(res.data)) return;
             const counts: Record<string, number> = {};
+
+            // Build request→orderId lookup from the currently loaded orders
+            const requestToOrder = new Map<string, string>();
+            for (const order of rows) {
+                const oid = String(order._id ?? "");
+                if (!oid) continue;
+                const req = order.request;
+                const reqId = req
+                    ? (typeof req === "string" ? req : (req as Record<string, unknown>)._id as string ?? "")
+                    : "";
+                if (reqId) requestToOrder.set(reqId, oid);
+            }
+
             for (const pane of res.data) {
                 const cs = typeof pane.currentStation === "object"
                     ? (pane.currentStation as { _id?: string })?._id
                     : pane.currentStation as string;
                 const atStation = cs === stationId || cs === stationName;
                 if (!atStation || pane.currentStatus !== "pending") continue;
-                const orderId = pane.order
+
+                // Resolve orderId: prefer pane.order, fall back to request→order lookup
+                let orderId = pane.order
                     ? (typeof pane.order === "string" ? pane.order : (pane.order as { _id?: string })._id ?? "")
                     : "";
+                if (!orderId) {
+                    const paneReq = pane.request
+                        ? (typeof pane.request === "string" ? pane.request : (pane.request as { _id?: string })._id ?? "")
+                        : "";
+                    orderId = paneReq ? (requestToOrder.get(paneReq) ?? "") : "";
+                }
                 if (!orderId) continue;
                 counts[orderId] = (counts[orderId] ?? 0) + 1;
             }
@@ -279,9 +300,14 @@ export function RecordList({
 
     useEffect(() => {
         loadData();
-        loadPendingPaneCounts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isPreview, dataSource, isApi, shouldFilterStation, stationId, refreshCounter, showAllRequests, effectivePendingOnly, stationName]);
+
+    // Re-run pending counts whenever rows change (rows needed for request→order lookup)
+    useEffect(() => {
+        loadPendingPaneCounts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [rows, stationId, stationName, effectivePendingOnly]);
 
     // Real-time updates via WebSocket
     const wsConfig = DATASOURCE_WS[dataSource] ?? { room: "_noop", events: [] };

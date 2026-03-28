@@ -314,6 +314,12 @@ export function ButtonBlock({
                 if (!body.material) orderErrors.push("วัสดุ/กระจก");
                 const qty = Number(body.quantity);
                 if (!body.quantity || isNaN(qty) || qty < 1) orderErrors.push("จำนวน (ต้องมากกว่า 0)");
+                const billQty = requestData?.details
+                    ? Number((requestData.details as Record<string, unknown>).quantity)
+                    : null;
+                if (billQty != null && !isNaN(billQty) && qty > billQty) {
+                    orderErrors.push(`จำนวนเกินที่ระบุในบิล (บิลมี ${billQty} ชิ้น)`);
+                }
                 const stations = (body.stations ?? []) as unknown[];
                 if (!Array.isArray(stations) || stations.length === 0) orderErrors.push("สถานีผลิต (เลือกอย่างน้อย 1 สถานี)");
                 if (orderErrors.length > 0) {
@@ -381,6 +387,7 @@ export function ButtonBlock({
                 // After creating an order, update panes with routing (station names)
                 if (actionEndpoint === "/orders" && body.stations && Array.isArray(body.stations) && (body.stations as string[]).length > 0) {
                     const reqId = body.request as string | undefined;
+                    const newOrderId = (res as { data?: Record<string, unknown> }).data?._id as string | undefined;
                     if (reqId) {
                         (async () => {
                             try {
@@ -393,8 +400,19 @@ export function ButtonBlock({
                                 const firstStation = routingNames[0];
                                 const panes = pRes.success ? pRes.data as Pane[] : [];
                                 await Promise.all(panes.map(p =>
-                                    panesApi.update(p._id, { routing: routingNames, currentStation: firstStation, currentStatus: "pending" })
+                                    panesApi.update(p._id, {
+                                        routing: routingNames,
+                                        currentStation: firstStation,
+                                        currentStatus: "pending",
+                                        ...(newOrderId ? { order: newOrderId } : {}),
+                                    })
                                 ));
+                                if (newOrderId && panes.length > 0) {
+                                    fetchApi(`/orders/${newOrderId}`, {
+                                        method: "PATCH",
+                                        body: JSON.stringify({ quantity: panes.length }),
+                                    }).catch(() => {});
+                                }
                             } catch (e) {
                                 console.error("[ButtonBlock] Failed to update panes routing:", e);
                             }
@@ -464,6 +482,7 @@ export function ButtonBlock({
             }
             if (body.stations && Array.isArray(body.stations) && (body.stations as string[]).length > 0) {
                 const reqId = body.request as string | undefined;
+                const newOrderId = res.data?._id as string | undefined;
                 if (reqId) {
                     (async () => {
                         try {
@@ -476,8 +495,20 @@ export function ButtonBlock({
                             const firstStation = routingNames[0];
                             const panes = pRes.success ? pRes.data as Pane[] : [];
                             await Promise.all(panes.map(p =>
-                                panesApi.update(p._id, { routing: routingNames, currentStation: firstStation, currentStatus: "pending" })
+                                panesApi.update(p._id, {
+                                    routing: routingNames,
+                                    currentStation: firstStation,
+                                    currentStatus: "pending",
+                                    ...(newOrderId ? { order: newOrderId } : {}),
+                                })
                             ));
+                            // Sync order.quantity to actual pane count
+                            if (newOrderId && panes.length > 0) {
+                                fetchApi(`/orders/${newOrderId}`, {
+                                    method: "PATCH",
+                                    body: JSON.stringify({ quantity: panes.length }),
+                                }).catch(() => {});
+                            }
                         } catch (e) {
                             console.error("[ButtonBlock] Failed to update panes routing:", e);
                         }
