@@ -53,6 +53,13 @@ export default function DashboardPage() {
   const [allRequests, setAllRequests] = useState<OrderRequest[]>([]);
   const [allOrders, setAllOrders] = useState<Order[]>([]);
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    // Slight delay ensures the CSS transition triggers smoothly
+    const timer = setTimeout(() => setMounted(true), 50);
+    return () => clearTimeout(timer);
+  }, []);
 
   const fetchLiveData = useCallback(async () => {
     try {
@@ -174,7 +181,7 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="space-y-6 max-w-[1440px] mx-auto">
+    <div className={`space-y-6 max-w-[1440px] mx-auto transition-all duration-700 ease-out ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
       {/* ── Header ──────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div>

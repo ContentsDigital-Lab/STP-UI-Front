@@ -24,6 +24,7 @@ export default function LoginPage() {
     const [isLoading, setIsLoading] = useState(false);
     const [sessionExpired, setSessionExpired] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+    const [isTransitioning, setIsTransitioning] = useState(false);
 
     const router = useRouter();
     const { login } = useAuth();
@@ -44,14 +45,20 @@ export default function LoginPage() {
         try {
             const response = await authApi.login(username, password);
             if (response.success && response.data) {
-                login(response.data.token, response.data.worker);
-                router.push("/");
+                setIsTransitioning(true);
+                
+                // Wait for the thematic transition to finish (1.5s total)
+                setTimeout(() => {
+                    // Update global state and trigger redirect AFTER animation
+                    login(response.data.token, response.data.worker);
+                    router.push("/");
+                }, 1500);
             } else {
                 setError(response.message || "Login failed");
+                setIsLoading(false);
             }
         } catch (err: any) {
             setError(err.message || "An error occurred during login");
-        } finally {
             setIsLoading(false);
         }
     };
@@ -288,6 +295,64 @@ export default function LoginPage() {
                     </div>
                 </div>
             </div>
+
+            {/* ── Premium Glass Transition Overlay ─────────────────────── */}
+            {isTransitioning && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden">
+                    {/* Background darkening */}
+                    <div className="absolute inset-0 bg-slate-900/40 dark:bg-slate-900/60 transition-opacity duration-300" />
+                    
+                    {/* Frosted Glass Pane sliding/fading in */}
+                    <div className="absolute inset-0 backdrop-blur-[20px] bg-white/10 dark:bg-slate-900/20 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.1)] flex items-center justify-center animate-[glassEnter_0.6s_ease-out_forwards]">
+                        
+                        {/* Shimmer/Reflection effect acting like light on glass */}
+                        <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/30 to-transparent skew-x-[-30deg] translate-x-[-150%] animate-[glassShimmer_1.2s_ease-in-out_0.2s_forwards]" />
+                        
+                        {/* Center Brand and Loader */}
+                        <div className="relative z-10 flex flex-col items-center animate-[logoPulse_1s_ease-in-out_forwards]">
+                            <img
+                                src="/logonotname.png"
+                                alt="StandardPlus"
+                                className="h-24 w-24 drop-shadow-[0_0_25px_rgba(59,130,246,0.4)]"
+                            />
+                            <div className="mt-8 flex flex-col items-center">
+                                <h1 className="text-2xl font-bold tracking-tight text-slate-800 dark:text-white drop-shadow-md">
+                                    Standard<span className="text-orange-500">Plus</span>
+                                </h1>
+                                <p className="text-[10px] font-medium tracking-[0.25em] uppercase text-slate-500 dark:text-slate-400 mt-1">
+                                    Glass Manufacturing
+                                </p>
+                            </div>
+                            
+                            {/* Thin sleek loading bar */}
+                            <div className="mt-8 w-48 h-0.5 rounded-full bg-slate-300/30 dark:bg-slate-700/50 overflow-hidden relative">
+                                <div className="absolute left-0 top-0 h-full bg-blue-500 dark:bg-blue-400 w-full translate-x-[-100%] animate-[barFill_1s_ease-out_0.3s_forwards]" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Inline styles for custom keyframes so we don't pollute global CSS */}
+                    <style dangerouslySetInnerHTML={{__html: `
+                        @keyframes glassEnter {
+                            from { opacity: 0; transform: scale(1.05); backdrop-filter: blur(0px); }
+                            to   { opacity: 1; transform: scale(1); backdrop-filter: blur(20px); }
+                        }
+                        @keyframes glassShimmer {
+                            from { transform: translateX(-150%) skewX(-30deg); }
+                            to   { transform: translateX(200%) skewX(-30deg); }
+                        }
+                        @keyframes logoPulse {
+                            0%   { opacity: 0; transform: translateY(20px) scale(0.95); }
+                            40%  { opacity: 1; transform: translateY(0) scale(1); }
+                            100% { opacity: 1; transform: translateY(0) scale(1); filter: brightness(1.1); }
+                        }
+                        @keyframes barFill {
+                            0%   { transform: translateX(-100%); }
+                            100% { transform: translateX(0%); }
+                        }
+                    `}} />
+                </div>
+            )}
         </div>
         </>
     );
