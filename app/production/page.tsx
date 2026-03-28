@@ -29,12 +29,6 @@ type StatusKey = keyof typeof ORDER_STATUS;
 
 const SOCKET_EVENTS = ["order:updated", "order:created", "order:deleted", "request:updated"];
 
-const COLOR_STORAGE_KEY = "std_station_colors";
-function loadColorMap(): Record<string, string> {
-    if (typeof window === "undefined") return {};
-    try { return JSON.parse(localStorage.getItem(COLOR_STORAGE_KEY) ?? "{}"); } catch { return {}; }
-}
-
 // ── helpers ───────────────────────────────────────────────────────────────────
 const getName = (v: string | { name: string } | null | undefined) =>
     !v ? "—" : typeof v === "object" ? v.name : v;
@@ -49,13 +43,12 @@ function fmtDate(d?: string) {
 
 // ── station dot flow ──────────────────────────────────────────────────────────
 function StationFlow({
-    stationIds, currentIdx, status, stationMap, colorMap,
+    stationIds, currentIdx, status, stationMap,
 }: {
     stationIds: string[];
     currentIdx: number;
     status: string;
     stationMap: Map<string, Station>;
-    colorMap: Record<string, string>;
 }) {
     if (!stationIds.length) {
         return <span className="text-xs text-muted-foreground/50 italic">ยังไม่กำหนดสถานี</span>;
@@ -68,7 +61,7 @@ function StationFlow({
         <div className="flex items-center gap-1 flex-wrap">
             {stationIds.map((sid, idx) => {
                 const station  = stationMap.get(sid);
-                const colorId  = colorMap[sid] ?? station?.colorId ?? "sky";
+                const colorId  = station?.colorId ?? "sky";
                 const color    = getColorOption(colorId);
                 const isPast   = isDone || idx < currentIdx;
                 const isCur    = !isDone && !isCancelled && idx === currentIdx;
@@ -112,11 +105,10 @@ function StationFlow({
 
 // ── current station label ─────────────────────────────────────────────────────
 function CurrentStationBadge({
-    order, stationMap, colorMap,
+    order, stationMap,
 }: {
     order: Order;
     stationMap: Map<string, Station>;
-    colorMap: Record<string, string>;
 }) {
     if (order.status === "completed") {
         return <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-medium"><CheckCheck className="h-3 w-3" />เสร็จแล้ว</span>;
@@ -131,7 +123,7 @@ function CurrentStationBadge({
     const idx     = order.currentStationIndex ?? 0;
     const sid     = order.stations[idx];
     const station = stationMap.get(sid);
-    const colorId = colorMap[sid] ?? station?.colorId ?? "sky";
+    const colorId = station?.colorId ?? "sky";
     const color   = getColorOption(colorId);
 
     return (
@@ -161,7 +153,6 @@ export default function ProductionPage() {
     const [orders,    setOrders]    = useState<Order[]>([]);
     const [requests,  setRequests]  = useState<OrderRequest[]>([]);
     const [stations,  setStations]  = useState<Station[]>([]);
-    const [colorMap,  setColorMap]  = useState<Record<string, string>>({});
     const [paneMap,   setPaneMap]   = useState<Map<string, Pane[]>>(new Map());
     const [loading,   setLoading]   = useState(true);
     const [search,    setSearch]    = useState("");
@@ -194,7 +185,6 @@ export default function ProductionPage() {
             if (oRes.success) setOrders(oRes.data ?? []);
             if (rRes.success) setRequests(rRes.data ?? []);
             if (sRes.success) setStations(sRes.data ?? []);
-            setColorMap(loadColorMap());
             await loadPanes();
         } finally {
             setLoading(false);
@@ -532,7 +522,7 @@ export default function ProductionPage() {
                                                             <CurrentStationBadge
                                                                 order={order}
                                                                 stationMap={stationMap}
-                                                                colorMap={colorMap}
+
                                                             />
                                                         </div>
 
@@ -543,7 +533,7 @@ export default function ProductionPage() {
                                                                 currentIdx={order.currentStationIndex ?? 0}
                                                                 status={order.status}
                                                                 stationMap={stationMap}
-                                                                colorMap={colorMap}
+
                                                             />
                                                         </div>
 
