@@ -57,6 +57,31 @@ export default function LoginPage() {
     };
 
     return (
+        <>
+        <style jsx global>{`
+            @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
+            @keyframes slideUp {
+                from { opacity: 0; transform: translateY(18px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            @keyframes fadeInUp {
+                from { opacity: 0; transform: translateY(12px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            .anim-fade { animation: fadeIn 0.7s ease-out both; }
+            .anim-slide { animation: slideUp 0.6s ease-out both; }
+            .anim-card  { animation: fadeInUp 0.5s ease-out both; }
+            .anim-d1 { animation-delay: 0.1s; }
+            .anim-d2 { animation-delay: 0.25s; }
+            .anim-d3 { animation-delay: 0.4s; }
+            .anim-d4 { animation-delay: 0.55s; }
+            .anim-d5 { animation-delay: 0.15s; }
+            .anim-d6 { animation-delay: 0.3s; }
+            .anim-d7 { animation-delay: 0.45s; }
+        `}</style>
         <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950">
             {/* ── Left: Brand Panel ─────────────────────────────────── */}
             <div className="hidden lg:flex lg:w-[56%] relative flex-col overflow-hidden">
@@ -74,7 +99,7 @@ export default function LoginPage() {
                 {/* Content */}
                 <div className="relative z-10 flex flex-col justify-between h-full p-10">
                     {/* Top: Logo */}
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 anim-fade anim-d1">
                         <img
                             src="/logonotname.png"
                             alt="Standard Plus"
@@ -92,7 +117,7 @@ export default function LoginPage() {
 
                     {/* Bottom: Hero text + features */}
                     <div className="space-y-8">
-                        <div>
+                        <div className="anim-slide anim-d2">
                             <h2 className="text-[2.75rem] font-bold text-white leading-[1.15] tracking-tight">
                                 ระบบจัดการ
                                 <br />
@@ -106,13 +131,13 @@ export default function LoginPage() {
                         {/* Feature cards */}
                         <div className="flex gap-3">
                             {[
-                                { icon: Warehouse, title: "คลังสินค้า", desc: "จัดการสต็อกแบบ Real-time" },
-                                { icon: BarChart3, title: "รายงาน", desc: "วิเคราะห์ข้อมูลการผลิต" },
-                                { icon: ShieldCheck, title: "ปลอดภัย", desc: "ระบบรักษาความปลอดภัย" },
+                                { icon: Warehouse, title: "คลังสินค้า", desc: "จัดการสต็อกแบบ Real-time", delay: "anim-d5" },
+                                { icon: BarChart3, title: "รายงาน", desc: "วิเคราะห์ข้อมูลการผลิต", delay: "anim-d6" },
+                                { icon: ShieldCheck, title: "ปลอดภัย", desc: "ระบบรักษาความปลอดภัย", delay: "anim-d7" },
                             ].map((f) => (
                                 <div
                                     key={f.title}
-                                    className="flex-1 rounded-xl bg-white/[0.07] backdrop-blur-sm border border-white/[0.08] p-4"
+                                    className={`flex-1 rounded-xl bg-white/[0.07] backdrop-blur-sm border border-white/[0.08] p-4 hover:bg-white/[0.12] transition-colors duration-300 anim-card ${f.delay}`}
                                 >
                                     <f.icon className="h-5 w-5 text-blue-400 mb-3" />
                                     <p className="text-white text-sm font-semibold">{f.title}</p>
@@ -137,7 +162,7 @@ export default function LoginPage() {
                 <div className="flex-1 flex items-center justify-center px-6 sm:px-8">
                     <div className="w-full max-w-[380px]">
                         {/* Form card */}
-                        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-8">
+                        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-[0_1px_3px_rgba(0,0,0,0.04)] p-8 anim-slide anim-d2">
                             {/* Desktop logo inside card */}
                             <div className="hidden lg:flex items-center gap-2.5 mb-8">
                                 <img src="/logonotname.png" alt="" className="h-8 w-8" />
@@ -264,5 +289,6 @@ export default function LoginPage() {
                 </div>
             </div>
         </div>
+        </>
     );
 }
