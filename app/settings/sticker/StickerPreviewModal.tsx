@@ -9,8 +9,14 @@ import type { StickerTemplate, StickerElement } from "./types";
 const MM_TO_PX = 3.7795275591;
 
 interface SampleData {
+    // ออเดอร์
     orderCode: string; customerName: string; materialName: string;
-    quantity: string; status: string; assignedTo: string; date: string; time: string;
+    quantity: string; status: string; assignedTo: string;
+    // กระจก
+    paneNumber: string; paneId: string; glassType: string;
+    dimensions: string; width: string; height: string; thickness: string; qrCode: string;
+    // วันที่
+    date: string; time: string;
 }
 
 const DEFAULT_DATA: SampleData = {
@@ -20,6 +26,14 @@ const DEFAULT_DATA: SampleData = {
     quantity: "50",
     status: "กำลังดำเนินการ",
     assignedTo: "สมชาย ใจดี",
+    paneNumber: "P-0001",
+    paneId: "abc123def456",
+    glassType: "กระจกใส",
+    dimensions: "600×900×10mm",
+    width: "600",
+    height: "900",
+    thickness: "10",
+    qrCode: "STDPLUS:P-0001",
     date: new Date().toLocaleDateString("th-TH"),
     time: new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }),
 };
@@ -31,12 +45,23 @@ const STATUS_LABEL: Record<string, string> = {
 
 function resolveText(text: string, d: SampleData): string {
     return text
+        // ออเดอร์
         .replace(/\{\{orderCode\}\}/g, d.orderCode)
         .replace(/\{\{customerName\}\}/g, d.customerName)
         .replace(/\{\{materialName\}\}/g, d.materialName)
         .replace(/\{\{quantity\}\}/g, d.quantity)
         .replace(/\{\{status\}\}/g, d.status)
         .replace(/\{\{assignedTo\}\}/g, d.assignedTo)
+        // กระจก
+        .replace(/\{\{paneNumber\}\}/g, d.paneNumber)
+        .replace(/\{\{paneId\}\}/g, d.paneId)
+        .replace(/\{\{glassType\}\}/g, d.glassType)
+        .replace(/\{\{dimensions\}\}/g, d.dimensions)
+        .replace(/\{\{width\}\}/g, d.width)
+        .replace(/\{\{height\}\}/g, d.height)
+        .replace(/\{\{thickness\}\}/g, d.thickness)
+        .replace(/\{\{qrCode\}\}/g, d.qrCode)
+        // วันที่
         .replace(/\{\{date\}\}/g, d.date)
         .replace(/\{\{time\}\}/g, d.time);
 }

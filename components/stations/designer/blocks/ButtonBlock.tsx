@@ -12,12 +12,16 @@ import { usePreview } from "../PreviewContext";
 import { useStationContext } from "../StationContext";
 
 const VARIANT_MAP: Record<string, string> = {
-    primary: "bg-primary text-primary-foreground hover:bg-primary/90",
-    outline: "border-2 border-primary text-primary bg-transparent hover:bg-primary/10",
-    danger:  "bg-red-600 text-white hover:bg-red-700",
-    success: "bg-green-600 text-white hover:bg-green-700",
+    primary: "bg-blue-700 text-white hover:bg-blue-800 active:bg-blue-900",
+    outline: "border-2 border-blue-700 text-blue-700 bg-white hover:bg-blue-50 active:bg-blue-100",
+    danger:  "bg-red-600 text-white hover:bg-red-700 active:bg-red-800",
+    success: "bg-green-700 text-white hover:bg-green-800 active:bg-green-900",
 };
-const SIZE_MAP = { sm: "px-3 py-1.5 text-xs", md: "px-5 py-2 text-sm", lg: "px-7 py-3 text-base" };
+const SIZE_MAP = {
+    sm: "px-4 py-2.5 text-sm min-h-[44px]",
+    md: "px-6 py-3 text-base min-h-[52px]",
+    lg: "px-8 py-4 text-lg font-bold min-h-[60px]",
+};
 
 const ACTION_CONFIG: Record<string, { icon: React.ElementType; label: string; color: string }> = {
     "submit-form":  { icon: Send,          label: "บันทึกข้อมูลลง Order", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" },
@@ -104,6 +108,9 @@ export function ButtonBlock({
     const router     = useRouter();
     const [feedback, setFeedback] = useState<"" | "ok" | "loading" | "error">("");
     const [errorMsg, setErrorMsg] = useState("");
+    const [showConfirm, setShowConfirm] = useState(false);
+    const [pendingBody, setPendingBody] = useState<Record<string, unknown> | null>(null);
+    const [confirmSummary, setConfirmSummary] = useState<{ customerName: string; materialName: string; quantity: string; stationCount: number } | null>(null);
     const actionCfg  = action && action !== "none" ? ACTION_CONFIG[action] : null;
     const { formData, resetForm, orderId, requestId, requestData, orderData, selectedRecord, triggerRefresh } = useStationContext();
     const { query } = useEditor();
@@ -255,12 +262,41 @@ export function ButtonBlock({
             }
 
             // Build body outside try so catch can access it for diagnostics
+            const isOrderEndpoint = /\/orders$/.test(actionEndpoint.trim());
             const body: Record<string, unknown> = {
                 ...autoFields,
                 ...normalized,
                 ...(requestId ? { request: requestId } : {}),
                 ...(orderId   ? { order:   orderId   } : {}),
             };
+
+            // ── Mismatch check: form values must agree with selected record ────
+            // (checked BEFORE override so we can compare what the user typed vs the record)
+            if (isOrderEndpoint && src) {
+                const formCustomer = extractId(normalized.customer);
+                const formMaterial = extractId(normalized.material);
+                const srcCustomer  = extractId(src.customer);
+                const srcMaterial  = extractId(src.material);
+                const mismatches: string[] = [];
+                if (formCustomer && srcCustomer && formCustomer !== srcCustomer) {
+                    const name = typeof src.customer === "object"
+                        ? ((src.customer as Record<string, unknown>).name as string) ?? srcCustomer
+                        : srcCustomer;
+                    mismatches.push(`ลูกค้า (บิลระบุ "${name}")`);
+                }
+                if (formMaterial && srcMaterial && formMaterial !== srcMaterial) {
+                    const name = typeof src.material === "object"
+                        ? ((src.material as Record<string, unknown>).name as string) ?? srcMaterial
+                        : srcMaterial;
+                    mismatches.push(`วัสดุ (บิลระบุ "${name}")`);
+                }
+                if (mismatches.length > 0) {
+                    setErrorMsg(`ข้อมูลไม่ตรงกับบิลที่เลือก — ${mismatches.join(" | ")}`);
+                    setFeedback("error");
+                    setTimeout(() => setFeedback(""), 8000);
+                    return;
+                }
+            }
 
             // When a record is selected, its customer/material always take precedence
             // over whatever the form dropdowns have — prevents mismatched orders
@@ -272,13 +308,18 @@ export function ButtonBlock({
             }
 
             // ── Order-specific validation (after body is fully built) ─────────
-            const isOrderEndpoint = /\/orders$/.test(actionEndpoint.trim());
             if (isOrderEndpoint) {
                 const orderErrors: string[] = [];
                 if (!body.customer) orderErrors.push("ลูกค้า");
                 if (!body.material) orderErrors.push("วัสดุ/กระจก");
                 const qty = Number(body.quantity);
                 if (!body.quantity || isNaN(qty) || qty < 1) orderErrors.push("จำนวน (ต้องมากกว่า 0)");
+                const billQty = requestData?.details
+                    ? Number((requestData.details as Record<string, unknown>).quantity)
+                    : null;
+                if (billQty != null && !isNaN(billQty) && qty > billQty) {
+                    orderErrors.push(`จำนวนเกินที่ระบุในบิล (บิลมี ${billQty} ชิ้น)`);
+                }
                 const stations = (body.stations ?? []) as unknown[];
                 if (!Array.isArray(stations) || stations.length === 0) orderErrors.push("สถานีผลิต (เลือกอย่างน้อย 1 สถานี)");
                 if (orderErrors.length > 0) {
@@ -287,6 +328,25 @@ export function ButtonBlock({
                     setTimeout(() => setFeedback(""), 6000);
                     return;
                 }
+                // Validations passed — show confirmation summary before submitting
+                const cs = src;
+                setConfirmSummary({
+                    customerName: cs
+                        ? (typeof cs.customer === "object"
+                            ? ((cs.customer as Record<string, unknown>).name as string) ?? String(body.customer ?? "—")
+                            : String(cs.customer ?? body.customer ?? "—"))
+                        : String(body.customer ?? "—"),
+                    materialName: cs
+                        ? (typeof cs.material === "object"
+                            ? ((cs.material as Record<string, unknown>).name as string) ?? String(body.material ?? "—")
+                            : String(cs.material ?? body.material ?? "—"))
+                        : String(body.material ?? "—"),
+                    quantity: String(body.quantity ?? "—"),
+                    stationCount: Array.isArray(body.stations) ? (body.stations as string[]).length : 0,
+                });
+                setPendingBody(body);
+                setShowConfirm(true);
+                return;
             }
 
             setFeedback("loading");
@@ -327,6 +387,7 @@ export function ButtonBlock({
                 // After creating an order, update panes with routing (station names)
                 if (actionEndpoint === "/orders" && body.stations && Array.isArray(body.stations) && (body.stations as string[]).length > 0) {
                     const reqId = body.request as string | undefined;
+                    const newOrderId = (res as { data?: Record<string, unknown> }).data?._id as string | undefined;
                     if (reqId) {
                         (async () => {
                             try {
@@ -339,8 +400,19 @@ export function ButtonBlock({
                                 const firstStation = routingNames[0];
                                 const panes = pRes.success ? pRes.data as Pane[] : [];
                                 await Promise.all(panes.map(p =>
-                                    panesApi.update(p._id, { routing: routingNames, currentStation: firstStation, currentStatus: "pending" })
+                                    panesApi.update(p._id, {
+                                        routing: routingNames,
+                                        currentStation: firstStation,
+                                        currentStatus: "pending",
+                                        ...(newOrderId ? { order: newOrderId } : {}),
+                                    })
                                 ));
+                                if (newOrderId && panes.length > 0) {
+                                    fetchApi(`/orders/${newOrderId}`, {
+                                        method: "PATCH",
+                                        body: JSON.stringify({ quantity: panes.length }),
+                                    }).catch(() => {});
+                                }
                             } catch (e) {
                                 console.error("[ButtonBlock] Failed to update panes routing:", e);
                             }
@@ -365,6 +437,96 @@ export function ButtonBlock({
         setTimeout(() => setFeedback(""), 1500);
     };
 
+    // ── Confirm handler: executes the stored pending order API call ──────────
+    const handleConfirm = async () => {
+        if (!pendingBody) return;
+        const body = pendingBody;
+        setShowConfirm(false);
+        setPendingBody(null);
+        setConfirmSummary(null);
+        setFeedback("loading");
+        setErrorMsg("");
+
+        const AUTO_FK: Record<string, string> = {
+            "/customers": "customer", "/materials": "material", "/workers": "assignedTo",
+            "/requests": "request",   "/orders": "order",       "/inventories": "inventory",
+        };
+        const allNodes = query.getSerializedNodes();
+        const fNodes = Object.values(allNodes)
+            .filter((n) => n.displayName === "Input Field" || n.displayName === "Select Field")
+            .map((n) => {
+                const p = n.props as Record<string, unknown>;
+                const ek = String(p.fieldKey ?? "");
+                const ds = String(p.dataSource ?? "");
+                return { label: String(p.label ?? "ช่อง"), fieldKey: ek || (AUTO_FK[ds] ?? "") };
+            });
+        const buildErrMsg = (rawMsg: string) => {
+            const emptyLinked = fNodes.filter((f) => f.fieldKey && !body[f.fieldKey]);
+            const unlinked    = fNodes.filter((f) => !f.fieldKey);
+            if (emptyLinked.length > 0) return `กรุณากรอกข้อมูลในช่อง: ${emptyLinked.map((f) => f.label).join(", ")}`;
+            if (unlinked.length > 0 && (rawMsg.includes("Validation failed") || rawMsg.includes("Invalid input") || rawMsg.includes("received undefined")))
+                return `ฟอร์มมีช่องที่ยังไม่ได้ตั้งค่า (${unlinked.map((f) => f.label).join(", ")}) — กรุณาติดต่อผู้ดูแลระบบ`;
+            return toFriendlyError(rawMsg);
+        };
+
+        try {
+            const res = await fetchApi<{ success: boolean; message?: string; data?: Record<string, unknown> }>(actionEndpoint, {
+                method: actionMethod || "POST",
+                body: JSON.stringify(body),
+            });
+            if (res.success === false) {
+                setErrorMsg(buildErrMsg((res as { message?: string }).message ?? ""));
+                setFeedback("error");
+                setTimeout(() => setFeedback(""), 8000);
+                return;
+            }
+            if (body.stations && Array.isArray(body.stations) && (body.stations as string[]).length > 0) {
+                const reqId = body.request as string | undefined;
+                const newOrderId = res.data?._id as string | undefined;
+                if (reqId) {
+                    (async () => {
+                        try {
+                            const [stRes, pRes] = await Promise.all([
+                                stationsApi.getAll(),
+                                panesApi.getAll({ request: reqId, limit: 100 }),
+                            ]);
+                            const stationMap = new Map((stRes.success ? stRes.data as unknown as Station[] : []).map(s => [s._id, s.name]));
+                            const routingNames = (body.stations as string[]).map(id => stationMap.get(id) ?? id);
+                            const firstStation = routingNames[0];
+                            const panes = pRes.success ? pRes.data as Pane[] : [];
+                            await Promise.all(panes.map(p =>
+                                panesApi.update(p._id, {
+                                    routing: routingNames,
+                                    currentStation: firstStation,
+                                    currentStatus: "pending",
+                                    ...(newOrderId ? { order: newOrderId } : {}),
+                                })
+                            ));
+                            // Sync order.quantity to actual pane count
+                            if (newOrderId && panes.length > 0) {
+                                fetchApi(`/orders/${newOrderId}`, {
+                                    method: "PATCH",
+                                    body: JSON.stringify({ quantity: panes.length }),
+                                }).catch(() => {});
+                            }
+                        } catch (e) {
+                            console.error("[ButtonBlock] Failed to update panes routing:", e);
+                        }
+                    })();
+                }
+            }
+            setFeedback("ok");
+            triggerRefresh();
+            setTimeout(() => setFeedback(""), 2500);
+        } catch (err: unknown) {
+            const rawMsg = err instanceof Error ? err.message : "";
+            console.warn("[ButtonBlock] confirm api-call error:", rawMsg);
+            setErrorMsg(buildErrMsg(rawMsg));
+            setFeedback("error");
+            setTimeout(() => setFeedback(""), 8000);
+        }
+    };
+
     const alignClass = ALIGN_MAP[align] ?? "justify-start";
 
     const content = (
@@ -372,29 +534,54 @@ export function ButtonBlock({
             <div className="flex flex-col items-stretch gap-1.5" style={fullWidth ? { width: "100%" } : {}}>
                 <button
                     onClick={isPreview ? handlePreviewClick : undefined}
-                    disabled={!isPreview || feedback === "loading"}
+                    disabled={!isPreview || feedback === "loading" || showConfirm}
                     className={`rounded-lg font-semibold transition-all ${VARIANT_MAP[variant] ?? VARIANT_MAP.primary} ${SIZE_MAP[size]} ${fullWidth ? "w-full" : ""} ${feedback === "ok" ? "!bg-green-500 !text-white !border-green-500" : ""} ${feedback === "error" ? "!bg-red-500 !text-white !border-red-500" : ""} disabled:opacity-70 flex items-center justify-center gap-2`}
                 >
                     {feedback === "loading" ? (
-                        <><Loader2 className="h-4 w-4 animate-spin" /> กำลังส่ง...</>
+                        <><Loader2 className="h-5 w-5 animate-spin" /> กำลังส่ง...</>
                     ) : feedback === "ok" ? (
-                        <><CheckCircle2 className="h-4 w-4" /> สำเร็จ</>
+                        <><CheckCircle2 className="h-5 w-5" /> สำเร็จ</>
                     ) : feedback === "error" ? (
-                        <><AlertCircle className="h-4 w-4" /> {label}</>
+                        <><AlertCircle className="h-5 w-5" /> {label}</>
                     ) : (
                         label
                     )}
                 </button>
                 {feedback === "error" && errorMsg && (
-                    <div className={`flex items-start gap-2 text-xs text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2 ${fullWidth ? "w-full" : ""}`}>
-                        <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                    <div className={`flex items-start gap-2 text-sm font-semibold text-white bg-red-600 border-2 border-red-700 rounded-xl px-4 py-3 ${fullWidth ? "w-full" : ""}`}>
+                        <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
                         <span>{errorMsg}</span>
                     </div>
                 )}
                 {feedback === "ok" && (
-                    <div className={`flex items-center gap-2 text-xs text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-800 rounded-lg px-3 py-2 ${fullWidth ? "w-full" : ""}`}>
-                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                    <div className={`flex items-center gap-2 text-sm font-semibold text-white bg-green-700 border-2 border-green-800 rounded-xl px-4 py-3 ${fullWidth ? "w-full" : ""}`}>
+                        <CheckCircle2 className="h-5 w-5 shrink-0" />
                         <span>ดำเนินการสำเร็จ</span>
+                    </div>
+                )}
+                {showConfirm && confirmSummary && (
+                    <div className={`rounded-xl border-2 border-blue-700 bg-blue-50 p-4 space-y-3 ${fullWidth ? "w-full" : ""}`}>
+                        <p className="text-sm font-bold text-blue-900">ยืนยันการสร้างออเดอร์?</p>
+                        <div className="space-y-1.5 text-sm text-gray-800">
+                            <div className="flex gap-2"><span className="font-semibold min-w-[4.5rem]">ลูกค้า:</span><span className="font-medium">{confirmSummary.customerName}</span></div>
+                            <div className="flex gap-2"><span className="font-semibold min-w-[4.5rem]">วัสดุ:</span><span className="font-medium">{confirmSummary.materialName}</span></div>
+                            <div className="flex gap-2"><span className="font-semibold min-w-[4.5rem]">จำนวน:</span><span className="font-medium">{confirmSummary.quantity}</span></div>
+                            <div className="flex gap-2"><span className="font-semibold min-w-[4.5rem]">สถานี:</span><span className="font-medium">{confirmSummary.stationCount} สถานี</span></div>
+                        </div>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={handleConfirm}
+                                className="flex-1 rounded-lg bg-blue-700 text-white font-bold py-2.5 text-sm active:bg-blue-800 min-h-[44px]"
+                            >
+                                ยืนยัน
+                            </button>
+                            <button
+                                onClick={() => { setShowConfirm(false); setPendingBody(null); setConfirmSummary(null); }}
+                                className="flex-1 rounded-lg border-2 border-gray-900 bg-white text-gray-900 font-bold py-2.5 text-sm active:bg-gray-100 min-h-[44px]"
+                            >
+                                ยกเลิก
+                            </button>
+                        </div>
                     </div>
                 )}
                 {action !== "none" && actionCfg && feedback === "" && (

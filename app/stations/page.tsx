@@ -160,17 +160,6 @@ function DeleteConfirm({ name, onConfirm, onCancel }: { name: string; onConfirm:
     );
 }
 
-// ── color migration helpers ────────────────────────────────────────────────────
-const COLOR_STORAGE_KEY = "std_station_colors";
-function loadColorMap(): Record<string, string> {
-    if (typeof window === "undefined") return {};
-    try { return JSON.parse(localStorage.getItem(COLOR_STORAGE_KEY) ?? "{}"); } catch { return {}; }
-}
-function saveColorMap(map: Record<string, string>) {
-    if (typeof window === "undefined") return;
-    localStorage.setItem(COLOR_STORAGE_KEY, JSON.stringify(map));
-}
-
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function StationsPage() {
@@ -179,7 +168,6 @@ export default function StationsPage() {
     const [stations,    setStations]    = useState<Station[]>([]);
     const [templates,   setTemplates]   = useState<StationTemplate[]>([]);
     const [tmplNames,   setTmplNames]   = useState<Record<string, string>>({});
-    const [colorMap,    setColorMap]    = useState<Record<string, string>>({});
     const [loading,     setLoading]     = useState(true);
     const [loadingTmpl, setLoadingTmpl] = useState(true);
 
@@ -193,11 +181,11 @@ export default function StationsPage() {
     };
 
     useEffect(() => {
-        // Clear legacy localStorage data — stations/templates now live in the backend API
+        // Clear all legacy localStorage station data
         if (typeof window !== "undefined") {
             localStorage.removeItem("std_stations");
             localStorage.removeItem("std_station_templates");
-            setColorMap(loadColorMap());
+            localStorage.removeItem("std_station_colors");
         }
 
         reload().finally(() => setLoading(false));
@@ -214,12 +202,7 @@ export default function StationsPage() {
 
     const handleCreate = async (data: { name: string; colorId: string; templateId?: string }) => {
         try {
-            const res = await stationsApi.create(data);
-            if (res.success && res.data?._id) {
-                const newMap = { ...loadColorMap(), [res.data._id]: data.colorId };
-                saveColorMap(newMap);
-                setColorMap(newMap);
-            }
+            await stationsApi.create(data);
             await reload();
             setShowCreate(false);
             toast.success("สร้างสถานีแล้ว");
@@ -232,9 +215,6 @@ export default function StationsPage() {
         if (!editing) return;
         try {
             await stationsApi.update(editing._id, data);
-            const newMap = { ...loadColorMap(), [editing._id]: data.colorId };
-            saveColorMap(newMap);
-            setColorMap(newMap);
             await reload();
             setEditing(null);
             toast.success("บันทึกแล้ว");
@@ -303,7 +283,7 @@ export default function StationsPage() {
             {stations.length > 0 && (
                 <div className="grid grid-cols-1 gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                     {stations.map((station) => {
-                        const color        = getColorOption(colorMap[station._id] ?? station.colorId);
+                        const color        = getColorOption(station.colorId);
                         const tmplId       = resolveTemplateId(station.templateId);
                         const templateName = tmplId ? tmplNames[tmplId] : undefined;
 
@@ -317,7 +297,7 @@ export default function StationsPage() {
                                     <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                                         <button
                                             type="button"
-                                            onClick={() => setEditing({ ...station, colorId: colorMap[station._id] ?? station.colorId ?? "sky" })}
+                                            onClick={() => setEditing({ ...station, colorId: station.colorId ?? "sky" })}
                                             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                                             title="แก้ไข"
                                         >

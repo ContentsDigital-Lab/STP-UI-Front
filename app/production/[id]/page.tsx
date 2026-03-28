@@ -17,12 +17,6 @@ import { useWebSocket } from "@/lib/hooks/use-socket";
 import { getColorOption } from "@/lib/stations/stations-store";
 import { Order, OrderRequest, Station, Pane, PaneLog } from "@/lib/api/types";
 
-const COLOR_STORAGE_KEY = "std_station_colors";
-function loadColorMap(): Record<string, string> {
-    if (typeof window === "undefined") return {};
-    try { return JSON.parse(localStorage.getItem(COLOR_STORAGE_KEY) ?? "{}"); } catch { return {}; }
-}
-
 // ── status config ─────────────────────────────────────────────────────────────
 const ORDER_STATUS = {
     pending:     { label: "รอตรวจสอบ", cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
@@ -75,11 +69,10 @@ function fmtDuration(ms: number): string {
 
 // ── station journey ───────────────────────────────────────────────────────────
 function StationJourney({
-    order, stationMap, colorMap, panes,
+    order, stationMap, panes,
 }: {
     order: Order;
     stationMap: Map<string, Station>;
-    colorMap: Record<string, string>;
     panes: Pane[];
 }) {
     const router      = useRouter();
@@ -123,7 +116,7 @@ function StationJourney({
         <div className="relative w-full">
             {stationIds.map((sid, idx) => {
                 const station  = stationMap.get(sid);
-                const colorId  = colorMap[sid] ?? station?.colorId ?? "sky";
+                const colorId  = station?.colorId ?? "sky";
                 const color    = getColorOption(colorId);
                 const st       = stStats.get(sid) ?? { here: 0, passed: 0 };
                 const pct      = total > 0 ? Math.round((st.passed / total) * 100) : 0;
@@ -625,12 +618,11 @@ function PaneDetailModal({
 
 // ── orders in same bill ───────────────────────────────────────────────────────
 function BillOrderList({
-    orders, currentOrderId, stationMap, colorMap, onSelect,
+    orders, currentOrderId, stationMap, onSelect,
 }: {
     orders: Order[];
     currentOrderId: string;
     stationMap: Map<string, Station>;
-    colorMap: Record<string, string>;
     onSelect: (id: string) => void;
 }) {
     if (orders.length <= 1) return null;
@@ -653,7 +645,7 @@ function BillOrderList({
                         if (!o.stations?.length) return null;
                         const sid = o.stations[o.currentStationIndex ?? 0];
                         const st  = stationMap.get(sid);
-                        const colorId = colorMap[sid] ?? st?.colorId ?? "sky";
+                        const colorId = st?.colorId ?? "sky";
                         const color   = getColorOption(colorId);
                         return { name: st?.name ?? sid, color };
                     })();
@@ -706,7 +698,6 @@ export default function ProductionDetailPage() {
     const [billOrders, setBillOrders] = useState<Order[]>([]);
     const [stations,   setStations]   = useState<Station[]>([]);
     const [panes,      setPanes]      = useState<Pane[]>([]);
-    const [colorMap,   setColorMap]   = useState<Record<string, string>>({});
     const [loading,    setLoading]    = useState(true);
     const [error,      setError]      = useState<string | null>(null);
     const [infoTab,    setInfoTab]    = useState<"order" | "bill">("order");
@@ -732,7 +723,6 @@ export default function ProductionDetailPage() {
             const o = oRes.data;
             setOrder(o);
             if (sRes.success) setStations(sRes.data ?? []);
-            setColorMap(loadColorMap());
             await loadPanes();
 
             const reqId = o.request && typeof o.request === "object"
@@ -885,7 +875,7 @@ export default function ProductionDetailPage() {
                         orders={billOrders}
                         currentOrderId={order._id}
                         stationMap={stationMap}
-                        colorMap={colorMap}
+
                         onSelect={(newId) => router.push(`/production/${newId}`)}
                     />
                 </div>
@@ -914,7 +904,7 @@ export default function ProductionDetailPage() {
                             <StationJourney
                                 order={order}
                                 stationMap={stationMap}
-                                colorMap={colorMap}
+        
                                 panes={panes}
                             />
                         </div>
@@ -936,7 +926,7 @@ export default function ProductionDetailPage() {
                                 <div className="flex flex-wrap gap-1.5">
                                     {order.stations.map((sid, idx) => {
                                         const station = stationMap.get(sid);
-                                        const colorId = colorMap[sid] ?? station?.colorId ?? "sky";
+                                        const colorId = station?.colorId ?? "sky";
                                         const color   = getColorOption(colorId);
                                         const pHere   = panes.filter(p => (stationLookup.get(p.currentStation) ?? -1) === idx).length;
                                         const pPassed = panes.length > 0 ? panes.filter(p => {

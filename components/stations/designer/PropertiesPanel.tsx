@@ -28,6 +28,112 @@ const LABEL_FIELD_SUGGESTIONS = ["name","customer.name","material.name","details
 const VALUE_FIELD_SUGGESTIONS = ["_id","name","id"];
 const CONFIRM_SUGGESTIONS    = ["ต้องการดำเนินการต่อใช่ไหม?","ยืนยันการบันทึกข้อมูล?","ต้องการส่งข้อมูลใช่ไหม?","ยืนยันการลบรายการนี้?"];
 
+// ── Endpoint → required/optional form fields (human-readable) ─────────────────
+const ENDPOINT_FORM_FIELDS: Record<string, { key: string; label: string; description: string; required: boolean }[]> = {
+    "/orders": [
+        { key: "customer",   label: "ลูกค้า",              description: "ชื่อลูกค้าที่สั่งงาน",                      required: true  },
+        { key: "material",   label: "วัสดุ / กระจก",       description: "ประเภทและขนาดกระจกที่จะผลิต",                 required: true  },
+        { key: "quantity",   label: "จำนวน (ชิ้น)",        description: "จำนวนชิ้นที่ต้องการผลิต ต้องมากกว่า 0",       required: true  },
+        { key: "request",    label: "บิล / คำขอ",          description: "บิลต้นทางที่เชื่อมกับออเดอร์นี้",             required: false },
+        { key: "stations",   label: "สถานีผลิต",           description: "ลำดับสถานีที่ชิ้นงานต้องผ่าน",               required: false },
+        { key: "assignedTo", label: "ผู้รับผิดชอบ",        description: "พนักงานที่รับผิดชอบงานนี้",                   required: false },
+        { key: "notes",      label: "หมายเหตุ",            description: "บันทึกเพิ่มเติมสำหรับออเดอร์นี้",             required: false },
+    ],
+    "/withdrawals": [
+        { key: "material",   label: "วัสดุที่เบิก",        description: "เลือกวัสดุที่ต้องการเบิกออกจากคลัง",          required: true  },
+        { key: "quantity",   label: "จำนวนที่เบิก",        description: "จำนวนชิ้น / ม้วน / ชุด ที่ต้องการเบิก",       required: true  },
+        { key: "order",      label: "ออเดอร์ที่เบิกให้",   description: "ออเดอร์ที่จะนำวัสดุนี้ไปใช้งาน",              required: false },
+    ],
+    "/claims": [
+        { key: "material",   label: "วัสดุที่เคลม",        description: "วัสดุหรือกระจกที่มีปัญหาและต้องการเคลม",      required: true  },
+        { key: "description",label: "รายละเอียด",          description: "อธิบายปัญหา / เหตุผลการเคลม",                 required: true  },
+        { key: "order",      label: "ออเดอร์",             description: "ออเดอร์ที่เกี่ยวข้องกับการเคลม",              required: false },
+    ],
+};
+
+// ── Form checklist — scan canvas + show what's missing ───────────────────────
+const CHECKLIST_AUTO_FK: Record<string, string> = {
+    "/customers": "customer", "/materials": "material", "/workers": "assignedTo",
+    "/requests":  "request",  "/orders":    "order",    "/inventories": "inventory",
+};
+
+function FormChecklist({ endpoint, nodes }: { endpoint: string; nodes: Record<string, unknown> }) {
+    const fields = ENDPOINT_FORM_FIELDS[endpoint];
+    if (!fields) return null;
+
+    // Collect all fieldKeys present on canvas
+    const presentKeys = new Set<string>();
+    for (const rawNode of Object.values(nodes)) {
+        const node = rawNode as { data?: { displayName?: string; name?: string; props?: Record<string, unknown> } };
+        const name = node.data?.displayName ?? node.data?.name ?? "";
+        const p    = node.data?.props ?? {};
+        if (name === "Input Field" || name === "Select Field") {
+            const ek = String(p.fieldKey ?? "");
+            const ds = String(p.dataSource ?? "");
+            const key = ek || CHECKLIST_AUTO_FK[ds] || "";
+            if (key) presentKeys.add(key);
+        }
+        if (name === "Station Sequence") presentKeys.add("stations");
+    }
+
+    const required = fields.filter(f => f.required);
+    const optional = fields.filter(f => !f.required);
+    const missingRequired = required.filter(f => !presentKeys.has(f.key));
+    const allOk = missingRequired.length === 0;
+
+    return (
+        <div className="mt-3 rounded-lg border border-orange-200 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-800/40 p-3 space-y-2.5">
+            <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-bold text-orange-800 dark:text-orange-300 uppercase tracking-wide">
+                    ช่องที่ฟอร์มต้องมี
+                </span>
+                {allOk
+                    ? <span className="ml-auto text-[10px] font-semibold text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded">ครบแล้ว ✓</span>
+                    : <span className="ml-auto text-[10px] font-semibold text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-900/30 px-1.5 py-0.5 rounded">ขาด {missingRequired.length} ช่อง</span>
+                }
+            </div>
+
+            <div className="space-y-2">
+                {required.map(f => {
+                    const has = presentKeys.has(f.key);
+                    return (
+                        <div key={f.key} className="flex items-start gap-2">
+                            <span className={`text-base leading-none mt-0.5 ${has ? "text-green-600" : "text-red-500"}`}>{has ? "✓" : "✗"}</span>
+                            <div className="min-w-0">
+                                <p className={`text-[11px] font-semibold leading-tight ${has ? "text-green-700 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
+                                    {f.label}
+                                    <span className="ml-1 text-[9px] font-normal opacity-50">บังคับ</span>
+                                </p>
+                                <p className="text-[10px] text-muted-foreground leading-snug mt-0.5">{f.description}</p>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
+            {optional.length > 0 && (
+                <div className="border-t border-orange-200/60 dark:border-orange-800/30 pt-2 space-y-2">
+                    <p className="text-[10px] font-medium text-muted-foreground">ไม่บังคับ (แต่มีก็ดี)</p>
+                    {optional.map(f => {
+                        const has = presentKeys.has(f.key);
+                        return (
+                            <div key={f.key} className="flex items-start gap-2 opacity-70">
+                                <span className={`text-base leading-none mt-0.5 ${has ? "text-green-600" : "text-gray-400"}`}>{has ? "✓" : "○"}</span>
+                                <div className="min-w-0">
+                                    <p className={`text-[11px] font-medium leading-tight ${has ? "text-green-700 dark:text-green-400" : "text-muted-foreground"}`}>
+                                        {f.label}
+                                    </p>
+                                    <p className="text-[10px] text-muted-foreground leading-snug mt-0.5">{f.description}</p>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+}
+
 // ── Field metadata ─────────────────────────────────────────────────────────────
 const FIELD_META: Record<string, Record<string, FieldDef>> = {
     Section: {
@@ -90,6 +196,9 @@ const FIELD_META: Record<string, Record<string, FieldDef>> = {
         placeholder: { label: "ข้อความใบ้ในช่อง",        type: "text",   section: "props", placeholder: "เช่น กรอกรายละเอียด..." },
         rows:        { label: "ความสูงช่อง (จำนวนบรรทัด)", type: "number", section: "props" },
         fieldKey:    { label: "ชื่อตัวแปร (ใช้ในฟอร์ม)", type: "text",   section: "data", hint: "ชื่อที่จะใช้ระบุข้อความนี้เมื่อส่งฟอร์ม", placeholder: "เช่น notes", suggestions: FIELD_KEY_SUGGESTIONS },
+    },
+    "Sticker Print": {
+        label: { label: "ข้อความบนปุ่ม", type: "text", section: "props", placeholder: "เช่น พิมพ์สติ๊กเกอร์" },
     },
     Button: {
         label:     { label: "ข้อความบนปุ่ม",    type: "text",   section: "props", placeholder: "เช่น บันทึก, ยืนยัน" },
@@ -700,7 +809,16 @@ export function PropertiesPanel() {
                     {sections.action.length > 0 && (
                         <>
                             <div className="px-4"><div className="border-t border-orange-200/50 dark:border-orange-800/30" /></div>
-                            <div className="px-3"><SectionPanel section="action" fields={sections.action} props={props} setProp={setProp} /></div>
+                            <div className="px-3">
+                                <SectionPanel section="action" fields={sections.action} props={props} setProp={setProp} />
+                                {blockName === "Button"
+                                    && (props.action === "api-call" || props.action === "submit-form")
+                                    && typeof props.actionEndpoint === "string"
+                                    && props.actionEndpoint
+                                    && (
+                                    <FormChecklist endpoint={props.actionEndpoint as string} nodes={nodes} />
+                                )}
+                            </div>
                         </>
                     )}
                 </div>

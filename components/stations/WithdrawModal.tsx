@@ -350,9 +350,9 @@ export function WithdrawModal({ stationId, onClose, initialPane }: WithdrawModal
                                         กำลังโหลดสต็อก...
                                     </div>
                                 ) : matchingInvs.length === 0 ? (
-                                    <div className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 px-3 py-2.5 rounded-xl border border-amber-100 dark:border-amber-900/30">
+                                    <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 px-3 py-2.5 rounded-xl border border-red-100 dark:border-red-900/30">
                                         <AlertTriangle className="h-4 w-4 shrink-0" />
-                                        ไม่พบสต็อกวัสดุที่ตรงกัน — ยังสามารถเบิกต่อได้
+                                        ไม่พบสต็อกวัสดุที่ตรงกัน — ไม่สามารถเบิกได้
                                     </div>
                                 ) : (
                                     <div className="space-y-1.5">
@@ -440,8 +440,13 @@ export function WithdrawModal({ stationId, onClose, initialPane }: WithdrawModal
                                 </Button>
                                 <Button
                                     onClick={handleSubmit}
-                                    disabled={submitting}
-                                    className="flex-1 h-11 rounded-xl font-bold bg-orange-600 hover:bg-orange-700 text-white"
+                                    disabled={
+                                        submitting ||
+                                        loadingInv ||
+                                        (!loadingInv && matchingInvs.length === 0) ||
+                                        !!(selectedInv && pane.rawGlass?.sheetsPerPane && selectedInv.quantity < pane.rawGlass.sheetsPerPane)
+                                    }
+                                    className="flex-1 h-11 rounded-xl font-bold bg-orange-600 hover:bg-orange-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <PackageOpen className="h-4 w-4 mr-2" />}
                                     {submitting ? "กำลังเบิก..." : "ยืนยันเบิก"}

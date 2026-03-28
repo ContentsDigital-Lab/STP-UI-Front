@@ -23,7 +23,7 @@ export const productionLogsApi = {
 
     getTimeline: async (materialId: string): Promise<ApiResponse<TimelineEvent[]>> => {
         return fetchApi<ApiResponse<TimelineEvent[]>>(
-            `/production-logs/timeline?materialId=${encodeURIComponent(materialId)}`
+            `/pane-logs/timeline?materialId=${encodeURIComponent(materialId)}`
         );
     },
 };

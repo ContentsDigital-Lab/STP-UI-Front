@@ -31,18 +31,18 @@ export function InputField({
     const currentValue = controlled ? String(formData[fieldKey] ?? defaultValue ?? "") : undefined;
 
     const content = (
-        <div className="w-full space-y-1.5">
-            {label && <label className="block text-xs font-semibold text-foreground/70">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>}
+        <div className="w-full space-y-2">
+            {label && <label className="block text-sm font-bold text-gray-900">{label}{required && <span className="text-red-600 ml-1">*</span>}</label>}
             {isPreview && controlled ? (
                 <input
                     type={fieldType}
                     placeholder={placeholder}
                     value={currentValue}
                     onChange={(e) => setField(fieldKey, fieldType === "number" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value)}
-                    className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    className="w-full rounded-xl border-2 border-gray-900 bg-white px-4 py-3 text-base font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:border-blue-700 min-h-[52px]"
                 />
             ) : (
-                <input type={fieldType} placeholder={placeholder} defaultValue={defaultValue} className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" readOnly={!isPreview} />
+                <input type={fieldType} placeholder={placeholder} defaultValue={defaultValue} className="w-full rounded-xl border-2 border-gray-900 bg-white px-4 py-3 text-base font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:border-blue-700 min-h-[52px]" readOnly={!isPreview} />
             )}
         </div>
     );

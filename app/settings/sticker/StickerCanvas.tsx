@@ -552,12 +552,17 @@ export default function StickerCanvas({
     const handleEditLabel = useCallback((id: string, node: Konva.Node) => {
         const stage = stageRef.current;
         if (!stage) return;
+        const el = elsRef.current.find(e => e.id === id);
+        // Dynamic (variable) elements should not be inline-edited — value is a template variable
+        if (el?.type === "dynamic") return;
         const stageBox = stage.container().getBoundingClientRect();
         // getClientRect() without relativeTo returns coords in stage-container pixel space
         // (already accounting for zoom/scale), so just add the container's screen offset.
         const rect = node.getClientRect();
-        const el = elsRef.current.find(e => e.id === id);
-        const value = (el as { label?: string })?.label ?? "";
+        // text elements use .text; shapes/rects use .label
+        const value = (el?.type === "text")
+            ? (el as { text?: string })?.text ?? ""
+            : (el as { label?: string })?.label ?? "";
         // Use a small compact input centered on the shape, not the full bounding box
         const inputW = Math.min(Math.max(rect.width * 0.8, 100), 200);
         const inputH = 32;
@@ -775,8 +780,12 @@ export default function StickerCanvas({
                     onBlur={() => {
                         if (labelEdit) {
                             const el = elsRef.current.find(e => e.id === labelEdit.id);
-                            if (el && (el.type === "shape" || el.type === "rect")) {
-                                onChangeRef.current({ ...el, label: labelEdit.value } as StickerElement);
+                            if (el) {
+                                if (el.type === "text") {
+                                    onChangeRef.current({ ...el, text: labelEdit.value } as StickerElement);
+                                } else if (el.type === "shape" || el.type === "rect") {
+                                    onChangeRef.current({ ...el, label: labelEdit.value } as StickerElement);
+                                }
                             }
                             setLabelEdit(null);
                         }

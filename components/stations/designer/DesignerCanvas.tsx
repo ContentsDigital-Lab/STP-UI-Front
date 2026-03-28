@@ -39,6 +39,7 @@ import { InventoryStockBlock }    from "./blocks/InventoryStockBlock";
 import { OrderReleasePanel }      from "./blocks/OrderReleasePanel";
 import { QrScanBlock }            from "./blocks/QrScanBlock";
 import { StationQueueBlock }      from "./blocks/StationQueueBlock";
+import { StickerPrintBlock }      from "./blocks/StickerPrintBlock";
 
 interface DesignerCanvasProps {
     templateName:        string;
@@ -196,7 +197,7 @@ export function DesignerCanvas({ templateName, initialNodes, onSave, saving, onS
         Heading, Paragraph, Divider, Spacer, Badge,
         InputField, SelectField, TextAreaField, ButtonBlock,
         InfoCard, StatusIndicator, RecordList, RecordDetail, StationSequencePicker, StationHistory,
-        InventoryStockBlock, OrderReleasePanel, QrScanBlock, StationQueueBlock,
+        InventoryStockBlock, OrderReleasePanel, QrScanBlock, StationQueueBlock, StickerPrintBlock,
     }), []);
 
     const resolverNames = useMemo(() => new Set(Object.keys(RESOLVER)), [RESOLVER]);
