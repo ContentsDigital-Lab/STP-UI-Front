@@ -42,14 +42,25 @@ const STORAGE_KEY = "sticker_template";
 const MAX_HISTORY = 50;
 
 const DYNAMIC_VARIABLES = [
-    { value: "{{orderCode}}",    label: "รหัสออเดอร์" },
-    { value: "{{customerName}}", label: "ชื่อลูกค้า" },
-    { value: "{{materialName}}", label: "ชื่อวัสดุ" },
-    { value: "{{quantity}}",     label: "จำนวน" },
-    { value: "{{status}}",       label: "สถานะ" },
-    { value: "{{assignedTo}}",   label: "ผู้รับผิดชอบ" },
-    { value: "{{date}}",         label: "วันที่" },
-    { value: "{{time}}",         label: "เวลา" },
+    // ── ออเดอร์ ───────────────────────────────────────────────────────
+    { value: "{{orderCode}}",    label: "รหัสออเดอร์",      group: "ออเดอร์" },
+    { value: "{{customerName}}", label: "ชื่อลูกค้า",        group: "ออเดอร์" },
+    { value: "{{materialName}}", label: "ชื่อวัสดุ",          group: "ออเดอร์" },
+    { value: "{{quantity}}",     label: "จำนวน",              group: "ออเดอร์" },
+    { value: "{{status}}",       label: "สถานะ",              group: "ออเดอร์" },
+    { value: "{{assignedTo}}",   label: "ผู้รับผิดชอบ",      group: "ออเดอร์" },
+    // ── กระจก ────────────────────────────────────────────────────────
+    { value: "{{paneNumber}}",   label: "เลขกระจก",          group: "กระจก" },
+    { value: "{{paneId}}",       label: "ID กระจก",           group: "กระจก" },
+    { value: "{{glassType}}",    label: "ประเภทกระจก",        group: "กระจก" },
+    { value: "{{dimensions}}",   label: "ขนาดกระจก (กxสxห)", group: "กระจก" },
+    { value: "{{width}}",        label: "กว้าง (mm)",         group: "กระจก" },
+    { value: "{{height}}",       label: "สูง (mm)",           group: "กระจก" },
+    { value: "{{thickness}}",    label: "หนา (mm)",           group: "กระจก" },
+    { value: "{{qrCode}}",       label: "QR Code ของกระจก",  group: "กระจก" },
+    // ── วันที่ / เวลา ─────────────────────────────────────────────────
+    { value: "{{date}}",         label: "วันที่",              group: "วันที่" },
+    { value: "{{time}}",         label: "เวลา",               group: "วันที่" },
 ];
 
 function genId() { return Math.random().toString(36).slice(2, 9); }
@@ -1091,7 +1102,7 @@ export default function StickerDesignerPage() {
                 el = { id, type: "dynamic", x: cx - 60, y: cy - 10, text: "{{orderCode}}", fontSize: 14, fill: "#000000", bold: false, italic: false };
                 break;
             case "qr":
-                el = { id, type: "qr", x: cx - 40, y: cy - 40, width: 80, height: 80, value: "{{orderCode}}" };
+                el = { id, type: "qr", x: cx - 40, y: cy - 40, width: 80, height: 80, value: "{{qrCode}}" };
                 break;
             case "rect":
                 el = { id, type: "rect", x: cx - 40, y: cy - 25, width: 80, height: 50, fill: "transparent", stroke: "#000000", strokeWidth: 1 };

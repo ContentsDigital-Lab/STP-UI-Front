@@ -197,6 +197,9 @@ const FIELD_META: Record<string, Record<string, FieldDef>> = {
         rows:        { label: "ความสูงช่อง (จำนวนบรรทัด)", type: "number", section: "props" },
         fieldKey:    { label: "ชื่อตัวแปร (ใช้ในฟอร์ม)", type: "text",   section: "data", hint: "ชื่อที่จะใช้ระบุข้อความนี้เมื่อส่งฟอร์ม", placeholder: "เช่น notes", suggestions: FIELD_KEY_SUGGESTIONS },
     },
+    "Sticker Print": {
+        label: { label: "ข้อความบนปุ่ม", type: "text", section: "props", placeholder: "เช่น พิมพ์สติ๊กเกอร์" },
+    },
     Button: {
         label:     { label: "ข้อความบนปุ่ม",    type: "text",   section: "props", placeholder: "เช่น บันทึก, ยืนยัน" },
         variant:   { label: "รูปแบบปุ่ม",       type: "select", section: "props", options: ["primary","outline","danger","success"], optionLabels: ["สีหลัก (เน้น)","กรอบเส้น","แดง (ลบ/ยกเลิก)","เขียว (ยืนยัน)"] },
