@@ -121,42 +121,39 @@ function StationJourney({
 
                 const isFirst  = idx === 0;
                 const isLast   = idx === stationIds.length - 1;
+                const active   = isPast || isCur;
 
                 return (
                     <div key={sid} className="relative flex items-stretch gap-3 w-full">
                         {/* Left: Timeline Container */}
                         <div className="relative flex flex-col items-center justify-center shrink-0 w-10">
-                            {/* Top Line (from previous node) */}
                             {!isFirst && (
-                                <div 
-                                    className={`absolute top-0 bottom-1/2 w-0.5 ${
-                                        isPast || isCur ? "bg-blue-300 dark:bg-orange-500/60" : "bg-slate-200 dark:bg-slate-800"
-                                    }`} 
+                                <div
+                                    className={`absolute top-0 bottom-1/2 w-0.5 ${active ? "" : "bg-slate-200 dark:bg-slate-800"}`}
+                                    style={active ? { backgroundColor: color.swatch, opacity: 0.35 } : undefined}
                                 />
                             )}
-                            {/* Bottom Line (to next node) */}
                             {!isLast && (
-                                <div 
-                                    className={`absolute top-1/2 bottom-0 w-0.5 ${
-                                        isPast ? "bg-blue-300 dark:bg-orange-500/60" : "bg-slate-200 dark:bg-slate-800"
-                                    }`} 
+                                <div
+                                    className={`absolute top-1/2 bottom-0 w-0.5 ${isPast ? "" : "bg-slate-200 dark:bg-slate-800"}`}
+                                    style={isPast ? { backgroundColor: color.swatch, opacity: 0.35 } : undefined}
                                 />
                             )}
                             
-                            {/* Node Dot - centered precisely */}
                             <div
                                 className={`relative z-10 flex items-center justify-center shrink-0 ${
                                     isCancelled ? "w-4 h-4 rounded-full bg-slate-300 dark:bg-slate-700" :
-                                    isCur       ? "w-6 h-6 rounded-full bg-white dark:bg-slate-900 ring-[3px] ring-blue-500 dark:ring-[#E8601C] ring-offset-[3px] ring-offset-white dark:ring-offset-slate-900" :
+                                    isCur       ? "w-6 h-6 rounded-full bg-white dark:bg-slate-900 ring-offset-[3px] ring-offset-white dark:ring-offset-slate-900" :
                                     isPast      ? "w-5 h-5 rounded-full" :
                                                   "w-3 h-3 rounded-full bg-slate-300 dark:bg-slate-700"
                                 }`}
                                 style={{
-                                    ...(isPast && !isCur && !isCancelled ? { backgroundColor: color.swatch } : {})
+                                    ...(isCur && !isCancelled ? { boxShadow: `0 0 0 3px white, 0 0 0 6px ${color.swatch}` } : {}),
+                                    ...(isPast && !isCur && !isCancelled ? { backgroundColor: color.swatch } : {}),
                                 }}
                             >
                                 {isCur && (
-                                    <div className="h-2 w-2 rounded-full animate-pulse bg-blue-500 dark:bg-[#E8601C]" />
+                                    <div className="h-2 w-2 rounded-full animate-pulse" style={{ backgroundColor: color.swatch }} />
                                 )}
                                 {isPast && !isCur && !isCancelled && (
                                     <CheckCheck className="h-2.5 w-2.5 text-white" />
@@ -167,20 +164,25 @@ function StationJourney({
                         {/* Right: Station Card */}
                         <div className="flex-1 min-w-0 py-1.5">
                             <div
-                                className={`rounded-xl p-3.5 border transition-all ${
+                                className={`rounded-xl p-3.5 transition-all ${
                                     isCur
-                                        ? "bg-white dark:bg-slate-900 shadow-md border-2 border-blue-500 dark:border-[#E8601C]"
+                                        ? "bg-white dark:bg-slate-900 shadow-md border-2"
                                         : isPast
-                                            ? "bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800"
-                                            : "bg-slate-50 dark:bg-slate-800/20 border-slate-200 dark:border-slate-800"
+                                            ? "border border-slate-200/80 dark:border-slate-800"
+                                            : "bg-slate-50 dark:bg-slate-800/20 border border-slate-200 dark:border-slate-800"
                                 }`}
+                                style={{
+                                    ...(isCur ? { borderColor: color.swatch } : {}),
+                                    ...(isPast ? { backgroundColor: `${color.swatch}0a` } : {}),
+                                }}
                             >
                                 <div className="flex items-center justify-between gap-3">
                                     <div className="flex items-center gap-2.5 min-w-0">
                                         <div
                                             className={`flex items-center justify-center p-2 rounded-lg shrink-0 ${
-                                                isCur ? "bg-blue-50 dark:bg-[#E8601C]/10 text-blue-600 dark:text-[#E8601C]" : "bg-slate-100 dark:bg-slate-800 text-slate-400"
+                                                !(isCur || isPast) ? "bg-slate-100 dark:bg-slate-800 text-slate-400" : ""
                                             }`}
+                                            style={isCur || isPast ? { backgroundColor: `${color.swatch}18`, color: color.swatch } : undefined}
                                         >
                                             <Factory className="h-4 w-4" />
                                         </div>
@@ -197,7 +199,7 @@ function StationJourney({
                                             {!isCancelled && total > 0 ? (
                                                 <div className="text-[11px] font-semibold mt-0.5 flex items-center gap-1">
                                                     {st.here > 0 ? (
-                                                        <span className="text-blue-600 dark:text-[#E8601C] flex items-center gap-1">
+                                                        <span className="flex items-center gap-1" style={{ color: color.swatch }}>
                                                             <Loader2 className="h-3 w-3 animate-spin" />
                                                             {st.here} ชิ้นอยู่ที่นี่
                                                         </span>
@@ -210,7 +212,7 @@ function StationJourney({
                                             ) : !isCancelled && total === 0 ? (
                                                 <>
                                                     {isCur && (
-                                                        <div className="text-[11px] font-semibold mt-0.5 flex items-center gap-1 text-blue-600 dark:text-[#E8601C]">
+                                                        <div className="text-[11px] font-semibold mt-0.5 flex items-center gap-1" style={{ color: color.swatch }}>
                                                             <Loader2 className="h-3 w-3 animate-spin" />
                                                             กำลังดำเนินการ...
                                                         </div>
@@ -226,9 +228,12 @@ function StationJourney({
                                         </div>
                                     </div>
                                     {isCur && (
-                                        <div className="flex items-center gap-1.5 px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-md border border-slate-200 dark:border-slate-700 shrink-0 relative">
-                                            <span className="h-1.5 w-1.5 rounded-full animate-ping absolute left-2 bg-blue-500 dark:bg-[#E8601C]" />
-                                            <span className="h-1.5 w-1.5 rounded-full relative bg-blue-500 dark:bg-[#E8601C]" />
+                                        <div
+                                            className="flex items-center gap-1.5 px-2 py-0.5 rounded-md border shrink-0 relative"
+                                            style={{ borderColor: `${color.swatch}30`, backgroundColor: `${color.swatch}10` }}
+                                        >
+                                            <span className="h-1.5 w-1.5 rounded-full animate-ping absolute left-2" style={{ backgroundColor: color.swatch }} />
+                                            <span className="h-1.5 w-1.5 rounded-full relative" style={{ backgroundColor: color.swatch }} />
                                             <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 tracking-wider uppercase">
                                                 {total > 0 ? `${st.here} ชิ้น` : "Active"}
                                             </span>
@@ -240,9 +245,12 @@ function StationJourney({
                                     <div className="mt-2.5 w-full h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
                                         <div
                                             className={`h-full rounded-full transition-all duration-500 ${
-                                                isPast ? "bg-green-500" : isCur ? "bg-blue-500 dark:bg-[#E8601C]" : "bg-slate-300 dark:bg-slate-600"
+                                                !active ? "bg-slate-300 dark:bg-slate-600" : ""
                                             }`}
-                                            style={{ width: `${pct}%` }}
+                                            style={{
+                                                width: `${pct}%`,
+                                                ...(active ? { backgroundColor: color.swatch, opacity: isPast ? 0.7 : 1 } : {}),
+                                            }}
                                         />
                                     </div>
                                 )}
@@ -344,6 +352,7 @@ export default function ProductionDetailPage() {
     const [infoTab,    setInfoTab]    = useState<"order" | "bill">("order");
 
     const stationMap = new Map(stations.map(s => [s._id, s]));
+    const stationByName = new Map(stations.map(s => [s.name, s]));
 
     const loadPanes = useCallback(async () => {
         const pRes = await panesApi.getAll({ order: id, limit: 100 }).catch(() => null);
@@ -580,14 +589,15 @@ export default function ProductionDetailPage() {
                                                 key={sid}
                                                 className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium border transition-all ${
                                                     order.status === "cancelled" ? "bg-slate-100 dark:bg-slate-800 text-slate-400 border-transparent opacity-50" :
-                                                    isCur   ? "border-blue-500 dark:border-[#E8601C] text-blue-600 dark:text-[#E8601C] bg-blue-50 dark:bg-[#E8601C]/10 shadow-sm" :
+                                                    isCur   ? `${color.cls} shadow-sm` :
                                                     isDone  ? `${color.cls} border-transparent opacity-75` :
                                                               "bg-slate-50 dark:bg-slate-800/30 text-slate-400 border-transparent opacity-50"
                                                 }`}
+                                                style={isCur && order.status !== "cancelled" ? { borderColor: color.swatch } : undefined}
                                             >
                                                 <span
-                                                    className={`h-1.5 w-1.5 rounded-full shrink-0 ${isCur ? "bg-blue-600 dark:bg-[#E8601C]" : ""}`}
-                                                    style={(!isCur && order.status !== "cancelled") ? { backgroundColor: color.swatch } : {}}
+                                                    className="h-1.5 w-1.5 rounded-full shrink-0"
+                                                    style={order.status !== "cancelled" ? { backgroundColor: color.swatch } : undefined}
                                                 />
                                                 {station?.name ?? sid}
                                             </span>
@@ -633,13 +643,17 @@ export default function ProductionDetailPage() {
                                     awaiting_scan_out:  { label: "รอสแกนออก",  dot: "bg-amber-500",  text: "text-amber-600 dark:text-amber-400", bg: "bg-amber-50" },
                                 } as Record<string, { label: string; dot: string; text: string; bg: string }>)[pane.currentStatus] ?? { label: pane.currentStatus, dot: "bg-gray-400", text: "text-gray-500", bg: "bg-gray-50" };
 
+                                const paneStation = stationMap.get(pane.currentStation) ?? stationByName.get(pane.currentStation);
                                 const stationName = (() => {
                                     if (pane.currentStation === "queue") return "คิว";
                                     if (pane.currentStation === "ready") return "พร้อมส่ง";
                                     if (pane.currentStation === "defected") return "ชำรุด";
-                                    const st = stationMap.get(pane.currentStation);
-                                    return st?.name ?? pane.currentStation;
+                                    return paneStation?.name ?? pane.currentStation;
                                 })();
+                                const isSpecialStation = ["queue", "ready", "defected"].includes(pane.currentStation);
+                                const paneStationId = paneStation?._id ?? pane.currentStation;
+                                const paneColorId = colorMap[paneStationId] ?? paneStation?.colorId ?? "sky";
+                                const paneColor = getColorOption(paneColorId);
 
                                 return (
                                     <div
@@ -664,8 +678,18 @@ export default function ProductionDetailPage() {
                                             ) : (
                                                 <span />
                                             )}
-                                            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 font-medium bg-slate-50 dark:bg-slate-800/50 px-2.5 py-1 rounded-lg border border-slate-100 dark:border-slate-700/50">
-                                                <MapPin className="h-3 w-3" />
+                                            <div
+                                                className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-lg border ${
+                                                    isSpecialStation
+                                                        ? "text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700/50"
+                                                        : paneColor.cls
+                                                }`}
+                                                style={!isSpecialStation ? { borderColor: `${paneColor.swatch}30` } : undefined}
+                                            >
+                                                <span
+                                                    className={`h-1.5 w-1.5 rounded-full shrink-0 ${isSpecialStation ? "bg-slate-400" : ""}`}
+                                                    style={!isSpecialStation ? { backgroundColor: paneColor.swatch } : undefined}
+                                                />
                                                 <span className="truncate max-w-[100px]">{stationName}</span>
                                             </div>
                                         </div>
