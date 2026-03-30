@@ -208,9 +208,12 @@ export interface Claim {
     material: string | Material;
     description: string;
     decision?: "destroy" | "keep";
+    defectCode?: "broken" | "chipped" | "dimension_wrong" | "scratch" | "other";
+    defectStation?: string;
     reportedBy: string | Worker;
     approvedBy?: string | Worker;
     pane?: string | Pane;
+    remadePane?: string | Pane;
     photos?: string[];
     claimDate?: string;
     createdAt: string;

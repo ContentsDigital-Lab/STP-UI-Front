@@ -116,12 +116,12 @@ export function ClaimModal({ stationId, onClose }: ClaimModalProps) {
         try {
             // Primary: use /claims/from-pane — backend auto-resolves order/material/worker
             // Fallback: use /orders/:orderId/claims if from-pane fails
-            // Note: photos are base64 (not URLs) — omit until upload endpoint is available
             let res = await claimsApi.createFromPane({
                 paneNumber: pane.paneNumber,
                 description: description.trim(),
                 source: "worker",
                 reportedBy: user?._id,
+                photos: photos.length ? photos : undefined,
             });
 
             if (!res.success) {
