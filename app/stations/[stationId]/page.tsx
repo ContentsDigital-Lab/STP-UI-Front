@@ -236,10 +236,10 @@ export default function LiveStationPage() {
         : "";
 
     const header = (
-        <div className="flex items-center gap-2 border-b-2 border-gray-900 bg-white px-3 py-2 shrink-0">
+        <div className="flex items-center gap-2 border-b-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-900 px-3 py-2 shrink-0">
             <button
                 onClick={() => router.push("/stations")}
-                className="flex items-center gap-1.5 h-11 px-3 rounded-xl border-2 border-gray-900 bg-white text-gray-900 font-bold text-sm active:bg-gray-100 shrink-0"
+                className="flex items-center gap-1.5 h-11 px-3 rounded-xl border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 font-bold text-sm active:bg-gray-100 dark:active:bg-slate-700 shrink-0"
             >
                 <ArrowLeft className="h-5 w-5" />
                 <span className="hidden sm:inline">กลับ</span>
@@ -252,7 +252,7 @@ export default function LiveStationPage() {
             <div className="ml-auto flex items-center gap-2 shrink-0">
                 <button
                     onClick={() => setShowWithdraw(true)}
-                    className="flex items-center gap-1.5 h-11 px-4 rounded-xl border-2 border-orange-600 bg-white text-orange-700 font-bold text-sm active:bg-orange-50"
+                    className="flex items-center gap-1.5 h-11 px-4 rounded-xl border-2 border-orange-600 dark:border-orange-500 bg-white dark:bg-slate-800 text-orange-700 dark:text-orange-400 font-bold text-sm active:bg-orange-50 dark:active:bg-orange-900/20"
                 >
                     <PackageOpen className="h-5 w-5" />
                     <span>เบิก</span>

@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 80" width="300" height="80">
+  <defs>
+    <linearGradient id="blueGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#1B4B9A" />
+    </linearGradient>
+    <linearGradient id="orangeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f97316" />
+      <stop offset="100%" stop-color="#E8601C" />
+    </linearGradient>
+  </defs>
+  
+  <rect width="300" height="80" fill="transparent"/>
+  
+  <!-- Logo Icon: Abstract S Shape -->
+  <g transform="translate(10, 10)">
+    <!-- Top right orange shape -->
+    <path d="M 30,0 L 55,0 A 5,5 0 0 1 60,5 L 60,30 C 60,45 45,60 30,60 L 5,60 C -5,60 -5,45 5,45 L 30,45 C 38,45 45,38 45,30 L 45,5 A 5,5 0 0 0 40,0 Z" fill="url(#orangeGrad)" />
+    <!-- Bottom left blue shape -->
+    <path d="M 30,60 L 5,60 A 5,5 0 0 1 0,55 L 0,30 C 0,15 15,0 30,0 L 55,0 C 65,0 65,15 55,15 L 30,15 C 22,15 15,22 15,30 L 15,55 A 5,5 0 0 0 20,60 Z" fill="url(#blueGrad)" />
+  </g>
+
+  <!-- Text -->
+  <text x="85" y="48" font-family="'Inter', 'Segoe UI', Arial, sans-serif" font-size="32" font-weight="800" fill="#1B4B9A" letter-spacing="-0.5">Standard</text>
+  <text x="230" y="48" font-family="'Inter', 'Segoe UI', Arial, sans-serif" font-size="32" font-weight="800" fill="#E8601C" letter-spacing="-0.5">Plus</text>
+  
+  <!-- Subtitle -->
+  <text x="87" y="65" font-family="'Inter', 'Segoe UI', Arial, sans-serif" font-size="10" font-weight="600" fill="#64748b" letter-spacing="1">GLASS DESIGN &amp; MANUFACTURING</text>
+</svg>

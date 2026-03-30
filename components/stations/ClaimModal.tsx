@@ -317,7 +317,7 @@ export function ClaimModal({ stationId, onClose }: ClaimModalProps) {
                                 )}
                                 {orderObj && (
                                     <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-                                        <Package className="h-3 w-3 shrink-0" />ออเดอร์ #{(orderObj._id ?? "").slice(-6).toUpperCase()}
+                                        <Package className="h-3 w-3 shrink-0" />ออเดอร์ {orderObj.orderNumber ?? `#${(orderObj._id ?? "").slice(-6).toUpperCase()}`}
                                     </div>
                                 )}
                                 {pane.currentStation && (

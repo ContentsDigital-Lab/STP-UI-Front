@@ -217,9 +217,7 @@ export function RecordList({
     // Auto-filter: when fetching /orders or /panes inside a station context, pass stationId server-side
     const shouldFilterStation = (filterByCurrentStation || (dataSource === "/orders" && !!stationId) || (dataSource === "/panes" && !!stationId)) && !!stationId;
 
-    // Auto pending-only: hide orders/panes that have already been scanned in at this station.
-    // Active whenever this RecordList is showing station-filtered orders (shouldFilterStation covers
-    // both explicit filterByCurrentStation=true AND auto-detection via stationId in context).
+    // Auto pending-only: hide orders whose panes have all already arrived at this station.
     const effectivePendingOnly = pendingPanesOnly || (dataSource === "/orders" && shouldFilterStation);
 
     const loadData = () => {
@@ -258,15 +256,14 @@ export function RecordList({
             .finally(() => setFetching(false));
     };
 
-    /** Fetch all panes at this station and count how many are still pending per order.
-     *  Only called when pendingPanesOnly=true on an orders datasource. */
+    /** Fetch panes at this station and count how many are still "pending" (not yet scanned in) per order.
+     *  Orders with 0 pending panes are hidden — all their panes have moved to the station queue. */
     const loadPendingPaneCounts = () => {
         if (!effectivePendingOnly || dataSource !== "/orders" || (!stationId && !stationName)) return;
         panesApi.getAll({ limit: 500 }).then(res => {
             if (!res.success || !Array.isArray(res.data)) return;
             const counts: Record<string, number> = {};
 
-            // Build request→orderId lookup from the currently loaded orders
             const requestToOrder = new Map<string, string>();
             for (const order of rows) {
                 const oid = String(order._id ?? "");
@@ -285,7 +282,6 @@ export function RecordList({
                 const atStation = cs === stationId || cs === stationName;
                 if (!atStation || pane.currentStatus !== "pending") continue;
 
-                // Resolve orderId: prefer pane.order, fall back to request→order lookup
                 let orderId = pane.order
                     ? (typeof pane.order === "string" ? pane.order : (pane.order as { _id?: string })._id ?? "")
                     : "";
