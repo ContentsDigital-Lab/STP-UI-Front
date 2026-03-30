@@ -309,8 +309,7 @@ export function WithdrawModal({ stationId, onClose, initialPane }: WithdrawModal
                                 {orderObj && (
                                     <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                                         <Package className="h-3.5 w-3.5 shrink-0" />
-                                        <span>ออเดอร์ #{(orderObj._id ?? "").slice(-6).toUpperCase()}</span>
-                                        {orderObj.code && <span className="text-[11px] font-mono text-slate-400">({orderObj.code})</span>}
+                                        <span>ออเดอร์ {orderObj.orderNumber ?? `#${(orderObj._id ?? "").slice(-6).toUpperCase()}`}</span>
                                     </div>
                                 )}
                             </div>

@@ -215,7 +215,7 @@ function StationJourney({
                                                 <div className="text-[11px] font-semibold mt-0.5 flex items-center gap-1">
                                                     {st.here > 0 ? (
                                                         <span className="flex items-center gap-1" style={{ color: color.swatch }}>
-                                                            <Loader2 className="h-3 w-3 animate-spin" />
+                                                            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color.swatch }} />
                                                             {st.here} ชิ้นอยู่ที่นี่
                                                         </span>
                                                     ) : (
@@ -705,6 +705,11 @@ export default function ProductionDetailPage() {
 
     const stationMap = new Map(stations.map(s => [s._id, s]));
     const stationByName = new Map(stations.map(s => [s.name, s]));
+
+    const colorMap: Record<string, string> = (() => {
+        if (typeof window === "undefined") return {};
+        try { return JSON.parse(localStorage.getItem("std_station_colors") ?? "{}"); } catch { return {}; }
+    })();
 
     const loadPanes = useCallback(async () => {
         const pRes = await panesApi.getAll({ order: id, limit: 100 }).catch(() => null);
