@@ -4,6 +4,8 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
     Plus, Search, Trash2, ShieldAlert,
     ChevronLeft, ChevronRight, MoreHorizontal, ClipboardCheck,
+    Eye, Package, Layers, MapPin, ArrowRight, Image as ImageIcon,
+    X, ZoomIn,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,6 +75,40 @@ export default function ClaimsPage() {
     const [deleteTarget, setDeleteTarget] = useState<Claim | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
 
+    // Detail dialog — stores the "preview" claim from the table row
+    const [detailClaim, setDetailClaim] = useState<Claim | null>(null);
+    // Full claim fetched via getById (includes photos)
+    const [detailClaimFull, setDetailClaimFull] = useState<Claim | null>(null);
+    const [isDetailLoading, setIsDetailLoading] = useState(false);
+
+    // When user opens the detail modal, fetch full data
+    useEffect(() => {
+        if (!detailClaim) { setDetailClaimFull(null); return; }
+        setIsDetailLoading(true);
+        claimsApi.getById(detailClaim._id)
+            .then((res) => { if (res.success) setDetailClaimFull(res.data); })
+            .catch(() => {})
+            .finally(() => setIsDetailLoading(false));
+    }, [detailClaim?._id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Use full data if available, otherwise fall back to preview
+    const activeClaim = detailClaimFull ?? detailClaim;
+
+    // Lightbox
+    const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+    const lightboxPhotos = activeClaim?.photos ?? [];
+
+    useEffect(() => {
+        if (lightboxIdx === null) return;
+        const handler = (e: KeyboardEvent) => {
+            if (e.key === "Escape") setLightboxIdx(null);
+            if (e.key === "ArrowRight") setLightboxIdx((i) => i !== null && i < lightboxPhotos.length - 1 ? i + 1 : i);
+            if (e.key === "ArrowLeft") setLightboxIdx((i) => i !== null && i > 0 ? i - 1 : i);
+        };
+        window.addEventListener("keydown", handler);
+        return () => window.removeEventListener("keydown", handler);
+    }, [lightboxIdx, lightboxPhotos.length]);
+
     // Initial data load (once)
     useEffect(() => {
         Promise.all([
@@ -123,6 +159,32 @@ export default function ClaimsPage() {
         if (!w) return "-";
         if (typeof w === "object") return w.name;
         return workerMap.get(w)?.name ?? w.slice(-6);
+    };
+
+    const getPaneNumber = (p: Claim["pane"]) => {
+        if (!p) return null;
+        if (typeof p === "object") return p.paneNumber;
+        return `...${p.slice(-6)}`;
+    };
+
+    const getPaneObj = (p: Claim["pane"]): import("@/lib/api/types").Pane | null => {
+        if (!p || typeof p !== "object") return null;
+        return p as import("@/lib/api/types").Pane;
+    };
+
+    const PANE_STATUS_LABEL: Record<string, string> = {
+        pending: "รอดำเนินการ",
+        in_progress: "กำลังทำงาน",
+        awaiting_scan_out: "รอสแกนออก",
+        completed: "เสร็จสิ้น",
+    };
+
+    const DEFECT_CODE_LABEL: Record<string, string> = {
+        broken: "แตก / หัก",
+        chipped: "บิ่น",
+        dimension_wrong: "ขนาดไม่ถูกต้อง",
+        scratch: "รอยขีดข่วน",
+        other: "อื่น ๆ",
     };
 
     // Filtered & paginated
@@ -304,12 +366,12 @@ export default function ClaimsPage() {
                         <TableRow className="border-slate-100 dark:border-slate-800 hover:bg-transparent">
                             <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 px-4 h-10">วันที่เคลม</TableHead>
                             <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">Order</TableHead>
+                            <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">กระจกแผ่น</TableHead>
                             <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">วัสดุ</TableHead>
                             <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">แหล่งที่มา</TableHead>
                             <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">รายละเอียด</TableHead>
                             <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">ผลการตัดสิน</TableHead>
                             <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">รายงานโดย</TableHead>
-                            <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">อนุมัติโดย</TableHead>
                             <TableHead className="w-10 py-3 h-10" />
                         </TableRow>
                     </TableHeader>
@@ -324,7 +386,7 @@ export default function ClaimsPage() {
                             ))
                         ) : paginated.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={9} className="py-16 text-center border-none">
+                                <TableCell colSpan={9} className="py-16 text-center border-none" suppressHydrationWarning>
                                     <div className="flex flex-col items-center gap-2">
                                         <div className="h-12 w-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
                                             <ClipboardCheck className="h-6 w-6 text-slate-400 dark:text-slate-500" />
@@ -334,28 +396,54 @@ export default function ClaimsPage() {
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            paginated.map((c) => (
-                                <TableRow key={c._id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 border-slate-100 dark:border-slate-800">
+                            paginated.map((c) => {
+                                const paneNum = getPaneNumber(c.pane);
+                                const paneObj = getPaneObj(c.pane);
+                                return (
+                                <TableRow
+                                    key={c._id}
+                                    className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 border-slate-100 dark:border-slate-800 cursor-pointer"
+                                    onClick={() => setDetailClaim(c)}
+                                >
                                     <TableCell className="text-sm py-3.5 px-4 text-slate-600 dark:text-slate-300">
-                                        {new Date(c.claimDate ?? c.createdAt).toLocaleDateString("th-TH")}
+                                        <div>{new Date(c.claimDate ?? c.createdAt).toLocaleDateString("th-TH")}</div>
+                                        {c.claimNumber && <div className="text-[11px] font-mono text-slate-400 mt-0.5">{c.claimNumber}</div>}
                                     </TableCell>
                                     <TableCell className="font-mono text-sm text-slate-500 dark:text-slate-400 py-3.5">
                                         {getOrderLabel(c.order)}
                                     </TableCell>
+                                    <TableCell className="py-3.5">
+                                        {paneNum ? (
+                                            <div className="flex flex-col gap-0.5">
+                                                <span className="text-sm font-semibold font-mono text-slate-900 dark:text-white">{paneNum}</span>
+                                                {paneObj?.dimensions && (
+                                                    <span className="text-[11px] text-slate-400">
+                                                        {paneObj.dimensions.width}×{paneObj.dimensions.height}×{paneObj.dimensions.thickness} มม.
+                                                    </span>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <span className="text-slate-400 text-xs">-</span>
+                                        )}
+                                    </TableCell>
                                     <TableCell className="text-sm font-medium py-3.5 text-slate-900 dark:text-white">{getMaterialName(c.material)}</TableCell>
                                     <TableCell className="py-3.5">{sourceBadge(c.source)}</TableCell>
-                                    <TableCell className="max-w-[200px] truncate text-sm text-slate-500 dark:text-slate-400 py-3.5" title={c.description}>
+                                    <TableCell className="max-w-[180px] truncate text-sm text-slate-500 dark:text-slate-400 py-3.5" title={c.description}>
                                         {c.description}
                                     </TableCell>
                                     <TableCell className="py-3.5">{decisionBadge(c.decision)}</TableCell>
                                     <TableCell className="text-sm py-3.5 text-slate-600 dark:text-slate-300">{getWorkerName(c.reportedBy)}</TableCell>
-                                    <TableCell className="text-sm py-3.5">{c.approvedBy ? getWorkerName(c.approvedBy) : <span className="text-slate-400 text-xs">-</span>}</TableCell>
-                                    <TableCell className="py-3.5 pr-4">
+                                    <TableCell className="py-3.5 pr-4" onClick={(e) => e.stopPropagation()}>
                                         <DropdownMenu>
                                             <DropdownMenuTrigger className="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
                                                 <MoreHorizontal className="h-4 w-4" />
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
+                                                <DropdownMenuItem onClick={() => setDetailClaim(c)}>
+                                                    <Eye className="mr-2 h-4 w-4" />
+                                                    ดูรายละเอียด
+                                                </DropdownMenuItem>
+                                                {isManager && <DropdownMenuSeparator />}
                                                 {isManager && (
                                                     <DropdownMenuItem onClick={() => {
                                                         setDecisionTarget(c);
@@ -384,7 +472,8 @@ export default function ClaimsPage() {
                                         </DropdownMenu>
                                     </TableCell>
                                 </TableRow>
-                            ))
+                                );
+                            })
                         )}
                     </TableBody>
                 </Table>
@@ -576,6 +665,264 @@ export default function ClaimsPage() {
                 </DialogContent>
             </Dialog>
 
+            {/* Detail Dialog */}
+            <Dialog open={!!detailClaim} onOpenChange={() => setDetailClaim(null)}>
+                <DialogContent className="sm:max-w-2xl rounded-2xl p-0 overflow-hidden">
+                    {detailClaim && (() => {
+                        const paneObj = getPaneObj(activeClaim?.pane);
+                        const paneNum = getPaneNumber(activeClaim?.pane);
+                        return (
+                            <>
+                                {/* Header */}
+                                <div className="flex items-start justify-between gap-4 p-6 pb-4 border-b border-slate-100 dark:border-slate-800">
+                                    <div className="flex items-center gap-3">
+                                        <div className="h-10 w-10 rounded-xl bg-red-50 dark:bg-red-500/10 flex items-center justify-center shrink-0">
+                                            <ShieldAlert className="h-5 w-5 text-red-500" />
+                                        </div>
+                                        <div>
+                                            <p className="font-mono text-xs text-slate-400 mb-0.5">
+                                                {activeClaim?.claimNumber ?? "ไม่มีรหัส"}
+                                            </p>
+                                            <DialogTitle className="text-base font-bold text-slate-900 dark:text-white leading-tight">
+                                                รายละเอียดการเคลม
+                                            </DialogTitle>
+                                        </div>
+                                    </div>
+                                    <div className="shrink-0 pt-1">{decisionBadge(activeClaim?.decision)}</div>
+                                </div>
+
+                                <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
+                                    {/* Pane section */}
+                                    {paneNum ? (
+                                        <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                                            <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700">
+                                                <Layers className="h-3.5 w-3.5 text-slate-400" />
+                                                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">ข้อมูลกระจกแผ่น</span>
+                                            </div>
+                                            <div className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3">
+                                                <div>
+                                                    <p className="text-[11px] text-slate-400 mb-0.5">เลขแผ่น</p>
+                                                    <p className="text-sm font-bold font-mono text-slate-900 dark:text-white">{paneNum}</p>
+                                                </div>
+                                                {paneObj?.dimensions && (
+                                                    <div>
+                                                        <p className="text-[11px] text-slate-400 mb-0.5">ขนาด (กว้าง × สูง × หนา)</p>
+                                                        <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                                                            {paneObj.dimensions.width} × {paneObj.dimensions.height} × {paneObj.dimensions.thickness} มม.
+                                                        </p>
+                                                    </div>
+                                                )}
+                                                {paneObj?.glassTypeLabel && (
+                                                    <div>
+                                                        <p className="text-[11px] text-slate-400 mb-0.5">ประเภทกระจก</p>
+                                                        <p className="text-sm font-medium text-slate-900 dark:text-white">{paneObj.glassTypeLabel}</p>
+                                                    </div>
+                                                )}
+                                                {paneObj?.currentStation && (
+                                                    <div>
+                                                        <p className="text-[11px] text-slate-400 mb-0.5">สถานีปัจจุบัน</p>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <MapPin className="h-3 w-3 text-slate-400" />
+                                                            <p className="text-sm font-medium text-slate-900 dark:text-white">
+                                                                {typeof paneObj.currentStation === "object"
+                                                                    ? (paneObj.currentStation as { name?: string }).name ?? "-"
+                                                                    : paneObj.currentStation}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {paneObj?.currentStatus && (
+                                                    <div>
+                                                        <p className="text-[11px] text-slate-400 mb-0.5">สถานะ</p>
+                                                        <span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded-md ${
+                                                            paneObj.currentStatus === "completed"
+                                                                ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                                                : paneObj.currentStatus === "in_progress"
+                                                                ? "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                                                                : paneObj.currentStatus === "awaiting_scan_out"
+                                                                ? "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                                                                : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+                                                        }`}>
+                                                            {PANE_STATUS_LABEL[paneObj.currentStatus] ?? paneObj.currentStatus}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                                {paneObj?.jobType && (
+                                                    <div>
+                                                        <p className="text-[11px] text-slate-400 mb-0.5">ประเภทงาน</p>
+                                                        <p className="text-sm font-medium text-slate-900 dark:text-white">{paneObj.jobType}</p>
+                                                    </div>
+                                                )}
+                                                {paneObj?.routing && paneObj.routing.length > 0 && (
+                                                    <div className="col-span-2 sm:col-span-3">
+                                                        <p className="text-[11px] text-slate-400 mb-1.5">เส้นทางการผลิต</p>
+                                                        <div className="flex items-center flex-wrap gap-1">
+                                                            {paneObj.routing.map((s, i) => (
+                                                                <React.Fragment key={i}>
+                                                                    <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">{s}</span>
+                                                                    {i < paneObj.routing.length - 1 && <ArrowRight className="h-3 w-3 text-slate-300 dark:text-slate-600" />}
+                                                                </React.Fragment>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {paneObj?.processes && paneObj.processes.length > 0 && (
+                                                    <div className="col-span-2 sm:col-span-3">
+                                                        <p className="text-[11px] text-slate-400 mb-1.5">กระบวนการ</p>
+                                                        <div className="flex flex-wrap gap-1.5">
+                                                            {paneObj.processes.map((p, i) => (
+                                                                <span key={i} className="text-xs px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400">{p}</span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                                            <Package className="h-4 w-4 text-slate-400 shrink-0" />
+                                            <p className="text-sm text-slate-500 dark:text-slate-400">ไม่ได้ระบุกระจกแผ่น</p>
+                                        </div>
+                                    )}
+
+                                    {/* Claim info */}
+                                    <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                                        <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700">
+                                            <ShieldAlert className="h-3.5 w-3.5 text-slate-400" />
+                                            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">ข้อมูลการเคลม</span>
+                                        </div>
+                                        <div className="p-4 space-y-3">
+                                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3">
+                                                <div>
+                                                    <p className="text-[11px] text-slate-400 mb-0.5">วันที่เคลม</p>
+                                                    <p className="text-sm font-medium text-slate-900 dark:text-white">
+                                                        {new Date(activeClaim?.claimDate ?? activeClaim?.createdAt ?? detailClaim.createdAt).toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" })}
+                                                    </p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-[11px] text-slate-400 mb-0.5">แหล่งที่มา</p>
+                                                    <p className="text-sm font-medium text-slate-900 dark:text-white">
+                                                        {activeClaim?.source === "customer" ? "ลูกค้า (Customer)" : "พนักงาน (Worker)"}
+                                                    </p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-[11px] text-slate-400 mb-0.5">Order</p>
+                                                    <p className="text-sm font-mono font-medium text-slate-900 dark:text-white">{getOrderLabel(activeClaim?.order)}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-[11px] text-slate-400 mb-0.5">วัสดุ</p>
+                                                    <p className="text-sm font-medium text-slate-900 dark:text-white">{getMaterialName(activeClaim?.material)}</p>
+                                                </div>
+                                                {activeClaim?.defectCode && (
+                                                    <div>
+                                                        <p className="text-[11px] text-slate-400 mb-0.5">ประเภทข้อบกพร่อง</p>
+                                                        <p className="text-sm font-medium text-slate-900 dark:text-white">{DEFECT_CODE_LABEL[activeClaim.defectCode] ?? activeClaim.defectCode}</p>
+                                                    </div>
+                                                )}
+                                                {activeClaim?.defectStation && (
+                                                    <div>
+                                                        <p className="text-[11px] text-slate-400 mb-0.5">สถานีที่เกิดปัญหา</p>
+                                                        <p className="text-sm font-medium text-slate-900 dark:text-white">{activeClaim.defectStation}</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div>
+                                                <p className="text-[11px] text-slate-400 mb-1">รายละเอียด / เหตุผล</p>
+                                                <p className="text-sm text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/60 rounded-lg p-3 leading-relaxed whitespace-pre-wrap">
+                                                    {activeClaim?.description}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* People */}
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                                            <p className="text-[11px] text-slate-400 mb-1">รายงานโดย</p>
+                                            <p className="text-sm font-semibold text-slate-900 dark:text-white">{getWorkerName(activeClaim?.reportedBy)}</p>
+                                        </div>
+                                        <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                                            <p className="text-[11px] text-slate-400 mb-1">อนุมัติโดย</p>
+                                            <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                                                {activeClaim?.approvedBy ? getWorkerName(activeClaim.approvedBy) : <span className="text-slate-400 font-normal">ยังไม่ได้อนุมัติ</span>}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Photos */}
+                                    {isDetailLoading ? (
+                                        <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                                            <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700">
+                                                <ImageIcon className="h-3.5 w-3.5 text-slate-400" />
+                                                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">รูปภาพ</span>
+                                            </div>
+                                            <div className="p-4 grid grid-cols-3 gap-3">
+                                                {[0, 1, 2].map((i) => (
+                                                    <div key={i} className="aspect-square rounded-lg bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ) : lightboxPhotos.length > 0 && (
+                                        <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                                            <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700">
+                                                <ImageIcon className="h-3.5 w-3.5 text-slate-400" />
+                                                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                                    รูปภาพ ({lightboxPhotos.length})
+                                                </span>
+                                                <span className="ml-auto text-[10px] text-slate-400">กดที่ภาพเพื่อขยาย</span>
+                                            </div>
+                                            <div className="p-4 grid grid-cols-3 gap-3">
+                                                {lightboxPhotos.map((src, i) => (
+                                                    <button
+                                                        key={i}
+                                                        type="button"
+                                                        onClick={() => setLightboxIdx(i)}
+                                                        className="group relative block rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 aspect-square bg-slate-100 dark:bg-slate-800 hover:border-blue-400 dark:hover:border-blue-500 transition-all"
+                                                    >
+                                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                        <img src={src} alt={`ภาพที่ ${i + 1}`} className="w-full h-full object-cover" />
+                                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                                                            <ZoomIn className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" />
+                                                        </div>
+                                                        <div className="absolute bottom-1 right-1 bg-black/50 text-white text-[10px] font-medium px-1.5 py-0.5 rounded-md">
+                                                            {i + 1}/{lightboxPhotos.length}
+                                                        </div>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Footer */}
+                                <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+                                    {isManager && (
+                                        <Button
+                                            variant="outline"
+                                            className="rounded-xl h-9 px-4 text-sm gap-2"
+                                            onClick={() => {
+                                                const target = activeClaim ?? detailClaim;
+                                                setDetailClaim(null);
+                                                setDecisionTarget(target);
+                                                setDecisionForm({ decision: target.decision ?? "", approvedBy: typeof target.approvedBy === "object" ? target.approvedBy?._id ?? "" : target.approvedBy ?? "" });
+                                            }}
+                                        >
+                                            <ClipboardCheck className="h-4 w-4" />
+                                            ตัดสินผล
+                                        </Button>
+                                    )}
+                                    <div className="ml-auto">
+                                        <Button variant="ghost" onClick={() => setDetailClaim(null)} className="rounded-xl h-9 px-5 text-sm text-slate-500 hover:text-slate-900 dark:hover:text-white">
+                                            ปิด
+                                        </Button>
+                                    </div>
+                                </div>
+                            </>
+                        );
+                    })()}
+                </DialogContent>
+            </Dialog>
+
             {/* Delete Confirm Dialog */}
             <Dialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
                 <DialogContent className="sm:max-w-sm rounded-xl p-6">
@@ -596,6 +943,80 @@ export default function ClaimsPage() {
                     </div>
                 </DialogContent>
             </Dialog>
+
+            {/* Lightbox */}
+            {lightboxIdx !== null && lightboxPhotos.length > 0 && (
+                <div
+                    className="fixed inset-0 z-[300] flex items-center justify-center bg-black/90 backdrop-blur-sm"
+                    onClick={() => setLightboxIdx(null)}
+                >
+                    {/* Close */}
+                    <button
+                        type="button"
+                        onClick={() => setLightboxIdx(null)}
+                        className="absolute top-4 right-4 h-10 w-10 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors z-10"
+                    >
+                        <X className="h-5 w-5" />
+                    </button>
+
+                    {/* Counter */}
+                    <div className="absolute top-4 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full bg-white/10 text-white text-sm font-medium">
+                        {lightboxIdx + 1} / {lightboxPhotos.length}
+                    </div>
+
+                    {/* Prev */}
+                    {lightboxIdx > 0 && (
+                        <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setLightboxIdx((i) => (i ?? 1) - 1); }}
+                            className="absolute left-4 top-1/2 -translate-y-1/2 h-12 w-12 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors z-10"
+                        >
+                            <ChevronLeft className="h-6 w-6" />
+                        </button>
+                    )}
+
+                    {/* Image */}
+                    <div
+                        className="max-w-[90vw] max-h-[85vh] flex items-center justify-center"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                            src={lightboxPhotos[lightboxIdx]}
+                            alt={`ภาพที่ ${lightboxIdx + 1}`}
+                            className="max-w-full max-h-[85vh] rounded-xl shadow-2xl object-contain"
+                        />
+                    </div>
+
+                    {/* Next */}
+                    {lightboxIdx < lightboxPhotos.length - 1 && (
+                        <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setLightboxIdx((i) => (i ?? 0) + 1); }}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 h-12 w-12 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors z-10"
+                        >
+                            <ChevronRight className="h-6 w-6" />
+                        </button>
+                    )}
+
+                    {/* Thumbnail strip */}
+                    {lightboxPhotos.length > 1 && (
+                        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2">
+                            {lightboxPhotos.map((src, i) => (
+                                <button
+                                    key={i}
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); setLightboxIdx(i); }}
+                                    className={`h-12 w-12 rounded-lg overflow-hidden border-2 transition-all shrink-0 ${i === lightboxIdx ? "border-white scale-110" : "border-white/30 opacity-60 hover:opacity-100"}`}
+                                >
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={src} alt="" className="w-full h-full object-cover" />
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 }
