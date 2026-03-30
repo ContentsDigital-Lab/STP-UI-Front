@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
     ChevronLeft,
+    ChevronDown,
     Save,
     FileDown,
     FileUp,
@@ -790,6 +791,79 @@ export default function CreateBillPage() {
         pdf.save(`bill_${cust?.name || 'glass'}_pane${activeTab + 1}_${Date.now()}.pdf`);
     };
 
+    // ── DXF export (active pane) ─────────────────────────────────────────────
+    const handleExportDXF = () => {
+        const ap = panes[activeTab];
+        const w = ap.glassWidth;
+        const h = ap.glassHeight;
+        const rows: string[] = [];
+        const dxf = (...pairs: [number, string | number][]) =>
+            pairs.forEach(([code, val]) => rows.push(String(code), String(val)));
+
+        // HEADER
+        dxf([0, 'SECTION'], [2, 'HEADER'],
+            [9, '$INSUNITS'], [70, 4],   // 4 = millimetres
+            [0, 'ENDSEC']);
+
+        // ENTITIES
+        dxf([0, 'SECTION'], [2, 'ENTITIES']);
+
+        // Glass outline on layer "outline"
+        dxf([0, 'LWPOLYLINE'], [8, 'outline'], [62, 5],  // color: blue
+            [90, 4], [70, 1]);  // 4 vertices, closed
+        dxf([10, 0], [20, 0]);
+        dxf([10, w], [20, 0]);
+        dxf([10, w], [20, h]);
+        dxf([10, 0], [20, h]);
+
+        // Holes on layer "holes"
+        for (const hole of ap.holes) {
+            if (hole.type === 'circle') {
+                dxf([0, 'CIRCLE'], [8, 'holes'], [62, 1],  // color: red
+                    [10, hole.x], [20, hole.y], [30, 0],
+                    [40, hole.diameter / 2]);
+            } else if (hole.type === 'rectangle') {
+                const hw = (hole.width  ?? hole.diameter) / 2;
+                const hh = (hole.height ?? hole.diameter) / 2;
+                dxf([0, 'LWPOLYLINE'], [8, 'holes'], [62, 1], [90, 4], [70, 1]);
+                dxf([10, hole.x - hw], [20, hole.y - hh]);
+                dxf([10, hole.x + hw], [20, hole.y - hh]);
+                dxf([10, hole.x + hw], [20, hole.y + hh]);
+                dxf([10, hole.x - hw], [20, hole.y + hh]);
+            } else if (hole.type === 'slot') {
+                // Slot = rectangle with rounded ends; export as rect (CNC will interpret)
+                const sl = (hole.length ?? hole.diameter) / 2;
+                const sr = hole.diameter / 2;
+                dxf([0, 'LWPOLYLINE'], [8, 'holes'], [62, 1], [90, 4], [70, 1]);
+                dxf([10, hole.x - sl], [20, hole.y - sr]);
+                dxf([10, hole.x + sl], [20, hole.y - sr]);
+                dxf([10, hole.x + sl], [20, hole.y + sr]);
+                dxf([10, hole.x - sl], [20, hole.y + sr]);
+            } else if (hole.type === 'custom' && hole.points && hole.points.length >= 2) {
+                dxf([0, 'LWPOLYLINE'], [8, 'holes'], [62, 1],
+                    [90, hole.points.length], [70, 1]);
+                for (const pt of hole.points) {
+                    dxf([10, hole.x + pt.x], [20, hole.y + pt.y]);
+                }
+            }
+        }
+
+        dxf([0, 'ENDSEC'], [0, 'EOF']);
+
+        const content = rows.join('\n');
+        const blob = new Blob([content], { type: 'application/dxf' });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href     = url;
+        const custName = customers.find(c => c._id === orderData.customer)?.name ?? 'glass';
+        a.download = `bill_${custName}_pane${activeTab + 1}_${Date.now()}.dxf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        toast.success(`Export DXF สำเร็จ — ${ap.holes.length} รูตัด`);
+    };
+
     // ── DXF import (into active pane) ────────────────────────────────────────
     const handleImportDXF = async () => {
         const input = document.createElement('input');
@@ -913,16 +987,29 @@ export default function CreateBillPage() {
                         <span className="hidden sm:inline">Import DXF</span>
                         <span className="sm:hidden">DXF</span>
                     </Button>
-                    <Button
-                        id="__bill-pdf-btn"
-                        onClick={handleExportPDF}
-                        variant="outline"
-                        className="inline-flex items-center justify-center whitespace-nowrap gap-2 rounded-xl font-bold text-xs h-9 px-3 border-slate-200 dark:border-slate-800 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-700 dark:text-slate-300"
-                    >
-                        <FileDown className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
-                        <span className="hidden sm:inline">Export PDF</span>
-                        <span className="sm:hidden">PDF</span>
-                    </Button>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                id="__bill-pdf-btn"
+                                variant="outline"
+                                className="inline-flex items-center justify-center whitespace-nowrap gap-2 rounded-xl font-bold text-xs h-9 px-3 border-slate-200 dark:border-slate-800 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-700 dark:text-slate-300"
+                            >
+                                <FileDown className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                                <span className="hidden sm:inline">Export</span>
+                                <ChevronDown className="h-3 w-3 text-slate-400 dark:text-slate-500" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="rounded-xl min-w-[140px]">
+                            <DropdownMenuItem onClick={handleExportPDF} className="rounded-lg text-xs font-semibold gap-2">
+                                <FileDown className="h-3.5 w-3.5 text-slate-400" />
+                                Export PDF
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={handleExportDXF} className="rounded-lg text-xs font-semibold gap-2">
+                                <FileDown className="h-3.5 w-3.5 text-slate-400" />
+                                Export DXF
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                     <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block" />
                     <Button
                         variant="ghost"

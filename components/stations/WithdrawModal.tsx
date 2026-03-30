@@ -166,6 +166,7 @@ export function WithdrawModal({ stationId, onClose, initialPane }: WithdrawModal
                 quantity: sheetsNeeded,
                 stockType: selectedInv?.stockType ?? "Raw",
                 pane: pane._id,
+                inventory: selectedInv?._id,
             } as Parameters<typeof withdrawalsApi.create>[0]);
 
             if (!res.success) {
