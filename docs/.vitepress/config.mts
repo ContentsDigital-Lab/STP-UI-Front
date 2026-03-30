@@ -36,8 +36,17 @@ export default defineConfig({
         ]
       },
       {
-        text: 'ตั้งค่าระบบ',
+        text: 'สถานีงาน',
         items: [
+          { text: 'จัดการสถานี', link: '/guide/station-management' },
+          { text: 'ออกแบบสถานี', link: '/guide/station-designer' },
+          { text: 'ออกแบบสติกเกอร์', link: '/guide/sticker-designer' },
+        ]
+      },
+      {
+        text: 'ระบบและตั้งค่า',
+        items: [
+          { text: 'ประวัติการทำรายการ', link: '/guide/logs' },
           { text: 'ตั้งค่า', link: '/guide/settings' },
         ]
       },
