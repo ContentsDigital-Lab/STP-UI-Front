@@ -291,12 +291,11 @@ function PaneField({ label, value, mono, accent }: { label: string; value: strin
 
 // ── pane detail modal ─────────────────────────────────────────────────────────
 function PaneDetailModal({
-    pane, stationMap, stationByName, colorMap, onClose,
+    pane, stationMap, stationByName, onClose,
 }: {
     pane: Pane;
     stationMap: Map<string, Station>;
     stationByName: Map<string, Station>;
-    colorMap: Record<string, string>;
     onClose: () => void;
 }) {
     const [logs, setLogs] = useState<PaneLog[]>([]);
@@ -360,7 +359,7 @@ function PaneDetailModal({
             const sid = routing[currentStationIdx];
             const station = stationMap.get(sid) ?? stationByName.get(sid);
             const stId = station?._id ?? sid;
-            return getColorOption(colorMap[stId] ?? station?.colorId ?? "sky");
+            return getColorOption(station?.colorId ?? "sky");
         }
         return getColorOption("sky");
     })();
@@ -443,7 +442,7 @@ function PaneDetailModal({
                                         {routing.map((sid, idx) => {
                                             const st = stationMap.get(sid) ?? stationByName.get(sid);
                                             const stId = st?._id ?? sid;
-                                            const dc = getColorOption(colorMap[stId] ?? st?.colorId ?? "sky");
+                                            const dc = getColorOption(st?.colorId ?? "sky");
                                             const dp = isCompleted || (currentStationIdx >= 0 && idx < currentStationIdx);
                                             const dcr = !isCompleted && idx === currentStationIdx;
                                             return (
@@ -530,7 +529,7 @@ function PaneDetailModal({
                                     {routing.map((sid, idx) => {
                                         const station = stationMap.get(sid) ?? stationByName.get(sid);
                                         const stId = station?._id ?? sid;
-                                        const colorId = colorMap[stId] ?? station?.colorId ?? "sky";
+                                        const colorId = station?.colorId ?? "sky";
                                         const color = getColorOption(colorId);
                                         const stLogs = stationLogsMap.get(sid) ?? {};
                                         const isCurrent = idx === currentStationIdx && !isCompleted;
@@ -1018,7 +1017,7 @@ export default function ProductionDetailPage() {
                                 })();
                                 const isSpecialStation = ["queue", "ready", "defected"].includes(pane.currentStation);
                                 const paneStationId = paneStation?._id ?? pane.currentStation;
-                                const paneColorId = colorMap[paneStationId] ?? paneStation?.colorId ?? "sky";
+                                const paneColorId = paneStation?.colorId ?? "sky";
                                 const paneColor = getColorOption(paneColorId);
 
                                 return (
@@ -1080,7 +1079,7 @@ export default function ProductionDetailPage() {
                 pane={selectedPane}
                 stationMap={stationMap}
                 stationByName={stationByName}
-                colorMap={colorMap}
+
                 onClose={() => setSelectedPane(null)}
             />
         )}
