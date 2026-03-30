@@ -988,7 +988,7 @@ export default function CreateBillPage() {
                         <span className="sm:hidden">DXF</span>
                     </Button>
                     <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
+                        <DropdownMenuTrigger>
                             <Button
                                 id="__bill-pdf-btn"
                                 variant="outline"
