@@ -130,7 +130,7 @@ export interface Pane {
     material?: string | Material;
     inventory?: string | Inventory;
     currentStation: PaneStation;
-    currentStatus: "pending" | "in_progress" | "completed" | "awaiting_scan_out";
+    currentStatus: "pending" | "in_progress" | "completed" | "awaiting_scan_out" | "claimed";
     routing: string[];
     customRouting: boolean;
     dimensions: { width: number; height: number; thickness: number };
