@@ -143,7 +143,12 @@ export function Header({ onMenuClick }: HeaderProps) {
                                     <div className="flex flex-col space-y-1">
                                         <p className="text-sm font-medium leading-none">{user?.name}</p>
                                         <p className="text-xs leading-none text-muted-foreground">{user?.username}</p>
-                                        <div className="mt-1 pt-1 opacity-70">Role: <span className="capitalize">{user?.role}</span></div>
+                                        <div className="mt-1 pt-1 opacity-70 flex items-center gap-1">
+                                            <span>Role:</span>
+                                            <span className="capitalize font-medium">
+                                                {user?.role && typeof user.role === 'object' ? (user.role as any).name : user?.role || "User"}
+                                            </span>
+                                        </div>
                                     </div>
                                 </DropdownMenuLabel>
                                 <DropdownMenuSeparator />

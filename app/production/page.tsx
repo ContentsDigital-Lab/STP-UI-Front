@@ -407,7 +407,7 @@ export default function ProductionPage() {
 
                         // Collect unique station ids across all orders in this bill
                         const allStationIds = Array.from(
-                            new Set(bill.orders.flatMap(o => o.stations ?? []))
+                            new Set(bill.orders.flatMap(o => (o.stations ?? []).map(s => typeof s === 'object' ? (s as any)._id : s)))
                         );
 
                         return (

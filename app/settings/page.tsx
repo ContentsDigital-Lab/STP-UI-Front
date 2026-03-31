@@ -3,12 +3,23 @@
 import Link from "next/link";
 import { UserCog, ShieldAlert, Users, Bell, Tag, DollarSign, Layers } from "lucide-react";
 import { useAuth } from "@/lib/auth/auth-context";
+import { hasPermission, Permission } from "@/lib/auth/permissions";
 
 export default function SettingsPage() {
     const { user } = useAuth();
-    const hasUserManagementAccess = user?.role === "admin" || user?.role === "manager";
 
-    const settingsItems = [
+    const settingsItems: {
+        href: string;
+        title: string;
+        description: string;
+        icon: any;
+        color: string;
+        lockedIcon?: any;
+        lockedTitle?: string;
+        lockedDesc?: string;
+        permission?: Permission;
+        hideIfLocked?: boolean;
+    }[] = [
         {
             href: "/settings/users",
             title: "User Management",
@@ -17,8 +28,8 @@ export default function SettingsPage() {
             color: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10",
             lockedIcon: ShieldAlert,
             lockedTitle: "User Management",
-            lockedDesc: "You do not have permission to access user management. Administrator or Manager access is required.",
-            requireAccess: true,
+            lockedDesc: "คุณไม่มีสิทธิ์เข้าถึงการจัดการผู้ใช้ จำเป็นต้องมีสิทธิ์ระดับ Administrator หรือ Manager",
+            permission: "users:view",
         },
         {
             href: "/settings/customers",
@@ -28,8 +39,8 @@ export default function SettingsPage() {
             color: "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10",
             lockedIcon: Users,
             lockedTitle: "Customer Management",
-            lockedDesc: "You do not have permission to access customer management. Administrator or Manager access is required.",
-            requireAccess: true,
+            lockedDesc: "คุณไม่มีสิทธิ์เข้าถึงการจัดการลูกค้า",
+            permission: "settings:view", // Using settings:view as a general check for now
         },
         {
             href: "/settings/notifications",
@@ -37,7 +48,6 @@ export default function SettingsPage() {
             description: "ตั้งค่าระดับเสียงและการแจ้งเตือนต่างๆ ให้เหมาะกับการทำงานของคุณ",
             icon: Bell,
             color: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10",
-            requireAccess: false,
         },
         {
             href: "/settings/pricing",
@@ -47,8 +57,8 @@ export default function SettingsPage() {
             color: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10",
             lockedIcon: DollarSign,
             lockedTitle: "ตั้งค่าราคากระจก",
-            lockedDesc: "You do not have permission to access pricing settings. Administrator or Manager access is required.",
-            requireAccess: true,
+            lockedDesc: "คุณไม่มีสิทธิ์เข้าถึงการตั้งค่าราคา",
+            permission: "settings:manage",
         },
         {
             href: "/settings/job-types",
@@ -58,8 +68,8 @@ export default function SettingsPage() {
             color: "text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-500/10",
             lockedIcon: Layers,
             lockedTitle: "จัดการลักษณะงาน",
-            lockedDesc: "You do not have permission to access job type management. Administrator or Manager access is required.",
-            requireAccess: true,
+            lockedDesc: "คุณไม่มีสิทธิ์เข้าถึงการจัดการประเภทงาน",
+            permission: "settings:manage",
         },
         {
             href: "/settings/sticker",
@@ -67,7 +77,7 @@ export default function SettingsPage() {
             description: "จัดการเทมเพลตสติ๊กเกอร์บาร์โค้ด สินค้าและบรรจุภัณฑ์ สำหรับการผลิต",
             icon: Tag,
             color: "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10",
-            requireAccess: true,
+            permission: "settings:manage",
             hideIfLocked: true,
         }
     ];
@@ -84,7 +94,7 @@ export default function SettingsPage() {
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {settingsItems.map((item, idx) => {
-                    const isLocked = item.requireAccess && !hasUserManagementAccess;
+                    const isLocked = item.permission && !hasPermission(user, item.permission);
 
                     if (isLocked && item.hideIfLocked) {
                         return null;

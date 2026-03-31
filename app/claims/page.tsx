@@ -31,6 +31,8 @@ import { claimsApi } from "@/lib/api/claims";
 import { materialsApi } from "@/lib/api/materials";
 import { ordersApi } from "@/lib/api/orders";
 import { workersApi } from "@/lib/api/workers";
+import { inventoriesApi } from "@/lib/api/inventories";
+import { materialLogsApi } from "@/lib/api/material-logs";
 import { Claim, Material, Order, OrderRequest, Customer, Worker } from "@/lib/api/types";
 
 const ITEMS_PER_PAGE = 10;
@@ -266,10 +268,44 @@ export default function ClaimsPage() {
         }
         setIsUpdating(true);
         try {
+            // 1. Update the claim decision
             await claimsApi.update(decisionTarget._id, {
                 decision: decisionForm.decision as "destroy" | "keep",
                 approvedBy: user?._id,
             });
+
+            // 2. If decision is "keep", move the glass to inventory (Reuse)
+            if (decisionForm.decision === "keep") {
+                try {
+                    const matId = typeof decisionTarget.material === "object" ? decisionTarget.material._id : decisionTarget.material;
+
+                    // Automatically create an entry in inventory as "Reuse"
+                    const invRes = await inventoriesApi.create({
+                        material: matId,
+                        stockType: "Reuse",
+                        quantity: 1,
+                        location: "คลังเคลม (Claim Bin)",
+                        storageColor: "#10b981", // Emerald-500
+                    });
+
+                    if (invRes.success) {
+                        // Create a Material Log for the import
+                        await materialLogsApi.create({
+                            material: matId,
+                            actionType: "import",
+                            quantityChanged: 1,
+                            stockType: "Reuse",
+                            referenceId: invRes.data._id,
+                            referenceType: "claim",
+                            worker: user?._id,
+                        });
+                    }
+                } catch (stockErr) {
+                    console.error("Failed to update inventory for claim:", stockErr);
+                    toast.error("ไม่สามารถปรับปรุงยอดคลังสินค้าได้ แต่บันทึกผลการตัดสินแล้ว");
+                }
+            }
+
             toast.success("บันทึกผลการตัดสินสำเร็จ");
             if (decisionForm.createRemake) await handleCreateRemakeOrder(decisionTarget);
             setDecisionTarget(null);
