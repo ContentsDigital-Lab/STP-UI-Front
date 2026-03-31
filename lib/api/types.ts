@@ -225,6 +225,7 @@ export interface Claim {
     source: "customer" | "worker";
     material: string | Material;
     description: string;
+    status?: "pending" | "approved" | "rejected";
     decision?: "destroy" | "keep";
     defectCode?: "broken" | "chipped" | "dimension_wrong" | "scratch" | "other";
     defectStation?: string | { _id: string; name: string };

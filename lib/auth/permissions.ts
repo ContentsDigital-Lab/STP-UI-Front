@@ -24,29 +24,48 @@ export interface Role {
 }
 
 /**
+ * Extract the role slug from either a string or populated Role object.
+ */
+function resolveRoleSlug(role: unknown): string {
+  if (!role) return "";
+  if (typeof role === "string") return role;
+  if (typeof role === "object" && role !== null) {
+    return (role as Record<string, unknown>).slug as string ?? "";
+  }
+  return "";
+}
+
+/**
+ * Extract the permissions array from a populated Role object.
+ */
+function resolvePermissions(role: unknown): string[] {
+  if (!role || typeof role !== "object" || role === null) return [];
+  const perms = (role as Record<string, unknown>).permissions;
+  return Array.isArray(perms) ? perms as string[] : [];
+}
+
+/**
  * Helper to check if a user has a specific permission.
- *
- * System roles (admin, manager, worker) use HARDCODED whitelists that always
- * take priority over dynamic permissions. This prevents any DB configuration
- * from accidentally granting system roles unintended access.
- *
- * Custom roles (any slug that isn't a system role) use the permissions array
- * stored on their role object.
+ * Supports:
+ * 1. Legacy string roles ("admin", "manager", "worker")
+ * 2. Populated Role objects ({ _id, slug, permissions[] })
  */
 export const hasPermission = (user: any, permission: Permission): boolean => {
   if (!user) return false;
 
   const role = user.role;
+  const slug = resolveRoleSlug(role);
 
-  // Resolve slug — works for both string and object role
-  const slug: string = typeof role === 'string' ? role : (role?.slug ?? '');
+  // Admin gets everything (works for both string "admin" and object { slug: "admin" })
+  if (slug === "admin") return true;
 
-  // ── System role: Admin ──────────────────────────────────────────────────────
-  if (slug === 'admin') return true;
+  // Check permissions array from the populated Role object
+  const rolePerms = resolvePermissions(role);
+  if (rolePerms.includes("*") || rolePerms.includes(permission)) return true;
 
-  // ── System role: Manager ───────────────────────────────────────────────────
-  if (slug === 'manager') {
-    const allowed: Permission[] = [
+  // Manager fallback (legacy hardcoded permissions)
+  if (slug === "manager") {
+    const managerPermissions: Permission[] = [
       'users:view',
       'inventory:view',
       'inventory:manage',
@@ -57,27 +76,10 @@ export const hasPermission = (user: any, permission: Permission): boolean => {
       'orders:manage',
       'settings:view',
     ];
-    return allowed.includes(permission);
+    return managerPermissions.includes(permission);
   }
 
-  // ── System role: Worker ────────────────────────────────────────────────────
-  // Workers have a fixed, minimal set of permissions.
-  // The dynamic permissions on the DB role object are intentionally ignored here
-  // so admin cannot accidentally grant workers manager-level access.
-  if (slug === 'worker') {
-    const allowed: Permission[] = [
-      'production:view',  // can see their own work / station tasks
-    ];
-    return allowed.includes(permission);
-  }
-
-  // ── Custom / dynamic role ──────────────────────────────────────────────────
-  // For roles that are not system roles, respect whatever is in the DB.
-  if (role && typeof role === 'object' && Array.isArray(role.permissions)) {
-    return role.permissions.includes('*') || role.permissions.includes(permission);
-  }
-
-  // Flat permissions array directly on user (legacy fallback)
+  // Check user-level permissions (if any)
   if (user.permissions && Array.isArray(user.permissions)) {
     return user.permissions.includes(permission);
   }

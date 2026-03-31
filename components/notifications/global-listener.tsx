@@ -6,6 +6,7 @@ import { useWebSocket } from "@/lib/hooks/use-socket";
 import { toast } from "sonner";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { AlertTriangle } from "lucide-react";
+import { isManagerOrAbove } from "@/lib/auth/role-utils";
 import React from "react";
 
 export function GlobalNotificationListener() {
@@ -26,7 +27,7 @@ export function GlobalNotificationListener() {
 
     const handleLowStock = useCallback((data: any) => {
         // Only managers and admins should get these global alerts
-        const isAuthorized = user?.role === "admin" || user?.role === "manager";
+        const isAuthorized = isManagerOrAbove(user?.role);
         if (!isAuthorized) return;
 
         const itemName = data?.name || (lang === "th" ? "สินค้า" : "Item");
