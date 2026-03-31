@@ -58,6 +58,8 @@ import { requestsApi } from "@/lib/api/requests";
 import { customersApi } from "@/lib/api/customers";
 import { workersApi } from "@/lib/api/workers";
 import { OrderRequest, Customer, Worker, Pane } from "@/lib/api/types";
+import { getStationName } from "@/lib/utils/station-helpers";
+import { getRoleName } from "@/lib/auth/role-utils";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { toast } from "sonner";
 
@@ -742,7 +744,7 @@ export default function OrderRequestsPage() {
                                                                     </p>
                                                                 )}
                                                             </div>
-                                                            <span className="text-[10px] text-slate-400 shrink-0">{pane.currentStation}</span>
+                                                            <span className="text-[10px] text-slate-400 shrink-0">{getStationName(pane.currentStation)}</span>
                                                         </div>
                                                     );
                                                 })}
@@ -924,7 +926,7 @@ export default function OrderRequestsPage() {
                                         <SelectItem key={w._id} value={w._id} label={w.name}>
                                             <div className="flex flex-col">
                                                 <span>{w.name}</span>
-                                                <span className="text-[11px] text-slate-400 capitalize">{w.position} • {w.role}</span>
+                                                <span className="text-[11px] text-slate-400 capitalize">{w.position} • {getRoleName(w.role)}</span>
                                             </div>
                                         </SelectItem>
                                     ))}

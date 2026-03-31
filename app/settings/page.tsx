@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { UserCog, ShieldAlert, Users, Bell, Tag, DollarSign, Layers } from "lucide-react";
 import { useAuth } from "@/lib/auth/auth-context";
+import { isManagerOrAbove } from "@/lib/auth/role-utils";
 
 export default function SettingsPage() {
     const { user } = useAuth();
-    const hasUserManagementAccess = user?.role === "admin" || user?.role === "manager";
+    const hasUserManagementAccess = isManagerOrAbove(user?.role);
 
     const settingsItems = [
         {

@@ -11,6 +11,7 @@ import { fetchApi } from "@/lib/api/config";
 import { panesApi } from "@/lib/api/panes";
 import { Pane } from "@/lib/api/types";
 import { parseQrScan } from "@/lib/utils/parseQrScan";
+import { getStationId, getStationName, isStationMatch } from "@/lib/utils/station-helpers";
 import { usePreview } from "../PreviewContext";
 import { useStationContext } from "../StationContext";
 import { CameraScanModal } from "./CameraScanModal";
@@ -113,26 +114,14 @@ export function QrScanBlock({
         action: "scan_in" | "scan_out";
     } | null>(null);
 
-    // ── Resolve station name from string or populated object ────────────────────
-    function extractStationName(val: unknown): string {
-        if (!val) return "";
-        if (typeof val === "string") return val;
-        if (typeof val === "object") {
-            const o = val as Record<string, unknown>;
-            return String(o.name ?? o._id ?? "");
-        }
-        return String(val);
-    }
-
     // ── Pre-check pane's current station before scanning ────────────────────────
     async function checkStationMismatch(pn: string, action: "scan_in" | "scan_out"): Promise<boolean> {
         try {
             const lookupRes = await panesApi.getById(pn);
             if (lookupRes.success && lookupRes.data) {
-                const paneStationStr = extractStationName(lookupRes.data.currentStation);
-                const isHere = !paneStationStr
-                    || paneStationStr === stationName
-                    || paneStationStr === stationId;
+                const cs = lookupRes.data.currentStation;
+                const paneStationStr = getStationName(cs);
+                const isHere = !cs || isStationMatch(cs, stationId, stationName);
                 if (!isHere) {
                     setMismatchInfo({
                         paneStation: paneStationStr,
@@ -166,7 +155,7 @@ export function QrScanBlock({
         setLastAction(null);
         setPaneNumber(pn);
 
-        if (!stationName) {
+        if (!stationId) {
             setScanStatus("error");
             setMessage("ไม่สามารถระบุสถานีได้ — กรุณาเปิดจากหน้าสถานี");
             return;
@@ -175,7 +164,7 @@ export function QrScanBlock({
         if (await checkStationMismatch(pn, "scan_in")) return;
 
         try {
-            const res = await panesApi.scan(pn, { station: stationName, action: "scan_in" });
+            const res = await panesApi.scan(pn, { station: stationId, action: "scan_in" });
             if (!res.success) throw new Error(res.message || "สแกนไม่สำเร็จ");
 
             setScanResult(res.data);
@@ -197,12 +186,8 @@ export function QrScanBlock({
         setActionLoading(true);
         setActionResult(null);
 
-        // Use the pane's currentStation (slug the backend expects), fall back to stationName
         const rawStation = scanResult?.pane?.currentStation;
-        const paneStation = typeof rawStation === "object" && rawStation !== null
-            ? (rawStation as unknown as { name?: string; _id?: string }).name ?? (rawStation as unknown as { name?: string; _id?: string })._id ?? String(rawStation)
-            : rawStation;
-        const station = paneStation || stationName;
+        const station = getStationId(rawStation) || stationId;
         if (!station) {
             setMessage("ไม่สามารถระบุสถานีได้");
             setActionResult("error");
@@ -250,7 +235,7 @@ export function QrScanBlock({
         setLastAction(null);
         setPaneNumber(pn);
 
-        if (!stationName) {
+        if (!stationId) {
             setScanStatus("error");
             setMessage("ไม่สามารถระบุสถานีได้ — กรุณาเปิดจากหน้าสถานี");
             return;
@@ -259,7 +244,7 @@ export function QrScanBlock({
         if (await checkStationMismatch(pn, "scan_out")) return;
 
         try {
-            const res = await panesApi.scan(pn, { station: stationName, action: "scan_out" });
+            const res = await panesApi.scan(pn, { station: stationId, action: "scan_out" });
             if (!res.success) throw new Error(res.message || "สแกนออกไม่สำเร็จ");
 
             setScanResult(res.data);
@@ -280,7 +265,7 @@ export function QrScanBlock({
 
     // ── Force confirm/dismiss for station mismatch ────────────────────────────
     async function handleForceConfirm() {
-        if (!mismatchInfo) return;
+        if (!mismatchInfo || !stationId) return;
         const { paneNumber: pn, action } = mismatchInfo;
         setMismatchInfo(null);
         setPaneNumber(pn);
@@ -292,7 +277,7 @@ export function QrScanBlock({
 
         try {
             const res = await panesApi.scan(pn, {
-                station: stationName!,
+                station: stationId!,
                 action,
                 force: true,
             });

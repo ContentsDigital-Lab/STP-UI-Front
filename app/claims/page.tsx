@@ -27,6 +27,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { useAuth } from "@/lib/auth/auth-context";
+import { isManagerOrAbove } from "@/lib/auth/role-utils";
+import { getStationName } from "@/lib/utils/station-helpers";
 import { claimsApi } from "@/lib/api/claims";
 import { materialsApi } from "@/lib/api/materials";
 import { ordersApi } from "@/lib/api/orders";
@@ -37,7 +39,7 @@ const ITEMS_PER_PAGE = 10;
 
 export default function ClaimsPage() {
     const { user } = useAuth();
-    const isManager = user?.role === "admin" || user?.role === "manager";
+    const isManager = isManagerOrAbove(user?.role);
 
     const [isLoading, setIsLoading] = useState(true);
     const [claims, setClaims] = useState<Claim[]>([]);
@@ -806,7 +808,7 @@ export default function ClaimsPage() {
                                                         <div className="flex items-center flex-wrap gap-1">
                                                             {paneObj.routing.map((s, i) => (
                                                                 <React.Fragment key={i}>
-                                                                    <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">{s}</span>
+                                                                    <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">{getStationName(s)}</span>
                                                                     {i < paneObj.routing.length - 1 && <ArrowRight className="h-3 w-3 text-slate-300 dark:text-slate-600" />}
                                                                 </React.Fragment>
                                                             ))}
@@ -869,7 +871,7 @@ export default function ClaimsPage() {
                                                 {activeClaim?.defectStation && (
                                                     <div>
                                                         <p className="text-[11px] text-slate-400 mb-0.5">สถานีที่เกิดปัญหา</p>
-                                                        <p className="text-sm font-medium text-slate-900 dark:text-white">{activeClaim.defectStation}</p>
+                                                        <p className="text-sm font-medium text-slate-900 dark:text-white">{getStationName(activeClaim.defectStation)}</p>
                                                     </div>
                                                 )}
                                             </div>

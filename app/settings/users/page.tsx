@@ -3,11 +3,13 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/auth-context";
+import { getRoleName, getRoleSlug, isAdmin, isManagerOrAbove } from "@/lib/auth/role-utils";
 import { workersApi } from "@/lib/api/workers";
 import { ordersApi } from "@/lib/api/orders";
 import { claimsApi } from "@/lib/api/claims";
 import { withdrawalsApi } from "@/lib/api/withdrawals";
-import { Worker, Order, Claim, Withdrawal } from "@/lib/api/types";
+import { rolesApi } from "@/lib/api/roles";
+import { Worker, Order, Claim, Withdrawal, Role } from "@/lib/api/types";
 import {
     Table,
     TableBody,
@@ -61,6 +63,9 @@ export default function UsersManagementPage() {
     const [linkedClaims, setLinkedClaims] = useState<Claim[]>([]);
     const [linkedWithdrawals, setLinkedWithdrawals] = useState<Withdrawal[]>([]);
 
+    // Roles
+    const [roles, setRoles] = useState<Role[]>([]);
+
     // Create modal state
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
@@ -70,12 +75,12 @@ export default function UsersManagementPage() {
         username: "",
         password: "",
         position: "",
-        role: "worker" as "admin" | "manager" | "worker",
+        role: "worker",
     });
 
     useEffect(() => {
         if (!isAuthLoading) {
-            if (user?.role !== "admin" && user?.role !== "manager") {
+            if (!isManagerOrAbove(user?.role)) {
                 router.push("/settings");
             } else {
                 fetchWorkers();
@@ -86,10 +91,12 @@ export default function UsersManagementPage() {
     const fetchWorkers = async () => {
         setIsLoading(true);
         try {
-            const response = await workersApi.getAll();
-            if (response.success && response.data) {
-                setWorkers(response.data);
-            }
+            const [workersRes, rolesRes] = await Promise.all([
+                workersApi.getAll(),
+                rolesApi.getAll({ limit: 100 }),
+            ]);
+            if (workersRes.success && workersRes.data) setWorkers(workersRes.data);
+            if (rolesRes.success && rolesRes.data) setRoles(rolesRes.data);
         } catch (error) {
             console.error("Failed to fetch workers:", error);
         } finally {
@@ -97,9 +104,14 @@ export default function UsersManagementPage() {
         }
     };
 
+    const roleBySlug = (slug: string) => roles.find(r => r.slug === slug);
+
     const handleEditClick = (worker: Worker) => {
         setSelectedWorker(worker);
-        setEditRole(worker.role);
+        const slug = getRoleSlug(worker.role);
+        setEditRole(
+            slug === "admin" || slug === "manager" || slug === "worker" ? slug : "worker",
+        );
         setIsEditModalOpen(true);
     };
 
@@ -107,10 +119,13 @@ export default function UsersManagementPage() {
         if (!selectedWorker) return;
         setIsSaving(true);
         try {
-            const response = await workersApi.update(selectedWorker._id, { role: editRole });
+            const targetRole = roleBySlug(editRole);
+            const rolePayload = targetRole ? targetRole._id : editRole;
+            const response = await workersApi.update(selectedWorker._id, { role: rolePayload });
             if (response.success) {
+                const updatedRole = targetRole ?? editRole;
                 setWorkers((prev) =>
-                    prev.map((w) => (w._id === selectedWorker._id ? { ...w, role: editRole } : w))
+                    prev.map((w) => (w._id === selectedWorker._id ? { ...w, role: updatedRole as Role | string } : w))
                 );
                 setIsEditModalOpen(false);
             }
@@ -126,14 +141,16 @@ export default function UsersManagementPage() {
         setIsCreating(true);
         setCreateError("");
         try {
-            const response = await workersApi.create(createForm);
+            const targetRole = roleBySlug(createForm.role);
+            const payload = { ...createForm, role: targetRole ? targetRole._id : createForm.role };
+            const response = await workersApi.create(payload);
             if (response.success && response.data) {
                 setWorkers([response.data, ...workers]);
                 setIsCreateModalOpen(false);
                 setCreateForm({ name: "", username: "", password: "", position: "", role: "worker" });
             }
-        } catch (error: any) {
-            setCreateError(error.message || "Failed to create user");
+        } catch (error: unknown) {
+            setCreateError(error instanceof Error ? error.message : "Failed to create user");
         } finally {
             setIsCreating(false);
         }
@@ -221,7 +238,7 @@ export default function UsersManagementPage() {
         const matchesSearch =
             worker.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             worker.username.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesRole = roleFilter === "all" || worker.role === roleFilter;
+        const matchesRole = roleFilter === "all" || getRoleSlug(worker.role) === roleFilter;
         return matchesSearch && matchesRole;
     });
 
@@ -233,7 +250,7 @@ export default function UsersManagementPage() {
         );
     }
 
-    if (user?.role !== "admin" && user?.role !== "manager") {
+    if (!isManagerOrAbove(user?.role)) {
         return null; // the useEffect will redirect them
     }
 
@@ -337,8 +354,8 @@ export default function UsersManagementPage() {
                                     <TableCell className="text-sm text-slate-500 dark:text-slate-400 py-3.5">{worker.username}</TableCell>
                                     <TableCell className="text-sm text-slate-600 dark:text-slate-300 py-3.5">{worker.position}</TableCell>
                                     <TableCell className="py-3.5">
-                                        <Badge variant="outline" className={`text-xs font-medium px-2 py-0.5 rounded-md border-0 ${getRoleBadgeColor(worker.role)}`}>
-                                            {worker.role.charAt(0).toUpperCase() + worker.role.slice(1)}
+                                        <Badge variant="outline" className={`text-xs font-medium px-2 py-0.5 rounded-md border-0 ${getRoleBadgeColor(getRoleSlug(worker.role))}`}>
+                                            {getRoleName(worker.role)}
                                         </Badge>
                                     </TableCell>
                                     <TableCell className="text-right py-3.5 pr-4">
@@ -348,8 +365,8 @@ export default function UsersManagementPage() {
                                                     size="sm"
                                                     className="rounded-lg h-8 w-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-800"
                                                     onClick={() => handleEditClick(worker)}
-                                                    disabled={isSelf(worker._id) || (user.role === "manager" && worker.role === "admin")}
-                                                    title={isSelf(worker._id) ? "ไม่สามารถแก้ไขตัวเองได้" : user.role === "manager" && worker.role === "admin" ? "ไม่สามารถแก้ไข Admin ได้" : "แก้ไขบทบาท"}
+                                                    disabled={isSelf(worker._id) || (!isAdmin(user?.role) && getRoleSlug(worker.role) === "admin")}
+                                                    title={isSelf(worker._id) ? "ไม่สามารถแก้ไขตัวเองได้" : !isAdmin(user?.role) && getRoleSlug(worker.role) === "admin" ? "ไม่สามารถแก้ไข Admin ได้" : "แก้ไขบทบาท"}
                                                 >
                                                 <Edit className="h-4 w-4 text-slate-500" />
                                             </Button>
@@ -358,7 +375,7 @@ export default function UsersManagementPage() {
                                                 size="sm"
                                                 className="rounded-lg h-8 w-8 p-0 hover:bg-red-50 dark:hover:bg-red-950"
                                                 onClick={() => handleDeleteClick(worker)}
-                                                disabled={isSelf(worker._id) || (user.role === "manager" && worker.role === "admin")}
+                                                disabled={isSelf(worker._id) || (!isAdmin(user?.role) && getRoleSlug(worker.role) === "admin")}
                                                 title={isSelf(worker._id) ? "ไม่สามารถลบตัวเองได้" : "ลบผู้ใช้"}
                                             >
                                                 <Trash2 className="h-4 w-4 text-red-500" />
@@ -396,7 +413,7 @@ export default function UsersManagementPage() {
                                     <SelectValue placeholder="เลือกบทบาท" />
                                 </SelectTrigger>
                                 <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
-                                    {user?.role === "admin" && <SelectItem value="admin">Admin</SelectItem>}
+                                    {isAdmin(user?.role) && <SelectItem value="admin">Admin</SelectItem>}
                                     <SelectItem value="manager">Manager</SelectItem>
                                     <SelectItem value="worker">Worker</SelectItem>
                                 </SelectContent>
@@ -414,7 +431,7 @@ export default function UsersManagementPage() {
                         </Button>
                         <Button
                             onClick={handleSaveRole}
-                            disabled={isSaving || (user?.role === "manager" && editRole === "admin")}
+                            disabled={isSaving || (!isAdmin(user?.role) && editRole === "admin")}
                             className="rounded-xl h-10 min-w-[120px] bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white text-sm font-bold shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0"
                         >
                             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -499,7 +516,7 @@ export default function UsersManagementPage() {
                                         <SelectValue placeholder="เลือกบทบาท" />
                                     </SelectTrigger>
                                     <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
-                                        {user?.role === "admin" && <SelectItem value="admin">Admin</SelectItem>}
+                                        {isAdmin(user?.role) && <SelectItem value="admin">Admin</SelectItem>}
                                         <SelectItem value="manager">Manager</SelectItem>
                                         <SelectItem value="worker">Worker</SelectItem>
                                     </SelectContent>

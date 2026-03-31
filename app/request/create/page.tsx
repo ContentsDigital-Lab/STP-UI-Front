@@ -55,6 +55,7 @@ import {
 import { GlassDesigner, HoleData, VertexData } from "@/components/glass-designer";
 import { panesApi } from "@/lib/api/panes";
 import { requestsApi } from "@/lib/api/requests";
+import { stationsApi } from "@/lib/api/stations";
 import { customersApi } from "@/lib/api/customers";
 import { workersApi } from "@/lib/api/workers";
 import { Customer, Worker, Material } from "@/lib/api/types";
@@ -589,6 +590,16 @@ export default function CreateBillPage() {
             const res = await requestsApi.create(payload);
             if (res.success) {
                 const requestId = res.data._id;
+
+                let orderReleaseStationId = "";
+                try {
+                    const stRes = await stationsApi.getAll();
+                    if (stRes.success && Array.isArray(stRes.data)) {
+                        const ors = stRes.data.find(s => /order.?rele/i.test(s.name));
+                        if (ors) orderReleaseStationId = ors._id;
+                    }
+                } catch { /* use fallback */ }
+
                 let panesCreated = 0;
                 for (const pane of validPanes) {
                     const thicknessMm = parseFloat(pane.thickness) || 0;
@@ -615,7 +626,7 @@ export default function CreateBillPage() {
                                         sheetsPerPane: pane.sheetsPerPane,
                                     },
                                 } : {}),
-                                currentStation: "Order_Reless",
+                                ...(orderReleaseStationId ? { currentStation: orderReleaseStationId } : {}),
                             } as Record<string, unknown>);
                             panesCreated++;
                         } catch (paneErr) {
@@ -988,16 +999,13 @@ export default function CreateBillPage() {
                         <span className="sm:hidden">DXF</span>
                     </Button>
                     <DropdownMenu>
-                        <DropdownMenuTrigger>
-                            <Button
-                                id="__bill-pdf-btn"
-                                variant="outline"
-                                className="inline-flex items-center justify-center whitespace-nowrap gap-2 rounded-xl font-bold text-xs h-9 px-3 border-slate-200 dark:border-slate-800 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-700 dark:text-slate-300"
-                            >
-                                <FileDown className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
-                                <span className="hidden sm:inline">Export</span>
-                                <ChevronDown className="h-3 w-3 text-slate-400 dark:text-slate-500" />
-                            </Button>
+                        <DropdownMenuTrigger
+                            id="__bill-pdf-btn"
+                            className="inline-flex items-center justify-center whitespace-nowrap gap-2 rounded-xl font-bold text-xs h-9 px-3 border border-slate-200 dark:border-slate-800 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-700 dark:text-slate-300 cursor-pointer"
+                        >
+                            <FileDown className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                            <span className="hidden sm:inline">Export</span>
+                            <ChevronDown className="h-3 w-3 text-slate-400 dark:text-slate-500" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="rounded-xl min-w-[140px]">
                             <DropdownMenuItem onClick={handleExportPDF} className="rounded-lg text-xs font-semibold gap-2">

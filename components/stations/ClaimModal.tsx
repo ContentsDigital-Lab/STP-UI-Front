@@ -10,6 +10,7 @@ import { claimsApi } from "@/lib/api/claims";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { useAuth } from "@/lib/auth/auth-context";
 import { Pane, Order, Material, Claim } from "@/lib/api/types";
+import { getStationName } from "@/lib/utils/station-helpers";
 import { CameraScanModal } from "@/components/stations/designer/blocks/CameraScanModal";
 
 interface ClaimModalProps {
@@ -323,7 +324,7 @@ export function ClaimModal({ stationId, onClose }: ClaimModalProps) {
                                 {pane.currentStation && (
                                     <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
                                         <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-                                        สถานี: <span className="font-semibold text-foreground">{pane.currentStation}</span>
+                                        สถานี: <span className="font-semibold text-foreground">{getStationName(pane.currentStation)}</span>
                                     </div>
                                 )}
                             </div>

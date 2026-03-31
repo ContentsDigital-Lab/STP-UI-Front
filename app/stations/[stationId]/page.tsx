@@ -156,7 +156,7 @@ export default function LiveStationPage() {
         } catch { /* ignore */ }
     }, [stationId, showNewJobToast]);
 
-    useWebSocket("order", ["order:updated"], handleSocketEvent, { stationRoom: station?.name ?? stationId });
+    useWebSocket("order", ["order:updated"], handleSocketEvent, { stationRoom: stationId });
 
     // ── Worker check-in via QR ──────────────────────────────────────────────────
     const { onCheckin } = useCheckinSocket(station?.name ?? null);

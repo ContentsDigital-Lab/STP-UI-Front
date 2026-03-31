@@ -24,6 +24,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { useAuth } from "@/lib/auth/auth-context";
+import { isManagerOrAbove } from "@/lib/auth/role-utils";
 import { withdrawalsApi } from "@/lib/api/withdrawals";
 import { materialsApi } from "@/lib/api/materials";
 import { inventoriesApi } from "@/lib/api/inventories";
@@ -35,7 +36,7 @@ const ITEMS_PER_PAGE = 10;
 
 export default function WithdrawalsPage() {
     const { user } = useAuth();
-    const isManager = user?.role === "admin" || user?.role === "manager";
+    const isManager = isManagerOrAbove(user?.role);
 
     const [isLoading, setIsLoading] = useState(true);
     const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);

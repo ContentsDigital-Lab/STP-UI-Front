@@ -11,6 +11,7 @@ import {
 import { panesApi } from "@/lib/api/panes";
 import { Pane } from "@/lib/api/types";
 import { parseQrScan } from "@/lib/utils/parseQrScan";
+import { getStationName, isStationMatch } from "@/lib/utils/station-helpers";
 import { usePreview } from "../PreviewContext";
 import { useStationContext } from "../StationContext";
 import { useWebSocket } from "@/lib/hooks/use-socket";
@@ -85,15 +86,12 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
         if (!stationId && !stationName) return;
         setLoading(true);
         try {
-            const res = await panesApi.getAll({ limit: 300 });
-            if (!res.success || !Array.isArray(res.data)) return;
+            const res = await panesApi.getAll({ limit: 300 }).catch(() => null);
+            if (!res || !res.success || !Array.isArray(res.data)) return;
 
-            const atStation = res.data.filter(p => {
-                const cs = typeof p.currentStation === "object"
-                    ? (p.currentStation as { _id?: string })?._id
-                    : p.currentStation as string;
-                return (cs === stationId || cs === stationName) && p.currentStatus === "in_progress";
-            });
+            const atStation = res.data.filter(p =>
+                isStationMatch(p.currentStation, stationId, stationName) && p.currentStatus === "in_progress",
+            );
 
             // Merge: keep locally-scanned panes the filter hasn't matched yet
             // (backend may use a different currentStation format: slug vs ObjectId vs name)
@@ -140,17 +138,6 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
         return [...map.entries()].map(([orderId, v]) => ({ orderId, label: v.label, panes: v.panes }));
     })();
 
-    // ── Helpers ────────────────────────────────────────────────────────────────
-    function extractStationName(val: unknown): string {
-        if (!val) return "";
-        if (typeof val === "string") return val;
-        if (typeof val === "object") {
-            const o = val as Record<string, unknown>;
-            return String(o.name ?? o._id ?? "");
-        }
-        return String(val);
-    }
-
     // ── Scan → scan_in ───────────────────────────────────────────────────────
     async function handleScan(raw: string) {
         const trimmed = raw.trim();
@@ -161,7 +148,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
         const pn = parsed.type === "pane" ? parsed.value : trimmed.replace(/^STDPLUS:/i, "").trim();
         setScanError(null);
 
-        if (!stationName) { setScanError("ไม่ระบุชื่อสถานี — กรุณาเปิดจากหน้าสถานี"); return; }
+        if (!stationId) { setScanError("ไม่ระบุสถานี — กรุณาเปิดจากหน้าสถานี"); return; }
 
         // Already in queue (already in_progress)?
         const already = panes.find(p => p.paneNumber === pn || p.paneNumber.endsWith(pn));
@@ -177,14 +164,12 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
             const lookupRes = await panesApi.getById(pn);
             if (lookupRes.success && lookupRes.data) {
                 const cs = lookupRes.data.currentStation;
-                const paneStationStr = extractStationName(cs);
-                const isHere = !paneStationStr
-                    || paneStationStr === stationName
-                    || paneStationStr === stationId;
+                const paneStationStr = getStationName(cs);
+                const isHere = !cs || isStationMatch(cs, stationId, stationName);
                 if (!isHere) {
                     setMismatchInfo({
                         paneStation: paneStationStr,
-                        thisStation: stationName,
+                        thisStation: stationName ?? "",
                         paneNumber: pn,
                     });
                     return;
@@ -202,7 +187,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
         setActionLoading(prev => ({ ...prev, [tempKey]: true }));
         try {
             const res = await panesApi.scan(pn, {
-                station: stationName!,
+                station: stationId!,
                 action: "scan_in",
                 ...(force ? { force: true } : {}),
             });
@@ -244,11 +229,11 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
 
     // ── Per-pane action (start / complete) ────────────────────────────────────
     async function doAction(pane: Pane, action: "start" | "complete") {
-        if (!stationName) { setScanError("ไม่ระบุชื่อสถานี"); return; }
+        if (!stationId) { setScanError("ไม่ระบุสถานี"); return; }
         setActionLoading(prev => ({ ...prev, [pane._id]: true }));
         setActionResult(prev => { const n = { ...prev }; delete n[pane._id]; return n; });
         try {
-            const res = await panesApi.scan(pane.paneNumber, { station: stationName, action });
+            const res = await panesApi.scan(pane.paneNumber, { station: stationId, action });
             if (!res.success) throw new Error(res.message ?? "ดำเนินการไม่สำเร็จ");
             setPaneData(res.data.pane as unknown as Record<string, unknown>);
 

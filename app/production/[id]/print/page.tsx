@@ -9,6 +9,7 @@ import { ordersApi } from "@/lib/api/orders";
 import { panesApi } from "@/lib/api/panes";
 import { stationsApi } from "@/lib/api/stations";
 import { Order, Material, Pane, Station } from "@/lib/api/types";
+import { getStationId, getStationName } from "@/lib/utils/station-helpers";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const STATION_LABELS: Record<string, string> = {
@@ -190,8 +191,8 @@ export default function WorkOrderPrintPage() {
                         <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">สายการผลิต</p>
                         <div className="flex flex-wrap items-center gap-1.5">
                             {stations.map((sid, idx) => {
-                                const sidStr = typeof sid === "string" ? sid : (sid as Record<string, string>)._id ?? String(sid);
-                                const label  = stationMap.get(sidStr)?.name ?? STATION_LABELS[sidStr] ?? sidStr;
+                                const sidStr = getStationId(sid);
+                                const label  = (stationMap.get(sidStr)?.name ?? STATION_LABELS[sidStr] ?? getStationName(sid)) || sidStr;
                                 const done   = idx < (order.currentStationIndex ?? 0);
                                 const active = idx === (order.currentStationIndex ?? -1) && order.status === "in_progress";
                                 return (

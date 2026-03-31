@@ -7,14 +7,15 @@ import {
     ChevronDown, ChevronUp, RefreshCw, Rocket, Loader2, ShieldCheck,
     Clock, AlertOctagon,
 } from "lucide-react";
-import { QrCodeModal } from "@/components/qr/QrCodeModal";
 import { usePreview } from "../PreviewContext";
+import { useStationContext } from "../StationContext";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { inventoriesApi } from "@/lib/api/inventories";
 import { ordersApi }       from "@/lib/api/orders";
 import { panesApi }        from "@/lib/api/panes";
 import { stationsApi }     from "@/lib/api/stations";
 import { Order, Inventory, Material, Station, OrderRequest, Customer } from "@/lib/api/types";
+import { getStationId } from "@/lib/utils/station-helpers";
 
 interface OrderReleasePanelProps {
     title?:          string;
@@ -85,6 +86,9 @@ export function OrderReleasePanel({
 }: OrderReleasePanelProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
+    const { stationName: ctxStationName, setIsOrderReleaseStation } = useStationContext();
+
+    useEffect(() => { setIsOrderReleaseStation(true); return () => setIsOrderReleaseStation(false); }, [setIsOrderReleaseStation]);
 
     const [orders,        setOrders]        = useState<Order[]>([]);
     const [inventories,   setInventories]   = useState<Inventory[]>([]);
@@ -101,7 +105,6 @@ export function OrderReleasePanel({
     const [deadlineAcked, setDeadlineAcked] = useState<Set<string>>(new Set());
 
     const [releasing,    setReleasing]      = useState<string | null>(null);
-    const [qrTarget,     setQrTarget]       = useState<{ code: string; label: string; url: string } | null>(null);
     /** Confirmation dialog state */
     const [confirmDialog, setConfirmDialog] = useState<Order | null>(null);
 
@@ -131,7 +134,10 @@ export function OrderReleasePanel({
             if (stRes.success)  setStations(stRes.data);
 
             const init: Record<string, string[]> = {};
-            list.forEach(o => { init[o._id] = Array.isArray(o.stations) ? o.stations : []; });
+            list.forEach(o => {
+                const raw = Array.isArray(o.stations) ? o.stations : [];
+                init[o._id] = raw.map(s => getStationId(s));
+            });
             setAssignments(init);
         } finally {
             setLoading(false);
@@ -256,25 +262,29 @@ export function OrderReleasePanel({
                 status: "in_progress",
             });
 
-            // 2. Build routing names
-            const stationMap   = new Map(stations.map(s => [s._id, s.name]));
-            const routingNames = stationsToSave.map(id => stationMap.get(id) ?? id);
-            const firstStation = routingNames.length > 0 ? routingNames[0] : null;
+            // 2. Routing + first stop (backend stores station ObjectIds)
+            const firstStationId = stationsToSave.length > 0 ? stationsToSave[0] : null;
 
             const matchingInv = inventories
                 .filter(inv => matId(inv.material) === mId && inv.quantity > 0)
                 .sort((a, b) => b.quantity - a.quantity)[0] ?? null;
+
+            // Resolve request ID from order (may be a populated object or string)
+            const reqRef = order.request;
+            const requestId = reqRef
+                ? (typeof reqRef === "string" ? reqRef : (reqRef as Record<string, unknown>)?._id as string ?? "")
+                : "";
 
             // 3. Update / create panes
             const existingPanes = await panesApi.getAll({ order: order._id, limit: 100 }).catch(() => null);
             const panes = existingPanes?.success ? (existingPanes.data ?? []) : [];
 
             if (panes.length > 0) {
-                if (firstStation) {
+                if (firstStationId) {
                     await Promise.all(
                         panes.map(p => panesApi.update(p._id, {
-                            routing: routingNames,
-                            currentStation: firstStation,
+                            routing: stationsToSave,
+                            currentStation: firstStationId,
                             currentStatus: "pending",
                             ...(mId         && { material:  mId }),
                             ...(matchingInv && { inventory: matchingInv._id }),
@@ -284,11 +294,12 @@ export function OrderReleasePanel({
             } else {
                 const qty  = Math.max(1, order.quantity ?? 1);
                 const spec = mat?.specDetails;
-                const panePayload = {
+                const panePayload: Record<string, unknown> = {
                     order: order._id,
-                    currentStation: firstStation ?? "order_release",
-                    currentStatus: "pending" as const,
-                    routing: routingNames.length > 0 ? routingNames : undefined,
+                    ...(requestId && { request: requestId }),
+                    currentStation: firstStationId ?? undefined,
+                    currentStatus: "pending",
+                    routing: stationsToSave.length > 0 ? stationsToSave : undefined,
                     dimensions: {
                         width:     spec?.width     ? parseFloat(spec.width)     || 0 : 0,
                         height:    spec?.length    ? parseFloat(spec.length)    || 0 : 0,
@@ -300,20 +311,12 @@ export function OrderReleasePanel({
                     ...(matchingInv && { inventory: matchingInv._id }),
                 };
                 await Promise.all(
-                    Array.from({ length: qty }, () => panesApi.create({ ...panePayload }))
+                    Array.from({ length: qty }, () => panesApi.create({ ...panePayload } as Partial<import("@/lib/api/types").Pane>))
                 );
             }
 
-            // 4. Try release endpoint for QR code
-            const releaseRes = await ordersApi.release(order._id).catch(() => null);
-            const qrCode = releaseRes?.data?.code ?? order.orderNumber ?? order._id.slice(-6).toUpperCase();
-
-            const cName = cusName(order.customer);
-            setQrTarget({
-                code:  qrCode,
-                label: [mat?.name ?? "", cName].filter(Boolean).join(" — "),
-                url:   `${window.location.origin}/production/${order._id}`,
-            });
+            // 4. Try release endpoint
+            await ordersApi.release(order._id).catch(() => null);
             await load();
         } finally {
             setReleasing(null);
@@ -420,15 +423,6 @@ export function OrderReleasePanel({
     // ── Preview / Live mode ────────────────────────────────────────────────────
     return (
         <>
-        {qrTarget && (
-            <QrCodeModal
-                code={qrTarget.code}
-                label={qrTarget.label}
-                value={qrTarget.url}
-                onClose={() => setQrTarget(null)}
-            />
-        )}
-
         {/* ── Confirmation Dialog ── */}
         {confirmDialog && (() => {
             const summary = buildSummary(confirmDialog);

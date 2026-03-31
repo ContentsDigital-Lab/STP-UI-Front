@@ -7,6 +7,7 @@ import { useTheme } from "next-themes";
 import { usePathname, useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { useAuth } from "@/lib/auth/auth-context";
+import { getRoleName } from "@/lib/auth/role-utils";
 import { authApi } from "@/lib/api/auth";
 import { Button } from "@/components/ui/button";
 import { NotificationBell } from "@/components/layout/notification-bell";
@@ -143,7 +144,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                                     <div className="flex flex-col space-y-1">
                                         <p className="text-sm font-medium leading-none">{user?.name}</p>
                                         <p className="text-xs leading-none text-muted-foreground">{user?.username}</p>
-                                        <div className="mt-1 pt-1 opacity-70">Role: <span className="capitalize">{user?.role}</span></div>
+                                        <div className="mt-1 pt-1 opacity-70">Role: <span className="capitalize">{getRoleName(user?.role)}</span></div>
                                     </div>
                                 </DropdownMenuLabel>
                                 <DropdownMenuSeparator />

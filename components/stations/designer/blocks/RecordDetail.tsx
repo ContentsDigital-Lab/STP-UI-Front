@@ -3,14 +3,15 @@
 import { useNode } from "@craftjs/core";
 import { useEffect, useState } from "react";
 import { Database, Loader2, AlertCircle, Package, ChevronDown, ChevronRight, Printer, QrCode } from "lucide-react";
+import { QrCodeModal } from "@/components/qr/QrCodeModal";
 import { fetchApi } from "@/lib/api/config";
 import { panesApi } from "@/lib/api/panes";
 import { Pane } from "@/lib/api/types";
 import { usePreview } from "../PreviewContext";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { useStationContext } from "../StationContext";
+import { getStationName, isStationMatch } from "@/lib/utils/station-helpers";
 import { STATUS_CONFIG } from "./StatusIndicator";
-import { QrCodeModal } from "@/components/qr/QrCodeModal";
 
 // ── Field display config ──────────────────────────────────────────────────────
 export interface DetailField {
@@ -102,12 +103,14 @@ const PANE_STATUS: Record<string, { label: string; dot: string; text: string }> 
     awaiting_scan_out:  { label: "รอสแกนออก",  dot: "bg-amber-500", text: "text-amber-600" },
 };
 
-function PaneListSection({ record, endpoint }: { record: Record<string, unknown> | null; endpoint: string }) {
+function PaneListSection({ record, endpoint, showPaneQr: showPaneQrProp = true }: { record: Record<string, unknown> | null; endpoint: string; showPaneQr?: boolean }) {
     const [panes, setPanes] = useState<Pane[]>([]);
     const [loading, setLoading] = useState(false);
     const [showAll, setShowAll] = useState(false);
     const [qrPane, setQrPane] = useState<Pane | null>(null);
-    const { stationName } = useStationContext();
+    const { stationId, stationName, isOrderReleaseStation } = useStationContext();
+
+    const showPaneQr = showPaneQrProp && !isOrderReleaseStation;
 
     const recordLooksLikeOrder = !!record && ("stations" in record || "currentStationIndex" in record || "code" in record);
     const isOrderEndpoint = endpoint === "/orders" || endpoint.startsWith("/orders/") || (endpoint === "context" && recordLooksLikeOrder);
@@ -137,7 +140,6 @@ function PaneListSection({ record, endpoint }: { record: Record<string, unknown>
     }, [record, endpoint, isRequestEndpoint, isOrderEndpoint]);
 
     useWebSocket("pane", ["pane:updated"], () => {
-        setQrPane(null);
         if (!record?._id) return;
         fetchPanes(record._id as string)
             .then(res => setPanes(res.success ? res.data ?? [] : []))
@@ -152,8 +154,8 @@ function PaneListSection({ record, endpoint }: { record: Record<string, unknown>
         </div>
     );
 
-    const stationPanes = stationName
-        ? panes.filter(p => p.currentStation === stationName)
+    const stationPanes = (stationId || stationName)
+        ? panes.filter(p => isStationMatch(p.currentStation, stationId, stationName))
         : panes;
 
     if (stationPanes.length === 0) return null;
@@ -192,7 +194,7 @@ function PaneListSection({ record, endpoint }: { record: Record<string, unknown>
             <div className="px-5 py-2 space-y-1.5">
                 {visible.map(pane => {
                     const st = PANE_STATUS[pane.currentStatus] ?? { label: pane.currentStatus, dot: "bg-gray-400", text: "text-gray-500" };
-                    return (
+                    return showPaneQr ? (
                         <button
                             key={pane._id}
                             type="button"
@@ -211,8 +213,27 @@ function PaneListSection({ record, endpoint }: { record: Record<string, unknown>
                                     {pane.dimensions.thickness > 0 && ` (${pane.dimensions.thickness}mm)`}
                                 </span>
                             )}
-                            <span className="ml-auto text-[10px] text-muted-foreground">{pane.currentStation}</span>
+                            <span className="ml-auto text-[10px] text-muted-foreground">{getStationName(pane.currentStation)}</span>
                         </button>
+                    ) : (
+                        <div
+                            key={pane._id}
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/30 border border-border/50 text-left"
+                        >
+                            <Package className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+                            <span className="font-mono text-[11px] font-bold shrink-0">{pane.paneNumber}</span>
+                            <span className={`flex items-center gap-1 text-[10px] font-medium ${st.text}`}>
+                                <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />
+                                {st.label}
+                            </span>
+                            {pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0) && (
+                                <span className="text-[10px] text-muted-foreground">
+                                    {pane.dimensions.width}×{pane.dimensions.height}
+                                    {pane.dimensions.thickness > 0 && ` (${pane.dimensions.thickness}mm)`}
+                                </span>
+                            )}
+                            <span className="ml-auto text-[10px] text-muted-foreground">{getStationName(pane.currentStation)}</span>
+                        </div>
                     );
                 })}
                 {hasMore && (
@@ -229,7 +250,7 @@ function PaneListSection({ record, endpoint }: { record: Record<string, unknown>
                     </button>
                 )}
             </div>
-            {qrPane && (
+            {showPaneQr && qrPane && (
                 <QrCodeModal
                     code={qrPane.paneNumber}
                     label={[
@@ -247,9 +268,10 @@ function PaneListSection({ record, endpoint }: { record: Record<string, unknown>
 // ── Props ─────────────────────────────────────────────────────────────────────
 interface RecordDetailProps {
     title?:      string;
-    endpoint?:   string;  // e.g. "/requests" — ID appended from URL param
-    idParam?:    string;  // URL search param name containing the record ID
-    fieldsJson?: string;  // JSON string of DetailField[]
+    endpoint?:   string;
+    idParam?:    string;
+    fieldsJson?: string;
+    showPaneQr?: boolean;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -258,6 +280,7 @@ export function RecordDetail({
     endpoint   = "/requests",
     idParam    = "id",
     fieldsJson = DEFAULT_FIELDS_STR,
+    showPaneQr = true,
 }: RecordDetailProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
@@ -323,7 +346,7 @@ export function RecordDetail({
                         </div>
                     ))}
                 </div>
-                {contextRecord && <PaneListSection record={contextRecord} endpoint={endpoint} />}
+                {contextRecord && <PaneListSection record={contextRecord} endpoint={endpoint} showPaneQr={showPaneQr} />}
             </div>
         );
     }
@@ -365,5 +388,6 @@ RecordDetail.craft = {
         endpoint:   "/requests",
         idParam:    "id",
         fieldsJson: DEFAULT_FIELDS_STR,
+        showPaneQr: true,
     } as RecordDetailProps,
 };

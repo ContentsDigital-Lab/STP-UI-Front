@@ -23,6 +23,8 @@ export interface StationContextValue {
     resolveVar: (path: string) => string;
     refreshCounter: number;
     triggerRefresh: () => void;
+    isOrderReleaseStation: boolean;
+    setIsOrderReleaseStation: (v: boolean) => void;
 }
 
 const StationContext = createContext<StationContextValue>({
@@ -45,6 +47,8 @@ const StationContext = createContext<StationContextValue>({
     resolveVar:        () => "",
     refreshCounter:    0,
     triggerRefresh:    () => {},
+    isOrderReleaseStation: false,
+    setIsOrderReleaseStation: () => {},
 });
 
 export const useStationContext = () => useContext(StationContext);
@@ -69,6 +73,7 @@ export function StationProvider({
     const [paneData,        setPaneData]        = useState<Record<string, unknown> | null>(null);
     const [selectedRecord,  setSelectedRecord]  = useState<Record<string, unknown> | null>(initialOrderData ?? null);
     const [refreshCounter,  setRefreshCounter]  = useState(0);
+    const [isOrderReleaseStation, setIsOrderReleaseStation] = useState(false);
 
     useEffect(() => {
         if (initialOrderData && !selectedRecord) setSelectedRecord(initialOrderData);
@@ -125,6 +130,7 @@ export function StationProvider({
             selectedRecord, setSelectedRecord,
             resolveVar,
             refreshCounter, triggerRefresh,
+            isOrderReleaseStation, setIsOrderReleaseStation,
         }}>
             {children}
         </StationContext.Provider>

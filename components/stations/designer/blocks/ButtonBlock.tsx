@@ -6,8 +6,8 @@ import { useState } from "react";
 import { Zap, Send, Navigation, Globe, MessageSquare, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { fetchApi } from "@/lib/api/config";
 import { panesApi } from "@/lib/api/panes";
-import { stationsApi } from "@/lib/api/stations";
-import { Station, Pane } from "@/lib/api/types";
+
+import { Pane } from "@/lib/api/types";
 import { usePreview } from "../PreviewContext";
 import { useStationContext } from "../StationContext";
 
@@ -391,22 +391,20 @@ export function ButtonBlock({
                     if (reqId) {
                         (async () => {
                             try {
-                                const [stRes, pRes] = await Promise.all([
-                                    stationsApi.getAll(),
-                                    panesApi.getAll({ request: reqId, limit: 100 }),
-                                ]);
-                                const stationMap = new Map((stRes.success ? stRes.data as unknown as Station[] : []).map(s => [s._id, s.name]));
-                                const routingNames = (body.stations as string[]).map(id => stationMap.get(id) ?? id);
-                                const firstStation = routingNames[0];
+                                const pRes = await panesApi.getAll({ request: reqId, limit: 100 });
+                                const routingIds = (body.stations as string[]);
+                                const firstStationId = routingIds[0];
                                 const panes = pRes.success ? pRes.data as Pane[] : [];
-                                await Promise.all(panes.map(p =>
-                                    panesApi.update(p._id, {
-                                        routing: routingNames,
-                                        currentStation: firstStation,
-                                        currentStatus: "pending",
-                                        ...(newOrderId ? { order: newOrderId } : {}),
-                                    })
-                                ));
+                                if (firstStationId) {
+                                    await Promise.all(panes.map(p =>
+                                        panesApi.update(p._id, {
+                                            routing: routingIds,
+                                            currentStation: firstStationId,
+                                            currentStatus: "pending",
+                                            ...(newOrderId ? { order: newOrderId } : {}),
+                                        })
+                                    ));
+                                }
                                 if (newOrderId && panes.length > 0) {
                                     fetchApi(`/orders/${newOrderId}`, {
                                         method: "PATCH",
@@ -486,22 +484,20 @@ export function ButtonBlock({
                 if (reqId) {
                     (async () => {
                         try {
-                            const [stRes, pRes] = await Promise.all([
-                                stationsApi.getAll(),
-                                panesApi.getAll({ request: reqId, limit: 100 }),
-                            ]);
-                            const stationMap = new Map((stRes.success ? stRes.data as unknown as Station[] : []).map(s => [s._id, s.name]));
-                            const routingNames = (body.stations as string[]).map(id => stationMap.get(id) ?? id);
-                            const firstStation = routingNames[0];
+                            const pRes = await panesApi.getAll({ request: reqId, limit: 100 });
+                            const routingIds = (body.stations as string[]);
+                            const firstStationId = routingIds[0];
                             const panes = pRes.success ? pRes.data as Pane[] : [];
-                            await Promise.all(panes.map(p =>
-                                panesApi.update(p._id, {
-                                    routing: routingNames,
-                                    currentStation: firstStation,
-                                    currentStatus: "pending",
-                                    ...(newOrderId ? { order: newOrderId } : {}),
-                                })
-                            ));
+                            if (firstStationId) {
+                                await Promise.all(panes.map(p =>
+                                    panesApi.update(p._id, {
+                                        routing: routingIds,
+                                        currentStation: firstStationId,
+                                        currentStatus: "pending",
+                                        ...(newOrderId ? { order: newOrderId } : {}),
+                                    })
+                                ));
+                            }
                             // Sync order.quantity to actual pane count
                             if (newOrderId && panes.length > 0) {
                                 fetchApi(`/orders/${newOrderId}`, {
