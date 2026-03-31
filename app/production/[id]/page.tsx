@@ -902,11 +902,11 @@ export default function ProductionDetailPage() {
                         {/* Order tab */}
                         {infoTab === "order" && (
                             <>
-                                <InfoRow icon={User}     label="ลูกค้า"      value={getStr(order.customer)} />
-                                <InfoRow icon={Package}  label="วัสดุ"       value={getStr(order.material)} />
-                                <InfoRow icon={Hash}     label="จำนวน"       value={`${order.quantity} ชิ้น`} />
-                                <InfoRow icon={User}     label="มอบหมายให้"  value={getStr(order.assignedTo)} />
-                                <InfoRow icon={Clock}    label="ความสำคัญ"   value={`P${order.priority}`} />
+                                <InfoRow icon={User}     label="ลูกค้า"       value={getStr(order.customer)} />
+                                <InfoRow icon={Package}  label="วัสดุ"        value={getStr(order.material)} />
+                                <InfoRow icon={Hash}     label="จำนวน"        value={`${order.quantity} ชิ้น`} />
+                                <InfoRow icon={User}     label="ผู้รับผิดชอบ"  value={getStr(order.assignedTo) || getStr(request?.assignedTo) || "—"} />
+                                <InfoRow icon={Clock}    label="ความสำคัญ"    value={`P${order.priority}`} />
                             </>
                         )}
 

@@ -11,8 +11,8 @@ export const th = {
     },
     stations: "สถานี",
     design: "ออกแบบ",
-    orders: "รายการสั่งซื้อ",
-    orderRequests: "คำสั่งซื้อ",
+    orders: "รายการรับออเดอร์",
+    orderRequests: "รับออเดอร์",
     production: "ฝ่ายผลิต",
     inventory: "คลังกระจก",
     logs: "ประวัติ",
@@ -83,14 +83,14 @@ export const th = {
         }
     },
     order_requests: {
-        title: "คำสั่งซื้อ",
-        subtitle: "จัดการคำสั่งซื้อจากลูกค้า รอการอนุมัติก่อนเข้าสู่ระบบผลิต",
-        newRequest: "สร้างคำสั่งซื้อ",
-        totalRequests: "คำสั่งซื้อทั้งหมด",
+        title: "รับออเดอร์",
+        subtitle: "จัดการรับออเดอร์จากลูกค้า รอการอนุมัติก่อนเข้าสู่ระบบผลิต",
+        newRequest: "สร้างรายการรับออเดอร์",
+        totalRequests: "รายการรับออเดอร์ทั้งหมด",
         thisWeek: "สัปดาห์นี้",
         assigned: "มอบหมายแล้ว",
         approachingDeadline: "ใกล้ถึงกำหนด",
-        searchPlaceholder: "ค้นหาคำสั่งซื้อ (ชื่อลูกค้า, สถานที่ส่ง)...",
+        searchPlaceholder: "ค้นหารับออเดอร์ (ชื่อลูกค้า, สถานที่ส่ง)...",
         table: {
             customer: "ลูกค้า",
             productType: "ประเภทสินค้า",
@@ -100,7 +100,7 @@ export const th = {
             location: "สถานที่จัดส่ง",
             assignedTo: "ผู้รับผิดชอบ",
             created: "วันที่สร้าง",
-            noData: "ไม่พบคำสั่งซื้อ"
+            noData: "ไม่พบรายการรับออเดอร์"
         },
         form: {
             selectCustomer: "เลือกลูกค้า",
@@ -111,12 +111,12 @@ export const th = {
             deliveryLocation: "สถานที่จัดส่ง",
             assignTo: "มอบหมายให้",
             expectedDelivery: "วันส่งสินค้าที่คาดหวัง",
-            editTitle: "แก้ไขคำสั่งซื้อ",
-            editDesc: "ปรับปรุงรายละเอียดคำสั่งซื้อ",
-            createDesc: "สร้างคำสั่งซื้อใหม่จากลูกค้า"
+            editTitle: "แก้ไขรายการรับออเดอร์",
+            editDesc: "ปรับปรุงรายละเอียดรายการรับออเดอร์",
+            createDesc: "สร้างรายการรับออเดอร์ใหม่จากลูกค้า"
         },
         detail: {
-            orderInfo: "ข้อมูลคำสั่งซื้อ",
+            orderInfo: "ข้อมูลรับออเดอร์",
             customerInfo: "ข้อมูลลูกค้า",
             timeline: "ไทม์ไลน์",
             deadlineLabel: "กำหนดส่งมอบ",

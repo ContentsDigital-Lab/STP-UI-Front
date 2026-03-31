@@ -13,8 +13,8 @@ export const en: Dictionary = {
     },
     stations: "Stations",
     design: "Design",
-    orders: "Orders",
-    orderRequests: "Order Requests",
+    orders: "Receive Orders",
+    orderRequests: "Receive Orders",
     production: "Production",
     inventory: "Glass Inventory",
     logs: "Logs",
@@ -85,14 +85,14 @@ export const en: Dictionary = {
         }
     },
     order_requests: {
-        title: "Order Requests",
-        subtitle: "Manage customer order requests. Requests need approval before entering production.",
-        newRequest: "New Request",
-        totalRequests: "Total Requests",
+        title: "Receive Orders",
+        subtitle: "Manage customer orders. Requests need approval before entering production.",
+        newRequest: "New Order",
+        totalRequests: "Total Orders",
         thisWeek: "This Week",
         assigned: "Assigned",
         approachingDeadline: "Approaching Deadline",
-        searchPlaceholder: "Search requests (customer, location)...",
+        searchPlaceholder: "Search orders (customer, location)...",
         table: {
             customer: "Customer",
             productType: "Product Type",
@@ -102,7 +102,7 @@ export const en: Dictionary = {
             location: "Delivery Location",
             assignedTo: "Assigned To",
             created: "Created",
-            noData: "No order requests found"
+            noData: "No orders found"
         },
         form: {
             selectCustomer: "Select Customer",
@@ -113,9 +113,9 @@ export const en: Dictionary = {
             deliveryLocation: "Delivery Location",
             assignTo: "Assign To",
             expectedDelivery: "Expected Delivery Date",
-            editTitle: "Edit Order Request",
-            editDesc: "Update the order request details",
-            createDesc: "Create a new customer order request"
+            editTitle: "Edit Order",
+            editDesc: "Update the order details",
+            createDesc: "Create a new customer order"
         },
         detail: {
             orderInfo: "Order Information",
