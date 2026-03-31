@@ -4,9 +4,13 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
     Camera, CheckCircle2, XCircle, Loader2, ArrowRight,
-    MapPin, RotateCcw, Package,
+    MapPin, RotateCcw, Package, AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+    Dialog, DialogContent, DialogHeader, DialogTitle,
+    DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
 import { stationsApi } from "@/lib/api/stations";
 import { panesApi } from "@/lib/api/panes";
 import { Station, Pane } from "@/lib/api/types";
@@ -32,8 +36,14 @@ export default function MobilePaneScanPage() {
     const [scannedPane, setScannedPane] = useState<Pane | null>(null);
     const [nextStation, setNextStation] = useState<string | null>(null);
     const [completedCount, setCompletedCount] = useState(0);
+    const [mismatchInfo, setMismatchInfo] = useState<{
+        paneStation: string;
+        thisStation: string;
+        paneNumber: string;
+    } | null>(null);
 
     const scannerRef = useRef<Html5QrcodeType | null>(null);
+    const scannerRunning = useRef(false);
     const hasScanned = useRef(false);
     const divId = useRef(`pane-scanner-${Math.random().toString(36).slice(2)}`);
 
@@ -48,6 +58,7 @@ export default function MobilePaneScanPage() {
 
     const startCamera = useCallback(async () => {
         hasScanned.current = false;
+        scannerRunning.current = false;
         setScanState("scanning");
         setMessage("");
         setScannedPane(null);
@@ -58,7 +69,7 @@ export default function MobilePaneScanPage() {
             const el = document.getElementById(divId.current);
             if (!el) return;
 
-            if (scannerRef.current) {
+            if (scannerRef.current && scannerRunning.current) {
                 try { await scannerRef.current.stop(); scannerRef.current.clear(); } catch {}
             }
 
@@ -76,6 +87,13 @@ export default function MobilePaneScanPage() {
                 },
                 () => {},
             );
+
+            if (scannerRef.current !== scanner) {
+                try { await scanner.stop(); } catch {}
+                try { scanner.clear(); } catch {}
+                return;
+            }
+            scannerRunning.current = true;
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
             setScanState("error");
@@ -87,16 +105,31 @@ export default function MobilePaneScanPage() {
     }, [station]);
 
     async function stopCamera() {
-        if (scannerRef.current) {
-            try { await scannerRef.current.stop(); scannerRef.current.clear(); } catch {}
-            scannerRef.current = null;
+        const scanner = scannerRef.current;
+        const wasRunning = scannerRunning.current;
+        scannerRef.current = null;
+        scannerRunning.current = false;
+        if (!scanner) return;
+        if (wasRunning) {
+            try { await scanner.stop(); } catch {}
         }
+        try { scanner.clear(); } catch {}
+    }
+
+    function extractStationName(val: unknown): string {
+        if (!val) return "";
+        if (typeof val === "string") return val;
+        if (typeof val === "object") {
+            const o = val as Record<string, unknown>;
+            return String(o.name ?? o._id ?? "");
+        }
+        return String(val);
     }
 
     async function handlePaneScan(raw: string) {
         await stopCamera();
         setScanState("processing");
-        setMessage("กำลังบันทึก...");
+        setMessage("กำลังตรวจสอบ...");
 
         const parsed = parseQrScan(raw.trim());
         const paneNumber = parsed.type === "pane"
@@ -110,11 +143,40 @@ export default function MobilePaneScanPage() {
         }
 
         try {
-            const res = await panesApi.scan(paneNumber, {
-                station: station.name,
-                action: "complete",
-            });
+            const lookupRes = await panesApi.getById(paneNumber);
+            if (lookupRes.success && lookupRes.data) {
+                const paneStationStr = extractStationName(lookupRes.data.currentStation);
+                const isHere = !paneStationStr
+                    || paneStationStr === station.name
+                    || paneStationStr === stationId;
+                if (!isHere) {
+                    setMismatchInfo({
+                        paneStation: paneStationStr,
+                        thisStation: station.name,
+                        paneNumber,
+                    });
+                    setScanState("ready");
+                    setMessage("");
+                    return;
+                }
+            }
+        } catch {
+            // lookup failed — proceed with scan anyway
+        }
 
+        await executeScan(paneNumber, false);
+    }
+
+    async function executeScan(paneNumber: string, force: boolean) {
+        setScanState("processing");
+        setMessage("กำลังบันทึก...");
+
+        try {
+            const res = await panesApi.scan(paneNumber, {
+                station: station!.name,
+                action: "complete",
+                ...(force ? { force: true } : {}),
+            });
             if (!res.success) throw new Error(res.message || "สแกนไม่สำเร็จ");
 
             setScannedPane(res.data.pane);
@@ -125,13 +187,23 @@ export default function MobilePaneScanPage() {
                 ? `เสร็จสิ้น → ส่งต่อไปสถานี ${res.data.nextStation}`
                 : "เสร็จสิ้น — ครบทุกสถานีแล้ว");
         } catch (err: unknown) {
-            const raw = err instanceof Error ? err.message : "เกิดข้อผิดพลาด";
-            const mismatch = raw.match(/Pane is at "(.+?)",?\s*not "(.+?)"/i);
+            const msg = err instanceof Error ? err.message : "เกิดข้อผิดพลาด";
             setScanState("error");
-            setMessage(mismatch
-                ? `Pane อยู่ที่สถานี "${mismatch[1]}" ไม่ใช่สถานีนี้ ("${mismatch[2]}")`
-                : raw);
+            setMessage(msg);
         }
+    }
+
+    async function handleForceConfirm() {
+        if (!mismatchInfo || !station?.name) return;
+        const pn = mismatchInfo.paneNumber;
+        setMismatchInfo(null);
+        await executeScan(pn, true);
+    }
+
+    function handleForceDismiss() {
+        setMismatchInfo(null);
+        setScanState("ready");
+        setMessage("");
     }
 
     useEffect(() => {
@@ -286,6 +358,37 @@ export default function MobilePaneScanPage() {
                     </div>
                 )}
             </div>
+
+            {mismatchInfo && (
+                <Dialog open onOpenChange={(open) => { if (!open) handleForceDismiss(); }}>
+                    <DialogContent showCloseButton={false} className="sm:max-w-md">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                                <AlertTriangle className="h-5 w-5" />
+                                สถานีไม่ตรงกัน
+                            </DialogTitle>
+                            <DialogDescription className="pt-2 space-y-2">
+                                <span className="block">
+                                    Pane นี้อยู่ที่สถานี <strong className="text-foreground">&ldquo;{mismatchInfo.paneStation}&rdquo;</strong>
+                                    {" "}แต่คุณกำลังสแกนที่สถานี <strong className="text-foreground">&ldquo;{mismatchInfo.thisStation}&rdquo;</strong>
+                                </span>
+                                <span className="block text-amber-600 dark:text-amber-400 font-medium">
+                                    คุณแน่ใจหรือไม่ว่าต้องการดำเนินการต่อ?
+                                </span>
+                            </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={handleForceDismiss}>ยกเลิก</Button>
+                            <Button
+                                onClick={handleForceConfirm}
+                                className="bg-amber-600 hover:bg-amber-500 text-white"
+                            >
+                                ดำเนินการต่อ
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+            )}
         </div>
     );
 }

@@ -53,6 +53,7 @@ export const panesApi = {
         station: string;
         action: "scan_in" | "start" | "complete" | "scan_out";
         operator?: string;
+        force?: boolean;
     }): Promise<ApiResponse<{
         pane: Pane;
         log: Record<string, unknown>;

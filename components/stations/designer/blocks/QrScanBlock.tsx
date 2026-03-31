@@ -5,7 +5,7 @@ import { useRef, useState, KeyboardEvent } from "react";
 import {
     ScanLine, Camera, CheckCircle2, XCircle, Loader2, Hash,
     RotateCcw, User, Package, ClipboardList, AlertCircle,
-    ArrowRight, Play, ScanBarcode,
+    ArrowRight, Play, ScanBarcode, AlertTriangle,
 } from "lucide-react";
 import { fetchApi } from "@/lib/api/config";
 import { panesApi } from "@/lib/api/panes";
@@ -14,6 +14,11 @@ import { parseQrScan } from "@/lib/utils/parseQrScan";
 import { usePreview } from "../PreviewContext";
 import { useStationContext } from "../StationContext";
 import { CameraScanModal } from "./CameraScanModal";
+import {
+    Dialog, DialogContent, DialogHeader, DialogTitle,
+    DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 const CONTEXT_SOURCE: Record<string, "request" | "order" | "pane"> = {
     "/requests": "request",
@@ -77,7 +82,7 @@ export function QrScanBlock({
 }: QrScanBlockProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
-    const { stationName, setOrderData, setRequestData, setPaneData, triggerRefresh } = useStationContext();
+    const { stationId, stationName, setOrderData, setRequestData, setPaneData, triggerRefresh } = useStationContext();
     const isScanMode    = dataSource === "/panes/scan";
     const isScanOutMode = dataSource === "/panes/scan-out";
     const contextType   = (isScanMode || isScanOutMode) ? "pane" : (CONTEXT_SOURCE[dataSource] ?? "order");
@@ -100,6 +105,52 @@ export function QrScanBlock({
     const [lastAction, setLastAction] = useState<string | null>(null);
     const [paneNumber, setPaneNumber] = useState<string | null>(null);
 
+    // Station mismatch confirmation
+    const [mismatchInfo, setMismatchInfo] = useState<{
+        paneStation: string;
+        thisStation: string;
+        paneNumber: string;
+        action: "scan_in" | "scan_out";
+    } | null>(null);
+
+    // ── Resolve station name from string or populated object ────────────────────
+    function extractStationName(val: unknown): string {
+        if (!val) return "";
+        if (typeof val === "string") return val;
+        if (typeof val === "object") {
+            const o = val as Record<string, unknown>;
+            return String(o.name ?? o._id ?? "");
+        }
+        return String(val);
+    }
+
+    // ── Pre-check pane's current station before scanning ────────────────────────
+    async function checkStationMismatch(pn: string, action: "scan_in" | "scan_out"): Promise<boolean> {
+        try {
+            const lookupRes = await panesApi.getById(pn);
+            if (lookupRes.success && lookupRes.data) {
+                const paneStationStr = extractStationName(lookupRes.data.currentStation);
+                const isHere = !paneStationStr
+                    || paneStationStr === stationName
+                    || paneStationStr === stationId;
+                if (!isHere) {
+                    setMismatchInfo({
+                        paneStation: paneStationStr,
+                        thisStation: stationName!,
+                        paneNumber: pn,
+                        action,
+                    });
+                    setScanStatus("idle");
+                    if (inputRef.current) inputRef.current.value = "";
+                    return true;
+                }
+            }
+        } catch {
+            // lookup failed — proceed with scan anyway
+        }
+        return false;
+    }
+
     // ── Station scan handler ───────────────────────────────────────────────────
     async function handleStationScan(raw: string) {
         const trimmed = raw.trim();
@@ -121,6 +172,8 @@ export function QrScanBlock({
             return;
         }
 
+        if (await checkStationMismatch(pn, "scan_in")) return;
+
         try {
             const res = await panesApi.scan(pn, { station: stationName, action: "scan_in" });
             if (!res.success) throw new Error(res.message || "สแกนไม่สำเร็จ");
@@ -133,12 +186,7 @@ export function QrScanBlock({
             setMessage("สแกนเข้าสำเร็จ — กดปุ่มด้านล่างเพื่อดำเนินการ");
             if (inputRef.current) inputRef.current.value = "";
         } catch (err: unknown) {
-            const raw = err instanceof Error ? err.message : "เกิดข้อผิดพลาด";
-            // Parse station mismatch: 'Pane is at "X", not "Y"'
-            const mismatch = raw.match(/Pane is at "(.+?)",?\s*not "(.+?)"/i);
-            const msg = mismatch
-                ? `Pane อยู่ที่สถานี "${mismatch[1]}" — ไม่ใช่สถานีนี้ ("${mismatch[2]}")\nต้องสแกนที่สถานี "${mismatch[1]}" ก่อน`
-                : raw;
+            const msg = err instanceof Error ? err.message : "เกิดข้อผิดพลาด";
             setScanStatus("error");
             setMessage(msg);
         }
@@ -208,6 +256,8 @@ export function QrScanBlock({
             return;
         }
 
+        if (await checkStationMismatch(pn, "scan_out")) return;
+
         try {
             const res = await panesApi.scan(pn, { station: stationName, action: "scan_out" });
             if (!res.success) throw new Error(res.message || "สแกนออกไม่สำเร็จ");
@@ -222,14 +272,56 @@ export function QrScanBlock({
                 : "สแกนออกสำเร็จ — ครบทุกสถานีแล้ว");
             if (inputRef.current) inputRef.current.value = "";
         } catch (err: unknown) {
-            const raw = err instanceof Error ? err.message : "เกิดข้อผิดพลาด";
-            const mismatch = raw.match(/Pane is at "(.+?)",?\s*not "(.+?)"/i);
-            const msg = mismatch
-                ? `Pane อยู่ที่สถานี "${mismatch[1]}" — ไม่ใช่สถานีนี้ ("${mismatch[2]}")`
-                : raw;
+            const msg = err instanceof Error ? err.message : "เกิดข้อผิดพลาด";
             setScanStatus("error");
             setMessage(msg);
         }
+    }
+
+    // ── Force confirm/dismiss for station mismatch ────────────────────────────
+    async function handleForceConfirm() {
+        if (!mismatchInfo) return;
+        const { paneNumber: pn, action } = mismatchInfo;
+        setMismatchInfo(null);
+        setPaneNumber(pn);
+        setScanStatus("loading");
+        setMessage("");
+        setScanResult(null);
+        setScannedRecord(null);
+        setLastAction(null);
+
+        try {
+            const res = await panesApi.scan(pn, {
+                station: stationName!,
+                action,
+                force: true,
+            });
+            if (!res.success) throw new Error(res.message || "สแกนไม่สำเร็จ");
+
+            setScanResult(res.data);
+            setPaneData(res.data.pane as unknown as Record<string, unknown>);
+            triggerRefresh();
+            setLastAction(action);
+            setScanStatus("success");
+            setMessage(
+                action === "scan_out"
+                    ? (res.data.nextStation
+                        ? `สแกนออกสำเร็จ → ส่งต่อไปสถานี ${res.data.nextStation}`
+                        : "สแกนออกสำเร็จ — ครบทุกสถานีแล้ว")
+                    : "สแกนเข้าสำเร็จ — กดปุ่มด้านล่างเพื่อดำเนินการ",
+            );
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : "เกิดข้อผิดพลาด";
+            setScanStatus("error");
+            setMessage(msg);
+        }
+    }
+
+    function handleForceDismiss() {
+        setMismatchInfo(null);
+        setScanStatus("idle");
+        setMessage("");
+        setTimeout(() => inputRef.current?.focus(), 50);
     }
 
     // ── Standard lookup handler (unchanged) ────────────────────────────────────
@@ -473,6 +565,37 @@ export function QrScanBlock({
                     {showCamera && (
                         <CameraScanModal onScan={handleCameraScan} onClose={() => setShowCamera(false)} />
                     )}
+
+                    {mismatchInfo && (
+                        <Dialog open onOpenChange={(open) => { if (!open) handleForceDismiss(); }}>
+                            <DialogContent showCloseButton={false} className="sm:max-w-md">
+                                <DialogHeader>
+                                    <DialogTitle className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                                        <AlertTriangle className="h-5 w-5" />
+                                        สถานีไม่ตรงกัน
+                                    </DialogTitle>
+                                    <DialogDescription className="pt-2 space-y-2">
+                                        <span className="block">
+                                            Pane นี้อยู่ที่สถานี <strong className="text-foreground">&ldquo;{mismatchInfo.paneStation}&rdquo;</strong>
+                                            {" "}แต่คุณกำลังสแกนที่สถานี <strong className="text-foreground">&ldquo;{mismatchInfo.thisStation}&rdquo;</strong>
+                                        </span>
+                                        <span className="block text-amber-600 dark:text-amber-400 font-medium">
+                                            คุณแน่ใจหรือไม่ว่าต้องการดำเนินการต่อ?
+                                        </span>
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <DialogFooter>
+                                    <Button variant="outline" onClick={handleForceDismiss}>ยกเลิก</Button>
+                                    <Button
+                                        onClick={handleForceConfirm}
+                                        className="bg-amber-600 hover:bg-amber-500 text-white"
+                                    >
+                                        ดำเนินการต่อ
+                                    </Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
+                    )}
                 </div>
             );
         }
@@ -672,6 +795,37 @@ export function QrScanBlock({
 
                     {showCamera && (
                         <CameraScanModal onScan={handleCameraScan} onClose={() => setShowCamera(false)} />
+                    )}
+
+                    {mismatchInfo && (
+                        <Dialog open onOpenChange={(open) => { if (!open) handleForceDismiss(); }}>
+                            <DialogContent showCloseButton={false} className="sm:max-w-md">
+                                <DialogHeader>
+                                    <DialogTitle className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                                        <AlertTriangle className="h-5 w-5" />
+                                        สถานีไม่ตรงกัน
+                                    </DialogTitle>
+                                    <DialogDescription className="pt-2 space-y-2">
+                                        <span className="block">
+                                            Pane นี้อยู่ที่สถานี <strong className="text-foreground">&ldquo;{mismatchInfo.paneStation}&rdquo;</strong>
+                                            {" "}แต่คุณกำลังสแกนที่สถานี <strong className="text-foreground">&ldquo;{mismatchInfo.thisStation}&rdquo;</strong>
+                                        </span>
+                                        <span className="block text-amber-600 dark:text-amber-400 font-medium">
+                                            คุณแน่ใจหรือไม่ว่าต้องการดำเนินการต่อ?
+                                        </span>
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <DialogFooter>
+                                    <Button variant="outline" onClick={handleForceDismiss}>ยกเลิก</Button>
+                                    <Button
+                                        onClick={handleForceConfirm}
+                                        className="bg-amber-600 hover:bg-amber-500 text-white"
+                                    >
+                                        ดำเนินการต่อ
+                                    </Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
                     )}
                 </div>
             );

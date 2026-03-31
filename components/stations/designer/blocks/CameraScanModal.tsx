@@ -17,6 +17,7 @@ interface CameraScanModalProps {
  */
 export function CameraScanModal({ onScan, onClose }: CameraScanModalProps) {
     const scannerRef = useRef<Html5QrcodeType | null>(null);
+    const scannerRunning = useRef(false);
     const divId = useRef(`qr-reader-${Math.random().toString(36).slice(2)}`);
     const [status, setStatus] = useState<"init" | "scanning" | "error">("init");
     const [errorMsg, setErrorMsg] = useState("");
@@ -27,7 +28,6 @@ export function CameraScanModal({ onScan, onClose }: CameraScanModalProps) {
 
         async function startScanner() {
             try {
-                // Dynamic import to keep initial bundle small
                 const { Html5Qrcode } = await import("html5-qrcode");
                 if (!mounted) return;
 
@@ -40,14 +40,20 @@ export function CameraScanModal({ onScan, onClose }: CameraScanModalProps) {
                     (decodedText: string) => {
                         if (hasScanned.current) return;
                         hasScanned.current = true;
-                        // Vibrate on mobile if supported
                         if ("vibrate" in navigator) navigator.vibrate(100);
                         onScan(decodedText);
                         onClose();
                     },
-                    () => { /* ignore scan failures */ }
+                    () => {}
                 );
-                if (mounted) setStatus("scanning");
+
+                if (!mounted) {
+                    try { await scanner.stop(); } catch {}
+                    try { scanner.clear(); } catch {}
+                    return;
+                }
+                scannerRunning.current = true;
+                setStatus("scanning");
             } catch (err: unknown) {
                 if (!mounted) return;
                 const msg = err instanceof Error ? err.message : String(err);
@@ -65,8 +71,10 @@ export function CameraScanModal({ onScan, onClose }: CameraScanModalProps) {
         return () => {
             mounted = false;
             const scanner = scannerRef.current;
-            if (scanner?.stop) {
-                scanner.stop().then(() => scanner.clear()).catch(() => { });
+            scannerRef.current = null;
+            if (scanner && scannerRunning.current) {
+                scannerRunning.current = false;
+                scanner.stop().then(() => { try { scanner.clear(); } catch {} }).catch(() => { try { scanner.clear(); } catch {} });
             }
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps

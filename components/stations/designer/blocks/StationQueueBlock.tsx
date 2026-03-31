@@ -6,6 +6,7 @@ import {
     ScanBarcode, Camera, CheckCircle2, XCircle, Loader2,
     Package, RotateCcw, ListChecks, MapPin,
     ChevronDown, ChevronRight, Play, CheckCheck, PackageOpen, QrCode,
+    AlertTriangle,
 } from "lucide-react";
 import { panesApi } from "@/lib/api/panes";
 import { Pane } from "@/lib/api/types";
@@ -15,6 +16,11 @@ import { useStationContext } from "../StationContext";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { CameraScanModal } from "./CameraScanModal";
 import { QrCodeModal } from "@/components/qr/QrCodeModal";
+import {
+    Dialog, DialogContent, DialogHeader, DialogTitle,
+    DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface StationQueueBlockProps {
@@ -66,6 +72,13 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
     const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
     /** Pane whose QR code is being displayed */
     const [qrPane, setQrPane] = useState<Pane | null>(null);
+
+    /** Station mismatch confirmation */
+    const [mismatchInfo, setMismatchInfo] = useState<{
+        paneStation: string;
+        thisStation: string;
+        paneNumber: string;
+    } | null>(null);
 
     // ── Fetch in_progress panes at this station ───────────────────────────────
     const fetchPanes = useCallback(async () => {
@@ -127,6 +140,17 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
         return [...map.entries()].map(([orderId, v]) => ({ orderId, label: v.label, panes: v.panes }));
     })();
 
+    // ── Helpers ────────────────────────────────────────────────────────────────
+    function extractStationName(val: unknown): string {
+        if (!val) return "";
+        if (typeof val === "string") return val;
+        if (typeof val === "object") {
+            const o = val as Record<string, unknown>;
+            return String(o.name ?? o._id ?? "");
+        }
+        return String(val);
+    }
+
     // ── Scan → scan_in ───────────────────────────────────────────────────────
     async function handleScan(raw: string) {
         const trimmed = raw.trim();
@@ -142,39 +166,76 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
         // Already in queue (already in_progress)?
         const already = panes.find(p => p.paneNumber === pn || p.paneNumber.endsWith(pn));
         if (already) {
-            // Expand the order group if collapsed, just show a soft hint
             const oid = extractOrderId(already);
             setCollapsed(prev => { const n = new Set(prev); n.delete(oid); return n; });
             setScanError(`"${pn}" อยู่ในคิวแล้ว — ดูในรายการด้านล่าง`);
             return;
         }
 
+        // Pre-check: verify the pane's current station matches this station
+        try {
+            const lookupRes = await panesApi.getById(pn);
+            if (lookupRes.success && lookupRes.data) {
+                const cs = lookupRes.data.currentStation;
+                const paneStationStr = extractStationName(cs);
+                const isHere = !paneStationStr
+                    || paneStationStr === stationName
+                    || paneStationStr === stationId;
+                if (!isHere) {
+                    setMismatchInfo({
+                        paneStation: paneStationStr,
+                        thisStation: stationName,
+                        paneNumber: pn,
+                    });
+                    return;
+                }
+            }
+        } catch {
+            // lookup failed — proceed with scan anyway
+        }
+
+        await executeScanIn(pn);
+    }
+
+    async function executeScanIn(pn: string, force?: boolean) {
         const tempKey = `scan-${pn}`;
         setActionLoading(prev => ({ ...prev, [tempKey]: true }));
         try {
-            const res = await panesApi.scan(pn, { station: stationName, action: "scan_in" });
+            const res = await panesApi.scan(pn, {
+                station: stationName!,
+                action: "scan_in",
+                ...(force ? { force: true } : {}),
+            });
             if (!res.success) throw new Error(res.message ?? "สแกนไม่สำเร็จ");
 
             const scannedPane = res.data.pane;
 
-            // Guard this pane so fetchPanes can't wipe it (currentStation format mismatch protection)
             guardedPanesRef.current.set(scannedPane._id, { ...scannedPane, currentStatus: "in_progress" });
-            // Auto-expire guard after 60 s (in case something goes wrong)
             const pid = scannedPane._id;
             setTimeout(() => { guardedPanesRef.current.delete(pid); }, 60_000);
 
-            // Optimistic update: add pane immediately
             setPanes(prev => prev.some(p => p._id === scannedPane._id) ? prev : [...prev, scannedPane]);
             setPhases(prev => prev[scannedPane._id] ? prev : { ...prev, [scannedPane._id]: "confirmed" });
 
             setPaneData(scannedPane as unknown as Record<string, unknown>);
-            triggerRefresh(); // syncs RecordList pendingPanesOnly filter
+            triggerRefresh();
         } catch (err) {
             const msg = err instanceof Error ? err.message : "เกิดข้อผิดพลาด";
             setScanError(msg);
         } finally {
             setActionLoading(prev => { const n = { ...prev }; delete n[tempKey]; return n; });
         }
+    }
+
+    async function handleMismatchConfirm() {
+        if (!mismatchInfo) return;
+        const pn = mismatchInfo.paneNumber;
+        setMismatchInfo(null);
+        await executeScanIn(pn, true);
+    }
+
+    function handleMismatchDismiss() {
+        setMismatchInfo(null);
     }
 
     function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
@@ -558,6 +619,38 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                     label={`กระจก ${qrPane.paneNumber}`}
                     onClose={() => setQrPane(null)}
                 />
+            )}
+
+            {/* Station mismatch confirmation */}
+            {mismatchInfo && (
+                <Dialog open onOpenChange={(open) => { if (!open) handleMismatchDismiss(); }}>
+                    <DialogContent showCloseButton={false} className="sm:max-w-md">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                                <AlertTriangle className="h-5 w-5" />
+                                สถานีไม่ตรงกัน
+                            </DialogTitle>
+                            <DialogDescription className="pt-2 space-y-2">
+                                <span className="block">
+                                    Pane นี้อยู่ที่สถานี <strong className="text-foreground">&ldquo;{mismatchInfo.paneStation}&rdquo;</strong>
+                                    {" "}แต่คุณกำลังสแกนที่สถานี <strong className="text-foreground">&ldquo;{mismatchInfo.thisStation}&rdquo;</strong>
+                                </span>
+                                <span className="block text-amber-600 dark:text-amber-400 font-medium">
+                                    คุณแน่ใจหรือไม่ว่าต้องการดำเนินการต่อ?
+                                </span>
+                            </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={handleMismatchDismiss}>ยกเลิก</Button>
+                            <Button
+                                onClick={handleMismatchConfirm}
+                                className="bg-amber-600 hover:bg-amber-500 text-white"
+                            >
+                                ดำเนินการต่อ
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             )}
 
         </div>
