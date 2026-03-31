@@ -11,6 +11,7 @@ import { fetchApi } from "@/lib/api/config";
 import { panesApi } from "@/lib/api/panes";
 import { Pane } from "@/lib/api/types";
 import { parseQrScan } from "@/lib/utils/parseQrScan";
+import { isStationMatch } from "@/lib/utils/station-helpers";
 import { usePreview } from "../PreviewContext";
 import { useStationContext } from "../StationContext";
 import { useWebSocket } from "@/lib/hooks/use-socket";
@@ -98,14 +99,11 @@ export function StationHistory({
         if (!stationId && !stationName) return;
         setAwaitingLoading(true);
         try {
-            const res = await panesApi.getAll({ limit: 300 });
-            if (!res.success || !Array.isArray(res.data)) return;
-            const atStation = res.data.filter(p => {
-                const cs = typeof p.currentStation === "object"
-                    ? (p.currentStation as { _id?: string })?._id
-                    : p.currentStation as string;
-                return (cs === stationId || cs === stationName) && p.currentStatus === "awaiting_scan_out";
-            });
+            const res = await panesApi.getAll({ limit: 300 }).catch(() => null);
+            if (!res || !res.success || !Array.isArray(res.data)) return;
+            const atStation = res.data.filter(p =>
+                isStationMatch(p.currentStation, stationId, stationName) && p.currentStatus === "awaiting_scan_out",
+            );
             setAwaitingPanes(atStation);
 
             // Auto-close QR modal if the displayed pane was scanned out
@@ -120,13 +118,12 @@ export function StationHistory({
 
     // ── Fetch production log history ────────────────────────────────────
     const loadHistory = async () => {
-        const station = stationName || stationId;
-        if (!station) { setGroups([]); return; }
+        if (!stationId) { setGroups([]); return; }
         setFetching(true); setError("");
         try {
             const [logsRes, ordersRes] = await Promise.all([
                 fetchApi<{ success: boolean; data: ProductionLog[] } | ProductionLog[]>(
-                    `/production-logs?station=${encodeURIComponent(station)}&limit=300`
+                    `/production-logs?station=${encodeURIComponent(stationId)}&limit=300`
                 ),
                 fetchApi<{ success: boolean; data: Record<string, unknown>[] }>(
                     `/orders?stationId=${encodeURIComponent(stationId ?? "")}`
@@ -212,7 +209,7 @@ export function StationHistory({
         const pn = parsed.type === "pane" ? parsed.value : trimmed.replace(/^STDPLUS:/i, "").trim();
         setScanError(null);
 
-        if (!stationName) { setScanError("ไม่ระบุชื่อสถานี"); return; }
+        if (!stationId) { setScanError("ไม่ระบุสถานี"); return; }
 
         const target = awaitingPanes.find(p => p.paneNumber === pn || p.paneNumber.endsWith(pn));
         if (!target) {
@@ -225,11 +222,11 @@ export function StationHistory({
 
     // ── Per-pane scan_out action ────────────────────────────────────────
     async function doScanOut(pane: Pane) {
-        if (!stationName) { setScanError("ไม่ระบุชื่อสถานี"); return; }
+        if (!stationId) { setScanError("ไม่ระบุสถานี"); return; }
         setActionLoading(prev => ({ ...prev, [pane._id]: true }));
         setActionResult(prev => { const n = { ...prev }; delete n[pane._id]; return n; });
         try {
-            const res = await panesApi.scan(pane.paneNumber, { station: stationName, action: "scan_out" });
+            const res = await panesApi.scan(pane.paneNumber, { station: stationId, action: "scan_out" });
             if (!res.success) throw new Error(res.message ?? "สแกนออกไม่สำเร็จ");
             setActionResult(prev => ({ ...prev, [pane._id]: "success" }));
             setTimeout(() => {

@@ -224,6 +224,7 @@ const FIELD_META: Record<string, Record<string, FieldDef>> = {
         endpoint:   { label: "แหล่งข้อมูล", type: "select",         section: "data",  options: ["context","static","/orders","/requests","/panes","/materials","/workers","/customers","/inventories","/claims","/withdrawals"], optionLabels: ["จากรายการที่เลือก (RecordList)","ตัวอย่าง (ไม่ต้องการ API)","รายการออเดอร์/คำสั่งผลิต","รายการคำขอ (บิล)","รายการกระจก (Pane)","รายการวัสดุ","รายการพนักงาน","รายการลูกค้า","คลังสินค้า","รายการเคลม","รายการเบิกวัสดุ"] },
         idParam:    { label: "URL Param ของ ID", type: "text",        section: "data",  placeholder: "เช่น requestId, orderId", hint: "ชื่อ URL param ที่ใช้ระบุ ID ของรายการ — ไม่จำเป็นถ้าเลือก 'รายการออเดอร์' หรือ 'รายการคำขอ' (ใช้ข้อมูลจาก context อัตโนมัติ)", suggestions: ["requestId","orderId","id"] },
         fieldsJson: { label: "ฟิลด์ที่แสดง", type: "column-editor", section: "data"  },
+        showPaneQr: { label: "กดชิ้นกระจกเพื่อแสดง QR", type: "toggle", section: "action", hint: "เปิดเพื่อให้กดที่ชิ้นกระจกแล้วแสดง QR Code สำหรับพิมพ์" },
     },
     "Station Sequence": {
         title:    { label: "ชื่อหัวข้อ",              type: "text", section: "props", placeholder: "เช่น กำหนดเส้นทางการผลิต" },
@@ -267,6 +268,7 @@ const FIELD_META: Record<string, Record<string, FieldDef>> = {
         showAllRequests:      { label: "แสดงบิลที่ออกออเดอร์แล้วด้วย", type: "toggle", section: "data", hint: "ปกติจะซ่อนบิลที่ออกออเดอร์ไปแล้ว — เปิดตรงนี้ถ้าต้องการดูบิลทุกใบรวมที่ทำไปแล้ว" },
         showQrColumn:         { label: "แสดงปุ่ม QR Code",   type: "toggle", section: "action", hint: "ใส่ปุ่ม QR ในแต่ละแถว — กดเพื่อดู QR code ของออเดอร์นั้น (ใช้สำหรับสแกนที่โรงงาน)" },
         showWorkOrderColumn:  { label: "แสดงปุ่มใบงาน",      type: "toggle", section: "action", hint: "ใส่ปุ่มในแต่ละแถว — กดเพื่อเปิดใบงาน (หน้าสำหรับพิมพ์ QR และรายการชิ้นงาน)" },
+        showPaneQr:           { label: "กดชิ้นกระจกเพื่อแสดง QR", type: "toggle", section: "action", hint: "เปิดเพื่อให้กดที่ชิ้นกระจกแล้วแสดง QR Code สำหรับพิมพ์" },
     },
     Status: {
         label:        { label: "ชื่อหัวข้อ",       type: "text",   section: "props", placeholder: "เช่น สถานะงาน" },

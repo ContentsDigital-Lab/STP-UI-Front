@@ -1,9 +1,25 @@
+export interface Role {
+    _id: string;
+    name: string;
+    slug: string;
+    description?: string;
+    permissions: string[];
+    isSystem: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+
 export interface Worker {
     _id: string;
     name: string;
     username: string;
     position: string;
-    role: "admin" | "manager" | "worker";
+    role: Role | string;
+    notificationPreferences?: {
+        enabled: boolean;
+        volume: number;
+        sounds: Record<string, string>;
+    };
     createdAt: string;
     updatedAt: string;
 }
@@ -95,10 +111,10 @@ export interface Order {
     customer: string | Customer;
     material: string | Material;
     quantity: number;
-    stations: string[];
+    stations: (string | { _id: string; name: string })[];
     currentStationIndex?: number;
     stationHistory?: {
-        station: string;
+        station: string | { _id: string; name: string };
         enteredAt: string;
         exitedAt?: string;
         completedBy?: string;
@@ -113,7 +129,7 @@ export interface Order {
     updatedAt: string;
 }
 
-export type PaneStation = string;
+export type PaneStation = { _id: string; name: string } | string | null;
 
 export interface PaneEdgeTask {
     side: string;
@@ -132,7 +148,7 @@ export interface Pane {
     inventory?: string | Inventory;
     currentStation: PaneStation;
     currentStatus: "pending" | "in_progress" | "completed" | "awaiting_scan_out" | "claimed";
-    routing: string[];
+    routing: (string | { _id: string; name: string })[];
     customRouting: boolean;
     dimensions: { width: number; height: number; thickness: number };
     glassType: string;
@@ -162,7 +178,7 @@ export interface PaneLog {
     order?: string | Order;
     material?: string | Material;
     worker?: string | Worker;
-    station: string;
+    station: string | { _id: string; name: string };
     action: "scan_in" | "start" | "complete" | "scan_out";
     completedAt?: string;
     createdAt: string;
@@ -211,7 +227,7 @@ export interface Claim {
     description: string;
     decision?: "destroy" | "keep";
     defectCode?: "broken" | "chipped" | "dimension_wrong" | "scratch" | "other";
-    defectStation?: string;
+    defectStation?: string | { _id: string; name: string };
     reportedBy: string | Worker;
     approvedBy?: string | Worker;
     pane?: string | Pane;

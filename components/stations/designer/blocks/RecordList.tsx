@@ -3,16 +3,19 @@
 import { useNode } from "@craftjs/core";
 import { useEffect, useRef, useState } from "react";
 import { Database, ChevronRight, ChevronDown, Loader2, AlertCircle, Hash, QrCode as QrCodeIcon, FileText, Package, Printer } from "lucide-react";
+import { QrCodeModal } from "@/components/qr/QrCodeModal";
 import { useRouter } from "next/navigation";
-import { QRCodeSVG } from "qrcode.react";
+
 import { fetchApi } from "@/lib/api/config";
 import { panesApi } from "@/lib/api/panes";
-import { Pane } from "@/lib/api/types";
+import { Pane, PaneStation } from "@/lib/api/types";
 import { usePreview } from "../PreviewContext";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { useStationContext } from "../StationContext";
+import { getStationId, getStationName, isStationMatch } from "@/lib/utils/station-helpers";
+import { getRoleName } from "@/lib/auth/role-utils";
+import type { Role } from "@/lib/api/types";
 import { STATUS_CONFIG } from "./StatusIndicator";
-import { QrCodeModal } from "@/components/qr/QrCodeModal";
 
 const PANE_STATUS_CFG: Record<string, { label: string; dot: string; text: string }> = {
     pending:            { label: "รอ",          dot: "bg-amber-400", text: "text-amber-600" },
@@ -62,6 +65,13 @@ function resolveValue(row: Record<string, unknown>, key: string): unknown {
     const raw = key.split(".").reduce<unknown>((obj, part) =>
         (obj != null && typeof obj === "object") ? (obj as Record<string, unknown>)[part] : undefined
     , row);
+    const lastKey = key.split(".").pop() ?? key;
+    if (lastKey === "currentStation" && raw != null && (typeof raw === "string" || (typeof raw === "object" && !Array.isArray(raw)))) {
+        return getStationName(raw as PaneStation);
+    }
+    if (lastKey === "role" && raw != null && (typeof raw === "string" || (typeof raw === "object" && !Array.isArray(raw)))) {
+        return getRoleName(raw as Role | string);
+    }
     // If value is a populated object (e.g. { _id, name }), extract .name
     if (raw != null && typeof raw === "object" && !Array.isArray(raw)) {
         const obj = raw as Record<string, unknown>;
@@ -120,6 +130,7 @@ interface RecordListProps {
     showAllRequests?:        boolean;   // opt-out: when true, show all requests including processed ones
     /** When true (orders only): eagerly fetch panes and hide orders with 0 pending panes at this station */
     pendingPanesOnly?:       boolean;
+    showPaneQr?:             boolean;
 }
 
 // ── WebSocket room mapping ────────────────────────────────────────────────────
@@ -168,16 +179,20 @@ export function RecordList({
     showWorkOrderColumn     = false,
     showAllRequests         = false,
     pendingPanesOnly        = false,
+    showPaneQr: showPaneQrProp = true,
 }: RecordListProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
     const router    = useRouter();
+    const { selectedRecord, setSelectedRecord, stationId, stationName, refreshCounter, isOrderReleaseStation } = useStationContext();
+
+    const showPaneQr = showPaneQrProp && !isOrderReleaseStation;
+
     const [qrPane, setQrPane] = useState<Pane | null>(null);
     const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
     const [rowPanes, setRowPanes] = useState<Pane[]>([]);
     const [rowPanesLoading, setRowPanesLoading] = useState(false);
     const [showAllPanes, setShowAllPanes] = useState(false);
-    const { selectedRecord, setSelectedRecord, stationId, stationName, refreshCounter } = useStationContext();
     const isApi     = dataSource && dataSource !== "static";
     // PropertiesPanel stores "production" (no slash) — normalise to "/production"
     const navPath   = navigateTo ? (navigateTo.startsWith("/") ? navigateTo : `/${navigateTo}`) : "";
@@ -240,7 +255,8 @@ export function RecordList({
      *  Orders with 0 pending panes are hidden — all their panes have moved to the station queue. */
     const loadPendingPaneCounts = () => {
         if (!effectivePendingOnly || dataSource !== "/orders" || (!stationId && !stationName)) return;
-        panesApi.getAll({ limit: 500 }).then(res => {
+        panesApi.getAll({ limit: 500 }).catch(() => null).then(res => {
+            if (!res) return;
             if (!res.success || !Array.isArray(res.data)) return;
             const counts: Record<string, number> = {};
 
@@ -256,10 +272,7 @@ export function RecordList({
             }
 
             for (const pane of res.data) {
-                const cs = typeof pane.currentStation === "object"
-                    ? (pane.currentStation as { _id?: string })?._id
-                    : pane.currentStation as string;
-                const atStation = cs === stationId || cs === stationName;
+                const atStation = isStationMatch(pane.currentStation, stationId, stationName);
                 if (!atStation || pane.currentStatus !== "pending") continue;
 
                 let orderId = pane.order
@@ -296,7 +309,6 @@ export function RecordList({
     });
 
     useWebSocket("pane", ["pane:updated"], () => {
-        setQrPane(null);
         if (isApi) loadData();
         loadPendingPaneCounts();
         if (!expandedRowId) return;
@@ -349,8 +361,8 @@ export function RecordList({
                 if (!hasStation) return false;
             }
             if (shouldFilterStation && dataSource === "/panes") {
-                const paneStation = r.currentStation;
-                if (paneStation && String(paneStation) !== stationId) return false;
+                const pid = getStationId(r.currentStation as PaneStation);
+                if (pid && pid !== stationId) return false;
             }
             // Hide orders that have no pending panes left at this station
             if (effectivePendingOnly && dataSource === "/orders") {
@@ -358,7 +370,7 @@ export function RecordList({
                 if (!orderId || (pendingCountByOrder[orderId] ?? 0) === 0) return false;
             }
             if (!query) return true;
-            return columns.some((c) => String(r[c.key] ?? "").toLowerCase().includes(query.toLowerCase()));
+            return columns.some((c) => String(resolveValue(r, c.key) ?? "").toLowerCase().includes(query.toLowerCase()));
         })
         .slice(0, maxRows);
 
@@ -497,10 +509,7 @@ export function RecordList({
                                     const isExpanded = expandedRowId === rowObjId;
                                     const PANE_PEEK = 3;
                                     const stationPanes = rowPanes.filter(p => {
-                                        const cs = typeof p.currentStation === "object"
-                                            ? (p.currentStation as { _id?: string })?._id
-                                            : p.currentStation as string;
-                                        const atStation = cs === stationId || cs === stationName;
+                                        const atStation = isStationMatch(p.currentStation, stationId, stationName);
                                         if (!atStation) return false;
                                         if (effectivePendingOnly) return p.currentStatus === "pending";
                                         return true;
@@ -555,14 +564,9 @@ export function RecordList({
                                                             </div>
                                                             {visiblePanes.map(pane => {
                                                                 const st = PANE_STATUS_CFG[pane.currentStatus] ?? { label: pane.currentStatus, dot: "bg-gray-400", text: "text-gray-500" };
-                                                                return (
-                                                                    <button
-                                                                        key={pane._id}
-                                                                        type="button"
-                                                                        onClick={() => setQrPane(pane)}
-                                                                        className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg bg-background border border-border/50 hover:bg-muted/60 hover:border-primary/30 transition-colors cursor-pointer text-left"
-                                                                    >
-                                                                        <QrCodeIcon className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+                                                                const paneContent = (
+                                                                    <>
+                                                                        {showPaneQr ? <QrCodeIcon className="h-3 w-3 text-muted-foreground/50 shrink-0" /> : <Package className="h-3 w-3 text-muted-foreground/50 shrink-0" />}
                                                                         <span className="font-mono text-[11px] font-bold shrink-0">{pane.paneNumber}</span>
                                                                         <span className={`flex items-center gap-1 text-[10px] font-medium ${st.text}`}>
                                                                             <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />
@@ -574,8 +578,17 @@ export function RecordList({
                                                                                 {pane.dimensions.thickness > 0 && ` (${pane.dimensions.thickness}mm)`}
                                                                             </span>
                                                                         )}
-                                                                        <span className="ml-auto text-[10px] text-muted-foreground">{pane.currentStation}</span>
+                                                                        <span className="ml-auto text-[10px] text-muted-foreground">{getStationName(pane.currentStation)}</span>
+                                                                    </>
+                                                                );
+                                                                return showPaneQr ? (
+                                                                    <button key={pane._id} type="button" onClick={() => setQrPane(pane)} className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg bg-background border border-border/50 hover:bg-muted/60 hover:border-primary/30 transition-colors cursor-pointer text-left">
+                                                                        {paneContent}
                                                                     </button>
+                                                                ) : (
+                                                                    <div key={pane._id} className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg bg-background border border-border/50 text-left">
+                                                                        {paneContent}
+                                                                    </div>
                                                                 );
                                                             })}
                                                             {stationPanes.length > PANE_PEEK && (
@@ -603,8 +616,7 @@ export function RecordList({
                     </>
                 )}
             </div>
-            {/* QR modal (pane-level) */}
-            {qrPane && (
+            {showPaneQr && qrPane && (
                 <QrCodeModal
                     code={qrPane.paneNumber}
                     label={[
@@ -720,5 +732,6 @@ RecordList.craft = {
         showQrColumn:            false,
         showWorkOrderColumn:     false,
         pendingPanesOnly:        false,
+        showPaneQr:              true,
     } as RecordListProps,
 };

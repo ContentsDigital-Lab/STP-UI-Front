@@ -1,44 +1,38 @@
-import { Role, Permission } from "../auth/permissions";
-
-// Initial mock data
-let mockRoles: Role[] = [
-  { _id: '1', name: 'Admin', description: 'ผู้ดูแลระบบสูงสุด เข้าถึงได้ทุกส่วน', permissions: ['users:view', 'users:manage', 'roles:manage', 'inventory:view', 'inventory:manage', 'production:view', 'production:manage', 'orders:view', 'orders:create', 'orders:manage', 'settings:view', 'settings:manage'] },
-  { _id: '2', name: 'Manager', description: 'ผู้จัดการโรงงาน จัดการการผลิตและสินค้า', permissions: ['users:view', 'inventory:view', 'inventory:manage', 'production:view', 'production:manage', 'orders:view', 'orders:create', 'orders:manage', 'settings:view'] },
-  { _id: '3', name: 'Worker', description: 'พนักงานทั่วไป เข้าถึงเครื่องมือปฏิบัติงาน', permissions: ['production:view', 'orders:view'] },
-];
+import { fetchApi } from "./config";
+import type { ApiResponse, PaginatedResponse, Role } from "./types";
 
 export const rolesApi = {
-  getAll: async (): Promise<{ success: boolean, data: Role[] }> => {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-    return { success: true, data: [...mockRoles] };
-  },
+    getAll: async (params?: { page?: number; limit?: number }): Promise<PaginatedResponse<Role>> => {
+        const q = new URLSearchParams();
+        if (params?.page) q.set("page", String(params.page));
+        if (params?.limit) q.set("limit", String(params.limit));
+        const qs = q.toString();
+        return fetchApi<PaginatedResponse<Role>>(`/roles${qs ? `?${qs}` : ""}`, { method: "GET" });
+    },
 
-  create: async (data: Partial<Role>): Promise<{ success: boolean, data: Role }> => {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    const newRole: Role = {
-      _id: Math.random().toString(36).substr(2, 9),
-      name: data.name || 'New Role',
-      description: data.description || '',
-      permissions: data.permissions || [],
-    };
-    mockRoles.push(newRole);
-    return { success: true, data: newRole };
-  },
+    getById: async (id: string): Promise<ApiResponse<Role>> => {
+        return fetchApi<ApiResponse<Role>>(`/roles/${id}`, { method: "GET" });
+    },
 
-  update: async (id: string, data: Partial<Role>): Promise<{ success: boolean, data: Role }> => {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    const index = mockRoles.findIndex(r => r._id === id);
-    if (index !== -1) {
-      mockRoles[index] = { ...mockRoles[index], ...data };
-      return { success: true, data: mockRoles[index] };
-    }
-    throw new Error('Role not found');
-  },
+    getPermissions: async (): Promise<ApiResponse<string[]>> => {
+        return fetchApi<ApiResponse<string[]>>("/roles/permissions", { method: "GET" });
+    },
 
-  delete: async (id: string): Promise<{ success: boolean }> => {
-    await new Promise(resolve => setTimeout(resolve, 500));
-    mockRoles = mockRoles.filter(r => r._id !== id);
-    return { success: true };
-  }
+    create: async (data: { name: string; slug: string; permissions: string[] }): Promise<ApiResponse<Role>> => {
+        return fetchApi<ApiResponse<Role>>("/roles", {
+            method: "POST",
+            body: JSON.stringify(data),
+        });
+    },
+
+    update: async (id: string, data: Partial<{ name: string; slug: string; permissions: string[] }>): Promise<ApiResponse<Role>> => {
+        return fetchApi<ApiResponse<Role>>(`/roles/${id}`, {
+            method: "PATCH",
+            body: JSON.stringify(data),
+        });
+    },
+
+    delete: async (id: string): Promise<ApiResponse<unknown>> => {
+        return fetchApi<ApiResponse<unknown>>(`/roles/${id}`, { method: "DELETE" });
+    },
 };

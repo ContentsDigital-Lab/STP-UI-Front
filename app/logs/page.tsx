@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
+import { getStationId, getStationName } from "@/lib/utils/station-helpers";
 import {
     Sheet,
     SheetContent,
@@ -470,8 +471,9 @@ export default function MaterialLogsPage() {
         // Try to get station from pane first (most accurate for current station)
         const pane = log.pane && typeof log.pane === "object" ? log.pane as Pane : null;
         if (pane && pane.currentStation) {
-            const station = stationMap.get(pane.currentStation);
-            const name = station?.name ?? pane.currentStation;
+            const currentId = getStationId(pane.currentStation);
+            const station = currentId ? stationMap.get(currentId) : undefined;
+            const name = station?.name ?? getStationName(pane.currentStation);
             // Color from station config
             const COLOR_MAP: Record<string, { bg: string; text: string; dot: string }> = {
                 red:     { bg: "bg-red-50 dark:bg-red-500/10",     text: "text-red-600 dark:text-red-400",     dot: "bg-red-500" },
@@ -506,10 +508,11 @@ export default function MaterialLogsPage() {
         // Fallback: resolve from order
         const order = log.order && typeof log.order === "object" ? log.order as Order : null;
         if (order && order.stations?.length > 0 && order.currentStationIndex != null) {
-            const stationId = order.stations[order.currentStationIndex];
+            const stationRef = order.stations[order.currentStationIndex];
+            const stationId = getStationId(stationRef);
             if (stationId) {
                 const station = stationMap.get(stationId);
-                const name = station?.name ?? stationId.slice(-6).toUpperCase();
+                const name = (station?.name ?? getStationName(stationRef)) || stationId.slice(-6).toUpperCase();
                 return (
                     <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400">
                         <span className="h-1.5 w-1.5 rounded-full shrink-0 bg-sky-500" />
@@ -1029,12 +1032,10 @@ export default function MaterialLogsPage() {
 
                                             // Resolve station name from stationMap
                                             const resolvedStationName = (() => {
-                                                if (!e.station) return null;
-                                                // Try finding by name match first (e.station is often a name string)
-                                                for (const [, s] of stationMap) {
-                                                    if (s.name === e.station || s._id === e.station) return s.name;
-                                                }
-                                                return e.station;
+                                                if (e.station == null || e.station === "") return null;
+                                                const sid = getStationId(e.station);
+                                                const mapped = sid ? stationMap.get(sid)?.name : undefined;
+                                                return (mapped ?? getStationName(e.station)) || null;
                                             })();
 
                                             return (
@@ -1130,7 +1131,6 @@ export default function MaterialLogsPage() {
                                             // ── Material Log card ──────────────────────────────
                                             if (matLog) {
                                                 const workerName = resolveWorkerName(matLog.worker, workerMap);
-                                                const workerRole = typeof matLog.worker === 'object' && matLog.worker ? (matLog.worker as Worker).role : workerMap.get(String(matLog.worker ?? ''))?.role;
                                                 const ordId = matLog.order ? (typeof matLog.order === "object" ? ((matLog.order as Order)._id ?? "") : String(matLog.order)) : null;
                                                 const stockType = matLog.stockType ?? (matLog.referenceId && !matLog.referenceType ? invMap.get(matLog.referenceId)?.stockType : undefined);
                                                 const moveLocs = getMoveLocations(matLog, moveSourceIds, invMap, parentLogMap, logById);
@@ -1214,7 +1214,7 @@ export default function MaterialLogsPage() {
                                                                 <span className="font-mono text-xs font-medium text-slate-600 dark:text-slate-300 shrink-0">{pane?.paneNumber ?? "—"}</span>
                                                             </div>
                                                             <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
-                                                                <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 px-2 py-0.5 rounded-md">{paneLog.station}</span>
+                                                                <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 px-2 py-0.5 rounded-md">{getStationName(paneLog.station)}</span>
                                                                 {order && (
                                                                     <span className="text-[11px] font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 rounded-md">
                                                                         #{(order._id ?? "").slice(-6).toUpperCase()}

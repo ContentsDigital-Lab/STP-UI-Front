@@ -38,7 +38,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 }
 
                 try {
-                    await authApi.getProfile();
+                    const profileRes = await authApi.getProfile();
+                    if (profileRes.success && profileRes.data) {
+                        const fresh = profileRes.data as Worker;
+                        setUser(fresh);
+                        localStorage.setItem("auth_user", JSON.stringify(fresh));
+                    }
                 } catch {
                     // If 401, fetchApi already cleared auth and triggered redirect.
                     // For other errors (network, 500), stay logged in optimistically.

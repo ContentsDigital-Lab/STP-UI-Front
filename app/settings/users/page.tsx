@@ -3,12 +3,13 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/auth-context";
+import { getRoleName, getRoleSlug, isAdmin, isManagerOrAbove } from "@/lib/auth/role-utils";
 import { workersApi } from "@/lib/api/workers";
 import { ordersApi } from "@/lib/api/orders";
 import { claimsApi } from "@/lib/api/claims";
 import { withdrawalsApi } from "@/lib/api/withdrawals";
-import { Worker, Order, Claim, Withdrawal } from "@/lib/api/types";
-import { Role, Permission, PERMISSION_LABELS } from "@/lib/auth/permissions";
+import { Worker, Order, Claim, Withdrawal, Role } from "@/lib/api/types";
+import { Permission, PERMISSION_LABELS } from "@/lib/auth/permissions";
 import { rolesApi } from "@/lib/api/roles";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -52,23 +53,11 @@ export default function UsersManagementPage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [roleFilter, setRoleFilter] = useState("all");
 
-    // User Edit modal state
+    // Modal & Loading state
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [selectedWorker, setSelectedWorker] = useState<Worker | null>(null);
     const [editRole, setEditRole] = useState<"admin" | "manager" | "worker">("worker");
     const [isSaving, setIsSaving] = useState(false);
-
-    // User Create modal state
-    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-    const [isCreating, setIsCreating] = useState(false);
-    const [createError, setCreateError] = useState("");
-    const [createForm, setCreateForm] = useState({
-        name: "",
-        username: "",
-        password: "",
-        position: "",
-        role: "worker" as "admin" | "manager" | "worker",
-    });
 
     // Delete modal state
     const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -78,18 +67,41 @@ export default function UsersManagementPage() {
     const [linkedOrders, setLinkedOrders] = useState<Order[]>([]);
     const [linkedClaims, setLinkedClaims] = useState<Claim[]>([]);
     const [linkedWithdrawals, setLinkedWithdrawals] = useState<Withdrawal[]>([]);
+    // Create modal state
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [isCreating, setIsCreating] = useState(false);
+    const [createError, setCreateError] = useState("");
+    const [createForm, setCreateForm] = useState({
+        name: "",
+        username: "",
+        password: "",
+        position: "",
+        role: "worker",
+    });
 
     // Role Management state
     const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
     const [editingRole, setEditingRole] = useState<Partial<Role> | null>(null);
 
+    useEffect(() => {
+        if (!isAuthLoading) {
+            if (!isManagerOrAbove(user?.role)) {
+                router.push("/settings");
+            } else {
+                fetchWorkers();
+            }
+        }
+    }, [isAuthLoading, user, router]);
+
     const fetchWorkers = async () => {
         setIsLoading(true);
         try {
-            const response = await workersApi.getAll();
-            if (response.success && response.data) {
-                setWorkers(response.data);
-            }
+            const [workersRes, rolesRes] = await Promise.all([
+                workersApi.getAll(),
+                rolesApi.getAll({ limit: 100 }),
+            ]);
+            if (workersRes.success && workersRes.data) setWorkers(workersRes.data);
+            if (rolesRes.success && rolesRes.data) setRoles(rolesRes.data);
         } catch (error) {
             console.error("Failed to fetch workers:", error);
         } finally {
@@ -97,32 +109,13 @@ export default function UsersManagementPage() {
         }
     };
 
-    const fetchRoles = async () => {
-        try {
-            const response = await rolesApi.getAll();
-            if (response.success && response.data) {
-                setRoles(response.data);
-            }
-        } catch (error) {
-            console.error("Failed to fetch roles:", error);
-        }
-    };
-
-    useEffect(() => {
-        if (!isAuthLoading) {
-            if (user?.role !== "admin" && user?.role !== "manager") {
-                router.push("/settings");
-            } else {
-                fetchWorkers();
-                fetchRoles();
-            }
-        }
-    }, [isAuthLoading, user, router]);
-
-    // --- User Actions ---
+    const roleBySlug = (slug: string) => roles.find(r => r.slug === slug);
     const handleEditClick = (worker: Worker) => {
         setSelectedWorker(worker);
-        setEditRole(worker.role);
+        const slug = getRoleSlug(worker.role);
+        setEditRole(
+            slug === "admin" || slug === "manager" || slug === "worker" ? slug : "worker",
+        );
         setIsEditModalOpen(true);
     };
 
@@ -130,10 +123,13 @@ export default function UsersManagementPage() {
         if (!selectedWorker) return;
         setIsSaving(true);
         try {
-            const response = await workersApi.update(selectedWorker._id, { role: editRole });
+            const targetRole = roleBySlug(editRole);
+            const rolePayload = targetRole ? targetRole._id : editRole;
+            const response = await workersApi.update(selectedWorker._id, { role: rolePayload });
             if (response.success) {
+                const updatedRole = targetRole ?? editRole;
                 setWorkers((prev) =>
-                    prev.map((w) => (w._id === selectedWorker._id ? { ...w, role: editRole } : w))
+                    prev.map((w) => (w._id === selectedWorker._id ? { ...w, role: updatedRole as Role | string } : w))
                 );
                 setIsEditModalOpen(false);
             }
@@ -149,14 +145,16 @@ export default function UsersManagementPage() {
         setIsCreating(true);
         setCreateError("");
         try {
-            const response = await workersApi.create(createForm);
+            const targetRole = roleBySlug(createForm.role);
+            const payload = { ...createForm, role: targetRole ? targetRole._id : createForm.role };
+            const response = await workersApi.create(payload);
             if (response.success && response.data) {
                 setWorkers([response.data, ...workers]);
                 setIsCreateModalOpen(false);
                 setCreateForm({ name: "", username: "", password: "", position: "", role: "worker" });
             }
-        } catch (error: any) {
-            setCreateError(error.message || "Failed to create user");
+        } catch (error: unknown) {
+            setCreateError(error instanceof Error ? error.message : "Failed to create user");
         } finally {
             setIsCreating(false);
         }
@@ -215,11 +213,11 @@ export default function UsersManagementPage() {
         setIsSaving(true);
         try {
             if (editingRole._id) {
-                await rolesApi.update(editingRole._id, editingRole);
+                await rolesApi.update(editingRole._id, editingRole as any);
             } else {
-                await rolesApi.create(editingRole);
+                await rolesApi.create(editingRole as any);
             }
-            fetchRoles();
+            fetchWorkers(); // Refresh both workers and roles
             setIsRoleModalOpen(false);
         } catch (error) {
             console.error("Failed to save role:", error);
@@ -234,7 +232,7 @@ export default function UsersManagementPage() {
         const matchesSearch =
             worker.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             worker.username.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesRole = roleFilter === "all" || worker.role === roleFilter;
+        const matchesRole = roleFilter === "all" || getRoleSlug(worker.role) === roleFilter;
         return matchesSearch && matchesRole;
     });
 
@@ -294,6 +292,7 @@ export default function UsersManagementPage() {
                 </TabsList>
 
                 <TabsContent value="users" className="space-y-6">
+                    {/* Filters */}
                     <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                         <div className="flex flex-col sm:flex-row items-end gap-3">
                             <div className="flex-1 space-y-1.5">
@@ -318,55 +317,232 @@ export default function UsersManagementPage() {
                         </div>
                     </div>
 
-                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className="px-4">ชื่อ</TableHead>
-                                    <TableHead>Username</TableHead>
-                                    <TableHead>ตำแหน่ง</TableHead>
-                                    <TableHead>บทบาท</TableHead>
-                                    <TableHead className="text-right pr-4">จัดการ</TableHead>
+            {/* Table */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                <Table>
+                    <TableHeader>
+                        <TableRow className="border-slate-100 dark:border-slate-800 hover:bg-transparent">
+                            <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 px-4 h-10">ชื่อ</TableHead>
+                            <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">Username</TableHead>
+                            <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">ตำแหน่ง</TableHead>
+                            <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">บทบาท</TableHead>
+                            <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10 text-right pr-4">จัดการ</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {filteredWorkers.length === 0 ? (
+                            <TableRow>
+                                <TableCell colSpan={5} className="py-16 text-center border-none">
+                                    <div className="flex flex-col items-center gap-2">
+                                        <div className="h-12 w-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                                            <Search className="h-6 w-6 text-slate-400 dark:text-slate-500" />
+                                        </div>
+                                        <p className="text-sm text-slate-500 dark:text-slate-400">ไม่พบผู้ใช้</p>
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                        ) : (
+                            filteredWorkers.map((worker) => (
+                                <TableRow key={worker._id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 border-slate-100 dark:border-slate-800">
+                                    <TableCell className="font-medium text-sm text-slate-900 dark:text-white py-3.5 px-4">{worker.name}</TableCell>
+                                    <TableCell className="text-sm text-slate-500 dark:text-slate-400 py-3.5">{worker.username}</TableCell>
+                                    <TableCell className="text-sm text-slate-600 dark:text-slate-300 py-3.5">{worker.position}</TableCell>
+                                    <TableCell className="py-3.5">
+                                        <Badge variant="outline" className={`text-xs font-medium px-2 py-0.5 rounded-md border-0 ${getRoleBadgeColor(getRoleSlug(worker.role))}`}>
+                                            {getRoleName(worker.role)}
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell className="text-right py-3.5 pr-4">
+                                        <div className="flex justify-end gap-1">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="rounded-lg h-8 w-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                                    onClick={() => handleEditClick(worker)}
+                                                    disabled={isSelf(worker._id) || (!isAdmin(user?.role) && getRoleSlug(worker.role) === "admin")}
+                                                    title={isSelf(worker._id) ? "ไม่สามารถแก้ไขตัวเองได้" : !isAdmin(user?.role) && getRoleSlug(worker.role) === "admin" ? "ไม่สามารถแก้ไข Admin ได้" : "แก้ไขบทบาท"}
+                                                >
+                                                <Edit className="h-4 w-4 text-slate-500" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="rounded-lg h-8 w-8 p-0 hover:bg-red-50 dark:hover:bg-red-950"
+                                                onClick={() => handleDeleteClick(worker)}
+                                                disabled={isSelf(worker._id) || (!isAdmin(user?.role) && getRoleSlug(worker.role) === "admin")}
+                                                title={isSelf(worker._id) ? "ไม่สามารถลบตัวเองได้" : "ลบผู้ใช้"}
+                                            >
+                                                <Trash2 className="h-4 w-4 text-red-500" />
+                                            </Button>
+                                        </div>
+                                    </TableCell>
                                 </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {filteredWorkers.map((worker) => (
-                                    <TableRow key={worker._id}>
-                                        <TableCell className="font-medium px-4">{worker.name}</TableCell>
-                                        <TableCell>{worker.username}</TableCell>
-                                        <TableCell>{worker.position}</TableCell>
-                                        <TableCell>
-                                            <Badge variant="outline" className={`border-0 ${getRoleBadgeColor(worker.role)}`}>
-                                                {worker.role.toUpperCase()}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell className="text-right pr-4">
-                                            <div className="flex justify-end gap-1">
-                                                <Button variant="ghost" size="sm" onClick={() => handleEditClick(worker)} disabled={isSelf(worker._id)}><Edit className="h-4 w-4" /></Button>
-                                                <Button variant="ghost" size="sm" onClick={() => handleDeleteClick(worker)} disabled={isSelf(worker._id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
-                                            </div>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
+                            ))
+                        )}
+                    </TableBody>
+                </Table>
+                </div>
+            </div>
+            </TabsContent>
+
+            <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+                <DialogContent className="sm:max-w-[425px] rounded-2xl border-slate-200 dark:border-slate-800 p-0 bg-white dark:bg-slate-950">
+                    <div className="px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
+                        <DialogHeader>
+                            <DialogTitle className="text-xl font-semibold text-slate-900 dark:text-white">แก้ไขบทบาท</DialogTitle>
+                            <DialogDescription className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                                เปลี่ยนสิทธิ์การเข้าถึงสำหรับ {selectedWorker?.name}
+                            </DialogDescription>
+                        </DialogHeader>
                     </div>
-                </TabsContent>
+                    <div className="px-6 py-5 space-y-4">
+                        <div className="space-y-1.5">
+                            <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">บทบาท</Label>
+                            <Select
+                                value={editRole}
+                                onValueChange={(val) => {
+                                    if (val) setEditRole(val as "admin" | "manager" | "worker");
+                                }}
+                            >
+                                <SelectTrigger className="h-10 rounded-xl text-sm border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+                                    <SelectValue placeholder="เลือกบทบาท" />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
+                                    {isAdmin(user?.role) && <SelectItem value="admin">Admin</SelectItem>}
+                                    <SelectItem value="manager">Manager</SelectItem>
+                                    <SelectItem value="worker">Worker</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <p className="text-xs text-slate-400 mt-2">
+                                {editRole === "admin" && "มีสิทธิ์เข้าถึงทุกส่วนของระบบ"}
+                                {editRole === "manager" && "ดูข้อมูลและจัดการพนักงานได้ แต่ไม่สามารถจัดการ Admin"}
+                                {editRole === "worker" && "เข้าถึงเครื่องมือปฏิบัติงานมาตรฐาน"}
+                            </p>
+                        </div>
+                    </div>
+                    <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2">
+                        <Button variant="ghost" className="rounded-xl h-10 text-sm text-slate-500 hover:text-slate-900 dark:hover:text-white px-4" onClick={() => setIsEditModalOpen(false)}>
+                            ยกเลิก
+                        </Button>
+                        <Button
+                            onClick={handleSaveRole}
+                            disabled={isSaving || (!isAdmin(user?.role) && editRole === "admin")}
+                            className="rounded-xl h-10 min-w-[120px] bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white text-sm font-bold shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0"
+                        >
+                            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            บันทึก
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isCreateModalOpen} onOpenChange={(open) => { setIsCreateModalOpen(open); if (!open) setCreateError(""); }}>
+                <DialogContent className="sm:max-w-[520px] rounded-2xl border-slate-200 dark:border-slate-800 p-0 bg-white dark:bg-slate-950 max-h-[90vh] overflow-y-auto">
+                    <div className="px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
+                        <DialogHeader>
+                            <DialogTitle className="text-xl font-semibold text-slate-900 dark:text-white">เพิ่มผู้ใช้ใหม่</DialogTitle>
+                            <DialogDescription className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                                สร้างบัญชีผู้ใช้ใหม่สำหรับระบบ
+                            </DialogDescription>
+                        </DialogHeader>
+                    </div>
+                    <div className="px-6 py-5 space-y-5">
+                        <div className="space-y-1.5">
+                            <Label htmlFor="create-name" className="text-sm font-medium text-slate-700 dark:text-slate-300">ชื่อ-นามสกุล <span className="text-red-400">*</span></Label>
+                            <Input
+                                id="create-name"
+                                placeholder="เช่น สมชาย ใจดี"
+                                className="h-10 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-sm"
+                                value={createForm.name}
+                                onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <Label htmlFor="create-username" className="text-sm font-medium text-slate-700 dark:text-slate-300">Username <span className="text-red-400">*</span></Label>
+                                <Input
+                                    id="create-username"
+                                    placeholder="เช่น somchai"
+                                    className="h-10 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-sm"
+                                    value={createForm.username}
+                                    onChange={(e) => setCreateForm({ ...createForm, username: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label htmlFor="create-password" className="text-sm font-medium text-slate-700 dark:text-slate-300">รหัสผ่าน <span className="text-red-400">*</span></Label>
+                                <Input
+                                    id="create-password"
+                                    type="password"
+                                    placeholder="อย่างน้อย 6 ตัวอักษร"
+                                    minLength={6}
+                                    className="h-10 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-sm"
+                                    value={createForm.password}
+                                    onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
+                                />
+                                {createForm.password.length > 0 && createForm.password.length < 6 && (
+                                    <p className="text-xs text-amber-500">
+                                        ต้องการอีก {6 - createForm.password.length} ตัวอักษร
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <Label htmlFor="create-position" className="text-sm font-medium text-slate-700 dark:text-slate-300">ตำแหน่ง <span className="text-red-400">*</span></Label>
+                                <Input
+                                    id="create-position"
+                                    placeholder="เช่น Operator"
+                                    className="h-10 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-sm"
+                                    value={createForm.position}
+                                    onChange={(e) => setCreateForm({ ...createForm, position: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label htmlFor="create-role" className="text-sm font-medium text-slate-700 dark:text-slate-300">บทบาท</Label>
+                                <Select
+                                    value={createForm.role}
+                                    onValueChange={(val) => {
+                                        if (val) setCreateForm({ ...createForm, role: val as "admin" | "manager" | "worker" });
+                                    }}
+                                >
+                                    <SelectTrigger className="h-10 rounded-xl text-sm border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+                                        <SelectValue placeholder="เลือกบทบาท" />
+                                    </SelectTrigger>
+                                    <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
+                                        {isAdmin(user?.role) && <SelectItem value="admin">Admin</SelectItem>}
+                                        <SelectItem value="manager">Manager</SelectItem>
+                                        <SelectItem value="worker">Worker</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                    </div>
+                    <DialogFooter className="px-6 py-4 border-t border-slate-100 dark:border-slate-800">
+                        <Button variant="ghost" className="rounded-xl" onClick={() => setIsCreateModalOpen(false)}>ยกเลิก</Button>
+                        <Button onClick={handleCreateUser} disabled={isCreating} className="rounded-xl bg-blue-600 text-white font-bold px-6">สร้างบัญชี</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
                 <TabsContent value="roles" className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {roles.map((role) => (
                         <div key={role._id} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm hover:border-blue-200 transition-all group">
                             <div className="flex items-start justify-between mb-3">
-                                <div>
-                                    <h3 className="font-bold text-slate-900 dark:text-white group-hover:text-blue-600 transition-colors uppercase tracking-tight">{role.name}</h3>
-                                    <p className="text-xs text-slate-500 line-clamp-2">{role.description || "ไม่มีคำอธิบาย"}</p>
+                                <div className="flex-1 min-w-0">
+                                    <h3 className="font-bold text-slate-900 dark:text-white group-hover:text-blue-600 transition-colors uppercase tracking-tight truncate">{role.name}</h3>
+                                    <p className="text-xs text-slate-500 line-clamp-2 mt-1">{role.description || "ไม่มีคำอธิบาย"}</p>
                                 </div>
-                                <Button variant="ghost" size="sm" onClick={() => handleEditRole(role)}><Edit className="h-4 w-4 text-slate-400 group-hover:text-blue-500" /></Button>
+                                <Button variant="ghost" size="sm" onClick={() => handleEditRole(role)} className="h-8 w-8 p-0 shrink-0 ml-2">
+                                    <Edit className="h-4 w-4 text-slate-400 group-hover:text-blue-500" />
+                                </Button>
                             </div>
                             <div className="flex flex-wrap gap-1 mt-2">
                                 {role.permissions.slice(0, 3).map(p => (
-                                    <Badge key={p} variant="secondary" className="text-[9px] font-normal px-1.5 py-0">
-                                        {PERMISSION_LABELS[p]?.label || p}
+                                    <Badge key={p} variant="secondary" className="text-[9px] font-normal px-1.5 py-0 whitespace-nowrap">
+                                        {(PERMISSION_LABELS as any)[p]?.label || p}
                                     </Badge>
                                 ))}
                                 {role.permissions.length > 3 && (
@@ -380,7 +556,7 @@ export default function UsersManagementPage() {
 
             {/* Role Editor Modal */}
             <Dialog open={isRoleModalOpen} onOpenChange={setIsRoleModalOpen}>
-                <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden flex flex-col max-h-[90vh]">
+                <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden flex flex-col max-h-[90vh] bg-white dark:bg-slate-950">
                     <div className="px-6 pt-6 pb-4 border-b">
                         <DialogTitle>{editingRole?._id ? "แก้ไขบทบาท" : "สร้างบทบาทใหม่"}</DialogTitle>
                     </div>
@@ -388,15 +564,15 @@ export default function UsersManagementPage() {
                         <div className="grid gap-4">
                             <div className="space-y-1.5">
                                 <Label>ชื่อบทบาท</Label>
-                                <Input value={editingRole?.name} onChange={(e) => setEditingRole({ ...editingRole, name: e.target.value })} placeholder="เช่น Senior Admin" />
+                                <Input value={editingRole?.name || ""} onChange={(e) => setEditingRole({ ...editingRole, name: e.target.value })} placeholder="เช่น Senior Admin" className="rounded-xl" />
                             </div>
                             <div className="space-y-1.5">
                                 <Label>คำอธิบาย</Label>
-                                <Input value={editingRole?.description} onChange={(e) => setEditingRole({ ...editingRole, description: e.target.value })} placeholder="จัดการทุกอย่างในระบบ" />
+                                <Input value={editingRole?.description || ""} onChange={(e) => setEditingRole({ ...editingRole, description: e.target.value })} placeholder="คำอธิบายสั้นๆ" className="rounded-xl" />
                             </div>
                         </div>
                         <div className="space-y-4">
-                            <h4 className="text-sm font-bold flex items-center gap-2 text-slate-900 dark:text-white">
+                            <h4 className="text-sm font-bold flex items-center gap-2">
                                 <ShieldAlert className="h-4 w-4 text-blue-500" />
                                 สิทธิ์การใช้งาน
                             </h4>
@@ -407,13 +583,10 @@ export default function UsersManagementPage() {
                                         {perms.map((p) => (
                                             <div 
                                                 key={p.key} 
-                                                className={`flex items-center gap-3 p-2.5 rounded-xl border transition-colors cursor-pointer ${editingRole?.permissions?.includes(p.key) ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800' : 'hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                                                className={`flex items-center gap-3 p-2.5 rounded-xl border transition-colors cursor-pointer ${editingRole?.permissions?.includes(p.key) ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/20' : ''}`}
                                                 onClick={() => handleTogglePermission(p.key)}
                                             >
-                                                <Checkbox 
-                                                    checked={editingRole?.permissions?.includes(p.key)} 
-                                                    onCheckedChange={() => handleTogglePermission(p.key)} 
-                                                />
+                                                <Checkbox checked={editingRole?.permissions?.includes(p.key)} onCheckedChange={() => handleTogglePermission(p.key)} />
                                                 <div className="flex flex-col">
                                                     <span className="text-xs font-semibold">{p.label}</span>
                                                     <span className="text-[9px] text-slate-500">{p.description}</span>
@@ -425,89 +598,26 @@ export default function UsersManagementPage() {
                             ))}
                         </div>
                     </div>
-                    <div className="px-6 py-4 border-t flex justify-end gap-2 bg-slate-50 dark:bg-slate-900/50">
-                        <Button variant="ghost" onClick={() => setIsRoleModalOpen(false)}>ยกเลิก</Button>
-                        <Button 
-                            onClick={handleSaveRoleData} 
-                            disabled={isSaving || !editingRole?.name} 
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-6"
-                        >
-                            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            บันทึกบทบาท
-                        </Button>
-                    </div>
-                </DialogContent>
-            </Dialog>
-
-            {/* Standard Modals (User Create, Edit, Delete) */}
-            <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-                <DialogContent className="sm:max-w-[450px]">
-                    <DialogTitle>เพิ่มผู้ใช้ใหม่</DialogTitle>
-                    <div className="grid gap-4 py-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <Input placeholder="ชื่อ-นามสกุล" value={createForm.name} onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })} />
-                            <Input placeholder="Username" value={createForm.username} onChange={(e) => setCreateForm({ ...createForm, username: e.target.value })} />
-                        </div>
-                        <Input placeholder="รหัสผ่าน" type="password" value={createForm.password} onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })} />
-                        <div className="grid grid-cols-2 gap-4">
-                            <Input placeholder="ตำแหน่ง" value={createForm.position} onChange={(e) => setCreateForm({ ...createForm, position: e.target.value })} />
-                            <Select value={createForm.role} onValueChange={(val: any) => setCreateForm({...createForm, role: val})}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="admin">Admin</SelectItem>
-                                    <SelectItem value="manager">Manager</SelectItem>
-                                    <SelectItem value="worker">Worker</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-                    <DialogFooter>
-                        <Button onClick={handleCreateUser} disabled={isCreating} className="w-full bg-blue-600 text-white">สร้างบัญชีผู้ใช้</Button>
+                    <DialogFooter className="px-6 py-4 border-t bg-slate-50 dark:bg-slate-900/50">
+                        <Button variant="ghost" className="rounded-xl" onClick={() => setIsRoleModalOpen(false)}>ยกเลิก</Button>
+                        <Button onClick={handleSaveRoleData} disabled={isSaving || !editingRole?.name} className="bg-blue-600 text-white rounded-xl px-6 font-bold">บันทึกบทบาท</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
-            <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-                <DialogContent className="sm:max-w-[400px]">
-                    <DialogTitle>เปลี่ยนบทบาท: {selectedWorker?.name}</DialogTitle>
-                    <div className="py-6">
-                        <Select value={editRole} onValueChange={(val: any) => setEditRole(val)}>
-                            <SelectTrigger className="h-12 text-lg"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="admin">Admin</SelectItem>
-                                <SelectItem value="manager">Manager</SelectItem>
-                                <SelectItem value="worker">Worker</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <DialogFooter>
-                        <Button onClick={handleSaveRole} disabled={isSaving} className="w-full bg-blue-600 text-white font-bold h-11 rounded-xl">บันทึกการเปลี่ยนแปลง</Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
+            {/* Delete Confirmation Modal */}
             <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
-                <DialogContent className="sm:max-w-[400px]">
-                    <DialogHeader>
+                <DialogContent className="sm:max-w-[400px] rounded-2xl p-0 overflow-hidden bg-white dark:bg-slate-950">
+                    <div className="p-6">
                         <DialogTitle className="text-red-600 flex items-center gap-2">
                             <Trash2 className="h-5 w-5" />
                             ยืนยันการลบผู้ใช้
                         </DialogTitle>
-                        <DialogDescription>
-                            คุณแน่ใจหรือไม่ว่าต้องการลบผู้ใช้ <span className="font-bold text-slate-900 dark:text-white">{deletingWorker?.name}</span>?
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="py-4">
-                        <p className="text-sm text-slate-500">การดำเนินการนี้ไม่สามารถย้อนคืนได้ และข้อมูลที่เกี่ยวข้องกับผู้ใช้นี้อาจได้รับผลกระทบ</p>
-                        {deleteError && (
-                            <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs rounded-lg border border-red-100 dark:border-red-800">
-                                {deleteError}
-                            </div>
-                        )}
+                        <DialogDescription className="mt-2">ต้องการลบผู้ใช้ <span className="font-bold">{deletingWorker?.name}</span> ใช่หรือไม่?</DialogDescription>
                     </div>
-                    <DialogFooter className="gap-2">
-                        <Button variant="outline" onClick={() => setIsDeleteOpen(false)} disabled={isDeleting} className="rounded-xl">ยกเลิก</Button>
-                        <Button onClick={handleConfirmDelete} disabled={isDeleting} className="bg-red-600 hover:bg-red-700 text-white rounded-xl px-6">
+                    <DialogFooter className="px-6 py-4 bg-slate-50 dark:bg-slate-900/50 border-t">
+                        <Button variant="ghost" className="rounded-xl" onClick={() => setIsDeleteOpen(false)}>ยกเลิก</Button>
+                        <Button variant="destructive" className="rounded-xl font-bold" onClick={handleConfirmDelete} disabled={isDeleting}>
                             {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             ลบผู้ใช้
                         </Button>

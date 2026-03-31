@@ -15,6 +15,7 @@ import { stationsApi } from "@/lib/api/stations";
 import { panesApi } from "@/lib/api/panes";
 import { Station, Pane } from "@/lib/api/types";
 import { parseQrScan } from "@/lib/utils/parseQrScan";
+import { getStationId, getStationName, isStationMatch } from "@/lib/utils/station-helpers";
 import type { Html5Qrcode as Html5QrcodeType } from "html5-qrcode";
 
 type ScanState = "ready" | "scanning" | "processing" | "success" | "error";
@@ -116,16 +117,6 @@ export default function MobilePaneScanPage() {
         try { scanner.clear(); } catch {}
     }
 
-    function extractStationName(val: unknown): string {
-        if (!val) return "";
-        if (typeof val === "string") return val;
-        if (typeof val === "object") {
-            const o = val as Record<string, unknown>;
-            return String(o.name ?? o._id ?? "");
-        }
-        return String(val);
-    }
-
     async function handlePaneScan(raw: string) {
         await stopCamera();
         setScanState("processing");
@@ -136,7 +127,7 @@ export default function MobilePaneScanPage() {
             ? parsed.value
             : raw.trim().replace(/^STDPLUS:/i, "").trim();
 
-        if (!station?.name) {
+        if (!stationId) {
             setScanState("error");
             setMessage("ไม่สามารถระบุสถานีได้");
             return;
@@ -145,14 +136,12 @@ export default function MobilePaneScanPage() {
         try {
             const lookupRes = await panesApi.getById(paneNumber);
             if (lookupRes.success && lookupRes.data) {
-                const paneStationStr = extractStationName(lookupRes.data.currentStation);
-                const isHere = !paneStationStr
-                    || paneStationStr === station.name
-                    || paneStationStr === stationId;
+                const cs = lookupRes.data.currentStation;
+                const isHere = !cs || isStationMatch(cs, stationId, station?.name);
                 if (!isHere) {
                     setMismatchInfo({
-                        paneStation: paneStationStr,
-                        thisStation: station.name,
+                        paneStation: getStationName(cs),
+                        thisStation: station?.name ?? stationId,
                         paneNumber,
                     });
                     setScanState("ready");
@@ -173,18 +162,20 @@ export default function MobilePaneScanPage() {
 
         try {
             const res = await panesApi.scan(paneNumber, {
-                station: station!.name,
+                station: stationId,
                 action: "complete",
                 ...(force ? { force: true } : {}),
             });
             if (!res.success) throw new Error(res.message || "สแกนไม่สำเร็จ");
 
             setScannedPane(res.data.pane);
-            setNextStation(res.data.nextStation ?? null);
+            const ns = res.data.nextStation ?? null;
+            setNextStation(ns ? (typeof ns === "object" ? (ns as { name?: string }).name ?? String(ns) : ns) : null);
             setCompletedCount((c) => c + 1);
             setScanState("success");
-            setMessage(res.data.nextStation
-                ? `เสร็จสิ้น → ส่งต่อไปสถานี ${res.data.nextStation}`
+            const nextName = ns ? getStationName(ns as string | { _id: string; name: string }) : null;
+            setMessage(nextName
+                ? `เสร็จสิ้น → ส่งต่อไปสถานี ${nextName}`
                 : "เสร็จสิ้น — ครบทุกสถานีแล้ว");
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : "เกิดข้อผิดพลาด";
@@ -194,7 +185,7 @@ export default function MobilePaneScanPage() {
     }
 
     async function handleForceConfirm() {
-        if (!mismatchInfo || !station?.name) return;
+        if (!mismatchInfo || !stationId) return;
         const pn = mismatchInfo.paneNumber;
         setMismatchInfo(null);
         await executeScan(pn, true);

@@ -16,6 +16,7 @@ import { paneLogsApi } from "@/lib/api/pane-logs";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { getColorOption } from "@/lib/stations/stations-store";
 import { Order, OrderRequest, Station, Pane, PaneLog } from "@/lib/api/types";
+import { getStationId, getStationName, isStationMatch } from "@/lib/utils/station-helpers";
 
 // ── status config ─────────────────────────────────────────────────────────────
 const ORDER_STATUS = {
@@ -82,24 +83,22 @@ function StationJourney({
     const total       = panes.length;
 
     const stationIdxMap = new Map<string, number>();
-    stationIds.forEach((sid, i) => {
-        stationIdxMap.set(sid, i);
-        const s = stationMap.get(sid);
+    stationIds.forEach((ref, i) => {
+        const sid = getStationId(ref);
+        if (sid) stationIdxMap.set(sid, i);
+        const nm = getStationName(ref);
+        if (nm) stationIdxMap.set(nm, i);
+        const s = sid ? stationMap.get(sid) : undefined;
         if (s?.name) stationIdxMap.set(s.name, i);
     });
     const stStats = new Map<string, { here: number; passed: number }>();
-    for (const sidOrObj of stationIds) {
-        const sid = typeof sidOrObj === "object" ? (sidOrObj as any)._id : sidOrObj;
-        stStats.set(sid, { here: 0, passed: 0 });
-    }
+    for (const ref of stationIds) stStats.set(getStationId(ref), { here: 0, passed: 0 });
     if (total > 0) {
         for (const p of panes) {
-            const pIdx = stationIdxMap.get(p.currentStation) ?? -1;
+            const pIdx = stationIdxMap.get(getStationId(p.currentStation)) ?? -1;
             const done = p.currentStatus === "completed";
             for (let i = 0; i < stationIds.length; i++) {
-                const sidOrObj = stationIds[i];
-                const sid = typeof sidOrObj === "object" ? (sidOrObj as any)._id : sidOrObj;
-                const s = stStats.get(sid)!;
+                const s = stStats.get(getStationId(stationIds[i]))!;
                 if (done || pIdx > i) s.passed++;
                 else if (pIdx === i) s.here++;
             }
@@ -119,9 +118,9 @@ function StationJourney({
 
     return (
         <div className="relative w-full">
-            {stationIds.map((sidOrObj, idx) => {
-                const sid      = typeof sidOrObj === "object" ? (sidOrObj as any)._id : sidOrObj;
-                const station  = stationMap.get(sid);
+            {stationIds.map((ref, idx) => {
+                const sid      = getStationId(ref);
+                const station  = sid ? stationMap.get(sid) : undefined;
                 const colorId  = station?.colorId ?? "sky";
                 const color    = getColorOption(colorId);
                 const st       = stStats.get(sid) ?? { here: 0, passed: 0 };
@@ -144,7 +143,7 @@ function StationJourney({
                 const active   = isPast || isCur;
 
                 return (
-                    <div key={sid} className="relative flex items-stretch gap-3 w-full">
+                    <div key={sid || `st-${idx}`} className="relative flex items-stretch gap-3 w-full">
                         {/* Left: Timeline Container */}
                         <div className="relative flex flex-col items-center justify-center shrink-0 w-10">
                             {!isFirst && (
@@ -184,7 +183,7 @@ function StationJourney({
                         {/* Right: Station Card */}
                         <div className="flex-1 min-w-0 py-1.5">
                             <div
-                                onClick={() => router.push(`/stations/${sid}?orderId=${order._id}`)}
+                                onClick={() => sid && router.push(`/stations/${sid}?orderId=${order._id}`)}
                                 className={`rounded-xl p-3.5 transition-all cursor-pointer hover:shadow-lg hover:scale-[1.01] ${
                                     isCur
                                         ? "bg-white dark:bg-slate-900 shadow-md border-2"
@@ -215,7 +214,7 @@ function StationJourney({
                                                                   "text-slate-800 dark:text-white"
                                                 }`}
                                             >
-                                                {station?.name ?? sid}
+                                                {station?.name ?? getStationName(ref) ?? sid}
                                             </span>
                                             {!isCancelled && total > 0 ? (
                                                 <div className="text-[11px] font-semibold mt-0.5 flex items-center gap-1">
@@ -324,17 +323,22 @@ function PaneDetailModal({
 
     const stationLogsMap = new Map<string, { scan_in?: PaneLog; start?: PaneLog; complete?: PaneLog }>();
     for (const log of logs) {
-        const logStation = String(log.station ?? "");
-        for (const sid of routing) {
-            // sid is a station name string; also resolve via maps for fallback
-            const stById   = stationMap.get(sid);
-            const stByName = stationByName.get(sid);
-            const stationName = stById?.name ?? stByName?.name ?? sid;
-            const stationId   = stById?._id ?? stByName?._id ?? "";
+        for (let routeIdx = 0; routeIdx < routing.length; routeIdx++) {
+            const routeRef = routing[routeIdx];
+            const rid = getStationId(routeRef);
+            const rname = getStationName(routeRef);
+            const stById = rid ? stationMap.get(rid) : undefined;
+            const stByName = rname ? stationByName.get(rname) : undefined;
+            const stationName = stById?.name ?? stByName?.name ?? rname ?? rid;
+            const stationId = stById?._id ?? stByName?._id ?? rid;
 
-            if (logStation === sid || logStation === stationName || logStation === stationId) {
-                if (!stationLogsMap.has(sid)) stationLogsMap.set(sid, {});
-                const entry = stationLogsMap.get(sid)!;
+            const mapKey = rid || `routing-${routeIdx}`;
+            if (
+                isStationMatch(log.station, stationId, stationName)
+                || isStationMatch(log.station, rid, rname)
+            ) {
+                if (!stationLogsMap.has(mapKey)) stationLogsMap.set(mapKey, {});
+                const entry = stationLogsMap.get(mapKey)!;
                 if (log.action === "scan_in" && !entry.scan_in) entry.scan_in = log;
                 if (log.action === "start" && !entry.start) entry.start = log;
                 if (log.action === "complete" && !entry.complete) entry.complete = log;
@@ -343,29 +347,47 @@ function PaneDetailModal({
         }
     }
 
-    const currentStationIdx = routing.findIndex(sidOrObj => {
-        const sid = typeof sidOrObj === "object" ? (sidOrObj as any)._id : sidOrObj;
-        const station = stationMap.get(sid);
-        return sid === pane.currentStation || station?.name === pane.currentStation;
-    });
+    const curPaneId = getStationId(pane.currentStation);
+    const curPaneName = getStationName(pane.currentStation);
+    const currentStationIdx = routing.findIndex(routeRef =>
+        pane.currentStation != null && isStationMatch(routeRef, curPaneId, curPaneName),
+    );
 
     const isCompleted = pane.currentStatus === "completed";
 
     const currentStationName = (() => {
-        if (pane.currentStation === "queue") return "คิว";
-        if (pane.currentStation === "ready") return "พร้อมส่ง";
-        if (pane.currentStation === "defected") return "ชำรุด";
-        const s = stationMap.get(pane.currentStation) ?? stationByName.get(pane.currentStation);
-        return s?.name ?? pane.currentStation;
+        if (typeof pane.currentStation === "string" && pane.currentStation === "queue") return "คิว";
+        if (typeof pane.currentStation === "string" && pane.currentStation === "ready") return "พร้อมส่ง";
+        if (typeof pane.currentStation === "string" && pane.currentStation === "defected") return "ชำรุด";
+        if (pane.currentStation == null) {
+            if (pane.currentStatus === "pending") return "คิว";
+            if (pane.currentStatus === "completed") return "เสร็จแล้ว";
+            if (pane.currentStatus === "claimed") return "ถูกเคลม";
+            return "—";
+        }
+        const pid = getStationId(pane.currentStation);
+        const pname = getStationName(pane.currentStation);
+        const s = (pid ? stationMap.get(pid) : undefined)
+            ?? stationByName.get(pname)
+            ?? (pid ? stationByName.get(pid) : undefined);
+        return s?.name ?? pname ?? pid;
     })();
 
     const heroColor = (() => {
         if (isCompleted) return getColorOption("green");
-        if (["queue", "ready", "defected"].includes(pane.currentStation)) return getColorOption("slate");
+        if (typeof pane.currentStation === "string" && ["queue", "ready", "defected"].includes(pane.currentStation)) {
+            return getColorOption("slate");
+        }
+        if (pane.currentStation == null && (pane.currentStatus === "pending" || pane.currentStatus === "claimed")) {
+            return getColorOption("slate");
+        }
         if (currentStationIdx >= 0) {
-            const sid = routing[currentStationIdx];
-            const station = stationMap.get(sid) ?? stationByName.get(sid);
-            const stId = station?._id ?? sid;
+            const routeRef = routing[currentStationIdx];
+            const rid = getStationId(routeRef);
+            const rname = getStationName(routeRef);
+            const station = (rid ? stationMap.get(rid) : undefined)
+                ?? (rname ? stationByName.get(rname) : undefined)
+                ?? (rid ? stationByName.get(rid) : undefined);
             return getColorOption(station?.colorId ?? "sky");
         }
         return getColorOption("sky");
@@ -384,6 +406,7 @@ function PaneDetailModal({
         in_progress: "กำลังดำเนินการ",
         completed: "เสร็จแล้ว",
         awaiting_scan_out: "รอสแกนออก",
+        claimed: "ถูกเคลม",
     };
 
     const dimStr = pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0)
@@ -446,15 +469,17 @@ function PaneDetailModal({
                             {routing.length > 0 && (
                                 <div className="flex items-center gap-1.5 mt-4">
                                     <div className="flex items-center flex-1 min-w-0">
-                                        {routing.map((sidOrObj, idx) => {
-                                            const sid = typeof sidOrObj === "object" ? (sidOrObj as any)._id : sidOrObj;
-                                            const st  = stationMap.get(sid) ?? stationByName.get(sid);
-                                            const stId = st?._id ?? sid;
-                                            const dc  = getColorOption(st?.colorId ?? "sky");
-                                            const dp  = isCompleted || (currentStationIdx >= 0 && idx < currentStationIdx);
+                                        {routing.map((routeRef, idx) => {
+                                            const rid = getStationId(routeRef);
+                                            const rname = getStationName(routeRef);
+                                            const st = (rid ? stationMap.get(rid) : undefined)
+                                                ?? (rname ? stationByName.get(rname) : undefined)
+                                                ?? (rid ? stationByName.get(rid) : undefined);
+                                            const dc = getColorOption(st?.colorId ?? "sky");
+                                            const dp = isCompleted || (currentStationIdx >= 0 && idx < currentStationIdx);
                                             const dcr = !isCompleted && idx === currentStationIdx;
                                             return (
-                                                <div key={sid} className="flex items-center flex-1">
+                                                <div key={rid || `r-${idx}`} className="flex items-center flex-1">
                                                     <div
                                                         className={`shrink-0 rounded-full ${dcr ? "w-3.5 h-3.5 ring-2 ring-white dark:ring-slate-900 animate-pulse" : dp ? "w-2.5 h-2.5" : "w-2 h-2 bg-slate-200 dark:bg-slate-700"}`}
                                                         style={(dp || dcr) ? { backgroundColor: dc.swatch } : undefined}
@@ -534,13 +559,16 @@ function PaneDetailModal({
                                 </div>
                             ) : (
                                 <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden divide-y divide-slate-100 dark:divide-slate-800/60">
-                                    {routing.map((sidOrObj, idx) => {
-                                        const sid = typeof sidOrObj === "object" ? (sidOrObj as any)._id : sidOrObj;
-                                        const station = stationMap.get(sid) ?? stationByName.get(sid);
-                                        const stId = station?._id ?? sid;
+                                    {routing.map((routeRef, idx) => {
+                                        const rid = getStationId(routeRef);
+                                        const rname = getStationName(routeRef);
+                                        const mapKey = rid || `routing-${idx}`;
+                                        const station = (rid ? stationMap.get(rid) : undefined)
+                                            ?? (rname ? stationByName.get(rname) : undefined)
+                                            ?? (rid ? stationByName.get(rid) : undefined);
                                         const colorId = station?.colorId ?? "sky";
                                         const color = getColorOption(colorId);
-                                        const stLogs = stationLogsMap.get(sid) ?? {};
+                                        const stLogs = stationLogsMap.get(mapKey) ?? {};
                                         const isCurrent = idx === currentStationIdx && !isCompleted;
                                         const isPassed = isCompleted || (currentStationIdx >= 0 && idx < currentStationIdx);
                                         const isFuture = !isCurrent && !isPassed;
@@ -554,7 +582,7 @@ function PaneDetailModal({
 
                                         return (
                                             <div
-                                                key={sid}
+                                                key={mapKey}
                                                 className={`px-4 py-3 ${isCurrent ? "" : ""}`}
                                                 style={isCurrent ? { backgroundColor: `${color.swatch}08` } : undefined}
                                             >
@@ -572,7 +600,7 @@ function PaneDetailModal({
                                                     </div>
 
                                                     <span className={`text-sm font-semibold flex-1 truncate ${isFuture ? "text-slate-300 dark:text-slate-600" : "text-slate-800 dark:text-white"}`}>
-                                                        {station?.name ?? sid}
+                                                        {station?.name ?? rname ?? rid}
                                                     </span>
 
                                                     {isCurrent && (
@@ -651,12 +679,12 @@ function BillOrderList({
                     const curStation = (() => {
                         if (o.status === "completed") return null;
                         if (!o.stations?.length) return null;
-                        const sidOrObj = o.stations[o.currentStationIndex ?? 0];
-                        const sid = typeof sidOrObj === "object" ? (sidOrObj as any)._id : sidOrObj;
-                        const st  = stationMap.get(sid);
+                        const ref = o.stations[o.currentStationIndex ?? 0];
+                        const sid = getStationId(ref);
+                        const st  = sid ? stationMap.get(sid) : undefined;
                         const colorId = st?.colorId ?? "sky";
                         const color   = getColorOption(colorId);
-                        return { name: st?.name ?? sid, color };
+                        return { name: st?.name ?? getStationName(ref) ?? sid, color };
                     })();
 
                     return (
@@ -790,10 +818,12 @@ export default function ProductionDetailPage() {
     const statusCfg = ORDER_STATUS[order.status as keyof typeof ORDER_STATUS] ?? ORDER_STATUS.pending;
 
     const stationLookup = new Map<string, number>();
-    (order.stations ?? []).forEach((sidOrObj, i) => {
-        const sid = typeof sidOrObj === "object" ? (sidOrObj as any)._id : sidOrObj;
-        stationLookup.set(sid, i);
-        const st = stationMap.get(sid);
+    (order.stations ?? []).forEach((ref, i) => {
+        const sid = getStationId(ref);
+        if (sid) stationLookup.set(sid, i);
+        const nm = getStationName(ref);
+        if (nm) stationLookup.set(nm, i);
+        const st = sid ? stationMap.get(sid) : undefined;
         if (st?.name) stationLookup.set(st.name, i);
     });
 
@@ -801,7 +831,7 @@ export default function ProductionDetailPage() {
         const ids = order.stations ?? [];
         if (!ids.length || !panes.length) return order.status === "completed" ? ids.length : 0;
         return ids.filter((_, idx) =>
-            panes.every(p => p.currentStatus === "completed" || (stationLookup.get(p.currentStation) ?? -1) > idx)
+            panes.every(p => p.currentStatus === "completed" || (stationLookup.get(getStationId(p.currentStation)) ?? -1) > idx)
         ).length;
     })();
 
@@ -946,21 +976,21 @@ export default function ProductionDetailPage() {
                                     สถานีทั้งหมด
                                 </p>
                                 <div className="flex flex-wrap gap-1.5">
-                                    {order.stations.map((sidOrObj, idx) => {
-                                        const sid      = typeof sidOrObj === "object" ? (sidOrObj as any)._id : sidOrObj;
-                                        const station  = stationMap.get(sid);
-                                        const colorId  = station?.colorId ?? "sky";
-                                        const color    = getColorOption(colorId);
-                                        const pHere    = panes.filter(p => (stationLookup.get(p.currentStation) ?? -1) === idx).length;
-                                        const pPassed  = panes.length > 0 ? panes.filter(p => {
+                                    {order.stations.map((ref, idx) => {
+                                        const sid = getStationId(ref);
+                                        const station = sid ? stationMap.get(sid) : undefined;
+                                        const colorId = station?.colorId ?? "sky";
+                                        const color   = getColorOption(colorId);
+                                        const pHere   = panes.filter(p => (stationLookup.get(getStationId(p.currentStation)) ?? -1) === idx).length;
+                                        const pPassed = panes.length > 0 ? panes.filter(p => {
                                             if (p.currentStatus === "completed") return true;
-                                            return (stationLookup.get(p.currentStation) ?? -1) > idx;
+                                            return (stationLookup.get(getStationId(p.currentStation)) ?? -1) > idx;
                                         }).length : 0;
                                         const isDone   = order.status === "completed" || (panes.length > 0 ? pPassed === panes.length : idx < (order.currentStationIndex ?? 0));
                                         const isCur    = order.status !== "completed" && order.status !== "cancelled" && (panes.length > 0 ? pHere > 0 : idx === (order.currentStationIndex ?? 0));
                                         return (
                                             <span
-                                                key={sid}
+                                                key={sid || `os-${idx}`}
                                                 className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium border transition-all ${
                                                     order.status === "cancelled" ? "bg-slate-100 dark:bg-slate-800 text-slate-400 border-transparent opacity-50" :
                                                     isCur   ? `${color.cls} shadow-sm` :
@@ -973,7 +1003,7 @@ export default function ProductionDetailPage() {
                                                     className="h-1.5 w-1.5 rounded-full shrink-0"
                                                     style={order.status !== "cancelled" ? { backgroundColor: color.swatch } : undefined}
                                                 />
-                                                {station?.name ?? sid}
+                                                {station?.name ?? getStationName(ref) ?? sid}
                                             </span>
                                         );
                                     })}
@@ -1025,21 +1055,35 @@ export default function ProductionDetailPage() {
                                     in_progress:        { label: "กำลังทำ",     dot: "bg-blue-500",   text: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50" },
                                     completed:          { label: "เสร็จ",       dot: "bg-green-500",  text: "text-green-600 dark:text-green-400", bg: "bg-green-50" },
                                     awaiting_scan_out:  { label: "รอสแกนออก",  dot: "bg-amber-500",  text: "text-amber-600 dark:text-amber-400", bg: "bg-amber-50" },
+                                    claimed:            { label: "เคลม",       dot: "bg-orange-500", text: "text-orange-600 dark:text-orange-400", bg: "bg-orange-50" },
                                 } as Record<string, { label: string; dot: string; text: string; bg: string }>)[pane.currentStatus] ?? { label: pane.currentStatus, dot: "bg-gray-400", text: "text-gray-500", bg: "bg-gray-50" };
 
-                                const paneStation = stationMap.get(typeof pane.currentStation === 'string' ? pane.currentStation : (pane.currentStation as any)?._id) ?? 
-                                                   stationByName.get(typeof pane.currentStation === 'string' ? pane.currentStation : (pane.currentStation as any)?._id);
-                                
+                                const curId = getStationId(pane.currentStation);
+                                const curName = getStationName(pane.currentStation);
+                                const paneStation = (curId ? stationMap.get(curId) : undefined)
+                                    ?? stationByName.get(curName)
+                                    ?? (curId ? stationByName.get(curId) : undefined);
+
                                 const stationName = (() => {
-                                    const s = typeof pane.currentStation === 'string' ? pane.currentStation : (pane.currentStation as any)?._id;
-                                    if (s === "queue") return "คิว";
-                                    if (s === "ready") return "พร้อมส่ง";
-                                    if (s === "defected") return "ชำรุด";
-                                    return paneStation?.name ?? s;
+                                    if (typeof pane.currentStation === "string") {
+                                        if (pane.currentStation === "queue") return "คิว";
+                                        if (pane.currentStation === "ready") return "พร้อมส่ง";
+                                        if (pane.currentStation === "defected") return "ชำรุด";
+                                    }
+                                    if (pane.currentStation == null) {
+                                        if (pane.currentStatus === "pending") return "คิว";
+                                        if (pane.currentStatus === "completed") return "เสร็จแล้ว";
+                                        if (pane.currentStatus === "claimed") return "ถูกเคลม";
+                                        return curName || "—";
+                                    }
+                                    return paneStation?.name ?? curName ?? curId;
                                 })();
-                                const sKey = typeof pane.currentStation === 'string' ? pane.currentStation : (pane.currentStation as any)?._id;
-                                const isSpecialStation = ["queue", "ready", "defected"].includes(sKey);
-                                const paneColorId = paneStation?.colorId ?? "sky";
+
+                                const isSpecialStation =
+                                    (typeof pane.currentStation === "string" && ["queue", "ready", "defected"].includes(pane.currentStation))
+                                    || (pane.currentStation == null && ["pending", "completed", "claimed"].includes(pane.currentStatus));
+
+                                const paneColorId = isSpecialStation ? "slate" : (paneStation?.colorId ?? "sky");
                                 const paneColor = getColorOption(paneColorId);
 
                                 return (
@@ -1060,13 +1104,23 @@ export default function ProductionDetailPage() {
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between w-full mt-1">
-                                            {pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0) ? (
-                                                <span className="text-[11px] font-mono font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg">
-                                                    {pane.dimensions.width}×{pane.dimensions.height}
-                                                </span>
-                                            ) : (
-                                                <span />
-                                            )}
+                                            <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                                                {pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0) && (
+                                                    <span className="text-[11px] font-mono font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg">
+                                                        {pane.dimensions.width}×{pane.dimensions.height}
+                                                    </span>
+                                                )}
+                                                {pane.jobType && (
+                                                    <span className="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-100 dark:border-violet-500/20">
+                                                        {pane.jobType}
+                                                    </span>
+                                                )}
+                                                {pane.processes?.filter(p => p !== pane.jobType).map(proc => (
+                                                    <span key={proc} className="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-100 dark:border-sky-500/20">
+                                                        {proc}
+                                                    </span>
+                                                ))}
+                                            </div>
                                             <div
                                                 className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-lg border ${
                                                     isSpecialStation

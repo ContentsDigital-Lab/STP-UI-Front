@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { useAuth } from "@/lib/auth/auth-context";
+import { isManagerOrAbove } from "@/lib/auth/role-utils";
 import {
     LayoutDashboard,
     ClipboardList,
@@ -40,7 +41,7 @@ export function Sidebar({ collapsed, setCollapsed, onNavigate }: SidebarProps) {
     const pathname = usePathname();
     const { t, lang } = useLanguage();
     const { user } = useAuth();
-    const isManager = user?.role === "admin" || user?.role === "manager";
+    const isManager = isManagerOrAbove(user?.role);
 
     const sections: NavSection[] = [
         {

@@ -4,12 +4,12 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
     ClipboardList, Search, RefreshCw, ChevronDown, ChevronRight, ChevronLeft,
-    AlertCircle, User, Package, ArrowRight, MapPin,
-    CalendarDays, Printer, QrCode, X, CheckCheck, Wifi, WifiOff,
+    AlertCircle, Package, ArrowRight, MapPin,
+    CalendarDays, Printer, X, CheckCheck, Wifi, WifiOff, Trash2,
 } from "lucide-react";
-import { QrCodeModal } from "@/components/qr/QrCodeModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { ordersApi } from "@/lib/api/orders";
 import { panesApi } from "@/lib/api/panes";
 import { requestsApi } from "@/lib/api/requests";
@@ -17,6 +17,7 @@ import { stationsApi } from "@/lib/api/stations";
 import { getColorOption } from "@/lib/stations/stations-store";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { Order, OrderRequest, Station, Pane } from "@/lib/api/types";
+import { getStationId, getStationName } from "@/lib/utils/station-helpers";
 
 // ── status config ─────────────────────────────────────────────────────────────
 const ORDER_STATUS = {
@@ -68,7 +69,7 @@ function StationFlow({
                 const isCur    = !isDone && !isCancelled && idx === currentIdx;
 
                 return (
-                    <div key={sid} className="flex items-center gap-1">
+                    <div key={`${idx}-${sid || "s"}`} className="flex items-center gap-1">
                         <div className="relative group/dot flex items-center">
                             {/* dot */}
                             <span
@@ -121,10 +122,10 @@ function CurrentStationBadge({
         return <span className="text-xs text-muted-foreground/50 italic">ยังไม่กำหนด</span>;
     }
 
-    const idx       = order.currentStationIndex ?? 0;
-    const sidOrObj  = order.stations[idx];
-    const sid       = typeof sidOrObj === "object" ? (sidOrObj as any)._id : sidOrObj;
-    const station   = stationMap.get(sid);
+    const idx     = order.currentStationIndex ?? 0;
+    const ref     = order.stations[idx];
+    const sid     = getStationId(ref);
+    const station = sid ? stationMap.get(sid) : undefined;
     const colorId = station?.colorId ?? "sky";
     const color   = getColorOption(colorId);
 
@@ -133,7 +134,7 @@ function CurrentStationBadge({
             className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${color.cls} max-w-full`}
         >
             <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: color.swatch }} />
-            <span className="truncate min-w-0">{station?.name ?? sid}</span>
+            <span className="truncate min-w-0">{(station?.name ?? getStationName(ref) ?? sid) || "—"}</span>
             <span className="text-[10px] opacity-60 shrink-0">({idx + 1}/{order.stations.length})</span>
         </span>
     );
@@ -162,7 +163,10 @@ export default function ProductionPage() {
     const [page,      setPage]      = useState(1);
     const [expanded,  setExpanded]  = useState<Set<string>>(new Set());
     const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
-    const [qrTarget,  setQrTarget]  = useState<{ code: string; label: string; url: string } | null>(null);
+    const [filterStatus,  setFilterStatus]  = useState<string>("all");
+    const [filterStation, setFilterStation] = useState<string>("all");
+    const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null);
+    const [deleting, setDeleting] = useState(false);
     const loadPanes = useCallback(async () => {
         const pRes = await panesApi.getAll({ limit: 100 }).catch(() => null);
         if (pRes?.success) {
@@ -223,43 +227,75 @@ export default function ProductionPage() {
         );
     }, [orders, requests]);
 
-    // Apply search + date filters
+    // Stations actually used by current orders (for filter dropdown)
+    const usedStations = useMemo(() => {
+        const ids = new Set(
+            orders.flatMap(o => (o.stations ?? []).map(getStationId).filter(Boolean))
+        );
+        return stations.filter(s => ids.has(s._id));
+    }, [orders, stations]);
+
+    // Apply filters: status, station (if any), then date, then search
     const filtered = useMemo(() => {
-        return bills.filter(b => {
-            // ── Date filter (Precise) ──
-            if (dateFilter !== "all") {
-                const billDateStr = (b.request?.createdAt ?? b.orders[0]?.createdAt ?? "").split("T")[0];
-                if (billDateStr !== dateFilter) return false;
-            }
+        let result = bills;
 
-            // ── Text search ──
-            const q = search.trim().toLowerCase();
-            if (!q) return true;
-
-            if (b.customer.toLowerCase().includes(q)) return true;
-            if (b.id.toLowerCase().includes(q)) return true;
-            if (b.id.slice(-6).toLowerCase().includes(q)) return true;
-            if ((b.request?.requestNumber ?? "").toLowerCase().includes(q)) return true;
-            if (fmtDate(b.request?.deadline).toLowerCase().includes(q)) return true;
-            return b.orders.some(o =>
-                (o.code ?? "").toLowerCase().includes(q) ||
-                (o.orderNumber ?? "").toLowerCase().includes(q) ||
-                o._id.toLowerCase().includes(q) ||
-                o._id.slice(-6).toLowerCase().includes(q) ||
-                getName(o.material).toLowerCase().includes(q) ||
-                getName(o.customer).toLowerCase().includes(q) ||
-                getName(o.assignedTo).toLowerCase().includes(q) ||
-                (ORDER_STATUS[o.status as StatusKey]?.label ?? "").toLowerCase().includes(q) ||
-                (o.stations ?? []).some(sid => {
-                    const st = stationMap.get(sid);
-                    return st?.name?.toLowerCase().includes(q);
-                })
+        // Status filter
+        if (filterStatus !== "all") {
+            result = result.filter(b =>
+                b.orders.some(o => o.status === filterStatus)
             );
-        });
-    }, [bills, search, stationMap, dateFilter]);
+        }
 
-    // Reset to page 1 when search changes
-    useEffect(() => { setPage(1); }, [search, dateFilter]);
+        // Station filter
+        if (filterStation !== "all") {
+            result = result.filter(b =>
+                b.orders.some(o =>
+                    (o.stations ?? []).some(s => getStationId(s) === filterStation)
+                )
+            );
+        }
+
+        // Date filter
+        if (typeof dateFilter !== "undefined" && dateFilter !== "all") {
+            result = result.filter(b => {
+                const billDateStr = (b.request?.createdAt ?? b.orders[0]?.createdAt ?? "").split("T")[0];
+                return billDateStr === dateFilter;
+            });
+        }
+
+        // Search filter
+        const q = search.trim().toLowerCase();
+        if (q) {
+            result = result.filter(b => {
+                if (b.customer.toLowerCase().includes(q)) return true;
+                if (b.id.toLowerCase().includes(q)) return true;
+                if (b.id.slice(-6).toLowerCase().includes(q)) return true;
+                if ((b.request?.requestNumber ?? "").toLowerCase().includes(q)) return true;
+                if (fmtDate(b.request?.deadline).toLowerCase().includes(q)) return true;
+                return b.orders.some(o =>
+                    (o.code ?? "").toLowerCase().includes(q) ||
+                    (o.orderNumber ?? "").toLowerCase().includes(q) ||
+                    o._id.toLowerCase().includes(q) ||
+                    o._id.slice(-6).toLowerCase().includes(q) ||
+                    getName(o.material).toLowerCase().includes(q) ||
+                    getName(o.customer).toLowerCase().includes(q) ||
+                    getName(o.assignedTo).toLowerCase().includes(q) ||
+                    (ORDER_STATUS[o.status as StatusKey]?.label ?? "").toLowerCase().includes(q) ||
+                    (o.stations ?? []).some(s => {
+                        const stId = getStationId(s);
+                        const st = stId ? stationMap.get(stId) : undefined;
+                        const nm = (st?.name ?? getStationName(s)).toLowerCase();
+                        return nm.includes(q);
+                    })
+                );
+            });
+        }
+
+        return result;
+    }, [bills, search, stationMap, filterStatus, filterStation, dateFilter]);
+
+    // Reset to page 1 when search, filters or dateFilter change
+    useEffect(() => { setPage(1); }, [search, filterStatus, filterStation, dateFilter]);
 
     const PAGE_SIZE = 10;
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -274,6 +310,19 @@ export default function ProductionPage() {
     const toggleOrder = (id: string) => setExpandedOrders(prev => {
         const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n;
     });
+
+    const confirmDeleteOrder = async () => {
+        if (!deleteTarget) return;
+        setDeleting(true);
+        try {
+            const res = await ordersApi.delete(deleteTarget.id);
+            if (res.success) {
+                setOrders(prev => prev.filter(o => o._id !== deleteTarget.id));
+            }
+        } catch { /* ignore */ }
+        setDeleting(false);
+        setDeleteTarget(null);
+    };
 
     // Summary
     const totalBills     = bills.length;
@@ -343,7 +392,32 @@ export default function ProductionPage() {
                     )}
                 </div>
 
-                {/* Date filter (Precise) */}
+                {/* Status filter */}
+                <select
+                    value={filterStatus}
+                    onChange={e => setFilterStatus(e.target.value)}
+                    className="h-10 w-full sm:w-[160px] px-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm text-slate-700 dark:text-slate-300 outline-none cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+                >
+                    <option value="all">สถานะทั้งหมด</option>
+                    <option value="pending">รอตรวจสอบ</option>
+                    <option value="in_progress">กำลังผลิต</option>
+                    <option value="completed">เสร็จแล้ว</option>
+                    <option value="cancelled">ยกเลิก</option>
+                </select>
+
+                {/* Station filter */}
+                <select
+                    value={filterStation}
+                    onChange={e => setFilterStation(e.target.value)}
+                    className="h-10 w-full sm:w-[160px] px-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm text-slate-700 dark:text-slate-300 outline-none cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+                >
+                    <option value="all">สถานีทั้งหมด</option>
+                    {usedStations.map(s => (
+                        <option key={s._id} value={s._id}>{s.name}</option>
+                    ))}
+                </select>
+
+                {/* Date filter */}
                 <div className="relative w-full sm:w-[180px]">
                     <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none z-10" />
                     <Input
@@ -355,19 +429,19 @@ export default function ProductionPage() {
                 </div>
 
                 {/* Clear all filters */}
-                {(search || dateFilter !== "all") && (
+                {(search || filterStatus !== "all" || filterStation !== "all" || dateFilter !== "all") && (
                     <Button
                         variant="ghost"
                         size="sm"
                         className="h-10 rounded-xl text-slate-400 hover:text-slate-600 px-3 shrink-0"
-                        onClick={() => { setSearch(""); setDateFilter("all"); }}
+                        onClick={() => { setSearch(""); setFilterStatus("all"); setFilterStation("all"); setDateFilter("all"); }}
                     >
                         <X className="h-3.5 w-3.5 mr-1" />
                         ล้าง
                     </Button>
                 )}
             </div>
-            {!loading && (search || dateFilter !== "all") && (
+            {!loading && (search || filterStatus !== "all" || filterStation !== "all" || dateFilter !== "all") && (
                 <p className="text-xs text-slate-400 -mt-4">
                     พบ <span className="font-medium text-slate-600 dark:text-slate-300">{filtered.length}</span> จาก {bills.length} บิล
                 </p>
@@ -409,7 +483,11 @@ export default function ProductionPage() {
 
                         // Collect unique station ids across all orders in this bill
                         const allStationIds = Array.from(
-                            new Set(bill.orders.flatMap(o => (o.stations ?? []).map(s => typeof s === 'object' ? (s as any)._id : s)))
+                            new Set(
+                                bill.orders.flatMap(o =>
+                                    (o.stations ?? []).map(getStationId).filter(Boolean)
+                                )
+                            )
                         );
 
                         return (
@@ -427,10 +505,7 @@ export default function ProductionPage() {
                                     <div className="flex-1 min-w-0 space-y-1.5">
                                         {/* Row 1: customer + id + deadline */}
                                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                                            <div className="flex items-center gap-1.5">
-                                                <User className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                                                <span className="font-bold text-sm text-slate-900 dark:text-white">{bill.customer}</span>
-                                            </div>
+                                            <span className="font-bold text-sm text-slate-900 dark:text-white">{bill.customer}</span>
                                             <span className="font-mono text-xs text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
                                                 {bill.orders[0]?.orderNumber ?? `#${bill.id.slice(-6).toUpperCase()}`}
                                             </span>
@@ -469,21 +544,22 @@ export default function ProductionPage() {
                                         const billPanes = bill.orders.flatMap(o => paneMap.get(o._id) ?? []);
                                         const panesDone = billPanes.filter(p => p.currentStatus === "completed").length;
                                         const hasPanes  = billPanes.length > 0;
+                                        const doneCount = hasPanes ? panesDone : bill.completedOrders;
                                         return (
-                                            <div className="hidden sm:flex items-center gap-6 shrink-0 mr-1">
-                                                <div className="text-center min-w-[48px]">
+                                            <div className="hidden sm:flex items-center gap-4 shrink-0">
+                                                <div className="text-center min-w-[40px]">
                                                     <p className="text-lg font-bold text-slate-900 dark:text-white leading-tight">{bill.orders.length}</p>
                                                     <p className="text-[10px] font-medium text-slate-400 uppercase">ออเดอร์</p>
                                                 </div>
-                                                <div className="text-center min-w-[48px]">
+                                                <div className="text-center min-w-[40px]">
                                                     <p className="text-lg font-bold text-blue-600 dark:text-blue-400 leading-tight">
                                                         {hasPanes ? billPanes.length : bill.totalGlass}
                                                     </p>
                                                     <p className="text-[10px] font-medium text-slate-400 uppercase">กระจก</p>
                                                 </div>
-                                                <div className="text-center min-w-[48px]">
-                                                    <p className="text-lg font-bold leading-tight text-green-600 dark:text-green-400">
-                                                        {hasPanes ? panesDone : bill.completedOrders}
+                                                <div className="text-center min-w-[40px]">
+                                                    <p className={`text-lg font-bold leading-tight ${doneCount > 0 ? "text-green-600 dark:text-green-400" : "text-slate-300 dark:text-slate-600"}`}>
+                                                        {doneCount}
                                                     </p>
                                                     <p className="text-[10px] font-medium text-slate-400 uppercase">เสร็จ</p>
                                                 </div>
@@ -515,8 +591,10 @@ export default function ProductionPage() {
                                             const orderPanes = paneMap.get(order._id) ?? [];
                                             const isOrderOpen = expandedOrders.has(order._id);
 
+                                            const isZeroQty = (order.quantity ?? 0) === 0;
+
                                             return (
-                                                <div key={order._id} className="relative group/order hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                                                <div key={order._id} className={`relative group/order transition-colors ${isZeroQty ? "opacity-50" : "hover:bg-slate-50/60 dark:hover:bg-slate-800/30"}`}>
                                                     <div
                                                         className="px-4 sm:px-6 py-3 flex items-center gap-4 cursor-pointer"
                                                         onClick={() => orderPanes.length > 0 ? toggleOrder(order._id) : router.push(`/production/${order._id}`)}
@@ -529,7 +607,7 @@ export default function ProductionPage() {
                                                         </div>
 
                                                         {/* Code */}
-                                                        <div className="w-20 shrink-0 font-mono text-xs font-bold text-slate-900 dark:text-slate-200">
+                                                        <div className={`w-20 shrink-0 font-mono text-xs font-bold ${isZeroQty ? "text-slate-400 dark:text-slate-600" : "text-slate-900 dark:text-slate-200"}`}>
                                                             {order.orderNumber ?? `#${order.code ?? order._id.slice(-6).toUpperCase()}`}
                                                         </div>
 
@@ -567,7 +645,7 @@ export default function ProductionPage() {
                                                         {/* Station flow dots */}
                                                         <div className="hidden sm:flex w-28 md:w-36 lg:w-48 shrink-0 items-center">
                                                             <StationFlow
-                                                                stationIds={order.stations ?? []}
+                                                                stationIds={(order.stations ?? []).map(getStationId)}
                                                                 currentIdx={order.currentStationIndex ?? 0}
                                                                 status={order.status}
                                                                 stationMap={stationMap}
@@ -594,23 +672,14 @@ export default function ProductionPage() {
                                                         >
                                                             <Printer className="h-3.5 w-3.5" />
                                                         </button>
-                                                        {order.code && (
-                                                            <button
-                                                                type="button"
-                                                                title="QR Code"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    setQrTarget({
-                                                                        code:  order.code!,
-                                                                        label: `${getName(order.material)} — ${getName(order.customer)}`,
-                                                                        url:   `${window.location.origin}/production/${order._id}`,
-                                                                    });
-                                                                }}
-                                                                className="flex-1 sm:flex-none flex items-center justify-center p-2.5 sm:p-1.5 rounded-xl sm:rounded-lg text-slate-500 hover:text-blue-600 dark:hover:text-[#E8601C] bg-slate-50 hover:bg-blue-50 dark:bg-slate-800/50 dark:hover:bg-[#E8601C]/10 transition-colors border border-slate-200/50 dark:border-slate-700/50 sm:border-transparent sm:bg-transparent"
-                                                            >
-                                                                <QrCode className="h-3.5 w-3.5" />
-                                                            </button>
-                                                        )}
+                                                        <button
+                                                            type="button"
+                                                            title="ลบออเดอร์"
+                                                            onClick={(e) => { e.stopPropagation(); setDeleteTarget({ id: order._id, label: order.orderNumber ?? order.code ?? order._id.slice(-6).toUpperCase() }); }}
+                                                            className="flex-1 sm:flex-none flex items-center justify-center p-2.5 sm:p-1.5 rounded-xl sm:rounded-lg text-slate-500 hover:text-red-600 dark:hover:text-red-400 bg-slate-50 hover:bg-red-50 dark:bg-slate-800/50 dark:hover:bg-red-500/10 transition-colors border border-slate-200/50 dark:border-slate-700/50 sm:border-transparent sm:bg-transparent"
+                                                        >
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                        </button>
                                                         <button
                                                             type="button"
                                                             title="ดูรายละเอียด"
@@ -638,25 +707,31 @@ export default function ProductionPage() {
                                                                         awaiting_scan_out:  { label: "รอสแกนออก",  dot: "bg-amber-500",  text: "text-amber-600" },
                                                                     } as Record<string, { label: string; dot: string; text: string }>)[pane.currentStatus] ?? { label: pane.currentStatus, dot: "bg-gray-400", text: "text-gray-500" };
                                                                     const stName = (() => {
-                                                                        if (pane.currentStation === "queue") return "คิว";
-                                                                        if (pane.currentStation === "ready") return "พร้อมส่ง";
-                                                                        if (pane.currentStation === "defected") return "ชำรุด";
-                                                                        const st = stationMap.get(pane.currentStation);
-                                                                        return st?.name ?? pane.currentStation;
+                                                                        const cs = pane.currentStation;
+                                                                        if (cs == null) {
+                                                                            if (pane.currentStatus === "pending") return "คิว";
+                                                                            if (pane.currentStatus === "completed") return "เสร็จแล้ว";
+                                                                            if (pane.currentStatus === "claimed") return "ถูกเคลม";
+                                                                            return "—";
+                                                                        }
+                                                                        if (typeof cs === "string") {
+                                                                            if (cs === "queue") return "คิว";
+                                                                            if (cs === "ready") return "พร้อมส่ง";
+                                                                            if (cs === "defected") return "ชำรุด";
+                                                                        }
+                                                                        const id = getStationId(cs);
+                                                                        const st = id ? stationMap.get(id) : undefined;
+                                                                        return (st?.name ?? getStationName(cs) ?? id) || "—";
                                                                     })();
                                                                     return (
                                                                         <button
                                                                             key={pane._id}
                                                                             type="button"
-                                                                            onClick={() => setQrTarget({
-                                                                                code: order.code ?? order._id.slice(-6).toUpperCase(),
-                                                                                label: `${getName(order.material)} — ${getName(order.customer)} (ชิ้นที่ ${pane.paneNumber})`,
-                                                                                url: `${window.location.origin}/production/${order._id}`
-                                                                            })}
-                                                                            className="group/pane flex items-center gap-2.5 p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 hover:border-blue-200 dark:hover:border-blue-800 transition-colors text-left"
+                                                                            onClick={() => router.push(`/production/${order._id}`)}
+                                                                            className="flex items-center gap-2.5 p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 hover:border-blue-200 dark:hover:border-blue-800 hover:shadow-sm transition-all text-left cursor-pointer"
                                                                         >
                                                                             <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                                                                <QrCode className="h-3 w-3 text-slate-400 group-hover/pane:text-blue-500 dark:group-hover/pane:text-blue-400 transition-colors shrink-0" />
+                                                                                <Package className="h-3 w-3 text-slate-400 shrink-0" />
                                                                                 <span className="font-mono text-xs font-medium text-slate-800 dark:text-slate-200">{pane.paneNumber}</span>
                                                                                 {pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0) && (
                                                                                     <span className="text-[10px] text-slate-400 font-mono">
@@ -687,7 +762,7 @@ export default function ProductionPage() {
                                                 <div className="sm:hidden px-5 py-2.5 flex gap-4 text-xs text-slate-400 bg-slate-50 dark:bg-slate-800/20">
                                                     <span>{bill.orders.length} ออเดอร์</span>
                                                     <span>{bp.length > 0 ? bp.length : bill.totalGlass} กระจก</span>
-                                                    <span className="text-green-600">{bp.length > 0 ? bd : bill.completedOrders} เสร็จแล้ว</span>
+                                                    <span className={(bp.length > 0 ? bd : bill.completedOrders) > 0 ? "text-green-600" : "text-slate-300 dark:text-slate-600"}>{bp.length > 0 ? bd : bill.completedOrders} เสร็จแล้ว</span>
                                                 </div>
                                             );
                                         })()}
@@ -750,14 +825,34 @@ export default function ProductionPage() {
             </div>
         </div>
 
-        {qrTarget && (
-            <QrCodeModal
-                code={qrTarget.code}
-                label={qrTarget.label}
-                value={qrTarget.url}
-                onClose={() => setQrTarget(null)}
-            />
-        )}
+        {/* Delete confirmation dialog */}
+        <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+            <DialogContent className="sm:max-w-[400px]">
+                <DialogHeader>
+                    <div className="mx-auto mb-2 h-12 w-12 rounded-full bg-red-100 dark:bg-red-500/10 flex items-center justify-center">
+                        <Trash2 className="h-5 w-5 text-red-600 dark:text-red-400" />
+                    </div>
+                    <DialogTitle className="text-center">ยืนยันการลบออเดอร์</DialogTitle>
+                    <DialogDescription className="text-center">
+                        ต้องการลบออเดอร์ <span className="font-semibold text-slate-700 dark:text-slate-300">{deleteTarget?.label}</span> ใช่หรือไม่?
+                        การดำเนินการนี้ไม่สามารถย้อนกลับได้
+                    </DialogDescription>
+                </DialogHeader>
+                <DialogFooter className="flex gap-2 sm:gap-2">
+                    <Button variant="outline" className="flex-1 rounded-xl" disabled={deleting} onClick={() => setDeleteTarget(null)}>
+                        ยกเลิก
+                    </Button>
+                    <Button
+                        variant="destructive"
+                        className="flex-1 rounded-xl"
+                        onClick={confirmDeleteOrder}
+                        disabled={deleting}
+                    >
+                        {deleting ? "กำลังลบ..." : "ลบออเดอร์"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
         </>
     );
 }

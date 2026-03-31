@@ -10,7 +10,7 @@ export const authApi = {
     },
 
     getProfile: async (): Promise<ApiResponse<any>> => {
-        return fetchApi<ApiResponse<any>>("/auth/get-current-worker-profile", {
+        return fetchApi<ApiResponse<any>>("/auth/me", {
             method: "GET",
         });
     },
