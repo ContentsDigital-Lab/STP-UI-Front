@@ -22,7 +22,7 @@ export default defineConfig({
       {
         text: 'การสั่งซื้อและผลิต',
         items: [
-          { text: 'สร้างคำสั่งซื้อ', link: '/guide/order-requests' },
+          { text: 'รับออเดอร์', link: '/guide/order-requests' },
           { text: 'ติดตามการผลิต', link: '/guide/production' },
           { text: 'การทำงานที่สถานี', link: '/guide/stations' },
         ]
