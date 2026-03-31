@@ -19,6 +19,8 @@ export const metadata: Metadata = {
   description: "Standard Plus Glass Management System",
 };
 
+import { GlobalNotificationListener } from "@/components/notifications/global-listener";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -37,12 +39,13 @@ export default function RootLayout({
         >
           <AuthProvider>
             <LanguageProvider>
+              <GlobalNotificationListener />
               <AppLayout>{children}</AppLayout>
               <Toaster position="top-center" richColors closeButton />
             </LanguageProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>
-    </html >
+    </html>
   );
 }

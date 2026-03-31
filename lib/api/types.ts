@@ -146,6 +146,7 @@ export interface Pane {
         thickness: number;
         sheetsPerPane: number;
     };
+    holes?: any[];
     withdrawal?: string;
     remakeOf?: string;
     startedAt?: string;

@@ -615,6 +615,7 @@ export default function CreateBillPage() {
                                         sheetsPerPane: pane.sheetsPerPane,
                                     },
                                 } : {}),
+                                holes: pane.holes,
                                 currentStation: "Order_Reless",
                             } as Record<string, unknown>);
                             panesCreated++;
