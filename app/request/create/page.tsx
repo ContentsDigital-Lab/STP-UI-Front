@@ -1424,25 +1424,29 @@ export default function CreateBillPage() {
                                     </div>
                                 </div>
 
-                                {/* sheetsPerPane */}
-                                <div className="space-y-1.5">
-                                    <Label className="text-[10px] font-semibold text-slate-400 uppercase">
-                                        {lang === 'th' ? 'จำนวนแผ่นดิบต่อชิ้น' : 'Sheets/pane'}
-                                    </Label>
-                                    <Input
-                                        type="number"
-                                        min={1}
-                                        max={10}
-                                        value={ap.sheetsPerPane}
-                                        onChange={(e) => updatePane({ sheetsPerPane: Math.max(1, parseInt(e.target.value) || 1) })}
-                                        className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm px-4 focus:ring-[#E8601C]"
-                                    />
-                                </div>
+                                {/* sheetsPerPane — only for laminated glass */}
+                                {/laminated/i.test(ap.glassType) && (
+                                    <>
+                                        <div className="space-y-1.5">
+                                            <Label className="text-[10px] font-semibold text-slate-400 uppercase">
+                                                {lang === 'th' ? 'จำนวนแผ่นดิบต่อชิ้น' : 'Sheets/pane'}
+                                            </Label>
+                                            <Input
+                                                type="number"
+                                                min={2}
+                                                max={10}
+                                                value={ap.sheetsPerPane}
+                                                onChange={(e) => updatePane({ sheetsPerPane: Math.max(2, parseInt(e.target.value) || 2) })}
+                                                className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm px-4 focus:ring-[#E8601C]"
+                                            />
+                                        </div>
 
-                                {ap.sheetsPerPane > 1 && (
-                                    <p className="text-[11px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 rounded-xl border border-amber-100 dark:border-amber-900/30">
-                                        ⚠️ จะเบิกกระจกดิบ <span className="font-bold">{ap.sheetsPerPane} แผ่น</span> ต่อชิ้น — ระบบจะหักสต็อกตามจำนวนนี้
-                                    </p>
+                                        {ap.sheetsPerPane > 1 && (
+                                            <p className="text-[11px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 rounded-xl border border-amber-100 dark:border-amber-900/30">
+                                                ⚠️ จะเบิกกระจกดิบ <span className="font-bold">{ap.sheetsPerPane} แผ่น</span> ต่อชิ้น — ระบบจะหักสต็อกตามจำนวนนี้
+                                            </p>
+                                        )}
+                                    </>
                                 )}
                             </div>
                         </div>
@@ -1821,36 +1825,6 @@ export default function CreateBillPage() {
                                 />
                             </div>
 
-                            <div className="space-y-1.5">
-                                <Label className="text-[10px] font-semibold text-slate-400 uppercase flex items-center gap-1">
-                                    <User className="h-3 w-3" />
-                                    {lang === 'th' ? 'มอบหมายให้' : 'Assign To'}
-                                </Label>
-                                <Select
-                                    value={orderData.assignedTo}
-                                    onValueChange={(val) => setOrderData(prev => ({ ...prev, assignedTo: val || "" }))}
-                                >
-                                    <SelectTrigger className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm focus:ring-[#E8601C]">
-                                        <SelectValue placeholder={lang === 'th' ? 'เลือกผู้รับผิดชอบ...' : 'Select worker...'}>
-                                            {(value: string | null) => {
-                                                if (!value) return <span className="text-muted-foreground">{lang === 'th' ? 'เลือกผู้รับผิดชอบ...' : 'Select worker...'}</span>;
-                                                const w = workers.find(x => x._id === value);
-                                                return w?.name || value;
-                                            }}
-                                        </SelectValue>
-                                    </SelectTrigger>
-                                    <SelectContent className="rounded-2xl">
-                                        {workers.map(w => (
-                                            <SelectItem key={w._id} value={w._id} className="font-bold rounded-xl" label={w.name}>
-                                                <div className="flex flex-col">
-                                                    <span>{w.name}</span>
-                                                    <span className="text-[10px] opacity-60 capitalize">{w.position}</span>
-                                                </div>
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
                         </div>
 
                         {/* ── Order Summary (visible when 2+ panes) ───────── */}

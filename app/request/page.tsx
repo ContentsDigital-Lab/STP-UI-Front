@@ -176,6 +176,7 @@ export default function OrderRequestsPage() {
             const searchLower = searchQuery.toLowerCase();
 
             const matchesSearch =
+                req.requestNumber?.toLowerCase().includes(searchLower) ||
                 cust?.name?.toLowerCase().includes(searchLower) ||
                 req.deliveryLocation?.toLowerCase().includes(searchLower) ||
                 req.details?.type?.toLowerCase().includes(searchLower) ||
@@ -347,6 +348,7 @@ export default function OrderRequestsPage() {
         <>
             {[...Array(5)].map((_, i) => (
                 <TableRow key={i}>
+                    <TableCell><Skeleton className="h-4 w-[80px]" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-[140px]" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-[100px]" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-[50px]" /></TableCell>
@@ -449,7 +451,8 @@ export default function OrderRequestsPage() {
                     <Table>
                         <TableHeader>
                             <TableRow className="border-slate-100 dark:border-slate-800 hover:bg-transparent">
-                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 px-4 h-10">{it.table.customer}</TableHead>
+                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 px-4 h-10">{lang === 'th' ? 'เลขที่' : 'Req #'}</TableHead>
+                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">{it.table.customer}</TableHead>
                                 <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">{it.table.productType}</TableHead>
                                 <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 text-center h-10">{it.table.quantity}</TableHead>
                                 <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">{it.table.price}</TableHead>
@@ -475,14 +478,14 @@ export default function OrderRequestsPage() {
                                             onClick={() => openDetails(req)}
                                         >
                                             <TableCell className="py-3.5 px-4">
-                                                <div>
-                                                    <span className="text-sm font-medium text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                                                        {cust?.name || (lang === 'th' ? 'ไม่ระบุ' : 'Unknown')}
-                                                    </span>
-                                                    <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
-                                                        #{req._id.slice(-6).toUpperCase()}
-                                                    </p>
-                                                </div>
+                                                <span className="text-xs font-mono font-semibold text-blue-600 dark:text-blue-400">
+                                                    {req.requestNumber || `#${req._id.slice(-6).toUpperCase()}`}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell className="py-3.5">
+                                                <span className="text-sm font-medium text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                                                    {cust?.name || (lang === 'th' ? 'ไม่ระบุ' : 'Unknown')}
+                                                </span>
                                             </TableCell>
                                             <TableCell className="py-3.5">
                                                 <span className="text-xs font-medium px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400">
@@ -531,7 +534,7 @@ export default function OrderRequestsPage() {
                                 })
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={7} className="py-20 text-center border-none">
+                                    <TableCell colSpan={8} className="py-20 text-center border-none">
                                         <div className="flex flex-col items-center gap-3">
                                             <div className="h-12 w-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 dark:text-slate-500">
                                                 <ClipboardList className="h-6 w-6" />
@@ -605,7 +608,7 @@ export default function OrderRequestsPage() {
                                 {/* Panel Header */}
                                 <div className="p-6 pt-12 pb-6 border-b border-slate-100 dark:border-slate-800">
                                     <div className="flex items-center gap-2 mb-3">
-                                        <span className="text-xs text-slate-400 font-mono">#{selectedRequest._id.slice(-6).toUpperCase()}</span>
+                                        <span className="text-xs text-slate-400 font-mono">{selectedRequest.requestNumber || `#${selectedRequest._id.slice(-6).toUpperCase()}`}</span>
                                         {deadlinePast && (
                                             <Badge className="bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-[10px] font-medium rounded-md border-none">
                                                 {lang === 'th' ? 'เลยกำหนด' : 'Overdue'}
