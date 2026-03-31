@@ -1038,13 +1038,23 @@ export default function ProductionDetailPage() {
                                             </span>
                                         </div>
                                         <div className="flex items-center justify-between w-full mt-1">
-                                            {pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0) ? (
-                                                <span className="text-[11px] font-mono font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg">
-                                                    {pane.dimensions.width}×{pane.dimensions.height}
-                                                </span>
-                                            ) : (
-                                                <span />
-                                            )}
+                                            <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                                                {pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0) && (
+                                                    <span className="text-[11px] font-mono font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg">
+                                                        {pane.dimensions.width}×{pane.dimensions.height}
+                                                    </span>
+                                                )}
+                                                {pane.jobType && (
+                                                    <span className="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-100 dark:border-violet-500/20">
+                                                        {pane.jobType}
+                                                    </span>
+                                                )}
+                                                {pane.processes?.filter(p => p !== pane.jobType).map(proc => (
+                                                    <span key={proc} className="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-100 dark:border-sky-500/20">
+                                                        {proc}
+                                                    </span>
+                                                ))}
+                                            </div>
                                             <div
                                                 className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-lg border ${
                                                     isSpecialStation

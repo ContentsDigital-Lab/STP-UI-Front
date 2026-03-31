@@ -4,12 +4,13 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
     ClipboardList, Search, RefreshCw, ChevronDown, ChevronRight, ChevronLeft,
-    AlertCircle, User, Package, ArrowRight, MapPin,
-    CalendarDays, Printer, QrCode, X, CheckCheck, Wifi, WifiOff,
+    AlertCircle, Package, ArrowRight, MapPin,
+    CalendarDays, Printer, QrCode, X, CheckCheck, Wifi, WifiOff, Trash2,
 } from "lucide-react";
 import { QrCodeModal } from "@/components/qr/QrCodeModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { ordersApi } from "@/lib/api/orders";
 import { panesApi } from "@/lib/api/panes";
 import { requestsApi } from "@/lib/api/requests";
@@ -160,6 +161,10 @@ export default function ProductionPage() {
     const [expanded,  setExpanded]  = useState<Set<string>>(new Set());
     const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
     const [qrTarget,  setQrTarget]  = useState<{ code: string; label: string; url: string } | null>(null);
+    const [filterStatus,  setFilterStatus]  = useState<string>("all");
+    const [filterStation, setFilterStation] = useState<string>("all");
+    const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null);
+    const [deleting, setDeleting] = useState(false);
     const loadPanes = useCallback(async () => {
         const pRes = await panesApi.getAll({ limit: 100 }).catch(() => null);
         if (pRes?.success) {
@@ -220,37 +225,58 @@ export default function ProductionPage() {
         );
     }, [orders, requests]);
 
-    // Apply search — ครอบคลุมทุก field
-    const filtered = useMemo(() => {
-        const q = search.trim().toLowerCase();
-        if (!q) return bills;
-        return bills.filter(b => {
-            // bill-level fields
-            if (b.customer.toLowerCase().includes(q)) return true;
-            if (b.id.toLowerCase().includes(q)) return true;
-            if (b.id.slice(-6).toLowerCase().includes(q)) return true;
-            if ((b.request?.requestNumber ?? "").toLowerCase().includes(q)) return true;
-            if (fmtDate(b.request?.deadline).toLowerCase().includes(q)) return true;
-            // order-level fields
-            return b.orders.some(o =>
-                (o.code ?? "").toLowerCase().includes(q) ||
-                (o.orderNumber ?? "").toLowerCase().includes(q) ||
-                o._id.toLowerCase().includes(q) ||
-                o._id.slice(-6).toLowerCase().includes(q) ||
-                getName(o.material).toLowerCase().includes(q) ||
-                getName(o.customer).toLowerCase().includes(q) ||
-                getName(o.assignedTo).toLowerCase().includes(q) ||
-                (ORDER_STATUS[o.status as StatusKey]?.label ?? "").toLowerCase().includes(q) ||
-                (o.stations ?? []).some(sid => {
-                    const st = stationMap.get(sid);
-                    return st?.name?.toLowerCase().includes(q);
-                })
-            );
-        });
-    }, [bills, search, stationMap]);
+    // Stations actually used by current orders (for filter dropdown)
+    const usedStations = useMemo(() => {
+        const ids = new Set(orders.flatMap(o => o.stations ?? []));
+        return stations.filter(s => ids.has(s._id));
+    }, [orders, stations]);
 
-    // Reset to page 1 when search changes
-    useEffect(() => { setPage(1); }, [search]);
+    // Apply filters + search
+    const filtered = useMemo(() => {
+        let result = bills;
+
+        if (filterStatus !== "all") {
+            result = result.filter(b =>
+                b.orders.some(o => o.status === filterStatus)
+            );
+        }
+
+        if (filterStation !== "all") {
+            result = result.filter(b =>
+                b.orders.some(o => (o.stations ?? []).includes(filterStation))
+            );
+        }
+
+        const q = search.trim().toLowerCase();
+        if (q) {
+            result = result.filter(b => {
+                if (b.customer.toLowerCase().includes(q)) return true;
+                if (b.id.toLowerCase().includes(q)) return true;
+                if (b.id.slice(-6).toLowerCase().includes(q)) return true;
+                if ((b.request?.requestNumber ?? "").toLowerCase().includes(q)) return true;
+                if (fmtDate(b.request?.deadline).toLowerCase().includes(q)) return true;
+                return b.orders.some(o =>
+                    (o.code ?? "").toLowerCase().includes(q) ||
+                    (o.orderNumber ?? "").toLowerCase().includes(q) ||
+                    o._id.toLowerCase().includes(q) ||
+                    o._id.slice(-6).toLowerCase().includes(q) ||
+                    getName(o.material).toLowerCase().includes(q) ||
+                    getName(o.customer).toLowerCase().includes(q) ||
+                    getName(o.assignedTo).toLowerCase().includes(q) ||
+                    (ORDER_STATUS[o.status as StatusKey]?.label ?? "").toLowerCase().includes(q) ||
+                    (o.stations ?? []).some(sid => {
+                        const st = stationMap.get(sid);
+                        return st?.name?.toLowerCase().includes(q);
+                    })
+                );
+            });
+        }
+
+        return result;
+    }, [bills, search, stationMap, filterStatus, filterStation]);
+
+    // Reset to page 1 when search/filters change
+    useEffect(() => { setPage(1); }, [search, filterStatus, filterStation]);
 
     const PAGE_SIZE = 10;
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -265,6 +291,19 @@ export default function ProductionPage() {
     const toggleOrder = (id: string) => setExpandedOrders(prev => {
         const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n;
     });
+
+    const confirmDeleteOrder = async () => {
+        if (!deleteTarget) return;
+        setDeleting(true);
+        try {
+            const res = await ordersApi.delete(deleteTarget.id);
+            if (res.success) {
+                setOrders(prev => prev.filter(o => o._id !== deleteTarget.id));
+            }
+        } catch { /* ignore */ }
+        setDeleting(false);
+        setDeleteTarget(null);
+    };
 
     // Summary
     const totalBills     = bills.length;
@@ -313,29 +352,57 @@ export default function ProductionPage() {
                 ))}
             </div>
 
-            {/* Search */}
-            <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input
-                    placeholder="ค้นหา ลูกค้า, รหัสบิล, วัสดุ, สถานี, สถานะ..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="pl-9 pr-9 h-10 w-full rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-sm"
-                />
-                {search && (
-                    <button
-                        onClick={() => setSearch("")}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+            {/* Filter & Search */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                <div className="relative flex-1 min-w-0">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                    <Input
+                        placeholder="ค้นหา ลูกค้า, รหัสบิล, วัสดุ, สถานี, สถานะ..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="pl-9 pr-9 h-10 w-full rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-sm focus-visible:ring-2 focus-visible:ring-blue-600/20 focus-visible:border-blue-600"
+                    />
+                    {search && (
+                        <button
+                            type="button"
+                            onClick={() => setSearch("")}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                        >
+                            <X className="h-4 w-4" />
+                        </button>
+                    )}
+                </div>
+                <select
+                    value={filterStatus}
+                    onChange={e => setFilterStatus(e.target.value)}
+                    className="h-10 w-full sm:w-[180px] px-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm text-slate-700 dark:text-slate-300 outline-none cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+                >
+                    <option value="all">สถานะทั้งหมด</option>
+                    <option value="pending">รอตรวจสอบ</option>
+                    <option value="in_progress">กำลังผลิต</option>
+                    <option value="completed">เสร็จแล้ว</option>
+                    <option value="cancelled">ยกเลิก</option>
+                </select>
+                <select
+                    value={filterStation}
+                    onChange={e => setFilterStation(e.target.value)}
+                    className="h-10 w-full sm:w-[180px] px-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm text-slate-700 dark:text-slate-300 outline-none cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+                >
+                    <option value="all">สถานีทั้งหมด</option>
+                    {usedStations.map(s => (
+                        <option key={s._id} value={s._id}>{s.name}</option>
+                    ))}
+                </select>
+                {(search || filterStatus !== "all" || filterStation !== "all") && (
+                    <Button
+                        variant="ghost"
+                        onClick={() => { setSearch(""); setFilterStatus("all"); setFilterStation("all"); }}
+                        className="h-10 shrink-0 rounded-xl text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 px-3"
                     >
-                        <X className="h-3.5 w-3.5" />
-                    </button>
+                        ล้างตัวกรอง
+                    </Button>
                 )}
             </div>
-            {!loading && search && (
-                <p className="text-xs text-slate-400 -mt-4">
-                    พบ <span className="font-medium text-slate-600 dark:text-slate-300">{filtered.length}</span> จาก {bills.length} บิล · <button className="text-blue-600 dark:text-blue-400 underline underline-offset-2" onClick={() => setSearch("")}>ล้าง</button>
-                </p>
-            )}
 
             {/* Main content card */}
             <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 overflow-hidden">
@@ -391,10 +458,7 @@ export default function ProductionPage() {
                                     <div className="flex-1 min-w-0 space-y-1.5">
                                         {/* Row 1: customer + id + deadline */}
                                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                                            <div className="flex items-center gap-1.5">
-                                                <User className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                                                <span className="font-bold text-sm text-slate-900 dark:text-white">{bill.customer}</span>
-                                            </div>
+                                            <span className="font-bold text-sm text-slate-900 dark:text-white">{bill.customer}</span>
                                             <span className="font-mono text-xs text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
                                                 {bill.orders[0]?.orderNumber ?? `#${bill.id.slice(-6).toUpperCase()}`}
                                             </span>
@@ -433,21 +497,22 @@ export default function ProductionPage() {
                                         const billPanes = bill.orders.flatMap(o => paneMap.get(o._id) ?? []);
                                         const panesDone = billPanes.filter(p => p.currentStatus === "completed").length;
                                         const hasPanes  = billPanes.length > 0;
+                                        const doneCount = hasPanes ? panesDone : bill.completedOrders;
                                         return (
-                                            <div className="hidden sm:flex items-center gap-6 shrink-0 mr-1">
-                                                <div className="text-center min-w-[48px]">
+                                            <div className="hidden sm:flex items-center gap-4 shrink-0">
+                                                <div className="text-center min-w-[40px]">
                                                     <p className="text-lg font-bold text-slate-900 dark:text-white leading-tight">{bill.orders.length}</p>
                                                     <p className="text-[10px] font-medium text-slate-400 uppercase">ออเดอร์</p>
                                                 </div>
-                                                <div className="text-center min-w-[48px]">
+                                                <div className="text-center min-w-[40px]">
                                                     <p className="text-lg font-bold text-blue-600 dark:text-blue-400 leading-tight">
                                                         {hasPanes ? billPanes.length : bill.totalGlass}
                                                     </p>
                                                     <p className="text-[10px] font-medium text-slate-400 uppercase">กระจก</p>
                                                 </div>
-                                                <div className="text-center min-w-[48px]">
-                                                    <p className="text-lg font-bold leading-tight text-green-600 dark:text-green-400">
-                                                        {hasPanes ? panesDone : bill.completedOrders}
+                                                <div className="text-center min-w-[40px]">
+                                                    <p className={`text-lg font-bold leading-tight ${doneCount > 0 ? "text-green-600 dark:text-green-400" : "text-slate-300 dark:text-slate-600"}`}>
+                                                        {doneCount}
                                                     </p>
                                                     <p className="text-[10px] font-medium text-slate-400 uppercase">เสร็จ</p>
                                                 </div>
@@ -479,8 +544,10 @@ export default function ProductionPage() {
                                             const orderPanes = paneMap.get(order._id) ?? [];
                                             const isOrderOpen = expandedOrders.has(order._id);
 
+                                            const isZeroQty = (order.quantity ?? 0) === 0;
+
                                             return (
-                                                <div key={order._id} className="relative group/order hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
+                                                <div key={order._id} className={`relative group/order transition-colors ${isZeroQty ? "opacity-50" : "hover:bg-slate-50/60 dark:hover:bg-slate-800/30"}`}>
                                                     <div
                                                         className="px-4 sm:px-6 py-3 flex items-center gap-4 cursor-pointer"
                                                         onClick={() => orderPanes.length > 0 ? toggleOrder(order._id) : router.push(`/production/${order._id}`)}
@@ -493,7 +560,7 @@ export default function ProductionPage() {
                                                         </div>
 
                                                         {/* Code */}
-                                                        <div className="w-20 shrink-0 font-mono text-xs font-bold text-slate-900 dark:text-slate-200">
+                                                        <div className={`w-20 shrink-0 font-mono text-xs font-bold ${isZeroQty ? "text-slate-400 dark:text-slate-600" : "text-slate-900 dark:text-slate-200"}`}>
                                                             {order.orderNumber ?? `#${order.code ?? order._id.slice(-6).toUpperCase()}`}
                                                         </div>
 
@@ -577,6 +644,14 @@ export default function ProductionPage() {
                                                         )}
                                                         <button
                                                             type="button"
+                                                            title="ลบออเดอร์"
+                                                            onClick={(e) => { e.stopPropagation(); setDeleteTarget({ id: order._id, label: order.orderNumber ?? order.code ?? order._id.slice(-6).toUpperCase() }); }}
+                                                            className="flex-1 sm:flex-none flex items-center justify-center p-2.5 sm:p-1.5 rounded-xl sm:rounded-lg text-slate-500 hover:text-red-600 dark:hover:text-red-400 bg-slate-50 hover:bg-red-50 dark:bg-slate-800/50 dark:hover:bg-red-500/10 transition-colors border border-slate-200/50 dark:border-slate-700/50 sm:border-transparent sm:bg-transparent"
+                                                        >
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                        </button>
+                                                        <button
+                                                            type="button"
                                                             title="ดูรายละเอียด"
                                                             onClick={(e) => { e.stopPropagation(); router.push(`/production/${order._id}`); }}
                                                             className="flex-1 sm:flex-none flex items-center justify-center p-2.5 sm:p-1.5 rounded-xl sm:rounded-lg text-white sm:text-slate-500 bg-blue-600 hover:bg-blue-700 sm:hover:bg-blue-50 sm:hover:text-blue-600 dark:bg-[#E8601C] dark:hover:bg-orange-600 sm:dark:hover:bg-[#E8601C]/10 sm:dark:hover:text-[#E8601C] sm:bg-transparent transition-colors sm:border-transparent cursor-pointer"
@@ -651,7 +726,7 @@ export default function ProductionPage() {
                                                 <div className="sm:hidden px-5 py-2.5 flex gap-4 text-xs text-slate-400 bg-slate-50 dark:bg-slate-800/20">
                                                     <span>{bill.orders.length} ออเดอร์</span>
                                                     <span>{bp.length > 0 ? bp.length : bill.totalGlass} กระจก</span>
-                                                    <span className="text-green-600">{bp.length > 0 ? bd : bill.completedOrders} เสร็จแล้ว</span>
+                                                    <span className={(bp.length > 0 ? bd : bill.completedOrders) > 0 ? "text-green-600" : "text-slate-300 dark:text-slate-600"}>{bp.length > 0 ? bd : bill.completedOrders} เสร็จแล้ว</span>
                                                 </div>
                                             );
                                         })()}
@@ -713,6 +788,35 @@ export default function ProductionPage() {
                 onClose={() => setQrTarget(null)}
             />
         )}
+
+        {/* Delete confirmation dialog */}
+        <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+            <DialogContent className="sm:max-w-[400px]">
+                <DialogHeader>
+                    <div className="mx-auto mb-2 h-12 w-12 rounded-full bg-red-100 dark:bg-red-500/10 flex items-center justify-center">
+                        <Trash2 className="h-5 w-5 text-red-600 dark:text-red-400" />
+                    </div>
+                    <DialogTitle className="text-center">ยืนยันการลบออเดอร์</DialogTitle>
+                    <DialogDescription className="text-center">
+                        ต้องการลบออเดอร์ <span className="font-semibold text-slate-700 dark:text-slate-300">{deleteTarget?.label}</span> ใช่หรือไม่?
+                        การดำเนินการนี้ไม่สามารถย้อนกลับได้
+                    </DialogDescription>
+                </DialogHeader>
+                <DialogFooter className="flex gap-2 sm:gap-2">
+                    <Button variant="outline" className="flex-1 rounded-xl" disabled={deleting} onClick={() => setDeleteTarget(null)}>
+                        ยกเลิก
+                    </Button>
+                    <Button
+                        variant="destructive"
+                        className="flex-1 rounded-xl"
+                        onClick={confirmDeleteOrder}
+                        disabled={deleting}
+                    >
+                        {deleting ? "กำลังลบ..." : "ลบออเดอร์"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
         </>
     );
 }
