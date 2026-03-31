@@ -239,10 +239,10 @@ export default function ClaimsPage() {
     const handleCreateRemakeOrder = async (claim: Claim) => {
         const ord = typeof claim.order === "object" ? (claim.order as Order) : null;
         if (!ord) { toast.error("ไม่พบข้อมูลออเดอร์เดิม"); return; }
-        const requestId = typeof ord.request === "object" ? (ord.request as OrderRequest)._id : ord.request as string;
-        const customerId = typeof ord.customer === "object" ? (ord.customer as Customer)._id : ord.customer as string;
-        const materialId = typeof claim.material === "object" ? (claim.material as Material)._id : claim.material as string;
-        const assignedToId = typeof ord.assignedTo === "object" ? (ord.assignedTo as Worker)._id : ord.assignedTo as string;
+        const requestId    = (ord.request    != null && typeof ord.request    === "object") ? (ord.request    as OrderRequest)._id : (ord.request    as string | undefined);
+        const customerId   = (ord.customer   != null && typeof ord.customer   === "object") ? (ord.customer   as Customer)._id     : (ord.customer   as string | undefined);
+        const materialId   = (claim.material != null && typeof claim.material === "object") ? (claim.material as Material)._id     : (claim.material as string | undefined);
+        const assignedToId = (ord.assignedTo != null && typeof ord.assignedTo === "object") ? (ord.assignedTo as Worker)._id      : (ord.assignedTo as string | undefined);
         setIsCreatingRemake(true);
         try {
             const res = await ordersApi.create({
