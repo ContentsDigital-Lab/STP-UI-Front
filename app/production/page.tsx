@@ -157,6 +157,7 @@ export default function ProductionPage() {
     const [paneMap,   setPaneMap]   = useState<Map<string, Pane[]>>(new Map());
     const [loading,   setLoading]   = useState(true);
     const [search,    setSearch]    = useState("");
+    const [dateFilter, setDateFilter] = useState<string>("all");
     const [page,      setPage]      = useState(1);
     const [expanded,  setExpanded]  = useState<Set<string>>(new Set());
     const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
@@ -231,22 +232,33 @@ export default function ProductionPage() {
         return stations.filter(s => ids.has(s._id));
     }, [orders, stations]);
 
-    // Apply filters + search
+    // Apply filters: status, station (if any), then date, then search
     const filtered = useMemo(() => {
         let result = bills;
 
+        // Status filter
         if (filterStatus !== "all") {
             result = result.filter(b =>
                 b.orders.some(o => o.status === filterStatus)
             );
         }
 
+        // Station filter
         if (filterStation !== "all") {
             result = result.filter(b =>
                 b.orders.some(o => (o.stations ?? []).includes(filterStation))
             );
         }
 
+        // Date filter
+        if (typeof dateFilter !== "undefined" && dateFilter !== "all") {
+            result = result.filter(b => {
+                const billDateStr = (b.request?.createdAt ?? b.orders[0]?.createdAt ?? "").split("T")[0];
+                return billDateStr === dateFilter;
+            });
+        }
+
+        // Search filter
         const q = search.trim().toLowerCase();
         if (q) {
             result = result.filter(b => {
@@ -273,10 +285,10 @@ export default function ProductionPage() {
         }
 
         return result;
-    }, [bills, search, stationMap, filterStatus, filterStation]);
+    }, [bills, search, stationMap, filterStatus, filterStation, dateFilter]);
 
-    // Reset to page 1 when search/filters change
-    useEffect(() => { setPage(1); }, [search, filterStatus, filterStation]);
+    // Reset to page 1 when search, filters or dateFilter change
+    useEffect(() => { setPage(1); }, [search, filterStatus, filterStation, dateFilter]);
 
     const PAGE_SIZE = 10;
     const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -352,57 +364,56 @@ export default function ProductionPage() {
                 ))}
             </div>
 
-            {/* Filter & Search */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                <div className="relative flex-1 min-w-0">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+            {/* Filters row */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                {/* Search */}
+                <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                     <Input
-                        placeholder="ค้นหา ลูกค้า, รหัสบิล, วัสดุ, สถานี, สถานะ..."
+                        placeholder="ค้นหา ลูกค้า, รหัสบิล, วัสดุ, สถานี..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        className="pl-9 pr-9 h-10 w-full rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-sm focus-visible:ring-2 focus-visible:ring-blue-600/20 focus-visible:border-blue-600"
+                        className="pl-9 pr-9 h-10 w-full rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-sm"
                     />
                     {search && (
                         <button
-                            type="button"
                             onClick={() => setSearch("")}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
                         >
-                            <X className="h-4 w-4" />
+                            <X className="h-3.5 w-3.5" />
                         </button>
                     )}
                 </div>
-                <select
-                    value={filterStatus}
-                    onChange={e => setFilterStatus(e.target.value)}
-                    className="h-10 w-full sm:w-[180px] px-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm text-slate-700 dark:text-slate-300 outline-none cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
-                >
-                    <option value="all">สถานะทั้งหมด</option>
-                    <option value="pending">รอตรวจสอบ</option>
-                    <option value="in_progress">กำลังผลิต</option>
-                    <option value="completed">เสร็จแล้ว</option>
-                    <option value="cancelled">ยกเลิก</option>
-                </select>
-                <select
-                    value={filterStation}
-                    onChange={e => setFilterStation(e.target.value)}
-                    className="h-10 w-full sm:w-[180px] px-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm text-slate-700 dark:text-slate-300 outline-none cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
-                >
-                    <option value="all">สถานีทั้งหมด</option>
-                    {usedStations.map(s => (
-                        <option key={s._id} value={s._id}>{s.name}</option>
-                    ))}
-                </select>
-                {(search || filterStatus !== "all" || filterStation !== "all") && (
+
+                {/* Date filter (Precise) */}
+                <div className="relative w-full sm:w-[180px]">
+                    <CalendarDays className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none z-10" />
+                    <Input
+                        type="date"
+                        value={dateFilter === "all" ? "" : dateFilter}
+                        onChange={(e) => setDateFilter(e.target.value || "all")}
+                        className="pl-9 h-10 w-full rounded-xl border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm"
+                    />
+                </div>
+
+                {/* Clear all filters */}
+                {(search || dateFilter !== "all") && (
                     <Button
                         variant="ghost"
-                        onClick={() => { setSearch(""); setFilterStatus("all"); setFilterStation("all"); }}
-                        className="h-10 shrink-0 rounded-xl text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 px-3"
+                        size="sm"
+                        className="h-10 rounded-xl text-slate-400 hover:text-slate-600 px-3 shrink-0"
+                        onClick={() => { setSearch(""); setDateFilter("all"); }}
                     >
-                        ล้างตัวกรอง
+                        <X className="h-3.5 w-3.5 mr-1" />
+                        ล้าง
                     </Button>
                 )}
             </div>
+            {!loading && (search || dateFilter !== "all") && (
+                <p className="text-xs text-slate-400 -mt-4">
+                    พบ <span className="font-medium text-slate-600 dark:text-slate-300">{filtered.length}</span> จาก {bills.length} บิล
+                </p>
+            )}
 
             {/* Main content card */}
             <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 overflow-hidden">
@@ -753,18 +764,27 @@ export default function ProductionPage() {
                         >
                             <ChevronLeft className="h-4 w-4" />
                         </Button>
-                        {[...Array(totalPages)].map((_, i) => (
-                            <button
-                                key={i}
-                                onClick={() => setPage(i + 1)}
-                                className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-medium transition-colors ${page === i + 1
-                                    ? "bg-blue-600 text-white"
-                                    : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-                                    }`}
-                            >
-                                {i + 1}
-                            </button>
-                        ))}
+                        {Array.from({ length: totalPages }, (_, i) => i + 1)
+                            .filter(p => p === 1 || p === totalPages || Math.abs(page - p) <= 1)
+                            .map((pg, i, arr) => {
+                                const els: React.ReactNode[] = [];
+                                if (i > 0 && arr[i - 1] !== pg - 1) {
+                                    els.push(<span key={`e-${pg}`} className="px-0.5 text-xs text-slate-400">…</span>);
+                                }
+                                els.push(
+                                    <button
+                                        key={pg}
+                                        onClick={() => setPage(pg)}
+                                        className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-medium transition-colors ${page === pg
+                                            ? "bg-blue-600 dark:bg-[#E8601C] text-white"
+                                            : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                        }`}
+                                    >
+                                        {pg}
+                                    </button>
+                                );
+                                return els;
+                            })}
                         <Button
                             variant="ghost"
                             size="sm"
