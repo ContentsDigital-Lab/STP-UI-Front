@@ -24,18 +24,47 @@ export interface Role {
 }
 
 /**
+ * Extract the role slug from either a string or populated Role object.
+ */
+function resolveRoleSlug(role: unknown): string {
+  if (!role) return "";
+  if (typeof role === "string") return role;
+  if (typeof role === "object" && role !== null) {
+    return (role as Record<string, unknown>).slug as string ?? "";
+  }
+  return "";
+}
+
+/**
+ * Extract the permissions array from a populated Role object.
+ */
+function resolvePermissions(role: unknown): string[] {
+  if (!role || typeof role !== "object" || role === null) return [];
+  const perms = (role as Record<string, unknown>).permissions;
+  return Array.isArray(perms) ? perms as string[] : [];
+}
+
+/**
  * Helper to check if a user has a specific permission.
- * Currently supports:
- * 1. Hardcoded legacy roles (Admin gets everything, Manager gets most).
- * 2. New dynamic roles (using the permissions array).
+ * Supports:
+ * 1. Legacy string roles ("admin", "manager", "worker")
+ * 2. Populated Role objects ({ _id, slug, permissions[] })
  */
 export const hasPermission = (user: any, permission: Permission): boolean => {
   if (!user) return false;
 
-  // Legacy Hardcoded Rules (Fallback)
-  if (user.role === 'admin') return true;
-  
-  if (user.role === 'manager') {
+  const role = user.role;
+  const slug = resolveRoleSlug(role);
+
+  // Admin gets everything (works for both string "admin" and object { slug: "admin" })
+  if (slug === "admin") return true;
+
+  // Check permissions array from the populated Role object
+  const rolePerms = resolvePermissions(role);
+  if (rolePerms.includes("*") || rolePerms.includes(permission)) return true;
+
+  // Manager fallback (legacy hardcoded permissions)
+  if (slug === "manager") {
     const managerPermissions: Permission[] = [
       'users:view',
       'inventory:view',
@@ -50,14 +79,9 @@ export const hasPermission = (user: any, permission: Permission): boolean => {
     if (managerPermissions.includes(permission)) return true;
   }
 
-  // Dynamic Role Rules (Future Proofing)
+  // Check user-level permissions (if any)
   if (user.permissions && Array.isArray(user.permissions)) {
     return user.permissions.includes(permission);
-  }
-
-  // If the role itself is an object containing permissions
-  if (user.role && typeof user.role === 'object' && user.role.permissions) {
-    return user.role.permissions.includes(permission);
   }
 
   return false;

@@ -140,6 +140,7 @@ function PaneListSection({ record, endpoint, showPaneQr: showPaneQrProp = true }
     }, [record, endpoint, isRequestEndpoint, isOrderEndpoint]);
 
     useWebSocket("pane", ["pane:updated"], () => {
+        setQrPane(null);
         if (!record?._id) return;
         fetchPanes(record._id as string)
             .then(res => setPanes(res.success ? res.data ?? [] : []))

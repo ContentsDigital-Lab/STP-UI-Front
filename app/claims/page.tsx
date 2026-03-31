@@ -33,9 +33,7 @@ import { claimsApi } from "@/lib/api/claims";
 import { materialsApi } from "@/lib/api/materials";
 import { ordersApi } from "@/lib/api/orders";
 import { workersApi } from "@/lib/api/workers";
-import { inventoriesApi } from "@/lib/api/inventories";
-import { materialLogsApi } from "@/lib/api/material-logs";
-import { Claim, Material, Order, OrderRequest, Customer, Worker } from "@/lib/api/types";
+import { Claim, Material, Order, Worker } from "@/lib/api/types";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -71,10 +69,8 @@ export default function ClaimsPage() {
     const [decisionTarget, setDecisionTarget] = useState<Claim | null>(null);
     const [decisionForm, setDecisionForm] = useState({
         decision: "" as "destroy" | "keep" | "",
-        createRemake: true,
     });
     const [isUpdating, setIsUpdating] = useState(false);
-    const [isCreatingRemake, setIsCreatingRemake] = useState(false);
 
     // Delete dialog
     const [deleteTarget, setDeleteTarget] = useState<Claim | null>(null);
@@ -236,33 +232,6 @@ export default function ClaimsPage() {
         }
     };
 
-    const handleCreateRemakeOrder = async (claim: Claim) => {
-        const ord = typeof claim.order === "object" ? (claim.order as Order) : null;
-        if (!ord) { toast.error("ไม่พบข้อมูลออเดอร์เดิม"); return; }
-        const requestId = typeof ord.request === "object" ? (ord.request as OrderRequest)._id : ord.request as string;
-        const customerId = typeof ord.customer === "object" ? (ord.customer as Customer)._id : ord.customer as string;
-        const materialId = typeof claim.material === "object" ? (claim.material as Material)._id : claim.material as string;
-        const assignedToId = typeof ord.assignedTo === "object" ? (ord.assignedTo as Worker)._id : ord.assignedTo as string;
-        setIsCreatingRemake(true);
-        try {
-            const res = await ordersApi.create({
-                request: requestId,
-                customer: customerId,
-                material: materialId,
-                quantity: 1,
-                stations: ord.stations,
-                priority: ord.priority,
-                assignedTo: assignedToId,
-                notes: `ทดแทนการเคลม ${claim.claimNumber ?? claim._id}`,
-            } as Partial<Order>);
-            if (res.success) toast.success(`สร้างออเดอร์ทดแทน ${res.data.orderNumber ?? ""} สำเร็จ`);
-        } catch (err) {
-            toast.error(err instanceof Error ? err.message : "ไม่สามารถสร้างออเดอร์ทดแทนได้");
-        } finally {
-            setIsCreatingRemake(false);
-        }
-    };
-
     const handleUpdateDecision = async () => {
         if (!decisionTarget || !decisionForm.decision) {
             toast.error("กรุณาเลือกผลการตัดสิน");
@@ -270,46 +239,15 @@ export default function ClaimsPage() {
         }
         setIsUpdating(true);
         try {
-            // 1. Update the claim decision
-            await claimsApi.update(decisionTarget._id, {
+            const res = await claimsApi.update(decisionTarget._id, {
+                status: "approved",
                 decision: decisionForm.decision as "destroy" | "keep",
                 approvedBy: user?._id,
             });
 
-            // 2. If decision is "keep", move the glass to inventory (Reuse)
-            if (decisionForm.decision === "keep") {
-                try {
-                    const matId = typeof decisionTarget.material === "object" ? decisionTarget.material._id : decisionTarget.material;
-
-                    // Automatically create an entry in inventory as "Reuse"
-                    const invRes = await inventoriesApi.create({
-                        material: matId,
-                        stockType: "Reuse",
-                        quantity: 1,
-                        location: "คลังเคลม (Claim Bin)",
-                        storageColor: "#10b981", // Emerald-500
-                    });
-
-                    if (invRes.success) {
-                        // Create a Material Log for the import
-                        await materialLogsApi.create({
-                            material: matId,
-                            actionType: "import",
-                            quantityChanged: 1,
-                            stockType: "Reuse",
-                            referenceId: invRes.data._id,
-                            referenceType: "claim",
-                            worker: user?._id,
-                        });
-                    }
-                } catch (stockErr) {
-                    console.error("Failed to update inventory for claim:", stockErr);
-                    toast.error("ไม่สามารถปรับปรุงยอดคลังสินค้าได้ แต่บันทึกผลการตัดสินแล้ว");
-                }
+            if (res.success) {
+                toast.success("อนุมัติผลการตัดสินสำเร็จ — ระบบสร้างกระจกทดแทนอัตโนมัติแล้ว");
             }
-
-            toast.success("บันทึกผลการตัดสินสำเร็จ");
-            if (decisionForm.createRemake) await handleCreateRemakeOrder(decisionTarget);
             setDecisionTarget(null);
         } catch (err) {
             toast.error(err instanceof Error ? err.message : "เกิดข้อผิดพลาด");
@@ -515,7 +453,7 @@ export default function ClaimsPage() {
                                                 {isManager && (
                                                     <DropdownMenuItem onClick={() => {
                                                         setDecisionTarget(c);
-                                                        setDecisionForm({ decision: c.decision ?? "", createRemake: !c.decision });
+                                                        setDecisionForm({ decision: c.decision ?? "" });
                                                     }}>
                                                         <ClipboardCheck className="mr-2 h-4 w-4" />
                                                         ตัดสินผล
@@ -715,36 +653,21 @@ export default function ClaimsPage() {
                             </Select>
                         </div>
 
-                        {/* Remake order toggle */}
-                        <button
-                            type="button"
-                            onClick={() => setDecisionForm((f) => ({ ...f, createRemake: !f.createRemake }))}
-                            className={`w-full flex items-start gap-3 p-3 rounded-xl border-2 transition-all text-left ${
-                                decisionForm.createRemake
-                                    ? "border-blue-400 dark:border-blue-500 bg-blue-50 dark:bg-blue-500/10"
-                                    : "border-slate-200 dark:border-slate-700 bg-transparent hover:border-slate-300 dark:hover:border-slate-600"
-                            }`}
-                        >
-                            <div className={`mt-0.5 h-4 w-4 rounded border-2 shrink-0 flex items-center justify-center transition-colors ${
-                                decisionForm.createRemake ? "border-blue-500 bg-blue-500" : "border-slate-300 dark:border-slate-600"
-                            }`}>
-                                {decisionForm.createRemake && <span className="text-white text-[10px] font-bold">✓</span>}
-                            </div>
+                        {/* Auto-remake info */}
+                        <div className="w-full flex items-start gap-3 p-3 rounded-xl border-2 border-blue-400 dark:border-blue-500 bg-blue-50 dark:bg-blue-500/10 text-left">
+                            <PackagePlus className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
                             <div>
-                                <div className="flex items-center gap-1.5">
-                                    <PackagePlus className="h-3.5 w-3.5 text-blue-500" />
-                                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">สร้างออเดอร์ทดแทนอัตโนมัติ</p>
-                                </div>
+                                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">สร้างกระจกทดแทนอัตโนมัติ</p>
                                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                                    สร้างออเดอร์ใหม่ 1 ชิ้นภายใต้บิลเดิม เพื่อทำกระจกชดเชย
+                                    เมื่ออนุมัติ ระบบจะสร้าง Pane ใหม่ภายใต้บิลเดิม พร้อมสเปกเดียวกันโดยอัตโนมัติ
                                 </p>
                             </div>
-                        </button>
+                        </div>
                     </div>
                     <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-                        <Button variant="ghost" onClick={() => setDecisionTarget(null)} disabled={isUpdating || isCreatingRemake} className="rounded-xl h-10 px-5 text-sm text-slate-500 hover:text-slate-900 dark:hover:text-white">ยกเลิก</Button>
-                        <Button onClick={handleUpdateDecision} disabled={isUpdating || isCreatingRemake} className="bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white rounded-xl h-10 px-5 text-sm font-bold shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0">
-                            {isUpdating || isCreatingRemake ? "กำลังดำเนินการ..." : "บันทึกผลการตัดสิน"}
+                        <Button variant="ghost" onClick={() => setDecisionTarget(null)} disabled={isUpdating} className="rounded-xl h-10 px-5 text-sm text-slate-500 hover:text-slate-900 dark:hover:text-white">ยกเลิก</Button>
+                        <Button onClick={handleUpdateDecision} disabled={isUpdating} className="bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white rounded-xl h-10 px-5 text-sm font-bold shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0">
+                            {isUpdating ? "กำลังดำเนินการ..." : "อนุมัติผลการตัดสิน"}
                         </Button>
                     </div>
                 </DialogContent>
@@ -809,9 +732,7 @@ export default function ClaimsPage() {
                                                         <div className="flex items-center gap-1.5">
                                                             <MapPin className="h-3 w-3 text-slate-400" />
                                                             <p className="text-sm font-medium text-slate-900 dark:text-white">
-                                                                {typeof paneObj.currentStation === "object"
-                                                                    ? (paneObj.currentStation as { name?: string }).name ?? "-"
-                                                                    : paneObj.currentStation}
+                                                                {getStationName(paneObj.currentStation)}
                                                             </p>
                                                         </div>
                                                     </div>
@@ -989,7 +910,7 @@ export default function ClaimsPage() {
                                                 const target = activeClaim ?? detailClaim;
                                                 setDetailClaim(null);
                                                 setDecisionTarget(target);
-                                                setDecisionForm({ decision: target.decision ?? "", createRemake: !target.decision });
+                                                setDecisionForm({ decision: target.decision ?? "" });
                                             }}
                                         >
                                             <ClipboardCheck className="h-4 w-4" />

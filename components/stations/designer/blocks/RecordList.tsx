@@ -222,20 +222,22 @@ export function RecordList({
             ? `/orders?stationId=${encodeURIComponent(stationId!)}`
             : dataSource;
 
-        // Auto-filter processed requests unless user explicitly opts out
         const shouldHideProcessed = dataSource === "/requests" && !showAllRequests;
+        const needPaneCheck = shouldHideProcessed && shouldFilterStation && stationId;
 
         const fetchMain = fetchApi<{ success: boolean; data: Record<string, unknown>[] }>(url);
         const fetchOrders = shouldHideProcessed
             ? fetchApi<{ success: boolean; data: Record<string, unknown>[] }>("/orders")
             : Promise.resolve(null);
+        const fetchPanes = needPaneCheck
+            ? panesApi.getAll({ limit: 500 }).catch(() => null)
+            : Promise.resolve(null);
 
-        Promise.all([fetchMain, fetchOrders])
-            .then(([mainRes, ordersRes]) => {
+        Promise.all([fetchMain, fetchOrders, fetchPanes])
+            .then(([mainRes, ordersRes, panesRes]) => {
                 if (!mainRes.success) { setError("โหลดข้อมูลไม่สำเร็จ"); return; }
                 let data = mainRes.data ?? [];
                 if (shouldHideProcessed && ordersRes?.success) {
-                    // Build set of request IDs that already have an order
                     const processedRequestIds = new Set<string>(
                         (ordersRes.data ?? []).map((o) => {
                             const req = o.request;
@@ -243,7 +245,25 @@ export function RecordList({
                             return typeof req === "string" ? req : (req as Record<string, unknown>)._id as string;
                         }).filter(Boolean) as string[]
                     );
-                    data = data.filter((r) => !processedRequestIds.has(r._id as string));
+
+                    // Find requests that have pending panes at this station (e.g. remake panes)
+                    const requestsWithPendingPanes = new Set<string>();
+                    if (panesRes?.success && Array.isArray(panesRes.data)) {
+                        for (const pane of panesRes.data) {
+                            if (!isStationMatch(pane.currentStation, stationId, stationName)) continue;
+                            if (pane.currentStatus !== "pending") continue;
+                            const reqId = pane.request
+                                ? (typeof pane.request === "string" ? pane.request : (pane.request as { _id?: string })?._id ?? "")
+                                : "";
+                            if (reqId) requestsWithPendingPanes.add(reqId);
+                        }
+                    }
+
+                    data = data.filter((r) => {
+                        const rid = r._id as string;
+                        if (!processedRequestIds.has(rid)) return true;
+                        return requestsWithPendingPanes.has(rid);
+                    });
                 }
                 setRows(data);
             })
@@ -311,6 +331,7 @@ export function RecordList({
     useWebSocket("pane", ["pane:updated"], () => {
         if (isApi) loadData();
         loadPendingPaneCounts();
+        setQrPane(null);
         if (!expandedRowId) return;
         const fetchFn = dataSource === "/orders"
             ? panesApi.getAll({ order: expandedRowId, limit: 100 })
