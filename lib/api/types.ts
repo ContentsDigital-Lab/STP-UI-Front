@@ -51,6 +51,7 @@ export interface MaterialLog {
     totalPrice?: number;
     stockType?: "Raw" | "Reuse";
     order?: string | Order;
+    pane?: string | Pane;
     parentLog?: string | MaterialLog;
     worker?: string | Worker;
     createdAt: string;

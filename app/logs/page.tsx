@@ -3,9 +3,10 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { materialLogsApi } from "@/lib/api/material-logs";
 import { productionLogsApi } from "@/lib/api/production-logs";
-import { MaterialLog, Order, Material, Worker, Inventory, PaneLog, TimelineEvent, Pane } from "@/lib/api/types";
+import { MaterialLog, Order, Material, Worker, Inventory, PaneLog, TimelineEvent, Pane, Station } from "@/lib/api/types";
 import { inventoriesApi } from "@/lib/api/inventories";
 import { workersApi } from "@/lib/api/workers";
+import { stationsApi } from "@/lib/api/stations";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import {
@@ -56,6 +57,7 @@ import {
     CheckCircle2,
     Circle,
     Play,
+    Factory,
 } from "lucide-react";
 
 const ITEMS_PER_PAGE = 10;
@@ -166,6 +168,9 @@ export default function MaterialLogsPage() {
     // Worker lookup (for resolving worker IDs to names)
     const [workerMap, setWorkerMap] = useState<Map<string, Worker>>(new Map());
 
+    // Station lookup (for resolving station IDs to names/colors)
+    const [stationMap, setStationMap] = useState<Map<string, Station>>(new Map());
+
     // Detail panel state
     const [isDetailOpen, setIsDetailOpen] = useState(false);
     const [selectedLog, setSelectedLog] = useState<MaterialLog | null>(null);
@@ -204,6 +209,12 @@ export default function MaterialLogsPage() {
         workersApi.getAll().then(res => {
             if (res.success && res.data) {
                 setWorkerMap(new Map(res.data.map(w => [w._id, w])));
+            }
+        }).catch(() => {});
+        // Fetch stations once for station column
+        stationsApi.getAll().then(res => {
+            if (res.success && res.data) {
+                setStationMap(new Map(res.data.map(s => [s._id, s])));
             }
         }).catch(() => {});
     }, [fetchLogs]);
@@ -455,6 +466,62 @@ export default function MaterialLogsPage() {
         );
     };
 
+    const renderStation = (log: MaterialLog) => {
+        // Try to get station from pane first (most accurate for current station)
+        const pane = log.pane && typeof log.pane === "object" ? log.pane as Pane : null;
+        if (pane && pane.currentStation) {
+            const station = stationMap.get(pane.currentStation);
+            const name = station?.name ?? pane.currentStation;
+            // Color from station config
+            const COLOR_MAP: Record<string, { bg: string; text: string; dot: string }> = {
+                red:     { bg: "bg-red-50 dark:bg-red-500/10",     text: "text-red-600 dark:text-red-400",     dot: "bg-red-500" },
+                orange:  { bg: "bg-orange-50 dark:bg-orange-500/10", text: "text-orange-600 dark:text-orange-400", dot: "bg-orange-500" },
+                amber:   { bg: "bg-amber-50 dark:bg-amber-500/10", text: "text-amber-600 dark:text-amber-400", dot: "bg-amber-500" },
+                yellow:  { bg: "bg-yellow-50 dark:bg-yellow-500/10", text: "text-yellow-600 dark:text-yellow-400", dot: "bg-yellow-500" },
+                lime:    { bg: "bg-lime-50 dark:bg-lime-500/10",   text: "text-lime-600 dark:text-lime-400",   dot: "bg-lime-500" },
+                green:   { bg: "bg-green-50 dark:bg-green-500/10", text: "text-green-600 dark:text-green-400", dot: "bg-green-500" },
+                emerald: { bg: "bg-emerald-50 dark:bg-emerald-500/10", text: "text-emerald-600 dark:text-emerald-400", dot: "bg-emerald-500" },
+                teal:    { bg: "bg-teal-50 dark:bg-teal-500/10",   text: "text-teal-600 dark:text-teal-400",   dot: "bg-teal-500" },
+                cyan:    { bg: "bg-cyan-50 dark:bg-cyan-500/10",   text: "text-cyan-600 dark:text-cyan-400",   dot: "bg-cyan-500" },
+                sky:     { bg: "bg-sky-50 dark:bg-sky-500/10",     text: "text-sky-600 dark:text-sky-400",     dot: "bg-sky-500" },
+                blue:    { bg: "bg-blue-50 dark:bg-blue-500/10",   text: "text-blue-600 dark:text-blue-400",   dot: "bg-blue-500" },
+                indigo:  { bg: "bg-indigo-50 dark:bg-indigo-500/10", text: "text-indigo-600 dark:text-indigo-400", dot: "bg-indigo-500" },
+                violet:  { bg: "bg-violet-50 dark:bg-violet-500/10", text: "text-violet-600 dark:text-violet-400", dot: "bg-violet-500" },
+                purple:  { bg: "bg-purple-50 dark:bg-purple-500/10", text: "text-purple-600 dark:text-purple-400", dot: "bg-purple-500" },
+                fuchsia: { bg: "bg-fuchsia-50 dark:bg-fuchsia-500/10", text: "text-fuchsia-600 dark:text-fuchsia-400", dot: "bg-fuchsia-500" },
+                pink:    { bg: "bg-pink-50 dark:bg-pink-500/10",   text: "text-pink-600 dark:text-pink-400",   dot: "bg-pink-500" },
+                rose:    { bg: "bg-rose-50 dark:bg-rose-500/10",   text: "text-rose-600 dark:text-rose-400",   dot: "bg-rose-500" },
+                slate:   { bg: "bg-slate-100 dark:bg-slate-800",   text: "text-slate-600 dark:text-slate-400", dot: "bg-slate-500" },
+            };
+            const colorId = station?.colorId ?? "sky";
+            const c = COLOR_MAP[colorId] ?? COLOR_MAP.sky;
+            return (
+                <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md ${c.bg} ${c.text}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${c.dot}`} />
+                    {name}
+                </span>
+            );
+        }
+
+        // Fallback: resolve from order
+        const order = log.order && typeof log.order === "object" ? log.order as Order : null;
+        if (order && order.stations?.length > 0 && order.currentStationIndex != null) {
+            const stationId = order.stations[order.currentStationIndex];
+            if (stationId) {
+                const station = stationMap.get(stationId);
+                const name = station?.name ?? stationId.slice(-6).toUpperCase();
+                return (
+                    <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400">
+                        <span className="h-1.5 w-1.5 rounded-full shrink-0 bg-sky-500" />
+                        {name}
+                    </span>
+                );
+            }
+        }
+
+        return <span className="text-slate-300 dark:text-slate-700">—</span>;
+    };
+
     const renderReference = (log: MaterialLog) => {
         if (!log.referenceType || !log.referenceId) return <span className="text-slate-300 dark:text-slate-700">—</span>;
         const typeLabel = REF_TYPE_LABELS[log.referenceType];
@@ -639,6 +706,9 @@ export default function MaterialLogsPage() {
                                     {lang === "th" ? "ออเดอร์" : "Order"}
                                 </TableHead>
                                 <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10 whitespace-nowrap">
+                                    {lang === "th" ? "สถานี" : "Station"}
+                                </TableHead>
+                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10 whitespace-nowrap">
                                     {lang === "th" ? "สถานที่" : "Location"}
                                 </TableHead>
                                 <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">
@@ -710,6 +780,10 @@ export default function MaterialLogsPage() {
                                             </TableCell>
 
                                             <TableCell className="py-3.5">
+                                                {renderStation(log)}
+                                            </TableCell>
+
+                                            <TableCell className="py-3.5">
                                                 {(() => {
                                                     const moveLocs = getMoveLocations(log, moveSourceIds, invMap, parentLogMap, logById);
                                                     if (moveLocs) {
@@ -745,7 +819,7 @@ export default function MaterialLogsPage() {
                                 })
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={9} className="py-16 text-center border-none">
+                                    <TableCell colSpan={10} className="py-16 text-center border-none">
                                         <div className="flex flex-col items-center gap-2">
                                             <div className="h-12 w-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
                                                 <History className="h-6 w-6 text-slate-400 dark:text-slate-500" />
@@ -901,42 +975,112 @@ export default function MaterialLogsPage() {
                                 if (!existing || new Date(e.createdAt) > new Date(existing.createdAt)) byPane.set(pid, e);
                             }
                             const panePositions = [...byPane.values()];
+
+                            // Group counts for mini summary
+                            const statusGroups = { scan_in: 0, start: 0, complete: 0, scan_out: 0 } as Record<string, number>;
+                            panePositions.forEach(e => { statusGroups[e.action] = (statusGroups[e.action] ?? 0) + 1; });
+                            const completedCount = (statusGroups.complete ?? 0) + (statusGroups.scan_out ?? 0);
+                            const inProgressCount = statusGroups.start ?? 0;
+                            const waitingCount = statusGroups.scan_in ?? 0;
+
+                            const STATUS_CFG: Record<string, { label: string; bg: string; text: string; dot: string }> = {
+                                scan_in:  { label: lang === "th" ? "เข้าสถานี"  : "At station",  bg: "bg-blue-50 dark:bg-blue-500/10",     text: "text-blue-600 dark:text-blue-400",     dot: "bg-blue-500" },
+                                start:    { label: lang === "th" ? "กำลังทำ"   : "In progress", bg: "bg-amber-50 dark:bg-amber-500/10",   text: "text-amber-600 dark:text-amber-400",   dot: "bg-amber-500" },
+                                complete: { label: lang === "th" ? "เสร็จสิ้น"  : "Complete",    bg: "bg-emerald-50 dark:bg-emerald-500/10", text: "text-emerald-600 dark:text-emerald-400", dot: "bg-emerald-500" },
+                                scan_out: { label: lang === "th" ? "ออกสถานี"  : "Scan out",    bg: "bg-violet-50 dark:bg-violet-500/10", text: "text-violet-600 dark:text-violet-400", dot: "bg-violet-500" },
+                            };
+
                             return (
                                 <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800">
-                                    <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-3">
-                                        {lang === "th" ? `กระจกที่ตัดจากวัสดุนี้ (${panePositions.length} ชิ้น)` : `Panes cut from this material (${panePositions.length})`}
-                                    </p>
-                                    <div className="flex flex-col gap-2">
+                                    {/* Section header with status summary pills */}
+                                    <div className="flex items-center justify-between gap-2 mb-3">
+                                        <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">
+                                            {lang === "th" ? "กระจกที่ตัดจากวัสดุนี้" : "Panes from material"}
+                                        </p>
+                                        <div className="flex items-center gap-1.5">
+                                            {completedCount > 0 && (
+                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                                                    ✓ {completedCount}
+                                                </span>
+                                            )}
+                                            {inProgressCount > 0 && (
+                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                                                    ◉ {inProgressCount}
+                                                </span>
+                                            )}
+                                            {waitingCount > 0 && (
+                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                                                    ○ {waitingCount}
+                                                </span>
+                                            )}
+                                            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
+                                                {panePositions.length} {lang === "th" ? "ชิ้น" : "pcs"}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Pane cards — compact 2-line layout */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                         {panePositions.map(e => {
                                             const pane = typeof e.pane === "object" ? e.pane as Pane : null;
                                             const order = typeof e.order === "object" ? e.order as Order : null;
                                             const worker = typeof e.worker === "object" ? e.worker as Worker : null;
-                                            const statusCfg = {
-                                                scan_in:  { label: lang === "th" ? "เข้าสถานี" : "At station", cls: "bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-950/30 dark:text-blue-400", dot: "bg-blue-500" },
-                                                start:    { label: lang === "th" ? "กำลังทำ"  : "In progress", cls: "bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-950/30 dark:text-amber-400", dot: "bg-amber-500" },
-                                                complete: { label: lang === "th" ? "เสร็จสิ้น" : "Complete", cls: "bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400", dot: "bg-emerald-500" },
-                                                scan_out: { label: lang === "th" ? "ออกสถานี" : "Scan out", cls: "bg-violet-50 text-violet-700 border-violet-100 dark:bg-violet-950/30 dark:text-violet-400", dot: "bg-violet-500" },
-                                            }[e.action] ?? { label: e.action, cls: "bg-slate-50 text-slate-600 border-slate-200", dot: "bg-slate-400" };
+                                            const stCfg = STATUS_CFG[e.action] ?? { label: e.action, bg: "bg-slate-50 dark:bg-slate-800", text: "text-slate-500", dot: "bg-slate-400" };
+
+                                            // Resolve station name from stationMap
+                                            const resolvedStationName = (() => {
+                                                if (!e.station) return null;
+                                                // Try finding by name match first (e.station is often a name string)
+                                                for (const [, s] of stationMap) {
+                                                    if (s.name === e.station || s._id === e.station) return s.name;
+                                                }
+                                                return e.station;
+                                            })();
+
                                             return (
-                                                <div key={e._id} className="flex items-center gap-2 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 px-3 py-2.5">
-                                                    <Cpu className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                                                    <span className="font-mono text-xs font-bold text-slate-700 dark:text-slate-300 shrink-0">{pane?.paneNumber ?? "—"}</span>
-                                                    <ChevronRight className="h-3 w-3 text-slate-300 shrink-0" />
-                                                    <span className="text-xs text-slate-500 shrink-0">{e.station}</span>
-                                                    <span className={`ml-auto inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${statusCfg.cls}`}>
-                                                        <span className={`h-1.5 w-1.5 rounded-full ${statusCfg.dot}`} />
-                                                        {statusCfg.label}
-                                                    </span>
-                                                    {order && (
-                                                        <span className="text-[10px] font-mono font-bold text-[#1B4B9A] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 px-1.5 py-0.5 rounded border border-blue-100 dark:border-blue-900/40 shrink-0">
-                                                            #{(order._id ?? "").slice(-6).toUpperCase()}
+                                                <div
+                                                    key={e._id}
+                                                    className="rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 hover:border-slate-200 dark:hover:border-slate-700 transition-colors"
+                                                >
+                                                    {/* Line 1: Pane number + status */}
+                                                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                                                        <div className="flex items-center gap-2 min-w-0">
+                                                            <span className={`h-2 w-2 rounded-full shrink-0 ${stCfg.dot}`} />
+                                                            <span className="font-mono text-sm font-bold text-slate-800 dark:text-white truncate">
+                                                                {pane?.paneNumber ?? "—"}
+                                                            </span>
+                                                        </div>
+                                                        <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${stCfg.bg} ${stCfg.text}`}>
+                                                            {stCfg.label}
                                                         </span>
-                                                    )}
-                                                    {worker && (
-                                                        <span className="text-[10px] text-slate-400 shrink-0 flex items-center gap-0.5">
-                                                            <User className="h-3 w-3" />{worker.name ?? worker.username}
-                                                        </span>
-                                                    )}
+                                                    </div>
+
+                                                    {/* Line 2: Station · Order · Worker */}
+                                                    <div className="flex items-center gap-1.5 pl-4 text-[11px] text-slate-400">
+                                                        {resolvedStationName && (
+                                                            <>
+                                                                <Factory className="h-2.5 w-2.5 shrink-0" />
+                                                                <span className="truncate max-w-[100px]">{resolvedStationName}</span>
+                                                            </>
+                                                        )}
+                                                        {order && (
+                                                            <>
+                                                                {resolvedStationName && <span className="text-slate-200 dark:text-slate-700">·</span>}
+                                                                <span className="font-mono font-bold text-blue-500 dark:text-blue-400 shrink-0">
+                                                                    {order.orderNumber ?? `#${(order._id ?? "").slice(-6).toUpperCase()}`}
+                                                                </span>
+                                                            </>
+                                                        )}
+                                                        {worker && (
+                                                            <>
+                                                                <span className="text-slate-200 dark:text-slate-700">·</span>
+                                                                <span className="flex items-center gap-0.5 truncate">
+                                                                    <User className="h-2.5 w-2.5 shrink-0" />
+                                                                    {worker.name ?? worker.username}
+                                                                </span>
+                                                            </>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             );
                                         })}
