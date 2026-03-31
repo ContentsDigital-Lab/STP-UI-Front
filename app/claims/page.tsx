@@ -232,36 +232,7 @@ export default function ClaimsPage() {
         }
     };
 
-<<<<<<< HEAD
-    const handleCreateRemakeOrder = async (claim: Claim) => {
-        const ord = typeof claim.order === "object" ? (claim.order as Order) : null;
-        if (!ord) { toast.error("ไม่พบข้อมูลออเดอร์เดิม"); return; }
-        const requestId    = (ord.request    != null && typeof ord.request    === "object") ? (ord.request    as OrderRequest)._id : (ord.request    as string | undefined);
-        const customerId   = (ord.customer   != null && typeof ord.customer   === "object") ? (ord.customer   as Customer)._id     : (ord.customer   as string | undefined);
-        const materialId   = (claim.material != null && typeof claim.material === "object") ? (claim.material as Material)._id     : (claim.material as string | undefined);
-        const assignedToId = (ord.assignedTo != null && typeof ord.assignedTo === "object") ? (ord.assignedTo as Worker)._id      : (ord.assignedTo as string | undefined);
-        setIsCreatingRemake(true);
-        try {
-            const res = await ordersApi.create({
-                request: requestId,
-                customer: customerId,
-                material: materialId,
-                quantity: 1,
-                stations: ord.stations,
-                priority: ord.priority,
-                assignedTo: assignedToId,
-                notes: `ทดแทนการเคลม ${claim.claimNumber ?? claim._id}`,
-            } as Partial<Order>);
-            if (res.success) toast.success(`สร้างออเดอร์ทดแทน ${res.data.orderNumber ?? ""} สำเร็จ`);
-        } catch (err) {
-            toast.error(err instanceof Error ? err.message : "ไม่สามารถสร้างออเดอร์ทดแทนได้");
-        } finally {
-            setIsCreatingRemake(false);
-        }
-    };
 
-=======
->>>>>>> origin/order_request
     const handleUpdateDecision = async () => {
         if (!decisionTarget || !decisionForm.decision) {
             toast.error("กรุณาเลือกผลการตัดสิน");
