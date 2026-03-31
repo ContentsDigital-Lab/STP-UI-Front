@@ -74,9 +74,9 @@ export const hasPermission = (user: any, permission: Permission): boolean => {
       'orders:view',
       'orders:create',
       'orders:manage',
-      'settings:view'
+      'settings:view',
     ];
-    if (managerPermissions.includes(permission)) return true;
+    return managerPermissions.includes(permission);
   }
 
   // Check user-level permissions (if any)
@@ -86,6 +86,8 @@ export const hasPermission = (user: any, permission: Permission): boolean => {
 
   return false;
 };
+
+
 
 // Label mapping for UI display
 export const PERMISSION_LABELS: Record<Permission, { label: string, group: string }> = {
