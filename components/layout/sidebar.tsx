@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { useAuth } from "@/lib/auth/auth-context";
-import { isManagerOrAbove } from "@/lib/auth/role-utils";
+import { hasPermission, Permission } from "@/lib/auth/permissions";
 import {
     LayoutDashboard,
     ClipboardList,
@@ -30,6 +30,8 @@ interface NavItem {
     name: string;
     href: string;
     icon: React.ElementType;
+    /** If set, the item is only shown when the user has this permission */
+    permission?: Permission;
 }
 
 interface NavSection {
@@ -41,49 +43,49 @@ export function Sidebar({ collapsed, setCollapsed, onNavigate }: SidebarProps) {
     const pathname = usePathname();
     const { t, lang } = useLanguage();
     const { user } = useAuth();
-    const isManager = isManagerOrAbove(user?.role);
 
-    const sections: NavSection[] = [
+    const allSections: NavSection[] = [
         {
             label: lang === "th" ? "ภาพรวม" : "Overview",
             items: [
-                { name: t.dashboard.label, href: "/", icon: LayoutDashboard },
+                { name: t.dashboard.label, href: "/", icon: LayoutDashboard, permission: "production:view" },
             ],
         },
         {
             label: lang === "th" ? "การดำเนินงาน" : "Operations",
             items: [
-                ...(isManager
-                    ? [{ name: t.orderRequests, href: "/request", icon: ClipboardList }]
-                    : []),
-                {
-                    name: lang === "th" ? "ติดตามการผลิต" : "Production",
-                    href: "/production",
-                    icon: ClipboardCheck,
-                },
-                {
-                    name: lang === "th" ? "สถานี" : "Stations",
-                    href: "/stations",
-                    icon: Factory,
-                },
+                { name: t.orderRequests, href: "/request", icon: ClipboardList, permission: "orders:create" },
+                { name: lang === "th" ? "ติดตามการผลิต" : "Production", href: "/production", icon: ClipboardCheck, permission: "production:view" },
+                { name: lang === "th" ? "สถานี" : "Stations", href: "/stations", icon: Factory },
             ],
         },
         {
             label: lang === "th" ? "คลังสินค้า" : "Warehouse",
             items: [
-                { name: t.inventory, href: "/inventory", icon: Package },
-                { name: t.withdrawals, href: "/withdrawals", icon: ArrowDownFromLine },
-                { name: t.claims, href: "/claims", icon: ShieldAlert },
+                { name: t.inventory, href: "/inventory", icon: Package, permission: "inventory:view" },
+                { name: t.withdrawals, href: "/withdrawals", icon: ArrowDownFromLine, permission: "inventory:view" },
+                { name: t.claims, href: "/claims", icon: ShieldAlert, permission: "inventory:view" },
             ],
         },
         {
             label: lang === "th" ? "ระบบ" : "System",
             items: [
-                { name: t.logs, href: "/logs", icon: History },
+                { name: t.logs, href: "/logs", icon: History, permission: "settings:view" },
+                // Settings menu is visible to all; individual items inside are guarded
                 { name: t.settings, href: "/settings", icon: Settings },
             ],
         },
     ];
+
+    // Filter items and sections based on user permissions
+    const sections = allSections
+        .map((section) => ({
+            ...section,
+            items: section.items.filter((item) =>
+                !item.permission || hasPermission(user, item.permission)
+            ),
+        }))
+        .filter((section) => section.items.length > 0);
 
     return (
         <div
@@ -115,7 +117,6 @@ export function Sidebar({ collapsed, setCollapsed, onNavigate }: SidebarProps) {
             {/* Navigation */}
             <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-2.5">
                 {sections.map((section, sIdx) => {
-                    if (section.items.length === 0) return null;
                     return (
                         <div key={section.label} className={cn(sIdx > 0 && "mt-5")}>
                             {/* Section label */}

@@ -27,9 +27,8 @@ export default function SettingsPage() {
             icon: UserCog,
             color: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10",
             lockedIcon: ShieldAlert,
-            lockedTitle: "User Management",
-            lockedDesc: "คุณไม่มีสิทธิ์เข้าถึงการจัดการผู้ใช้ จำเป็นต้องมีสิทธิ์ระดับ Administrator หรือ Manager",
             permission: "users:view",
+            hideIfLocked: true,
         },
         {
             href: "/settings/customers",
@@ -37,10 +36,8 @@ export default function SettingsPage() {
             description: "Manage customer records, contact details, and discount rates.",
             icon: Users,
             color: "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10",
-            lockedIcon: Users,
-            lockedTitle: "Customer Management",
-            lockedDesc: "คุณไม่มีสิทธิ์เข้าถึงการจัดการลูกค้า",
-            permission: "settings:view", // Using settings:view as a general check for now
+            permission: "settings:view",
+            hideIfLocked: true,
         },
         {
             href: "/settings/notifications",
@@ -55,10 +52,8 @@ export default function SettingsPage() {
             description: "กำหนดราคาต่อตารางฟุต และค่าบริการเพิ่มเติม เช่น เจียร เจาะ บาก",
             icon: DollarSign,
             color: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10",
-            lockedIcon: DollarSign,
-            lockedTitle: "ตั้งค่าราคากระจก",
-            lockedDesc: "คุณไม่มีสิทธิ์เข้าถึงการตั้งค่าราคา",
             permission: "settings:manage",
+            hideIfLocked: true,
         },
         {
             href: "/settings/job-types",
@@ -66,10 +61,8 @@ export default function SettingsPage() {
             description: "กำหนดประเภทงานกระจก เช่น ลามิเนต เทมเปอร์ พร้อมจำนวนแผ่นกระจกดิบที่ใช้ต่อช่อง",
             icon: Layers,
             color: "text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-500/10",
-            lockedIcon: Layers,
-            lockedTitle: "จัดการลักษณะงาน",
-            lockedDesc: "คุณไม่มีสิทธิ์เข้าถึงการจัดการประเภทงาน",
             permission: "settings:manage",
+            hideIfLocked: true,
         },
         {
             href: "/settings/sticker",
