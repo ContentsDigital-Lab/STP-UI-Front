@@ -272,7 +272,7 @@ export function OrderReleasePanel({
             // Resolve request ID from order (may be a populated object or string)
             const reqRef = order.request;
             const requestId = reqRef
-                ? (typeof reqRef === "string" ? reqRef : (reqRef as Record<string, unknown>)?._id as string ?? "")
+                ? (typeof reqRef === "string" ? reqRef : (reqRef as unknown as Record<string, unknown>)?._id as string ?? "")
                 : "";
 
             // 3. Update / create panes
