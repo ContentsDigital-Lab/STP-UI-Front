@@ -34,7 +34,10 @@ import {
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { requestsApi } from "@/lib/api/requests";
 import { ordersApi } from "@/lib/api/orders";
-import { OrderRequest, Order } from "@/lib/api/types";
+import { inventoriesApi } from "@/lib/api/inventories";
+import { materialsApi } from "@/lib/api/materials";
+import { materialLogsApi } from "@/lib/api/material-logs";
+import { OrderRequest, Order, Inventory, Material, MaterialLog } from "@/lib/api/types";
 import { useAuth } from "@/lib/auth/auth-context";
 
 function getDayLabel(date: Date) {
@@ -54,6 +57,9 @@ export default function DashboardPage() {
 
   const [allRequests, setAllRequests] = useState<OrderRequest[]>([]);
   const [allOrders, setAllOrders] = useState<Order[]>([]);
+  const [allInventories, setAllInventories] = useState<Inventory[]>([]);
+  const [allMaterials, setAllMaterials] = useState<Material[]>([]);
+  const [allLogs, setAllLogs] = useState<MaterialLog[]>([]);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -65,12 +71,18 @@ export default function DashboardPage() {
 
   const fetchLiveData = useCallback(async () => {
     try {
-      const [rRes, oRes] = await Promise.all([
+      const [rRes, oRes, iRes, mRes, lRes] = await Promise.all([
         requestsApi.getAll(),
         ordersApi.getAll(),
+        inventoriesApi.getAll(),
+        materialsApi.getAll(),
+        materialLogsApi.getAll(),
       ]);
       if (rRes.success && rRes.data) setAllRequests(rRes.data);
       if (oRes.success && oRes.data) setAllOrders(oRes.data);
+      if (iRes.success && iRes.data) setAllInventories(iRes.data);
+      if (mRes.success && mRes.data) setAllMaterials(mRes.data);
+      if (lRes.success && lRes.data) setAllLogs(lRes.data);
     } catch (e) {
       console.error(e);
     } finally {
@@ -151,6 +163,69 @@ export default function DashboardPage() {
       (o) => o.status === "pending",
     ).length;
 
+    const totalStock = allInventories.reduce((sum, inv) => sum + inv.quantity, 0);
+
+    const stockByMaterial: Record<string, number> = {};
+    allInventories.forEach((inv) => {
+      const matId = typeof inv.material === "string" ? inv.material : inv.material._id;
+      stockByMaterial[matId] = (stockByMaterial[matId] || 0) + inv.quantity;
+    });
+    let lowStockAlerts = 0;
+    allMaterials.forEach((m) => {
+      if ((stockByMaterial[m._id] || 0) <= m.reorderPoint) {
+        lowStockAlerts++;
+      }
+    });
+
+    const chartDataMap: Record<string, { stock: number; out: number }> = {};
+    days.forEach(d => {
+      chartDataMap[d.label] = { stock: 0, out: 0 };
+    });
+
+    allLogs.forEach((log) => {
+      const ld = new Date(log.createdAt);
+      const slot = days.find((d) => isSameDay(d.date, ld));
+      if (slot) {
+        if (log.actionType === "import") {
+          chartDataMap[slot.label].stock += Math.abs(log.quantityChanged);
+        } else {
+          chartDataMap[slot.label].out += Math.abs(log.quantityChanged);
+        }
+      }
+    });
+
+    const chartData = days.map((d) => ({
+      name: d.label,
+      stock: chartDataMap[d.label].stock,
+      out: chartDataMap[d.label].out,
+    }));
+
+    const sortedLogs = [...allLogs].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const recentActivity = sortedLogs.slice(0, 5).map(log => {
+      let materialName = "Unknown";
+      if (typeof log.material === "object") materialName = log.material.name;
+      else {
+         const m = allMaterials.find(mat => mat._id === log.material);
+         if (m) materialName = m.name;
+      }
+
+      let userName = "System";
+      if (log.worker && typeof log.worker === "object") userName = log.worker.name || log.worker.username;
+      
+      const timeDiffMs = new Date().getTime() - new Date(log.createdAt).getTime();
+      const mins = Math.floor(timeDiffMs / 60000);
+      const hrs = Math.floor(mins / 60);
+      const timeStr = hrs > 24 ? `${Math.floor(hrs / 24)}${lang === "th" ? "วัน" : "d"}` : hrs > 0 ? `${hrs}${lang === "th" ? "ชม." : "h"}` : `${mins}${lang === "th" ? "นาที" : "m"}`;
+
+      return {
+         type: log.actionType,
+         material: materialName,
+         qty: log.actionType === "import" ? `+${Math.abs(log.quantityChanged)}` : `-${Math.abs(log.quantityChanged)}`,
+         time: timeStr,
+         user: userName,
+      };
+    });
+
     return {
       days,
       pending,
@@ -162,25 +237,14 @@ export default function DashboardPage() {
       pendingOrders,
       totalOrders,
       completedOrders,
+      totalStock,
+      lowStockAlerts,
+      chartData,
+      recentActivity
     };
-  }, [allRequests, allOrders]);
+  }, [allRequests, allOrders, allInventories, allMaterials, allLogs, lang]);
 
-  const chartData = [
-    { name: "Mon", stock: 4000, out: 2400 },
-    { name: "Tue", stock: 3000, out: 1398 },
-    { name: "Wed", stock: 2000, out: 9800 },
-    { name: "Thu", stock: 2780, out: 3908 },
-    { name: "Fri", stock: 1890, out: 4800 },
-    { name: "Sat", stock: 2390, out: 3800 },
-    { name: "Sun", stock: 3490, out: 4300 },
-  ];
-
-  const recentActivity = [
-    { type: "import", material: "Clear Glass 5mm", qty: "+50", time: "10 min", user: "Somchai P." },
-    { type: "withdrawal", material: "Tempered 10mm", qty: "-12", time: "25 min", user: "Wichai R." },
-    { type: "alert", material: "Laminated 8mm", qty: "Low", time: "1 hr", user: "System" },
-    { type: "import", material: "Mirror 3mm", qty: "+100", time: "2 hr", user: "Anan S." },
-  ];
+  // The chart data and recent activities are now computed dynamically inside `analytics`
 
   return (
     <div className={`space-y-6 max-w-[1440px] mx-auto transition-all duration-700 ease-out ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
@@ -203,32 +267,32 @@ export default function DashboardPage() {
         {[
           {
             label: t.dashboard.total_stock,
-            value: "14,250",
-            change: "+12.5%",
+            value: dataLoaded ? analytics.totalStock.toLocaleString() : "...",
+            change: "",
             positive: true,
             icon: Boxes,
             accent: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10",
           },
           {
             label: t.dashboard.low_stock_alerts,
-            value: "12",
-            change: "-2",
-            positive: true,
+            value: dataLoaded ? analytics.lowStockAlerts.toString() : "...",
+            change: "",
+            positive: analytics.lowStockAlerts === 0,
             icon: AlertTriangle,
             accent: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10",
           },
           {
             label: t.dashboard.pending_requests,
-            value: "28",
-            change: "+5",
+            value: dataLoaded ? analytics.pending.toString() : "...",
+            change: "",
             positive: false,
             icon: Clock,
             accent: "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10",
           },
           {
             label: t.dashboard.completed_today,
-            value: "145",
-            change: "+18%",
+            value: dataLoaded ? analytics.completedOrders.toString() : "...",
+            change: "",
             positive: true,
             icon: CheckCircle2,
             accent: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10",
@@ -286,7 +350,7 @@ export default function DashboardPage() {
           </div>
           <div className="h-[260px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData}>
+              <AreaChart data={dataLoaded ? analytics.chartData : []}>
                 <defs>
                   <linearGradient id="gStock" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#2563eb" stopOpacity={0.08} />
@@ -334,7 +398,7 @@ export default function DashboardPage() {
             {lang === "th" ? "ความเคลื่อนไหวล่าสุด" : "Latest movements"}
           </p>
           <div className="flex-1 space-y-1">
-            {recentActivity.map((a, i) => (
+            {dataLoaded && analytics.recentActivity.map((a, i) => (
               <div
                 key={i}
                 className="flex items-center gap-3 rounded-lg p-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
@@ -343,17 +407,13 @@ export default function DashboardPage() {
                   className={`h-8 w-8 rounded-lg shrink-0 flex items-center justify-center ${
                     a.type === "import"
                       ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400"
-                      : a.type === "withdrawal"
-                        ? "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400"
-                        : "bg-red-50 text-red-500 dark:bg-red-500/10 dark:text-red-400"
+                      : "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400"
                   }`}
                 >
                   {a.type === "import" ? (
                     <TrendingUp className="h-3.5 w-3.5" />
-                  ) : a.type === "withdrawal" ? (
-                    <TrendingDown className="h-3.5 w-3.5" />
                   ) : (
-                    <AlertTriangle className="h-3.5 w-3.5" />
+                    <TrendingDown className="h-3.5 w-3.5" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -366,9 +426,7 @@ export default function DashboardPage() {
                   className={`text-xs font-semibold shrink-0 ${
                     a.type === "import"
                       ? "text-emerald-600 dark:text-emerald-400"
-                      : a.type === "withdrawal"
-                        ? "text-amber-600 dark:text-amber-400"
-                        : "text-red-500 dark:text-red-400"
+                      : "text-amber-600 dark:text-amber-400"
                   }`}
                 >
                   {a.qty}
