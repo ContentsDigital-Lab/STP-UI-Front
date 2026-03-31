@@ -196,11 +196,17 @@ export default function WorkOrderPrintPage() {
         setBaseUrl(window.location.origin);
         Promise.all([
             ordersApi.getById(id),
-            panesApi.getAll({ order: id, limit: 100 }),
+            panesApi.getAll({ limit: 100 }),
             stationsApi.getAll(),
         ]).then(([oRes, pRes, sRes]) => {
             if (oRes.success) setOrder(oRes.data);
-            if (pRes.success) setPanes(pRes.data ?? []);
+            if (pRes.success) {
+                const myPanes = (pRes.data ?? []).filter(p => {
+                    const oid = typeof p.order === "string" ? p.order : (p.order as any)?._id;
+                    return oid === id;
+                });
+                setPanes(myPanes);
+            }
             if (sRes.success) setStationMap(new Map((sRes.data ?? []).map((s: Station) => [s._id, s])));
         }).finally(() => setLoading(false));
     }, [id]);
@@ -234,17 +240,17 @@ export default function WorkOrderPrintPage() {
             {/* ── Print styles ── */}
             <style>{`
                 @media print {
-                    @page { size: A4 landscape; margin: 5mm; }
-                    body { visibility: hidden; background: #white; }
+                    @page { size: A4 landscape; margin: 2mm; }
+                    body { visibility: hidden; background: white !important; -webkit-print-color-adjust: exact; }
                     #work-order-print-container, #work-order-print-container * { visibility: visible; }
-                    #work-order-print-container { position: absolute; top: 0; left: 0; width: 100%; }
+                    #work-order-print-container { position: absolute; top: 0; left: 0; width: 100%; border: none; }
                     .no-print { display: none !important; }
                     .page-break { page-break-after: always; }
-                    .section-container { margin-bottom: 20px; }
+                    .section-container { margin-bottom: 0px; border: 1px solid black !important; width: 100%; max-height: 200mm; overflow: hidden; }
                 }
                 @media screen {
                     .section-container {
-                        width: 297mm;
+                        width: 290mm;
                         margin: 20px auto;
                         box-shadow: 0 0 20px rgba(0,0,0,0.1);
                         background: white;
@@ -271,47 +277,63 @@ export default function WorkOrderPrintPage() {
                     const groupQty   = group.panes.length;
                     const isLast     = gIdx === designGroups.length - 1;
 
+                    // Consolidated Spec String
+                    const specStr = [
+                        getStr(order.material),
+                        getMaterialSpec(order.material).match(/\d+(\.\d+)?/)?.[0] ? `${getMaterialSpec(order.material).match(/\d+(\.\d+)?/)?.[0]} มม.` : "",
+                        "ใส", // Default if not found
+                    ].filter(Boolean).join(" / ");
+
                     return (
-                        <div key={group.signature} className={`section-container bg-white text-black text-[11px] font-sans ${!isLast ? 'page-break' : ''}`}>
-                            {/* 1. Header */}
-                            <div className="grid grid-cols-[140px,1fr,1.5fr] border-2 border-black">
-                                <div className="p-2 border-r-2 border-black flex items-center justify-center">
-                                    <img src="/logo.png" alt="Logo" className="max-w-full h-10 object-contain" />
+                        <div key={group.signature} className={`section-container bg-white text-black text-[10px] font-sans border border-black ${!isLast ? 'page-break' : ''}`}>
+                            
+                            {/* 1. Header Grid (High Density) */}
+                            <div className="grid grid-cols-[1fr,1.5fr,1fr] border-b border-black">
+                                <div className="p-1.5 border-r border-black flex flex-col justify-center">
+                                    <div className="flex items-center gap-2 mb-0.5">
+                                        <img src="/logo.png" alt="Logo" className="h-5 object-contain" />
+                                        <h2 className="text-[9px] font-black uppercase leading-none">Standard Plus</h2>
+                                    </div>
+                                    <p className="text-[7px] text-slate-400">Tel: 042-920-222 | Fax: 042-920-224</p>
                                 </div>
-                                <div className="p-2 border-r-2 border-black leading-tight">
-                                    <h2 className="text-[12px] font-black uppercase">Standard Plus Service Co.,LTD</h2>
-                                    <p className="text-[9px]">Tel: 042-920-222 | Fax: 042-920-224</p>
-                                </div>
-                                <div className="p-2 flex flex-col items-center justify-center text-center bg-slate-50">
-                                    <h1 className="text-sm font-black underline uppercase">
+                                <div className="p-1.5 border-r border-black flex flex-col items-center justify-center bg-slate-50/30">
+                                    <h1 className="text-[11px] font-black underline uppercase">
                                         ใบสั่งผลิตกระจก (แบบที่ {gIdx + 1}/{designGroups.length})
                                     </h1>
-                                    <p className="text-[10px] font-bold text-red-600 mt-1">{orderCode}</p>
+                                    <p className="text-[8px] font-bold text-red-600 tracking-widest">{orderCode}</p>
+                                </div>
+                                <div className="p-1.5 grid grid-cols-2 gap-x-2 text-[7px]">
+                                    <div className="font-bold text-slate-500">วันที่:</div> <div>{fmtDate(order.createdAt)}</div>
+                                    <div className="font-bold text-slate-500">จน.รวม:</div> <div className="font-bold">{panes.length} แผ่น</div>
+                                    <div className="font-bold text-slate-500">พาร์ท:</div> <div className="font-bold">{gIdx + 1}/{designGroups.length}</div>
                                 </div>
                             </div>
 
-                            {/* 2. Customer Info */}
-                            <div className="grid grid-cols-[3fr,1.5fr,1fr,1.5fr] border-x-2 border-b-2 border-black bg-white">
-                                <div className="p-1 px-2 border-r border-black"><span className="font-bold">ลูกค้า:</span> {getStr(order.customer)}</div>
-                                <div className="p-1 px-2 border-r border-black"><span className="font-bold">จำนวนกลุ่มนี้:</span> <span className="text-sm text-red-600 font-bold">{groupQty}</span> / {panes.length}</div>
-                                <div className="p-1 px-2 border-r border-black"><span className="font-bold">วันที่:</span> {fmtDate(order.createdAt)}</div>
-                                <div className="p-1 px-2 font-black text-center bg-slate-50">PART: {gIdx + 1}</div>
+                            {/* 2. Customer & Job Info Line */}
+                            <div className="grid grid-cols-[2fr,1fr,1fr,1fr] border-b border-black bg-white text-[8px]">
+                                <div className="p-1 px-2 border-r border-black truncate"><span className="font-bold text-slate-500 uppercase text-[6px] mr-1">ลูกค้า:</span> {getStr(order.customer)}</div>
+                                <div className="p-1 px-2 border-r border-black"><span className="font-bold text-slate-500 uppercase text-[6px] mr-1">เบอร์โทร:</span> —</div>
+                                <div className="p-1 px-2 border-r border-black"><span className="font-bold text-slate-500 uppercase text-[6px] mr-1">ผู้ขาย:</span> —</div>
+                                <div className="p-1 px-2"><span className="font-bold text-slate-500 uppercase text-[6px] mr-1">ใบเสนอราคา:</span> —</div>
                             </div>
 
-                            {/* 3. Glass Spec */}
-                            <div className="grid grid-cols-[3fr,1fr,1fr,1fr] border-x-2 border-b-2 border-black font-bold bg-slate-50/30">
-                                <div className="p-1 px-2 border-r border-black">ชนิดกระจก: {getStr(order.material)}</div>
-                                <div className="p-1 px-2 border-r border-black">หนา: {getMaterialSpec(order.material).match(/\d+(\.\d+)?/)?.[0] || '—'} มม.</div>
-                                <div className="p-1 px-2 border-r border-black text-center">สีฟิล์ม: ใส</div>
-                                <div className="p-1 px-2 text-center text-red-600">มอก.</div>
+                            {/* 3. Consolidated Spec Line */}
+                            <div className="flex items-center px-2 py-0.5 bg-slate-50 border-b border-black font-black italic text-[9px]">
+                                <span className="text-blue-800 tracking-tight">{specStr}</span>
+                                <span className="mx-2 text-slate-300">|</span>
+                                <span className="text-slate-600">** {samplePane.jobType || "งานสั่งทำพิเศษ"} **</span>
+                                <div className="ml-auto flex items-center gap-2">
+                                    <span className="text-[7px] font-black text-red-600 border border-red-600 px-1 rounded-sm bg-white">มอก.</span>
+                                </div>
                             </div>
 
-                            {/* 4. Main Section (Drawing + Table) */}
-                            <div className="grid grid-cols-[1.2fr,300px,150px] border-x-2 border-b-2 border-black min-h-[320px]">
-                                {/* Drawing */}
-                                <div className="p-2 flex flex-col border-r border-black">
-                                    <p className="text-[8px] font-black text-slate-400 italic mb-1 uppercase">Technical Draft (แบบวาดเทคนิค - ความละเอียดสูง)</p>
-                                    <div className="flex-1 flex items-center justify-center bg-white border border-slate-100 rounded">
+                            {/* 4. MAIN CONTENT (HORIZONTAL SPLIT) */}
+                            <div className="flex border-b border-black min-h-[330px]">
+                                
+                                {/* 4a. Left: Large Technical Draft (Drawing) */}
+                                <div className="flex-1 p-2 flex flex-col bg-white overflow-hidden">
+                                    <p className="text-[6px] font-black text-slate-300 uppercase italic mb-1 tracking-widest leading-none">TECHNICAL DRAFT / แบบวาดเทคนิค</p>
+                                    <div className="flex-1 flex items-center justify-center border border-slate-50 max-h-[350px]">
                                         <StaticGlassRenderer 
                                             width={samplePane.dimensions?.width || 800} 
                                             height={samplePane.dimensions?.height || 600} 
@@ -320,93 +342,104 @@ export default function WorkOrderPrintPage() {
                                     </div>
                                 </div>
 
-                                {/* Dimension Table */}
-                                <div className="p-0 border-r border-black flex flex-col">
-                                    <p className="p-1 bg-slate-100 text-[8px] font-black border-b border-black text-center">DIMENSION SUMMARY</p>
-                                    <table className="w-full border-collapse">
-                                        <thead>
-                                            <tr className="bg-slate-50 border-b border-black text-[9px] font-black">
-                                                <th className="border-r border-black p-1">Item No.</th>
-                                                <th className="border-r border-black p-1">Width (W)</th>
-                                                <th className="border-r border-black p-1">Height (H)</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <tr className="border-b border-black text-center font-black">
-                                                <td className="border-r border-black p-4 text-[10px] text-slate-400">กลุ่มแบบที่ {gIdx + 1}</td>
-                                                <td className="border-r border-black p-4 text-[24px] text-blue-700">{samplePane.dimensions?.width}</td>
-                                                <td className="p-4 text-[24px] text-blue-700">{samplePane.dimensions?.height}</td>
-                                            </tr>
-                                            <tr className="bg-slate-50 font-black border-b border-black">
-                                                <td colSpan={2} className="p-2 text-right border-r border-black uppercase text-[9px]">Quantity in this design (แผ่น)</td>
-                                                <td className="p-2 text-center text-[18px] text-red-600">{groupQty}</td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                    <div className="p-3 mt-auto border-t border-black bg-slate-50/50">
-                                        <p className="text-[8px] font-black text-slate-400 uppercase italic">Notes / Special Processing</p>
-                                        <div className="h-12 border-b border-slate-300 border-dashed mt-1"></div>
+                                {/* 4b. Right: Sidebar (Info + Checklist) */}
+                                <div className="w-[260px] border-l border-black flex flex-col bg-slate-50/5">
+                                    
+                                    {/* Dimension Summary */}
+                                    <div className="border-b border-black">
+                                        <p className="bg-slate-900 text-white py-0.5 text-[6px] font-black text-center uppercase tracking-widest">Dimension Table</p>
+                                        <table className="w-full text-center">
+                                            <thead>
+                                                <tr className="border-b border-black text-[6px] font-bold text-slate-500 bg-slate-50 uppercase">
+                                                    <th className="border-r border-black p-0.5">No.</th>
+                                                    <th className="border-r border-black p-0.5">W (กว้าง)</th>
+                                                    <th className="border-r border-black p-0.5">H (สูง)</th>
+                                                    <th className="p-0.5">QTY</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr className="font-black text-[16px] leading-tight">
+                                                    <td className="border-r border-black p-1.5 text-[9px] text-slate-400">{gIdx + 1}</td>
+                                                    <td className="border-r border-black p-1.5 text-blue-800">{samplePane.dimensions?.width}</td>
+                                                    <td className="border-r border-black p-1.5 text-blue-800">{samplePane.dimensions?.height}</td>
+                                                    <td className="p-1.5 text-red-600">{groupQty}</td>
+                                                </tr>
+                                                <tr className="border-t border-black bg-slate-100/50 text-[6px]">
+                                                    <td colSpan={3} className="p-0.5 px-1.5 text-right border-r border-black font-bold uppercase text-slate-500">Total in design</td>
+                                                    <td className="p-0.5 font-bold text-[8px] text-red-600">{groupQty}</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
                                     </div>
-                                </div>
 
-                                {/* Edging */}
-                                <div className="p-2 space-y-1 bg-slate-50/10">
-                                    <p className="font-bold underline text-[8px] uppercase">Edging (เจียร)</p>
-                                    {['เจียริมขัดมัน', 'เจียรหยาบ', 'เจียรปลี', 'เจียรลูกหนู', 'ลับคม'].map((l, i) => (
-                                        <div key={l} className="flex items-center gap-1.5">
-                                            <div className={`w-3 h-3 border border-black rounded-sm flex items-center justify-center text-[9px] ${i===1?'font-black':'text-transparent'}`}>✓</div>
-                                            <span className="text-[8.5px] font-bold">{l}</span>
-                                        </div>
-                                    ))}
-                                    <div className="mt-8 pt-2 border-t border-dashed border-black/20">
-                                         <p className="text-[7px] font-black text-red-600 leading-tight">
-                                            * ตรวจสอบตำแหน่งมาร์ค<br/>ให้ตรงกับหน้างานจริง
-                                         </p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* 5. Station Sequence */}
-                            <div className="border-x-2 border-b-2 border-black p-1.5 px-3 flex items-center gap-4 bg-slate-50/50">
-                                <p className="text-[8px] font-black text-slate-400">STATIONS:</p>
-                                <div className="flex items-center gap-2">
-                                    {stations.map((sid, idx) => {
-                                        const sidStr = typeof sid === "string" ? sid : (sid as any)._id;
-                                        const label  = stationMap.get(sidStr)?.name ?? sidStr;
-                                        return (
-                                            <div key={idx} className="flex items-center gap-1.5">
-                                                <span className="text-[9px] font-black px-2 py-0.5 bg-white border border-black rounded shadow-sm">{idx+1}. {label}</span>
-                                                {idx < stations.length-1 && <ChevronRight className="h-3 w-3 text-slate-300" />}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-
-                            {/* 6. QR Grid for this group */}
-                            <div className="p-3 border-x-2 border-b-2 border-black bg-white">
-                                <p className="text-[8px] font-black text-slate-400 mb-2 uppercase italic">Individual QR Codes (สำหรับกระจกกลุ่มนี้จำนวน {groupQty} แผ่น)</p>
-                                <div className="grid grid-cols-6 gap-2">
-                                    {group.panes.map((p, pIdx) => {
-                                        const paneNum = p.paneNumber || `P-${p._id.slice(-4)}`;
-                                        const qrVal  = `${baseUrl}/production/${order._id}?pane=${p._id}`;
-                                        return (
-                                            <div key={p._id} className="flex items-center gap-1.5 border border-slate-200 p-1.5 rounded bg-white">
-                                                <QRCodeSVG value={qrVal} size={40} level="L" />
-                                                <div className="min-w-0">
-                                                    <p className="font-mono font-black text-[8px] truncate">#{paneNum.split('-').pop()}</p>
-                                                    <p className="font-mono text-[7px] text-slate-400 truncate">S: {samplePane.dimensions?.width}x{samplePane.dimensions?.height}</p>
+                                    {/* Checkboxes (Edging, Corner, etc.) */}
+                                    <div className="p-2.5 space-y-2.5 flex-1">
+                                        <div className="space-y-0.5">
+                                            <p className="font-black text-[7px] uppercase text-blue-700 border-b border-blue-100 pb-0.5 mb-1 flex items-center gap-1">
+                                                <span className="w-1 h-1 bg-blue-700 rounded-full"></span> 
+                                                Edging (เจียร)
+                                            </p>
+                                            {['เจียริมขัดมัน', 'เจียรหยาบ', 'เจียรปลี', 'เจียรลูกหนู', 'ลับคม'].map((l, i) => (
+                                                <div key={l} className="flex items-center gap-1.5">
+                                                    <div className={`w-3 h-3 border border-slate-400 bg-white flex items-center justify-center text-[8px] ${i===1?'font-black text-blue-700':'text-transparent'}`}>✓</div>
+                                                    <span className={`text-[8px] ${i===1?'font-black text-blue-800 leading-none':'text-slate-600 font-medium leading-none'}`}>{l}</span>
                                                 </div>
+                                            ))}
+                                        </div>
+
+                                        <div className="space-y-0.5 mt-2">
+                                            <p className="font-black text-[7px] uppercase text-blue-700 border-b border-blue-100 pb-0.5 mb-1 flex items-center gap-1">
+                                                <span className="w-1 h-1 bg-blue-700 rounded-full"></span> 
+                                                Corners (คิ้ว)
+                                            </p>
+                                            <div className="flex items-center gap-1.5 opacity-50">
+                                                <div className="w-3 h-3 border border-slate-400 bg-white text-transparent">✓</div>
+                                                <span className="text-[8px] text-slate-500 font-medium italic leading-none">ไม่มี / No Details</span>
                                             </div>
-                                        );
-                                    })}
+                                        </div>
+
+                                        <div className="mt-auto pt-2 border-t border-dashed border-slate-200">
+                                            <p className="text-[6px] font-medium text-slate-500 leading-tight">
+                                                * ตรวจสอบตำแหน่งมาร์คและขนาดให้ตรงกับหน้างานจริงทุกครั้ง
+                                            </p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* 7. Signatures */}
-                            <div className="mt-4 flex justify-between px-16 pb-4">
-                                <div className="text-center w-40 border-t border-black pt-1 font-bold text-[9px] uppercase">ผู้สั่ง / Approved By</div>
-                                <div className="text-center w-40 border-t border-black pt-1 font-bold text-[9px] uppercase">ผู้รับ / Produced By</div>
+                            {/* 5. Stations & Details (COMPACTED) */}
+                            <div className="grid grid-cols-[1.5fr,1fr] border-b border-black bg-slate-50/50 h-8">
+                                <div className="p-1 px-2 flex items-center gap-2 border-r border-black overflow-hidden">
+                                    <span className="text-[6px] font-black text-slate-400 uppercase tracking-tighter shrink-0">Flow:</span>
+                                    <div className="flex items-center gap-1 overflow-hidden">
+                                        {stations.map((sid, idx) => {
+                                            const sidStr = typeof sid === "string" ? sid : (sid as any)._id;
+                                            const label  = stationMap.get(sidStr)?.name ?? sidStr;
+                                            return (
+                                                <div key={idx} className="flex items-center gap-0.5 shrink-0">
+                                                    <span className="text-[7px] font-bold px-1 bg-white border border-slate-200 rounded text-slate-700 truncate max-w-[50px] leading-tight">{label}</span>
+                                                    {idx < stations.length-1 && <span className="text-slate-300 text-[6px]">→</span>}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                                <div className="p-1 px-2 flex items-center gap-2 text-[7px]">
+                                    <span className="font-bold text-slate-500 uppercase tracking-tighter shrink-0">Notes:</span>
+                                    <div className="flex-1 border-b border-slate-300 border-dashed translate-y-0.5"></div>
+                                </div>
+                            </div>
+
+                            {/* 6. Footer: Signatures Only (COMPACT) */}
+                            <div className="bg-white h-[45px] overflow-hidden flex items-center px-12">
+                                <div className="flex-1 flex flex-col items-center">
+                                    <div className="w-[180px] border-b border-slate-800 mb-0.5"></div>
+                                    <p className="font-black text-[6px] uppercase leading-none">ผู้สั่ง / Approved By</p>
+                                </div>
+                                <div className="flex-1 flex flex-col items-center">
+                                    <div className="w-[180px] border-b border-slate-800 mb-0.5"></div>
+                                    <p className="font-black text-[6px] uppercase leading-none">ผู้ผลิต / Produced By</p>
+                                </div>
                             </div>
                         </div>
                     );

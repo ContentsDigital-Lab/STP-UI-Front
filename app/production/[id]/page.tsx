@@ -88,13 +88,18 @@ function StationJourney({
         if (s?.name) stationIdxMap.set(s.name, i);
     });
     const stStats = new Map<string, { here: number; passed: number }>();
-    for (const sid of stationIds) stStats.set(sid, { here: 0, passed: 0 });
+    for (const sidOrObj of stationIds) {
+        const sid = typeof sidOrObj === "object" ? (sidOrObj as any)._id : sidOrObj;
+        stStats.set(sid, { here: 0, passed: 0 });
+    }
     if (total > 0) {
         for (const p of panes) {
             const pIdx = stationIdxMap.get(p.currentStation) ?? -1;
             const done = p.currentStatus === "completed";
             for (let i = 0; i < stationIds.length; i++) {
-                const s = stStats.get(stationIds[i])!;
+                const sidOrObj = stationIds[i];
+                const sid = typeof sidOrObj === "object" ? (sidOrObj as any)._id : sidOrObj;
+                const s = stStats.get(sid)!;
                 if (done || pIdx > i) s.passed++;
                 else if (pIdx === i) s.here++;
             }
@@ -114,7 +119,8 @@ function StationJourney({
 
     return (
         <div className="relative w-full">
-            {stationIds.map((sid, idx) => {
+            {stationIds.map((sidOrObj, idx) => {
+                const sid      = typeof sidOrObj === "object" ? (sidOrObj as any)._id : sidOrObj;
                 const station  = stationMap.get(sid);
                 const colorId  = station?.colorId ?? "sky";
                 const color    = getColorOption(colorId);
@@ -337,7 +343,8 @@ function PaneDetailModal({
         }
     }
 
-    const currentStationIdx = routing.findIndex(sid => {
+    const currentStationIdx = routing.findIndex(sidOrObj => {
+        const sid = typeof sidOrObj === "object" ? (sidOrObj as any)._id : sidOrObj;
         const station = stationMap.get(sid);
         return sid === pane.currentStation || station?.name === pane.currentStation;
     });
@@ -439,11 +446,12 @@ function PaneDetailModal({
                             {routing.length > 0 && (
                                 <div className="flex items-center gap-1.5 mt-4">
                                     <div className="flex items-center flex-1 min-w-0">
-                                        {routing.map((sid, idx) => {
-                                            const st = stationMap.get(sid) ?? stationByName.get(sid);
+                                        {routing.map((sidOrObj, idx) => {
+                                            const sid = typeof sidOrObj === "object" ? (sidOrObj as any)._id : sidOrObj;
+                                            const st  = stationMap.get(sid) ?? stationByName.get(sid);
                                             const stId = st?._id ?? sid;
-                                            const dc = getColorOption(st?.colorId ?? "sky");
-                                            const dp = isCompleted || (currentStationIdx >= 0 && idx < currentStationIdx);
+                                            const dc  = getColorOption(st?.colorId ?? "sky");
+                                            const dp  = isCompleted || (currentStationIdx >= 0 && idx < currentStationIdx);
                                             const dcr = !isCompleted && idx === currentStationIdx;
                                             return (
                                                 <div key={sid} className="flex items-center flex-1">
@@ -526,7 +534,8 @@ function PaneDetailModal({
                                 </div>
                             ) : (
                                 <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden divide-y divide-slate-100 dark:divide-slate-800/60">
-                                    {routing.map((sid, idx) => {
+                                    {routing.map((sidOrObj, idx) => {
+                                        const sid = typeof sidOrObj === "object" ? (sidOrObj as any)._id : sidOrObj;
                                         const station = stationMap.get(sid) ?? stationByName.get(sid);
                                         const stId = station?._id ?? sid;
                                         const colorId = station?.colorId ?? "sky";
@@ -642,7 +651,8 @@ function BillOrderList({
                     const curStation = (() => {
                         if (o.status === "completed") return null;
                         if (!o.stations?.length) return null;
-                        const sid = o.stations[o.currentStationIndex ?? 0];
+                        const sidOrObj = o.stations[o.currentStationIndex ?? 0];
+                        const sid = typeof sidOrObj === "object" ? (sidOrObj as any)._id : sidOrObj;
                         const st  = stationMap.get(sid);
                         const colorId = st?.colorId ?? "sky";
                         const color   = getColorOption(colorId);
@@ -711,8 +721,15 @@ export default function ProductionDetailPage() {
     })();
 
     const loadPanes = useCallback(async () => {
-        const pRes = await panesApi.getAll({ order: id, limit: 100 }).catch(() => null);
-        if (pRes?.success) setPanes(pRes.data ?? []);
+        // Fetch all panes and filter in frontend to ensure visibility (backend order filter might be unstable)
+        const pRes = await panesApi.getAll({ limit: 100 }).catch(() => null);
+        if (pRes?.success) {
+            const myPanes = (pRes.data ?? []).filter(p => {
+                const oid = typeof p.order === "string" ? p.order : (p.order as any)?._id;
+                return oid === id;
+            });
+            setPanes(myPanes);
+        }
     }, [id]);
 
     const load = useCallback(async () => {
@@ -773,7 +790,8 @@ export default function ProductionDetailPage() {
     const statusCfg = ORDER_STATUS[order.status as keyof typeof ORDER_STATUS] ?? ORDER_STATUS.pending;
 
     const stationLookup = new Map<string, number>();
-    (order.stations ?? []).forEach((sid, i) => {
+    (order.stations ?? []).forEach((sidOrObj, i) => {
+        const sid = typeof sidOrObj === "object" ? (sidOrObj as any)._id : sidOrObj;
         stationLookup.set(sid, i);
         const st = stationMap.get(sid);
         if (st?.name) stationLookup.set(st.name, i);
@@ -928,17 +946,18 @@ export default function ProductionDetailPage() {
                                     สถานีทั้งหมด
                                 </p>
                                 <div className="flex flex-wrap gap-1.5">
-                                    {order.stations.map((sid, idx) => {
-                                        const station = stationMap.get(sid);
-                                        const colorId = station?.colorId ?? "sky";
-                                        const color   = getColorOption(colorId);
-                                        const pHere   = panes.filter(p => (stationLookup.get(p.currentStation) ?? -1) === idx).length;
-                                        const pPassed = panes.length > 0 ? panes.filter(p => {
+                                    {order.stations.map((sidOrObj, idx) => {
+                                        const sid      = typeof sidOrObj === "object" ? (sidOrObj as any)._id : sidOrObj;
+                                        const station  = stationMap.get(sid);
+                                        const colorId  = station?.colorId ?? "sky";
+                                        const color    = getColorOption(colorId);
+                                        const pHere    = panes.filter(p => (stationLookup.get(p.currentStation) ?? -1) === idx).length;
+                                        const pPassed  = panes.length > 0 ? panes.filter(p => {
                                             if (p.currentStatus === "completed") return true;
                                             return (stationLookup.get(p.currentStation) ?? -1) > idx;
                                         }).length : 0;
-                                        const isDone  = order.status === "completed" || (panes.length > 0 ? pPassed === panes.length : idx < (order.currentStationIndex ?? 0));
-                                        const isCur   = order.status !== "completed" && order.status !== "cancelled" && (panes.length > 0 ? pHere > 0 : idx === (order.currentStationIndex ?? 0));
+                                        const isDone   = order.status === "completed" || (panes.length > 0 ? pPassed === panes.length : idx < (order.currentStationIndex ?? 0));
+                                        const isCur    = order.status !== "completed" && order.status !== "cancelled" && (panes.length > 0 ? pHere > 0 : idx === (order.currentStationIndex ?? 0));
                                         return (
                                             <span
                                                 key={sid}
@@ -1008,15 +1027,18 @@ export default function ProductionDetailPage() {
                                     awaiting_scan_out:  { label: "รอสแกนออก",  dot: "bg-amber-500",  text: "text-amber-600 dark:text-amber-400", bg: "bg-amber-50" },
                                 } as Record<string, { label: string; dot: string; text: string; bg: string }>)[pane.currentStatus] ?? { label: pane.currentStatus, dot: "bg-gray-400", text: "text-gray-500", bg: "bg-gray-50" };
 
-                                const paneStation = stationMap.get(pane.currentStation) ?? stationByName.get(pane.currentStation);
+                                const paneStation = stationMap.get(typeof pane.currentStation === 'string' ? pane.currentStation : (pane.currentStation as any)?._id) ?? 
+                                                   stationByName.get(typeof pane.currentStation === 'string' ? pane.currentStation : (pane.currentStation as any)?._id);
+                                
                                 const stationName = (() => {
-                                    if (pane.currentStation === "queue") return "คิว";
-                                    if (pane.currentStation === "ready") return "พร้อมส่ง";
-                                    if (pane.currentStation === "defected") return "ชำรุด";
-                                    return paneStation?.name ?? pane.currentStation;
+                                    const s = typeof pane.currentStation === 'string' ? pane.currentStation : (pane.currentStation as any)?._id;
+                                    if (s === "queue") return "คิว";
+                                    if (s === "ready") return "พร้อมส่ง";
+                                    if (s === "defected") return "ชำรุด";
+                                    return paneStation?.name ?? s;
                                 })();
-                                const isSpecialStation = ["queue", "ready", "defected"].includes(pane.currentStation);
-                                const paneStationId = paneStation?._id ?? pane.currentStation;
+                                const sKey = typeof pane.currentStation === 'string' ? pane.currentStation : (pane.currentStation as any)?._id;
+                                const isSpecialStation = ["queue", "ready", "defected"].includes(sKey);
                                 const paneColorId = paneStation?.colorId ?? "sky";
                                 const paneColor = getColorOption(paneColorId);
 

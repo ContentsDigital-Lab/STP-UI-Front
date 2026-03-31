@@ -59,7 +59,8 @@ function StationFlow({
 
     return (
         <div className="flex items-center gap-1 flex-wrap">
-            {stationIds.map((sid, idx) => {
+            {stationIds.map((sidOrObj, idx) => {
+                const sid      = typeof sidOrObj === "object" ? (sidOrObj as any)._id : sidOrObj;
                 const station  = stationMap.get(sid);
                 const colorId  = station?.colorId ?? "sky";
                 const color    = getColorOption(colorId);
@@ -120,9 +121,10 @@ function CurrentStationBadge({
         return <span className="text-xs text-muted-foreground/50 italic">ยังไม่กำหนด</span>;
     }
 
-    const idx     = order.currentStationIndex ?? 0;
-    const sid     = order.stations[idx];
-    const station = stationMap.get(sid);
+    const idx       = order.currentStationIndex ?? 0;
+    const sidOrObj  = order.stations[idx];
+    const sid       = typeof sidOrObj === "object" ? (sidOrObj as any)._id : sidOrObj;
+    const station   = stationMap.get(sid);
     const colorId = station?.colorId ?? "sky";
     const color   = getColorOption(colorId);
 
