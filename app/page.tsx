@@ -35,6 +35,7 @@ import { useWebSocket } from "@/lib/hooks/use-socket";
 import { requestsApi } from "@/lib/api/requests";
 import { ordersApi } from "@/lib/api/orders";
 import { OrderRequest, Order } from "@/lib/api/types";
+import { useAuth } from "@/lib/auth/auth-context";
 
 function getDayLabel(date: Date) {
   return date.toLocaleDateString("th-TH", { weekday: "short" });
@@ -49,6 +50,7 @@ function isSameDay(a: Date, b: Date) {
 
 export default function DashboardPage() {
   const { t, lang } = useLanguage();
+  const { user } = useAuth();
 
   const [allRequests, setAllRequests] = useState<OrderRequest[]>([]);
   const [allOrders, setAllOrders] = useState<Order[]>([]);

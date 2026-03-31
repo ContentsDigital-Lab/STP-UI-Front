@@ -53,7 +53,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             style={{ visibility: mounted ? "visible" : "hidden" }}
         >
             {/* Desktop sidebar */}
-            <div className="hidden lg:flex lg:flex-shrink-0">
+            <div className="no-print hidden lg:flex lg:flex-shrink-0">
                 <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} />
             </div>
 
@@ -77,7 +77,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                         {children}
                     </main>
                 ) : (
-                    <main className="flex-1 overflow-y-auto bg-muted/30 p-3 sm:p-4 md:p-6">
+                    <main className="flex-1 overflow-y-auto bg-muted/30 p-0 sm:p-0 md:p-6 print:p-0">
                         <div className="w-full">
                             {children}
                         </div>

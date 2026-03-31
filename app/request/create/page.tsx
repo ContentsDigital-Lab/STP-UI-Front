@@ -626,7 +626,12 @@ export default function CreateBillPage() {
                                         sheetsPerPane: pane.sheetsPerPane,
                                     },
                                 } : {}),
+<<<<<<< HEAD
                                 ...(orderReleaseStationId ? { currentStation: orderReleaseStationId } : {}),
+=======
+                                holes: pane.holes,
+                                currentStation: "Order_Reless",
+>>>>>>> origin/main
                             } as Record<string, unknown>);
                             panesCreated++;
                         } catch (paneErr) {
