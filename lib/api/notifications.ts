@@ -2,8 +2,10 @@ import { fetchApi } from "./config";
 import { ApiResponse, Notification } from "./types";
 
 export const notificationsApi = {
-    getAll: async (): Promise<ApiResponse<Notification[]>> => {
-        return fetchApi<ApiResponse<Notification[]>>("/notifications?limit=100", {
+    getAll: async (params?: { limit?: number }): Promise<ApiResponse<Notification[]>> => {
+        const q = new URLSearchParams();
+        q.set("limit", String(params?.limit ?? 100));
+        return fetchApi<ApiResponse<Notification[]>>(`/notifications?${q.toString()}`, {
             method: "GET",
         });
     },

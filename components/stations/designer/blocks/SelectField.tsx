@@ -117,7 +117,7 @@ export function SelectField({
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
     const isApi     = dataSource && dataSource !== "static";
-    const { formData, setField, setRequestData, setOrderData } = useStationContext();
+    const { formData, setField, setFieldLabel, setRequestData, setOrderData } = useStationContext();
     const contextType = CONTEXT_SOURCE[dataSource] ?? null;
 
     // Auto-derive fieldKey from dataSource if not explicitly set — no manual config needed
@@ -223,7 +223,8 @@ export function SelectField({
                         onChange={controlled ? (e) => {
                             const val = e.target.value;
                             setField(effectiveKey, val);
-                            // Auto-fetch full record into context so other blocks can use related fields
+                            const chosen = apiItems.find((o) => o.value === val);
+                            if (chosen) setFieldLabel(effectiveKey, chosen.label);
                             if (contextType && val) {
                                 fetchApi<{ success: boolean; data: Record<string, unknown> }>(`${dataSource}/${val}`)
                                     .then((res) => {

@@ -2,8 +2,10 @@ import { fetchApi } from "./config";
 import { ApiResponse, Withdrawal } from "./types";
 
 export const withdrawalsApi = {
-    getAll: async (): Promise<ApiResponse<Withdrawal[]>> => {
-        return fetchApi<ApiResponse<Withdrawal[]>>("/withdrawals", {
+    getAll: async (params?: { limit?: number }): Promise<ApiResponse<Withdrawal[]>> => {
+        const q = new URLSearchParams();
+        q.set("limit", String(params?.limit ?? 100));
+        return fetchApi<ApiResponse<Withdrawal[]>>(`/withdrawals?${q.toString()}`, {
             method: "GET",
         });
     },

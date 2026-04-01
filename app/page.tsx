@@ -62,7 +62,7 @@ export default function DashboardPage() {
   const [allLogs, setAllLogs] = useState<MaterialLog[]>([]);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [chartRange, setChartRange] = useState<"7d" | "30d">("7d");
+  const [chartRange, setChartRange] = useState<"1d" | "7d" | "30d">("7d");
 
   useEffect(() => {
     // Slight delay ensures the CSS transition triggers smoothly
@@ -109,19 +109,40 @@ export default function DashboardPage() {
 
   const analytics = useMemo(() => {
     const now = new Date();
+
+    const isToday = chartRange === "1d";
     const dayCount = chartRange === "30d" ? 30 : 7;
-    const days: { label: string; count: number; date: Date }[] = [];
-    for (let i = dayCount - 1; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
-      const label = dayCount <= 7
-        ? getDayLabel(d)
-        : d.toLocaleDateString("th-TH", { day: "numeric", month: "short" });
-      days.push({ label, count: 0, date: d });
+
+    type Bucket = { label: string; count: number; date: Date; hourStart?: number };
+    const days: Bucket[] = [];
+
+    if (isToday) {
+      for (let h = 0; h < 24; h++) {
+        const d = new Date(now);
+        d.setHours(h, 0, 0, 0);
+        days.push({ label: `${String(h).padStart(2, "0")}:00`, count: 0, date: d, hourStart: h });
+      }
+    } else {
+      for (let i = dayCount - 1; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - i);
+        const label = dayCount <= 7
+          ? getDayLabel(d)
+          : d.toLocaleDateString("th-TH", { day: "numeric", month: "short" });
+        days.push({ label, count: 0, date: d });
+      }
     }
+
+    const matchBucket = (ts: Date) => {
+      if (isToday) {
+        if (!isSameDay(ts, now)) return undefined;
+        return days.find((d) => d.hourStart === ts.getHours());
+      }
+      return days.find((d) => isSameDay(d.date, ts));
+    };
+
     allRequests.forEach((r) => {
-      const rd = new Date(r.createdAt);
-      const slot = days.find((d) => isSameDay(d.date, rd));
+      const slot = matchBucket(new Date(r.createdAt));
       if (slot) slot.count++;
     });
 
@@ -188,8 +209,7 @@ export default function DashboardPage() {
     });
 
     allLogs.forEach((log) => {
-      const ld = new Date(log.createdAt);
-      const slot = days.find((d) => isSameDay(d.date, ld));
+      const slot = matchBucket(new Date(log.createdAt));
       if (slot) {
         if (log.actionType === "import") {
           chartDataMap[slot.label].stock += Math.abs(log.quantityChanged);
@@ -341,30 +361,25 @@ export default function DashboardPage() {
                 {t.dashboard.inventory_flow}
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                {lang === "th" ? "ยอดสต็อก vs เบิกออก รายวัน" : "Daily stock vs outgoing"}
+                {chartRange === "1d"
+                  ? (lang === "th" ? "ยอดสต็อก vs เบิกออก รายชั่วโมง (วันนี้)" : "Hourly stock vs outgoing (today)")
+                  : (lang === "th" ? "ยอดสต็อก vs เบิกออก รายวัน" : "Daily stock vs outgoing")}
               </p>
             </div>
             <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5">
-              <button
-                onClick={() => setChartRange("7d")}
-                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                  chartRange === "7d"
-                    ? "text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-700 shadow-sm"
-                    : "text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700"
-                }`}
-              >
-                7D
-              </button>
-              <button
-                onClick={() => setChartRange("30d")}
-                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                  chartRange === "30d"
-                    ? "text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-700 shadow-sm"
-                    : "text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700"
-                }`}
-              >
-                30D
-              </button>
+              {(["1d", "7d", "30d"] as const).map((range) => (
+                <button
+                  key={range}
+                  onClick={() => setChartRange(range)}
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                    chartRange === range
+                      ? "text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-700 shadow-sm"
+                      : "text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700"
+                  }`}
+                >
+                  {range === "1d" ? (lang === "th" ? "วันนี้" : "Today") : range.toUpperCase()}
+                </button>
+              ))}
             </div>
           </div>
           <div className="h-[260px] w-full">

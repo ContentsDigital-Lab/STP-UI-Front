@@ -63,7 +63,7 @@ import { getRoleName } from "@/lib/auth/role-utils";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { toast } from "sonner";
 
-const ITEMS_PER_PAGE = 10;
+const ITEMS_PER_PAGE = 20;
 
 export default function OrderRequestsPage() {
     const { t, lang } = useLanguage();
@@ -71,6 +71,7 @@ export default function OrderRequestsPage() {
 
     const [isLoading, setIsLoading] = useState(true);
     const [requests, setRequests] = useState<OrderRequest[]>([]);
+    const [allRequests, setAllRequests] = useState<OrderRequest[]>([]);
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [workers, setWorkers] = useState<Worker[]>([]);
 
@@ -84,8 +85,10 @@ export default function OrderRequestsPage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [typeFilter, setTypeFilter] = useState<string>("all");
 
-    // Pagination
+    // Server-side pagination
     const [currentPage, setCurrentPage] = useState(1);
+    const [serverTotal, setServerTotal] = useState(0);
+    const [serverTotalPages, setServerTotalPages] = useState(1);
 
     // Create/Edit Dialog
     const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
@@ -104,6 +107,8 @@ export default function OrderRequestsPage() {
         expectedDeliveryDate: "",
     });
 
+    const isSearchActive = searchQuery !== "" || typeFilter !== "all";
+
     // WebSocket
     const requestEvents = ['request:updated'];
     useWebSocket('request', requestEvents, (event: string) => {
@@ -113,19 +118,31 @@ export default function OrderRequestsPage() {
 
     useEffect(() => {
         fetchData();
-    }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentPage]);
 
     const fetchData = async (showLoading = true) => {
         if (showLoading) setIsLoading(true);
         try {
             const [reqRes, custRes, workerRes] = await Promise.all([
-                requestsApi.getAll(),
+                requestsApi.getAll({ page: currentPage, limit: ITEMS_PER_PAGE }),
                 customersApi.getAll(),
                 workersApi.getAll(),
             ]);
-            if (reqRes.success && reqRes.data) setRequests(reqRes.data);
+            if (reqRes.success && reqRes.data) {
+                setRequests(reqRes.data);
+                if (reqRes.pagination) {
+                    setServerTotal(reqRes.pagination.total);
+                    setServerTotalPages(reqRes.pagination.totalPages);
+                }
+            }
             if (custRes.success && custRes.data) setCustomers(custRes.data);
             if (workerRes.success && workerRes.data) setWorkers(workerRes.data);
+
+            // Background fetch: get all records (up to API max 100) for stats & search
+            requestsApi.getAll({ limit: 100 }).then(allRes => {
+                if (allRes.success && allRes.data) setAllRequests(allRes.data);
+            }).catch(() => {});
         } catch (error) {
             console.error("Failed to load order requests:", error);
         } finally {
@@ -143,41 +160,45 @@ export default function OrderRequestsPage() {
         return workers.find(w => w._id === ref) || null;
     }, [workers]);
 
-    // Stats
+    // Stats — computed from allRequests (full dataset) for accuracy
     const globalStats = useMemo(() => {
-        const total = requests.length;
+        const total = serverTotal || allRequests.length;
 
         const now = new Date();
         const weekAgo = new Date(now);
         weekAgo.setDate(weekAgo.getDate() - 7);
-        const thisWeek = requests.filter(r => new Date(r.createdAt) >= weekAgo).length;
+        const thisWeek = allRequests.filter(r => new Date(r.createdAt) >= weekAgo).length;
 
-        const assigned = requests.filter(r => r.assignedTo).length;
+        const assigned = allRequests.filter(r => r.assignedTo).length;
 
         const threeDaysFromNow = new Date(now);
         threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
-        const approaching = requests.filter(r => {
+        const approaching = allRequests.filter(r => {
             if (!r.deadline) return false;
             const dl = new Date(r.deadline);
             return dl <= threeDaysFromNow && dl >= now;
         }).length;
 
         return { total, thisWeek, assigned, approaching };
-    }, [requests]);
+    }, [allRequests, serverTotal]);
 
-    // Filter options
+    // Filter options — derived from full dataset
     const productTypes = useMemo(
-        () => Array.from(new Set(requests.map(r => r.details?.type).filter(Boolean))),
-        [requests]
+        () => Array.from(new Set(allRequests.map(r => r.details?.type).filter(Boolean))),
+        [allRequests]
     );
 
+    // When search/filter is active, search across allRequests (full dataset) with client-side pagination.
+    // When no search, use server-paginated `requests` directly.
     const filteredRequests = useMemo(() => {
-        return requests.filter(req => {
+        if (!isSearchActive) return requests;
+
+        return allRequests.filter(req => {
             const cust = getCustomerInfo(req.customer);
             const worker = getWorkerInfo(req.assignedTo);
             const searchLower = searchQuery.toLowerCase();
 
-            const matchesSearch =
+            const matchesSearch = !searchQuery ||
                 req.requestNumber?.toLowerCase().includes(searchLower) ||
                 cust?.name?.toLowerCase().includes(searchLower) ||
                 req.deliveryLocation?.toLowerCase().includes(searchLower) ||
@@ -188,13 +209,15 @@ export default function OrderRequestsPage() {
 
             return matchesSearch && matchesType;
         });
-    }, [requests, searchQuery, typeFilter, getCustomerInfo, getWorkerInfo]);
+    }, [requests, allRequests, searchQuery, typeFilter, isSearchActive, getCustomerInfo, getWorkerInfo]);
 
-    const totalPages = Math.ceil(filteredRequests.length / ITEMS_PER_PAGE);
-    const paginatedRequests = filteredRequests.slice(
-        (currentPage - 1) * ITEMS_PER_PAGE,
-        currentPage * ITEMS_PER_PAGE
-    );
+    const totalPages = isSearchActive
+        ? Math.ceil(filteredRequests.length / ITEMS_PER_PAGE)
+        : serverTotalPages;
+    const totalItems = isSearchActive ? filteredRequests.length : serverTotal;
+    const paginatedRequests = isSearchActive
+        ? filteredRequests.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
+        : filteredRequests;
 
     const resetFilters = () => {
         setSearchQuery("");
@@ -238,17 +261,18 @@ export default function OrderRequestsPage() {
             if (isEditing && editId) {
                 const res = await requestsApi.update(editId, payload);
                 if (res.success && res.data) {
-                    setRequests(prev => prev.map(r => r._id === editId ? res.data! : r));
                     if (selectedRequest?._id === editId) setSelectedRequest(res.data);
                     setIsFormOpen(false);
                     resetForm();
+                    fetchData(false);
                 }
             } else {
                 const res = await requestsApi.create(payload);
                 if (res.success && res.data) {
-                    setRequests(prev => [res.data!, ...prev]);
                     setIsFormOpen(false);
                     resetForm();
+                    setCurrentPage(1);
+                    fetchData(false);
                 }
             }
         } catch (error) {
@@ -267,10 +291,10 @@ export default function OrderRequestsPage() {
         try {
             const res = await requestsApi.delete(id);
             if (res.success) {
-                setRequests(prev => prev.filter(r => r._id !== id));
                 setIsDetailOpen(false);
                 setSelectedRequest(null);
                 toast.success(lang === 'th' ? 'ลบคำสั่งซื้อเรียบร้อย' : 'Request deleted');
+                fetchData(false);
             } else {
                 toast.error(lang === 'th' ? 'ลบไม่สำเร็จ' : 'Failed to delete');
             }
@@ -559,7 +583,7 @@ export default function OrderRequestsPage() {
                 {totalPages > 1 && (
                     <div className="px-4 py-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
                         <span className="text-xs text-slate-400">
-                            {currentPage} / {totalPages}
+                            {currentPage} / {totalPages} ({totalItems} {lang === 'th' ? 'รายการ' : 'total'})
                         </span>
                         <div className="flex items-center gap-1">
                             <Button
@@ -571,18 +595,30 @@ export default function OrderRequestsPage() {
                             >
                                 <ChevronLeft className="h-4 w-4" />
                             </Button>
-                            {[...Array(totalPages)].map((_, i) => (
-                                <button
-                                    key={i}
-                                    onClick={() => setCurrentPage(i + 1)}
-                                    className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-medium transition-colors ${currentPage === i + 1
-                                        ? "bg-blue-600 text-white"
-                                        : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-                                        }`}
-                                >
-                                    {i + 1}
-                                </button>
-                            ))}
+                            {[...Array(Math.min(totalPages, 7))].map((_, i) => {
+                                let pageNum: number;
+                                if (totalPages <= 7) {
+                                    pageNum = i + 1;
+                                } else if (currentPage <= 4) {
+                                    pageNum = i + 1;
+                                } else if (currentPage >= totalPages - 3) {
+                                    pageNum = totalPages - 6 + i;
+                                } else {
+                                    pageNum = currentPage - 3 + i;
+                                }
+                                return (
+                                    <button
+                                        key={pageNum}
+                                        onClick={() => setCurrentPage(pageNum)}
+                                        className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-medium transition-colors ${currentPage === pageNum
+                                            ? "bg-blue-600 text-white"
+                                            : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                            }`}
+                                    >
+                                        {pageNum}
+                                    </button>
+                                );
+                            })}
                             <Button
                                 variant="ghost"
                                 size="sm"

@@ -38,7 +38,8 @@ export function InputField({
                     type={fieldType}
                     placeholder={placeholder}
                     value={currentValue}
-                    onChange={(e) => setField(fieldKey, fieldType === "number" ? (e.target.value === "" ? "" : Number(e.target.value)) : e.target.value)}
+                    {...(fieldType === "number" ? { min: 0 } : {})}
+                    onChange={(e) => setField(fieldKey, fieldType === "number" ? (e.target.value === "" ? "" : Math.max(0, Number(e.target.value))) : e.target.value)}
                     className="w-full rounded-xl border-2 border-gray-900 bg-white px-4 py-3 text-base font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:border-blue-700 min-h-[52px]"
                 />
             ) : (

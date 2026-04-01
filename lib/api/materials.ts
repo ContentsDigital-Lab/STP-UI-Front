@@ -2,8 +2,10 @@ import { fetchApi } from "./config";
 import { ApiResponse, Material } from "./types";
 
 export const materialsApi = {
-    getAll: async (): Promise<ApiResponse<Material[]>> => {
-        return fetchApi<ApiResponse<Material[]>>("/materials", {
+    getAll: async (params?: { limit?: number }): Promise<ApiResponse<Material[]>> => {
+        const q = new URLSearchParams();
+        q.set("limit", String(params?.limit ?? 100));
+        return fetchApi<ApiResponse<Material[]>>(`/materials?${q.toString()}`, {
             method: "GET",
         });
     },

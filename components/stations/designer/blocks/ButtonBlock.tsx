@@ -112,7 +112,7 @@ export function ButtonBlock({
     const [pendingBody, setPendingBody] = useState<Record<string, unknown> | null>(null);
     const [confirmSummary, setConfirmSummary] = useState<{ customerName: string; materialName: string; quantity: string; stationCount: number } | null>(null);
     const actionCfg  = action && action !== "none" ? ACTION_CONFIG[action] : null;
-    const { formData, resetForm, orderId, requestId, requestData, orderData, selectedRecord, triggerRefresh } = useStationContext();
+    const { formData, fieldLabels, resetForm, orderId, requestId, requestData, orderData, selectedRecord, triggerRefresh } = useStationContext();
     const { query } = useEditor();
 
     // ── Preview click handler ─────────────────────────────────────────────────
@@ -314,11 +314,14 @@ export function ButtonBlock({
                 if (!body.material) orderErrors.push("วัสดุ/กระจก");
                 const qty = Number(body.quantity);
                 if (!body.quantity || isNaN(qty) || qty < 1) orderErrors.push("จำนวน (ต้องมากกว่า 0)");
-                const billQty = requestData?.details
-                    ? Number((requestData.details as Record<string, unknown>).quantity)
-                    : null;
-                if (billQty != null && !isNaN(billQty) && qty > billQty) {
-                    orderErrors.push(`จำนวนเกินที่ระบุในบิล (บิลมี ${billQty} ชิ้น)`);
+                const srcDetails = src?.details as Record<string, unknown> | undefined;
+                const billQty = srcDetails?.quantity != null
+                    ? Number(srcDetails.quantity)
+                    : src?.quantity != null
+                        ? Number(src.quantity)
+                        : null;
+                if (billQty != null && !isNaN(billQty) && qty !== billQty) {
+                    orderErrors.push(`จำนวนไม่ตรงกับบิล (บิลระบุ ${billQty} ชิ้น แต่กรอก ${qty} ชิ้น)`);
                 }
                 const stations = (body.stations ?? []) as unknown[];
                 if (!Array.isArray(stations) || stations.length === 0) orderErrors.push("สถานีผลิต (เลือกอย่างน้อย 1 สถานี)");
@@ -330,17 +333,22 @@ export function ButtonBlock({
                 }
                 // Validations passed — show confirmation summary before submitting
                 const cs = src;
+                const resolveName = (
+                    src: Record<string, unknown> | null,
+                    field: string,
+                    bodyVal: unknown,
+                ) => {
+                    if (src && typeof src[field] === "object" && src[field] != null) {
+                        const name = (src[field] as Record<string, unknown>).name as string | undefined;
+                        if (name) return name;
+                    }
+                    if (fieldLabels[field]) return fieldLabels[field];
+                    return String(bodyVal ?? "—");
+                };
+
                 setConfirmSummary({
-                    customerName: cs
-                        ? (typeof cs.customer === "object"
-                            ? ((cs.customer as Record<string, unknown>).name as string) ?? String(body.customer ?? "—")
-                            : String(cs.customer ?? body.customer ?? "—"))
-                        : String(body.customer ?? "—"),
-                    materialName: cs
-                        ? (typeof cs.material === "object"
-                            ? ((cs.material as Record<string, unknown>).name as string) ?? String(body.material ?? "—")
-                            : String(cs.material ?? body.material ?? "—"))
-                        : String(body.material ?? "—"),
+                    customerName: resolveName(cs, "customer", body.customer),
+                    materialName: resolveName(cs, "material", body.material),
                     quantity: String(body.quantity ?? "—"),
                     stationCount: Array.isArray(body.stations) ? (body.stations as string[]).length : 0,
                 });
