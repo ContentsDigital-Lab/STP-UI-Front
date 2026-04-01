@@ -7,7 +7,9 @@ export interface StationContextValue {
     stationId:      string | null;
     stationName:    string | null;
     formData:       Record<string, unknown>;
+    fieldLabels:    Record<string, string>;
     setField:       (key: string, value: unknown) => void;
+    setFieldLabel:  (key: string, label: string) => void;
     resetForm:      () => void;
     orderData:      Record<string, unknown> | null;
     setOrderData:   (data: Record<string, unknown> | null) => void;
@@ -31,7 +33,9 @@ const StationContext = createContext<StationContextValue>({
     stationId:         null,
     stationName:       null,
     formData:          {},
+    fieldLabels:       {},
     setField:          () => {},
+    setFieldLabel:     () => {},
     resetForm:         () => {},
     orderData:         null,
     setOrderData:      () => {},
@@ -68,6 +72,7 @@ export function StationProvider({
     initialRequestData?: Record<string, unknown> | null;
 }) {
     const [formData,        setFormData]        = useState<Record<string, unknown>>({});
+    const [fieldLabels,     setFieldLabels]     = useState<Record<string, string>>({});
     const [orderData,       setOrderData]       = useState<Record<string, unknown> | null>(initialOrderData   ?? null);
     const [requestData,     setRequestData]     = useState<Record<string, unknown> | null>(initialRequestData ?? null);
     const [paneData,        setPaneData]        = useState<Record<string, unknown> | null>(null);
@@ -90,7 +95,12 @@ export function StationProvider({
         setFormData((prev) => ({ ...prev, [key]: value }));
     }, []);
 
-    const resetForm = useCallback(() => setFormData({}), []);
+    const setFieldLabel = useCallback((key: string, label: string) => {
+        if (!key) return;
+        setFieldLabels((prev) => ({ ...prev, [key]: label }));
+    }, []);
+
+    const resetForm = useCallback(() => { setFormData({}); setFieldLabels({}); }, []);
 
     const walkObject = useCallback((obj: Record<string, unknown>, dotPath: string): string => {
         const parts = dotPath.split(".");
@@ -123,7 +133,7 @@ export function StationProvider({
         <StationContext.Provider value={{
             stationId: stationIdProp ?? null,
             stationName: stationNameProp ?? null,
-            formData, setField, resetForm,
+            formData, fieldLabels, setField, setFieldLabel, resetForm,
             orderData, setOrderData, orderId,
             requestData, setRequestData, requestId,
             paneData, setPaneData, paneId,
