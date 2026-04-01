@@ -62,6 +62,7 @@ export default function DashboardPage() {
   const [allLogs, setAllLogs] = useState<MaterialLog[]>([]);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [chartRange, setChartRange] = useState<"7d" | "30d">("7d");
 
   useEffect(() => {
     // Slight delay ensures the CSS transition triggers smoothly
@@ -108,11 +109,15 @@ export default function DashboardPage() {
 
   const analytics = useMemo(() => {
     const now = new Date();
+    const dayCount = chartRange === "30d" ? 30 : 7;
     const days: { label: string; count: number; date: Date }[] = [];
-    for (let i = 6; i >= 0; i--) {
+    for (let i = dayCount - 1; i >= 0; i--) {
       const d = new Date(now);
       d.setDate(d.getDate() - i);
-      days.push({ label: getDayLabel(d), count: 0, date: d });
+      const label = dayCount <= 7
+        ? getDayLabel(d)
+        : d.toLocaleDateString("th-TH", { day: "numeric", month: "short" });
+      days.push({ label, count: 0, date: d });
     }
     allRequests.forEach((r) => {
       const rd = new Date(r.createdAt);
@@ -242,7 +247,7 @@ export default function DashboardPage() {
       chartData,
       recentActivity
     };
-  }, [allRequests, allOrders, allInventories, allMaterials, allLogs, lang]);
+  }, [allRequests, allOrders, allInventories, allMaterials, allLogs, lang, chartRange]);
 
   // The chart data and recent activities are now computed dynamically inside `analytics`
 
@@ -340,10 +345,24 @@ export default function DashboardPage() {
               </p>
             </div>
             <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5">
-              <button className="px-3 py-1 text-xs font-medium text-slate-500 dark:text-slate-400 rounded-md hover:bg-white dark:hover:bg-slate-700 transition-colors">
+              <button
+                onClick={() => setChartRange("7d")}
+                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                  chartRange === "7d"
+                    ? "text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-700 shadow-sm"
+                    : "text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700"
+                }`}
+              >
                 7D
               </button>
-              <button className="px-3 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-700 rounded-md shadow-sm">
+              <button
+                onClick={() => setChartRange("30d")}
+                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                  chartRange === "30d"
+                    ? "text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-700 shadow-sm"
+                    : "text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700"
+                }`}
+              >
                 30D
               </button>
             </div>

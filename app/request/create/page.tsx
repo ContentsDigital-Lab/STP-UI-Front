@@ -618,6 +618,8 @@ export default function CreateBillPage() {
                                 glassType: pane.glassType,
                                 glassTypeLabel: glassSpec,
                                 jobType: pane.glassType,
+                                holes: pane.holes.length > 0 ? pane.holes : undefined,
+                                ...(pane.vertices.length > 0 ? { vertices: pane.vertices } : {}),
                                 ...(pane.rawGlassType ? {
                                     rawGlass: {
                                         glassType: pane.rawGlassType,

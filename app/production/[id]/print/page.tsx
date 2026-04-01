@@ -123,6 +123,15 @@ function StaticGlassRenderer({ width, height, holes }: { width: number; height: 
                             <text x={x} y={y} fontSize={labelSize} textAnchor="middle" dominantBaseline="middle" fill={color} fontWeight="900" filter="url(#whiteOutlineEffect)">H{i+1}</text>
                         </g>
                     );
+                } else if (h.type === 'custom' && h.points && h.points.length >= 3) {
+                    const pts = h.points as { x: number; y: number }[];
+                    const polyPoints = pts.map(pt => `${x + pt.x},${y - pt.y}`).join(' ');
+                    return (
+                        <g key={h.id}>
+                            <polygon points={polyPoints} fill="none" stroke={color} strokeWidth="3" />
+                            <text x={x} y={y} fontSize={labelSize} textAnchor="middle" dominantBaseline="middle" fill={color} fontWeight="900" filter="url(#whiteOutlineEffect)">N{i+1}</text>
+                        </g>
+                    );
                 } else {
                     const r = (h.diameter || 20) / 2;
                     return (
