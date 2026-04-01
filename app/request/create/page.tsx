@@ -153,6 +153,16 @@ const countEdgeAndInterior = (holes: HoleData[], glassW: number, glassH: number)
     return { notches, interior };
 };
 
+const splitHolesAndNotches = (holes: HoleData[], glassW: number, glassH: number) => {
+    const notchList: HoleData[] = [];
+    const holeList: HoleData[] = [];
+    for (const h of holes) {
+        if (isEdgeCutout(h, glassW, glassH)) notchList.push(h);
+        else holeList.push(h);
+    }
+    return { notchList, holeList };
+};
+
 const calcPanePrice = (p: PaneSpec) => {
     const wM = p.glassWidth / 1000;
     const hM = p.glassHeight / 1000;
@@ -609,6 +619,8 @@ export default function CreateBillPage() {
                         pane.rawGlassType ? `(ดิบ: ${pane.rawGlassColor ? pane.rawGlassColor + ' ' : ''}${pane.rawGlassType} ${pane.thickness}mm×${pane.sheetsPerPane}แผ่น)` : null,
                         `${pane.glassWidth}×${pane.glassHeight}mm`,
                     ].filter(Boolean).join(' ');
+                    // Backend now supports Array of Objects for holes and notches
+                    const { notchList, holeList } = splitHolesAndNotches(pane.holes, pane.glassWidth, pane.glassHeight);
                     const qty = Math.max(1, pane.quantity);
                     for (let i = 0; i < qty; i++) {
                         try {
@@ -618,8 +630,9 @@ export default function CreateBillPage() {
                                 glassType: pane.glassType,
                                 glassTypeLabel: glassSpec,
                                 jobType: pane.glassType,
-                                holes: pane.holes.length > 0 ? pane.holes : undefined,
-                                ...(pane.vertices.length > 0 ? { vertices: pane.vertices } : {}),
+                                holes: holeList.length > 0 ? holeList : undefined,
+                                notches: notchList.length > 0 ? notchList : undefined,
+                                ...(pane.vertices && pane.vertices.length > 0 ? { vertices: pane.vertices } : {}),
                                 ...(pane.rawGlassType ? {
                                     rawGlass: {
                                         glassType: pane.rawGlassType,
