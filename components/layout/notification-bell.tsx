@@ -16,13 +16,16 @@ import { Notification } from "@/lib/api/types";
 import { notificationsApi } from "@/lib/api/notifications";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { playNotificationSound } from "@/lib/notification-sounds";
+import { useAuth } from "@/lib/auth/auth-context";
 
 export function NotificationBell() {
+    const { isAuthenticated } = useAuth();
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
         setMounted(true);
+        if (!isAuthenticated) return;
         notificationsApi.getAll().then((res) => {
             if (res.success) setNotifications(res.data);
         }).catch(() => {});
@@ -75,7 +78,7 @@ export function NotificationBell() {
         return date.toLocaleDateString();
     };
 
-    if (!mounted) return null;
+    if (!mounted || !isAuthenticated) return null;
 
     return (
         <DropdownMenu>

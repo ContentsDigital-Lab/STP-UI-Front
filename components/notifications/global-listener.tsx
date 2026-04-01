@@ -9,14 +9,12 @@ import { AlertTriangle } from "lucide-react";
 import { isManagerOrAbove } from "@/lib/auth/role-utils";
 import React from "react";
 
-export function GlobalNotificationListener() {
-    const { user, isAuthenticated } = useAuth();
-    const { t, lang } = useLanguage();
+function ActiveListener() {
+    const { user } = useAuth();
+    const { lang } = useLanguage();
 
     const playAlertSound = useCallback(() => {
         try {
-            // Using a professional notification sound URL as a fallback, 
-            // or we can use a synthesized beep for reliability.
             const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
             audio.volume = 0.5;
             audio.play().catch(e => console.warn("Audio playback failed (browser policy):", e));
@@ -26,7 +24,6 @@ export function GlobalNotificationListener() {
     }, []);
 
     const handleLowStock = useCallback((data: any) => {
-        // Only managers and admins should get these global alerts
         const isAuthorized = isManagerOrAbove(user?.role);
         if (!isAuthorized) return;
 
@@ -37,18 +34,15 @@ export function GlobalNotificationListener() {
             ? `${itemName} ใกล้หมด! เหลือเพียง ${quantity}`
             : `${itemName} is low! Only ${quantity} left.`;
 
-        // Visual Toast
         toast.error(message, {
             description: lang === "th" ? "โปรดตรวจสอบสต็อกและสั่งเติมสินค้า" : "Please check inventory and restock.",
             duration: 10000,
             icon: <AlertTriangle className="h-5 w-5 text-red-500" />,
         });
 
-        // Audible Alert
         playAlertSound();
     }, [user, lang, playAlertSound]);
 
-    // Connect to the inventory room to listen for low stock events globally
     useWebSocket(
         "inventory", 
         ["inventory:low_stock", "system_alert"], 
@@ -61,7 +55,6 @@ export function GlobalNotificationListener() {
         }
     );
 
-    // Support for local simulation (for testing/demo)
     useEffect(() => {
         const handleSimulate = (e: any) => {
             handleLowStock(e.detail);
@@ -70,5 +63,13 @@ export function GlobalNotificationListener() {
         return () => window.removeEventListener('simulate-low-stock' as any, handleSimulate);
     }, [handleLowStock]);
 
-    return null; // This is a logic-only component
+    return null;
+}
+
+export function GlobalNotificationListener() {
+    const { isAuthenticated } = useAuth();
+
+    if (!isAuthenticated) return null;
+
+    return <ActiveListener />;
 }

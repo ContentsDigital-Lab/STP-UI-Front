@@ -152,8 +152,8 @@ function DeleteConfirm({ name, onConfirm, onCancel }: { name: string; onConfirm:
                 </div>
                 <p className="text-sm text-slate-500">ต้องการลบสถานี <strong className="text-slate-700 dark:text-slate-300">{name}</strong> ใช่ไหม? ไม่สามารถกู้คืนได้</p>
                 <div className="flex gap-2 justify-end">
-                    <Button variant="outline" size="sm" className="rounded-xl" onClick={onCancel}>ยกเลิก</Button>
-                    <Button size="sm" className="rounded-xl bg-red-600 hover:bg-red-700 text-white" onClick={onConfirm}>ลบ</Button>
+                    <Button variant="outline" className="rounded-xl h-9 px-4 text-sm" onClick={onCancel}>ยกเลิก</Button>
+                    <Button className="rounded-xl h-9 px-5 text-sm bg-red-600 hover:bg-red-700 text-white" onClick={onConfirm}>ลบ</Button>
                 </div>
             </div>
         </div>
