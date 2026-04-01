@@ -193,6 +193,7 @@ export default function DashboardPage() {
 
     const stockByMaterial: Record<string, number> = {};
     allInventories.forEach((inv) => {
+      if (!inv.material) return;
       const matId = typeof inv.material === "string" ? inv.material : inv.material._id;
       stockByMaterial[matId] = (stockByMaterial[matId] || 0) + inv.quantity;
     });
