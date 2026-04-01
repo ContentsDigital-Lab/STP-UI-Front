@@ -2,8 +2,10 @@ import { fetchApi } from "./config";
 import { ApiResponse, Claim } from "./types";
 
 export const claimsApi = {
-    getAll: async (): Promise<ApiResponse<Claim[]>> => {
-        return fetchApi<ApiResponse<Claim[]>>("/claims", {
+    getAll: async (params?: { limit?: number }): Promise<ApiResponse<Claim[]>> => {
+        const q = new URLSearchParams();
+        q.set("limit", String(params?.limit ?? 100));
+        return fetchApi<ApiResponse<Claim[]>>(`/claims?${q.toString()}`, {
             method: "GET",
         });
     },

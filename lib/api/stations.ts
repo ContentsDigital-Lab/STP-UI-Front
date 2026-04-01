@@ -2,8 +2,10 @@ import { fetchApi } from "./config";
 import { ApiResponse, Station } from "./types";
 
 export const stationsApi = {
-    getAll: async (): Promise<ApiResponse<Station[]>> => {
-        return fetchApi<ApiResponse<Station[]>>("/stations", { method: "GET" });
+    getAll: async (params?: { limit?: number }): Promise<ApiResponse<Station[]>> => {
+        const q = new URLSearchParams();
+        q.set("limit", String(params?.limit ?? 100));
+        return fetchApi<ApiResponse<Station[]>>(`/stations?${q.toString()}`, { method: "GET" });
     },
 
     getById: async (id: string): Promise<ApiResponse<Station>> => {
