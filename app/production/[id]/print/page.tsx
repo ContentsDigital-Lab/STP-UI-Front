@@ -160,11 +160,142 @@ function StaticGlassRenderer({
         const y = height - h.y;
         const color = "#d32f2f";
 
+        // Calculate shape bounds
+        const shapeW = h.type === "rectangle" ? (h.width || 100) : h.type === "slot" ? (h.length || 80) : (h.diameter || 20);
+        const shapeH = h.type === "rectangle" ? (h.height || 60) : h.type === "slot" ? (h.width || 20) : (h.diameter || 20);
+
+        // Calculate distance from glass edges to SHAPE edges (not center)
+        const leftEdgeDist = h.x - shapeW / 2;
+        const rightEdgeDist = width - (h.x + shapeW / 2);
+        const isLeft = leftEdgeDist <= rightEdgeDist;
+        const xDist = Math.max(0, isLeft ? leftEdgeDist : rightEdgeDist);
+        const drawXDim = xDist > 2; // > 2mm from edge means it's not touching
+
+        const topEdgeDist = y - shapeH / 2;
+        const bottomEdgeDist = height - (y + shapeH / 2);
+        const isTop = topEdgeDist <= bottomEdgeDist;
+        const yDist = Math.max(0, isTop ? topEdgeDist : bottomEdgeDist);
+        const drawYDim = yDist > 2;
+        
+        const dimColor = "#64748b"; // slate-500
+        const lineProps = { stroke: dimColor, strokeWidth: "1.5", strokeDasharray: "4 4" };
+        const textProps = { fill: dimColor, fontSize: dimSize * 0.6, fontWeight: "600", filter: "url(#whiteOutlineEffect)" };
+
+        const renderDimensions = (
+          <g className="hole-dimensions">
+            {/* X-Distance to Edge of Shape */}
+            {drawXDim ? (
+              <>
+                {isLeft ? (
+                  <line x1={0} y1={y} x2={h.x - shapeW / 2} y2={y} {...lineProps} />
+                ) : (
+                  <line x1={h.x + shapeW / 2} y1={y} x2={width} y2={y} {...lineProps} />
+                )}
+                <text
+                  x={isLeft ? xDist / 2 : width - xDist / 2}
+                  y={y - 8}
+                  textAnchor="middle"
+                  {...textProps}
+                >
+                  {xDist.toFixed(0)}
+                </text>
+              </>
+            ) : (
+              /* X-Depth for edge cutouts */
+              <g>
+                {isLeft ? (
+                  <line x1={0} y1={y - shapeH / 2 - 12} x2={shapeW} y2={y - shapeH / 2 - 12} {...lineProps} stroke="#d32f2f" />
+                ) : (
+                  <line x1={width} y1={y - shapeH / 2 - 12} x2={width - shapeW} y2={y - shapeH / 2 - 12} {...lineProps} stroke="#d32f2f" />
+                )}
+                <text
+                  x={isLeft ? shapeW / 2 : width - shapeW / 2}
+                  y={y - shapeH / 2 - 20}
+                  textAnchor="middle"
+                  {...textProps}
+                  fill="#d32f2f"
+                >
+                  ลึก {shapeW.toFixed(0)}
+                </text>
+              </g>
+            )}
+
+            {/* Y-Distance to Edge of Shape */}
+            {drawYDim ? (
+              <>
+                {isTop ? (
+                  <line x1={x} y1={0} x2={x} y2={y - shapeH / 2} {...lineProps} />
+                ) : (
+                  <line x1={x} y1={y + shapeH / 2} x2={x} y2={height} {...lineProps} />
+                )}
+                <text
+                  x={x + 8}
+                  y={isTop ? yDist / 2 : height - yDist / 2}
+                  textAnchor="start"
+                  dominantBaseline="middle"
+                  {...textProps}
+                >
+                  {yDist.toFixed(0)}
+                </text>
+              </>
+            ) : (
+              /* Y-Depth for edge cutouts */
+              <g>
+                {isTop ? (
+                  <line x1={x - shapeW / 2 - 12} y1={0} x2={x - shapeW / 2 - 12} y2={shapeH} {...lineProps} stroke="#d32f2f" />
+                ) : (
+                  <line x1={x - shapeW / 2 - 12} y1={height} x2={x - shapeW / 2 - 12} y2={height - shapeH} {...lineProps} stroke="#d32f2f" />
+                )}
+                <text
+                  x={x - shapeW / 2 - 20}
+                  y={isTop ? shapeH / 2 : height - shapeH / 2}
+                  textAnchor="end"
+                  dominantBaseline="middle"
+                  {...textProps}
+                  fill="#d32f2f"
+                >
+                  ลึก {shapeH.toFixed(0)}
+                </text>
+              </g>
+            )}
+          </g>
+        );
+
+        let sizeLabel = "";
+        let sizeYOffset = 0;
+        if (h.type === "rectangle") {
+          sizeLabel = `${h.width || 100}x${h.height || 60}`;
+          sizeYOffset = (h.height || 60) / 2 + 10;
+        } else if (h.type === "slot") {
+          sizeLabel = `${h.length || 80}x${h.width || 20}`;
+          sizeYOffset = (h.width || 20) / 2 + 10;
+        } else if (h.type === "circle" || !h.type) {
+          sizeLabel = `Ø${h.diameter || 20}`;
+          sizeYOffset = ((h.diameter || 20) / 2) + 10;
+        }
+
+        const renderSizeText = sizeLabel && (
+          <text
+            x={x}
+            y={y + sizeYOffset + dimSize * 0.6}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fill="#d32f2f"
+            fontSize={dimSize * 0.7}
+            fontWeight="900"
+            filter="url(#whiteOutlineEffect)"
+          >
+            {sizeLabel}
+          </text>
+        );
+        // --- End Dimensions ---
+
         if (h.type === "rectangle") {
           const w = h.width || 100;
           const ht = h.height || 60;
           return (
             <g key={h.id}>
+              {renderDimensions}
               <rect
                 x={x - w / 2}
                 y={y - ht / 2}
@@ -186,6 +317,7 @@ function StaticGlassRenderer({
               >
                 H{i + 1}
               </text>
+              {renderSizeText}
             </g>
           );
         } else if (h.type === "slot") {
@@ -193,6 +325,7 @@ function StaticGlassRenderer({
           const w = h.width || 20;
           return (
             <g key={h.id}>
+              {renderDimensions}
               <rect
                 x={x - l / 2}
                 y={y - w / 2}
@@ -215,6 +348,7 @@ function StaticGlassRenderer({
               >
                 H{i + 1}
               </text>
+              {renderSizeText}
             </g>
           );
         } else if (h.type === "custom" && h.points && h.points.length >= 3) {
@@ -224,6 +358,7 @@ function StaticGlassRenderer({
             .join(" ");
           return (
             <g key={h.id}>
+              {renderDimensions}
               <polygon
                 points={polyPoints}
                 fill="none"
@@ -242,12 +377,14 @@ function StaticGlassRenderer({
               >
                 N{i + 1}
               </text>
+              {renderSizeText}
             </g>
           );
         } else {
           const r = (h.diameter || 20) / 2;
           return (
             <g key={h.id}>
+              {renderDimensions}
               <circle
                 cx={x}
                 cy={y}
@@ -268,6 +405,7 @@ function StaticGlassRenderer({
               >
                 H{i + 1}
               </text>
+              {renderSizeText}
             </g>
           );
         }
