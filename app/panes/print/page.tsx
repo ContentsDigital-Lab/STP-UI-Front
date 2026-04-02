@@ -193,7 +193,7 @@ export default function PaneStickerPrintPage() {
                     setPanes(results.filter(r => r.success && r.data).map(r => r.data));
                 } else if (orderId) {
                     // Try fetching panes by order first
-                    const res = await panesApi.getAll({ order: orderId, limit: 200 });
+                    const res = await panesApi.getAll({ order: orderId, status_ne: "claimed", limit: 200 });
                     const byOrder = res.success ? (res.data ?? []) : [];
 
                     if (byOrder.length > 0) {

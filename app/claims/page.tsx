@@ -28,12 +28,14 @@ import { toast } from "sonner";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { useAuth } from "@/lib/auth/auth-context";
 import { isManagerOrAbove } from "@/lib/auth/role-utils";
-import { getStationName } from "@/lib/utils/station-helpers";
+import { getStationName as _getStationName } from "@/lib/utils/station-helpers";
 import { claimsApi } from "@/lib/api/claims";
 import { materialsApi } from "@/lib/api/materials";
 import { ordersApi } from "@/lib/api/orders";
 import { workersApi } from "@/lib/api/workers";
-import { Claim, Material, Order, Worker } from "@/lib/api/types";
+import { stationsApi } from "@/lib/api/stations";
+import { getColorOption } from "@/lib/stations/stations-store";
+import { Claim, Material, Order, Worker, Station } from "@/lib/api/types";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -46,6 +48,7 @@ export default function ClaimsPage() {
     const [materials, setMaterials] = useState<Material[]>([]);
     const [orders, setOrders] = useState<Order[]>([]);
     const [workerMap, setWorkerMap] = useState<Map<string, Worker>>(new Map());
+    const [stationMap, setStationMap] = useState<Map<string, Station>>(new Map());
 
     // Filters
     const [searchQuery, setSearchQuery] = useState("");
@@ -117,7 +120,8 @@ export default function ClaimsPage() {
             materialsApi.getAll(),
             ordersApi.getAll(),
             workersApi.getAll(),
-        ]).then(([cRes, mRes, oRes, workerRes]) => {
+            stationsApi.getAll(),
+        ]).then(([cRes, mRes, oRes, workerRes, stRes]) => {
             if (cRes.success) setClaims(cRes.data);
             if (mRes.success) setMaterials(mRes.data);
             if (oRes.success) setOrders(oRes.data);
@@ -125,6 +129,11 @@ export default function ClaimsPage() {
                 const map = new Map<string, Worker>();
                 workerRes.data.forEach((w) => map.set(w._id, w));
                 setWorkerMap(map);
+            }
+            if (stRes.success) {
+                const map = new Map<string, Station>();
+                stRes.data.forEach((s) => map.set(s._id, s));
+                setStationMap(map);
             }
         }).catch(() => toast.error("Failed to load data")).finally(() => setIsLoading(false));
     }, []);
@@ -171,6 +180,19 @@ export default function ClaimsPage() {
     const getPaneObj = (p: Claim["pane"]): import("@/lib/api/types").Pane | null => {
         if (!p || typeof p !== "object") return null;
         return p as import("@/lib/api/types").Pane;
+    };
+
+    const getStationName = (s: Parameters<typeof _getStationName>[0]) => {
+        if (!s) return "";
+        if (typeof s === "object") return s.name ?? s._id ?? "";
+        return stationMap.get(s)?.name ?? s;
+    };
+
+    const getStationColorCls = (s: Parameters<typeof _getStationName>[0]) => {
+        if (!s) return getColorOption("slate").cls;
+        const id = typeof s === "string" ? s : s._id ?? "";
+        const station = stationMap.get(id);
+        return getColorOption(station?.colorId ?? "slate").cls;
     };
 
     const PANE_STATUS_LABEL: Record<string, string> = {
@@ -732,9 +754,9 @@ export default function ClaimsPage() {
                                                         <p className="text-[11px] text-slate-400 mb-0.5">สถานีปัจจุบัน</p>
                                                         <div className="flex items-center gap-1.5">
                                                             <MapPin className="h-3 w-3 text-slate-400" />
-                                                            <p className="text-sm font-medium text-slate-900 dark:text-white">
+                                                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-md ${getStationColorCls(paneObj.currentStation)}`}>
                                                                 {getStationName(paneObj.currentStation)}
-                                                            </p>
+                                                            </span>
                                                         </div>
                                                     </div>
                                                 )}
@@ -743,12 +765,16 @@ export default function ClaimsPage() {
                                                         <p className="text-[11px] text-slate-400 mb-0.5">สถานะ</p>
                                                         <span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded-md ${
                                                             paneObj.currentStatus === "completed"
-                                                                ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                                                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
                                                                 : paneObj.currentStatus === "in_progress"
-                                                                ? "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                                                                ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
                                                                 : paneObj.currentStatus === "awaiting_scan_out"
-                                                                ? "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                                                                : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+                                                                ? "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"
+                                                                : paneObj.currentStatus === "claimed"
+                                                                ? "bg-red-50 text-red-600 dark:bg-red-900/50 dark:text-red-300"
+                                                                : paneObj.currentStatus === "pending"
+                                                                ? "bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300"
+                                                                : "bg-slate-100 text-slate-700 dark:bg-slate-900/50 dark:text-slate-300"
                                                         }`}>
                                                             {PANE_STATUS_LABEL[paneObj.currentStatus] ?? paneObj.currentStatus}
                                                         </span>
@@ -766,7 +792,7 @@ export default function ClaimsPage() {
                                                         <div className="flex items-center flex-wrap gap-1">
                                                             {paneObj.routing.map((s, i) => (
                                                                 <React.Fragment key={i}>
-                                                                    <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">{getStationName(s)}</span>
+                                                                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-md ${getStationColorCls(s)}`}>{getStationName(s)}</span>
                                                                     {i < paneObj.routing.length - 1 && <ArrowRight className="h-3 w-3 text-slate-300 dark:text-slate-600" />}
                                                                 </React.Fragment>
                                                             ))}
@@ -829,7 +855,7 @@ export default function ClaimsPage() {
                                                 {activeClaim?.defectStation && (
                                                     <div>
                                                         <p className="text-[11px] text-slate-400 mb-0.5">สถานีที่เกิดปัญหา</p>
-                                                        <p className="text-sm font-medium text-slate-900 dark:text-white">{getStationName(activeClaim.defectStation)}</p>
+                                                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-md ${getStationColorCls(activeClaim.defectStation)}`}>{getStationName(activeClaim.defectStation)}</span>
                                                     </div>
                                                 )}
                                             </div>

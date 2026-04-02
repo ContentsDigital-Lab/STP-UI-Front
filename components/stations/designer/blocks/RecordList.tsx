@@ -355,7 +355,7 @@ export function RecordList({
         setQrPane(null);
         if (!expandedRowId) return;
         const fetchFn = dataSource === "/orders"
-            ? panesApi.getAll({ order: expandedRowId, limit: 100 })
+            ? panesApi.getAll({ order: expandedRowId, status_ne: "claimed", limit: 100 })
             : panesApi.getAll({ request: expandedRowId, limit: 100 });
         fetchFn
             .then(res => setRowPanes(res.success ? res.data ?? [] : []))
@@ -381,7 +381,7 @@ export function RecordList({
         if (!expandedRowId || !isApi) return;
         if (dataSource !== "/orders" && dataSource !== "/requests") return;
         const fetchFn = dataSource === "/orders"
-            ? panesApi.getAll({ order: expandedRowId, limit: 100 })
+            ? panesApi.getAll({ order: expandedRowId, status_ne: "claimed", limit: 100 })
             : panesApi.getAll({ request: expandedRowId, limit: 100 });
         fetchFn
             .then(res => { if (res.success) setRowPanes(res.data ?? []); })
@@ -444,7 +444,7 @@ export function RecordList({
         setShowAllPanes(false);
         try {
             if (dataSource === "/orders") {
-                const res = await panesApi.getAll({ order: rid, limit: 100 });
+                const res = await panesApi.getAll({ order: rid, status_ne: "claimed", limit: 100 });
                 setRowPanes(res.success ? res.data ?? [] : []);
             } else {
                 const res = await panesApi.getAll({ request: rid, limit: 100 });
