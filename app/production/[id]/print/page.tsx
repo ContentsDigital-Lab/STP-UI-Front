@@ -624,8 +624,13 @@ export default function WorkOrderPrintPage() {
     }
   });
 
-  const orderCode = order.code ?? order._id.slice(-6).toUpperCase();
+  const orderCode = order.orderNumber || order.code || "";
   const stations = Array.isArray(order.stations) ? order.stations : [];
+
+  const getWorkerName = (w: any) => w && typeof w === 'object' ? (w.name || w.username || "—") : "—";
+  const sellerName = getWorkerName(order.assignedTo) === "—" && typeof order.request === "object" 
+    ? getWorkerName((order.request as any)?.assignedTo) 
+    : getWorkerName(order.assignedTo);
 
   return (
     <>
@@ -690,214 +695,93 @@ export default function WorkOrderPrintPage() {
               key={group.signature}
               className={`section-container bg-white text-black text-[10px] font-sans border border-black ${!isLast ? "page-break" : ""}`}
             >
-              {/* 1. Header Grid (High Density) */}
-              <div className="grid grid-cols-[1fr,1.5fr,1fr] border-b border-black">
-                <div className="p-1.5 border-r border-black flex flex-col justify-center">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <img
-                      src="/logo.png"
-                      alt="Logo"
-                      className="h-5 object-contain"
-                    />
-                    <h2 className="text-[9px] font-black uppercase leading-none">
+              {/* 1. Top Header Area */}
+              <div className="flex items-center justify-between border-b border-black p-3">
+                <div className="flex items-center gap-4 min-w-[250px]">
+                  <img
+                    src="/logo.png"
+                    alt="Logo"
+                    className="h-8 object-contain"
+                  />
+                  <div>
+                    <h2 className="text-[14px] font-black uppercase leading-none">
                       Standard Plus
                     </h2>
+                    <p className="text-[9px] text-slate-500 mt-1">
+                      Tel: 042-920-222 | Fax: 042-920-224
+                    </p>
                   </div>
-                  <p className="text-[7px] text-slate-400">
-                    Tel: 042-920-222 | Fax: 042-920-224
-                  </p>
                 </div>
-                <div className="p-1.5 border-r border-black flex flex-col items-center justify-center bg-slate-50/30">
-                  <h1 className="text-[11px] font-black underline uppercase">
+
+                <div className="flex flex-col items-center">
+                  <h1 className="text-[16px] font-black underline uppercase">
                     ใบสั่งผลิตกระจก (แบบที่ {gIdx + 1}/{designGroups.length})
                   </h1>
-                  <p className="text-[8px] font-bold text-red-600 tracking-widest">
-                    {orderCode}
-                  </p>
-                </div>
-                <div className="p-1.5 grid grid-cols-2 gap-x-2 text-[7px]">
-                  <div className="font-bold text-slate-500">วันที่:</div>{" "}
-                  <div>{fmtDate(order.createdAt)}</div>
-                  <div className="font-bold text-slate-500">จน.รวม:</div>{" "}
-                  <div className="font-bold">{panes.length} แผ่น</div>
-                  <div className="font-bold text-slate-500">พาร์ท:</div>{" "}
-                  <div className="font-bold">
-                    {gIdx + 1}/{designGroups.length}
-                  </div>
-                </div>
-              </div>
-
-              {/* 2. Customer & Job Info Line */}
-              <div className="grid grid-cols-[2fr,1fr,1fr,1fr] border-b border-black bg-white text-[8px]">
-                <div className="p-1 px-2 border-r border-black truncate">
-                  <span className="font-bold text-slate-500 uppercase text-[6px] mr-1">
-                    ลูกค้า:
-                  </span>{" "}
-                  {getStr(order.customer)}
-                </div>
-                <div className="p-1 px-2 border-r border-black">
-                  <span className="font-bold text-slate-500 uppercase text-[6px] mr-1">
-                    เบอร์โทร:
-                  </span>{" "}
-                  —
-                </div>
-                <div className="p-1 px-2 border-r border-black">
-                  <span className="font-bold text-slate-500 uppercase text-[6px] mr-1">
-                    ผู้ขาย:
-                  </span>{" "}
-                  —
-                </div>
-                <div className="p-1 px-2">
-                  <span className="font-bold text-slate-500 uppercase text-[6px] mr-1">
-                    ใบเสนอราคา:
-                  </span>{" "}
-                  —
-                </div>
-              </div>
-
-              {/* 3. Consolidated Spec Line */}
-              <div className="flex items-center px-2 py-0.5 bg-slate-50 border-b border-black font-black italic text-[9px]">
-                <span className="text-blue-800 tracking-tight">{specStr}</span>
-                <span className="mx-2 text-slate-300">|</span>
-                <span className="text-slate-600">
-                  ** {samplePane.jobType || "งานสั่งทำพิเศษ"} **
-                </span>
-                <div className="ml-auto flex items-center gap-2">
-                  <span className="text-[7px] font-black text-red-600 border border-red-600 px-1 rounded-sm bg-white">
-                    มอก.
-                  </span>
-                </div>
-              </div>
-
-              {/* 4. MAIN CONTENT (HORIZONTAL SPLIT) */}
-              <div className="flex border-b border-black min-h-[330px]">
-                {/* 4a. Left: Large Technical Draft (Drawing) */}
-                <div className="flex-1 p-2 flex flex-col bg-white overflow-hidden">
-                  <p className="text-[6px] font-black text-slate-300 uppercase italic mb-1 tracking-widest leading-none">
-                    TECHNICAL DRAFT / แบบวาดเทคนิค
-                  </p>
-                  <div className="flex-1 flex items-center justify-center border border-slate-50 max-h-[350px]">
-                    <StaticGlassRenderer
-                      width={samplePane.dimensions?.width || 800}
-                      height={samplePane.dimensions?.height || 600}
-                      holes={
-                        samplePane.holes as HoleData[] | number | undefined
-                      }
-                      notches={
-                        samplePane.notches as HoleData[] | number | undefined
-                      }
-                    />
-                  </div>
-                </div>
-
-                {/* 4b. Right: Sidebar (Info + Checklist) */}
-                <div className="w-[260px] border-l border-black flex flex-col bg-slate-50/5">
-                  {/* Dimension Summary */}
-                  <div className="border-b border-black">
-                    <p className="bg-slate-900 text-white py-0.5 text-[6px] font-black text-center uppercase tracking-widest">
-                      Dimension Table
+                  {orderCode && (
+                    <p className="text-[14px] font-black text-red-600 tracking-widest mt-0.5">
+                      {orderCode}
                     </p>
-                    <table className="w-full text-center">
-                      <thead>
-                        <tr className="border-b border-black text-[6px] font-bold text-slate-500 bg-slate-50 uppercase">
-                          <th className="border-r border-black p-0.5">No.</th>
-                          <th className="border-r border-black p-0.5">
-                            W (กว้าง)
-                          </th>
-                          <th className="border-r border-black p-0.5">
-                            H (สูง)
-                          </th>
-                          <th className="p-0.5">QTY</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr className="font-black text-[16px] leading-tight">
-                          <td className="border-r border-black p-1.5 text-[9px] text-slate-400">
-                            {gIdx + 1}
-                          </td>
-                          <td className="border-r border-black p-1.5 text-blue-800">
-                            {samplePane.dimensions?.width}
-                          </td>
-                          <td className="border-r border-black p-1.5 text-blue-800">
-                            {samplePane.dimensions?.height}
-                          </td>
-                          <td className="p-1.5 text-red-600">{groupQty}</td>
-                        </tr>
-                        <tr className="border-t border-black bg-slate-100/50 text-[6px]">
-                          <td
-                            colSpan={3}
-                            className="p-0.5 px-1.5 text-right border-r border-black font-bold uppercase text-slate-500"
-                          >
-                            Total in design
-                          </td>
-                          <td className="p-0.5 font-bold text-[8px] text-red-600">
-                            {groupQty}
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
+                  )}
+                </div>
 
-                  {/* Checkboxes (Edging, Corner, etc.) */}
-                  <div className="p-2.5 space-y-2.5 flex-1">
-                    <div className="space-y-0.5">
-                      <p className="font-black text-[7px] uppercase text-blue-700 border-b border-blue-100 pb-0.5 mb-1 flex items-center gap-1">
-                        <span className="w-1 h-1 bg-blue-700 rounded-full"></span>
-                        Edging (เจียร)
-                      </p>
-                      {[
-                        "เจียริมขัดมัน",
-                        "เจียรหยาบ",
-                        "เจียรปลี",
-                        "เจียรลูกหนู",
-                        "ลับคม",
-                      ].map((l, i) => (
-                        <div key={l} className="flex items-center gap-1.5">
-                          <div
-                            className={`w-3 h-3 border border-slate-400 bg-white flex items-center justify-center text-[8px] ${i === 1 ? "font-black text-blue-700" : "text-transparent"}`}
-                          >
-                            ✓
-                          </div>
-                          <span
-                            className={`text-[8px] ${i === 1 ? "font-black text-blue-800 leading-none" : "text-slate-600 font-medium leading-none"}`}
-                          >
-                            {l}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="space-y-0.5 mt-2">
-                      <p className="font-black text-[7px] uppercase text-blue-700 border-b border-blue-100 pb-0.5 mb-1 flex items-center gap-1">
-                        <span className="w-1 h-1 bg-blue-700 rounded-full"></span>
-                        Corners (คิ้ว)
-                      </p>
-                      <div className="flex items-center gap-1.5 opacity-50">
-                        <div className="w-3 h-3 border border-slate-400 bg-white text-transparent">
-                          ✓
-                        </div>
-                        <span className="text-[8px] text-slate-500 font-medium italic leading-none">
-                          ไม่มี / No Details
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="mt-auto pt-2 border-t border-dashed border-slate-200">
-                      <p className="text-[6px] font-medium text-slate-500 leading-tight">
-                        * ตรวจสอบตำแหน่งมาร์คและขนาดให้ตรงกับหน้างานจริงทุกครั้ง
-                      </p>
-                    </div>
-                  </div>
+                <div className="flex flex-col text-right text-[10px] min-w-[200px] gap-0.5">
+                  <p>
+                    <span className="font-bold text-slate-500 mr-2">วันที่:</span>
+                    {fmtDate(order.createdAt)}
+                  </p>
+                  <p>
+                    <span className="font-bold text-slate-500 mr-2">จำนวนรวม:</span>
+                    <span className="font-bold text-[11px] text-red-600 border border-red-200 bg-red-50 px-1 rounded">
+                      {panes.length} แผ่น
+                    </span>
+                  </p>
+                  <p>
+                    <span className="font-bold text-slate-500 mr-2">ออเดอร์พาร์ท:</span>
+                    {gIdx + 1}/{designGroups.length}
+                  </p>
                 </div>
               </div>
 
-              {/* 5. Stations & Details (COMPACTED) */}
-              <div className="grid grid-cols-[1.5fr,1fr] border-b border-black bg-slate-50/50 h-8">
-                <div className="p-1 px-2 flex items-center gap-2 border-r border-black overflow-hidden">
-                  <span className="text-[6px] font-black text-slate-400 uppercase tracking-tighter shrink-0">
+              {/* 2. Customer & Flow Area */}
+              <div className="grid grid-cols-[1fr,1.2fr] border-b border-black bg-white">
+                <div className="p-2 border-r border-black flex flex-wrap items-center gap-x-6 gap-y-1.5 text-[10px]">
+                  {(() => {
+                    const customerObj = order.customer as { name?: string; phone?: string; } | undefined;
+                    return (
+                      <>
+                        <div>
+                          <span className="font-bold text-slate-500 uppercase mr-1">
+                            ลูกค้า:
+                          </span>{" "}
+                          <span className="text-blue-900 font-semibold">{customerObj?.name || getStr(order.customer) || "—"}</span>
+                        </div>
+                        <div>
+                          <span className="font-bold text-slate-500 uppercase mr-1">
+                            เบอร์โทร:
+                          </span>{" "}
+                          <span className="font-semibold">{customerObj?.phone || "—"}</span>
+                        </div>
+                        <div>
+                          <span className="font-bold text-slate-500 uppercase mr-1">
+                            พนักงานขาย:
+                          </span>{" "}
+                          {sellerName}
+                        </div>
+                        <div>
+                          <span className="font-bold text-slate-500 uppercase mr-1">
+                            ใบเสนอราคา:
+                          </span>{" "}
+                          —
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+                <div className="p-2 px-3 flex items-center bg-slate-50/80">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter shrink-0 mr-3">
                     Flow:
                   </span>
-                  <div className="flex items-center gap-1 overflow-hidden">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     {stations.map((sid, idx) => {
                       const sidStr =
                         typeof sid === "string"
@@ -907,40 +791,159 @@ export default function WorkOrderPrintPage() {
                       return (
                         <div
                           key={idx}
-                          className="flex items-center gap-0.5 shrink-0"
+                          className="flex items-center gap-1 shrink-0"
                         >
-                          <span className="text-[7px] font-bold px-1 bg-white border border-slate-200 rounded text-slate-700 truncate max-w-[50px] leading-tight">
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 bg-white border border-slate-300 rounded text-blue-900 leading-tight">
                             {label}
                           </span>
                           {idx < stations.length - 1 && (
-                            <span className="text-slate-300 text-[6px]">→</span>
+                            <span className="text-slate-400 font-bold text-[8px] tracking-tighter">{'>>'}</span>
                           )}
                         </div>
                       );
                     })}
                   </div>
                 </div>
-                <div className="p-1 px-2 flex items-center gap-2 text-[7px]">
-                  <span className="font-bold text-slate-500 uppercase tracking-tighter shrink-0">
-                    Notes:
+              </div>
+
+              {/* 3. Consolidated Spec Line */}
+              <div className="flex items-center px-4 py-2 bg-slate-100 border-b border-black font-black italic text-[13px]">
+                <span className="text-blue-800 tracking-tight">{specStr}</span>
+                <span className="mx-4 text-slate-300">|</span>
+                <span className="text-slate-600">
+                  ** {samplePane.jobType || "งานสั่งทำพิเศษ"} **
+                </span>
+                <div className="ml-auto">
+                  <span className="text-[10px] font-black text-red-600 border border-red-600 px-2 py-0.5 rounded bg-white">
+                    มอก.
                   </span>
-                  <div className="flex-1 border-b border-slate-300 border-dashed translate-y-0.5"></div>
                 </div>
               </div>
 
-              {/* 6. Footer: Signatures Only (COMPACT) */}
-              <div className="bg-white h-[45px] overflow-hidden flex items-center px-12">
-                <div className="flex-1 flex flex-col items-center">
-                  <div className="w-[180px] border-b border-slate-800 mb-0.5"></div>
-                  <p className="font-black text-[6px] uppercase leading-none">
-                    ผู้สั่ง / Approved By
+              {/* 4. MAIN CONTENT (HORIZONTAL SPLIT) */}
+              <div className="flex flex-1 min-h-[460px]">
+                {/* 4a. Left: Large Technical Draft (Drawing) */}
+                <div className="flex-[1.5] p-3 flex flex-col bg-white overflow-hidden border-r border-black">
+                  <p className="text-[10px] font-black text-slate-300 uppercase italic mb-2 tracking-widest leading-none">
+                    TECHNICAL DRAFT / แบบวาดเทคนิค
                   </p>
+                  <div className="flex-1 flex items-center justify-center">
+                    <StaticGlassRenderer
+                      width={samplePane.dimensions?.width || 800}
+                      height={samplePane.dimensions?.height || 600}
+                      holes={samplePane.holes as HoleData[] | undefined}
+                      notches={samplePane.notches as HoleData[] | undefined}
+                    />
+                  </div>
                 </div>
-                <div className="flex-1 flex flex-col items-center">
-                  <div className="w-[180px] border-b border-slate-800 mb-0.5"></div>
-                  <p className="font-black text-[6px] uppercase leading-none">
-                    ผู้ผลิต / Produced By
-                  </p>
+
+                {/* 4b. Right: Sidebar (Info + Checklist) */}
+                <div className="w-[300px] flex flex-col bg-white">
+                  {/* Dimension Summary */}
+                  <div className="border-b border-slate-300">
+                    <p className="bg-slate-800 text-white py-1 text-[10px] font-black text-center uppercase tracking-widest">
+                      Dimension Table
+                    </p>
+                    <table className="w-full text-center">
+                      <thead>
+                        <tr className="border-b border-slate-300 text-[9px] font-bold text-slate-500 bg-slate-50 uppercase">
+                          <th className="border-r border-slate-300 p-1.5">No.</th>
+                          <th className="border-r border-slate-300 p-1.5">
+                            W (กว้าง)
+                          </th>
+                          <th className="border-r border-slate-300 p-1.5">
+                            H (สูง)
+                          </th>
+                          <th className="p-1.5 bg-red-50 text-red-700">QTY</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="font-black text-[22px] leading-tight">
+                          <td className="border-r border-slate-300 p-3 text-[12px] text-slate-400">
+                            {gIdx + 1}
+                          </td>
+                          <td className="border-r border-slate-300 p-3 text-blue-900 bg-blue-50/30">
+                            {samplePane.dimensions?.width}
+                          </td>
+                          <td className="border-r border-slate-300 p-3 text-blue-900 bg-blue-50/30">
+                            {samplePane.dimensions?.height}
+                          </td>
+                          <td className="p-3 text-red-600 bg-red-50/50">{groupQty}</td>
+                        </tr>
+                        <tr className="border-t border-slate-300 bg-slate-100/80 text-[10px]">
+                          <td
+                            colSpan={3}
+                            className="p-1 px-3 text-right border-r border-slate-300 font-bold uppercase text-slate-600"
+                          >
+                            Total in design
+                          </td>
+                          <td className="p-1 font-bold text-[12px] text-red-600">
+                            {groupQty}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Edging & Corners */}
+                  <div className="p-4 flex-1 flex flex-col gap-4">
+                    <div className="space-y-1.5">
+                      <p className="font-black text-[10px] uppercase text-blue-800 border-b-2 border-blue-100 pb-1 mb-2 flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 bg-blue-800 rounded-full"></span>
+                        Edging (เจียร)
+                      </p>
+                      {[
+                        "เจียริมขัดมัน",
+                        "เจียรหยาบ",
+                        "เจียรปลี",
+                        "เจียรลูกหนู",
+                        "ลับคม",
+                      ].map((l, i) => (
+                        <div key={l} className="flex items-center gap-2">
+                          <div
+                            className={`w-4 h-4 border ${i === 1 ? "border-blue-600 bg-blue-50" : "border-slate-300"} flex items-center justify-center text-[10px]`}
+                          >
+                            <span className={i === 1 ? "font-black text-blue-600" : "text-transparent"}>✓</span>
+                          </div>
+                          <span
+                            className={`text-[10px] ${i === 1 ? "font-black text-blue-900" : "text-slate-600 font-medium"}`}
+                          >
+                            {l}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <p className="font-black text-[10px] uppercase text-blue-800 border-b-2 border-blue-100 pb-1 mb-2 flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 bg-blue-800 rounded-full"></span>
+                        Corners (คิ้ว)
+                      </p>
+                      <div className="flex items-center gap-2 opacity-60">
+                        <div className="w-4 h-4 border border-slate-300 flex items-center justify-center text-transparent">
+                          ✓
+                        </div>
+                        <span className="text-[10px] text-slate-500 font-medium italic">
+                          ไม่มี / No Details
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Notes Area */}
+                    <div className="mt-auto pt-4 space-y-4">
+                      <div className="flex items-start gap-2">
+                        <span className="text-[10px] font-black text-slate-500 uppercase">Notes:</span>
+                        <div className="flex-1 space-y-6 pt-3">
+                          <div className="w-full border-b border-dashed border-slate-400"></div>
+                          <div className="w-full border-b border-dashed border-slate-400"></div>
+                          <div className="w-full border-b border-dashed border-slate-400"></div>
+                        </div>
+                      </div>
+                      <p className="text-[8px] font-medium text-red-500 bg-red-50 p-1.5 rounded text-center border border-red-100">
+                        * ตรวจสอบตำแหน่งมาร์คและขนาดให้ตรงกับหน้างานจริงทุกครั้ง
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
