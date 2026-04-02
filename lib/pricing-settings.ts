@@ -7,7 +7,10 @@ export const PRICING_STORAGE_KEY = "glass_pricing_settings_v1";
 
 export interface GlassVariantPrice {
     pricePerSqFt: number;   // บาท/ตร.ฟ. (ราคาเนื้อกระจก)
-    grindingRate: number;   // บาท/เมตร (ค่าเจียรขอบ)
+    grindingRate: number | {
+        rough: number;
+        polished: number;
+    };                      // บาท/เมตร (ค่าเจียรขอบ)
 }
 
 // glassType → thickness → prices
@@ -17,12 +20,28 @@ export interface PricingSettings {
     glassPrices: GlassPriceTable;
     holePriceEach: number;  // บาท/รู  (ค่าเจาะรูสำหรับฮาร์ดแวร์)
     notchPrice: number;     // บาท/บาก (ค่าบากกระจก)
+    grindingRates: {
+        rough: Record<string, number>;    // thickness (e.g. "5mm") -> rate
+        polished: Record<string, number>; // thickness -> rate
+        bevelRate: number;                // flat rate or per meter
+        arrisRate: number;                // flat rate or per meter
+    };
 }
 
 // ── Default values (อิงข้อมูลตาราง Excel ของร้าน) ────────────────────────────
 export const DEFAULT_PRICING: PricingSettings = {
     holePriceEach: 50,
     notchPrice: 100,
+    grindingRates: {
+        rough: {
+            "5mm": 50, "6mm": 50, "8mm": 60, "10mm": 60, "12mm": 60, "15mm": 150
+        },
+        polished: {
+            "5mm": 60, "6mm": 60, "8mm": 75, "10mm": 75, "12mm": 75, "15mm": 200
+        },
+        bevelRate: 250,
+        arrisRate: 35,
+    },
     glassPrices: {
         Clear: {
             "3mm":  { pricePerSqFt: 35,  grindingRate: 50 },
@@ -94,6 +113,7 @@ export function getCachedPricingSettings(): PricingSettings {
         return {
             holePriceEach: parsed.holePriceEach ?? DEFAULT_PRICING.holePriceEach,
             notchPrice:    parsed.notchPrice    ?? DEFAULT_PRICING.notchPrice,
+            grindingRates: parsed.grindingRates ?? DEFAULT_PRICING.grindingRates,
             glassPrices:   Object.keys(parsed.glassPrices ?? {}).length > 0
                 ? parsed.glassPrices
                 : DEFAULT_PRICING.glassPrices,

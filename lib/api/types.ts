@@ -153,6 +153,13 @@ export interface Order {
 
 export type PaneStation = { _id: string; name: string } | string | null;
 
+export interface EdgeProperties {
+  top: string;
+  bottom: string;
+  left: string;
+  right: string;
+}
+
 export interface PaneEdgeTask {
   side: string;
   edgeProfile: string;
@@ -182,6 +189,8 @@ export interface Pane {
   glassTypeLabel: string;
   processes: string[];
   edgeTasks: PaneEdgeTask[];
+  cornerSpec?: string;
+  dimensionTolerance?: string;
   jobType?: string;
   rawGlass?: {
     glassType: string;

@@ -107,22 +107,37 @@ export default function PricingSettingsPage() {
     const updateGlassPrice = (
         glassType: string,
         thickness: string,
-        field: "pricePerSqFt" | "grindingRate",
+        field: "pricePerSqFt" | "grindingRate" | "rough" | "polished",
         value: number,
     ) => {
-        setSettings(prev => ({
-            ...prev,
-            glassPrices: {
-                ...prev.glassPrices,
-                [glassType]: {
-                    ...prev.glassPrices[glassType],
-                    [thickness]: {
-                        ...(prev.glassPrices[glassType]?.[thickness] ?? { pricePerSqFt: 0, grindingRate: 50 }),
-                        [field]: value,
+        setSettings(prev => {
+            const currentVariant = prev.glassPrices[glassType]?.[thickness] ?? { pricePerSqFt: 0, grindingRate: 50 };
+            let newVariant = { ...currentVariant };
+
+            if (field === "pricePerSqFt") {
+                newVariant.pricePerSqFt = value;
+            } else if (field === "grindingRate") {
+                newVariant.grindingRate = value;
+            } else if (field === "rough" || field === "polished") {
+                const currentRate = typeof currentVariant.grindingRate === 'object' 
+                    ? { ...currentVariant.grindingRate } 
+                    : { rough: Number(currentVariant.grindingRate) || 0, polished: Number(currentVariant.grindingRate) || 0 };
+                
+                currentRate[field] = value;
+                newVariant.grindingRate = currentRate;
+            }
+
+            return {
+                ...prev,
+                glassPrices: {
+                    ...prev.glassPrices,
+                    [glassType]: {
+                        ...prev.glassPrices[glassType],
+                        [thickness]: newVariant,
                     },
                 },
-            },
-        }));
+            };
+        });
         setSaved(false);
     };
 
@@ -321,10 +336,11 @@ export default function PricingSettingsPage() {
                     </div>
 
                     {/* Table header */}
-                    <div className="grid grid-cols-[80px_1fr_1fr_40px] sm:grid-cols-[100px_1fr_1fr_40px] gap-2 sm:gap-4 px-2 pb-2">
+                    <div className="grid grid-cols-[80px_1fr_1fr_1fr_40px] sm:grid-cols-[100px_1fr_1fr_1fr_40px] gap-2 sm:gap-4 px-2 pb-2">
                         <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider">ความหนา</span>
-                        <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider text-center sm:text-left">ราคา/ตร.ฟ. (฿)</span>
-                        <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider text-center sm:text-left">เจียร/ม. (฿)</span>
+                        <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider text-center sm:text-left">ราคา/ตร.ฟ.</span>
+                        <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider text-center sm:text-left">เจียรหยาบ/ม.</span>
+                        <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider text-center sm:text-left">ขัดมัน/ม.</span>
                         <span />
                     </div>
 
@@ -335,7 +351,7 @@ export default function PricingSettingsPage() {
                             const defRow = DEFAULT_PRICING.glassPrices[activeType]?.[thickness];
                             const hasValue = !!row;
                             return (
-                                <div key={thickness} className="grid grid-cols-[80px_1fr_1fr_40px] sm:grid-cols-[100px_1fr_1fr_40px] gap-2 sm:gap-4 items-center group bg-slate-50/50 dark:bg-slate-800/20 p-2 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                                <div key={thickness} className="grid grid-cols-[80px_1fr_1fr_1fr_40px] sm:grid-cols-[100px_1fr_1fr_1fr_40px] gap-2 sm:gap-4 items-center group bg-slate-50/50 dark:bg-slate-800/20 p-2 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                                     <div className="flex items-center h-full sm:px-2">
                                         <span className="text-sm sm:text-base font-extrabold text-slate-700 dark:text-slate-200">{thickness}</span>
                                     </div>
@@ -346,13 +362,34 @@ export default function PricingSettingsPage() {
                                         onChange={e => updateGlassPrice(activeType, thickness, "pricePerSqFt", parseFloat(e.target.value) || 0)}
                                         className={`h-11 sm:h-12 rounded-xl text-sm sm:text-base font-bold bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus:border-blue-600 dark:focus:border-[#E8601C] focus:ring-blue-600/20 dark:focus:ring-[#E8601C]/20 text-center sm:text-left px-2 sm:px-4 ${!hasValue ? "opacity-60 grayscale" : ""}`}
                                     />
-                                    <Input
-                                        type="number" min={0}
-                                        placeholder={defRow ? String(defRow.grindingRate) : "50"}
-                                        value={row?.grindingRate ?? ""}
-                                        onChange={e => updateGlassPrice(activeType, thickness, "grindingRate", parseFloat(e.target.value) || 0)}
-                                        className={`h-11 sm:h-12 rounded-xl text-sm sm:text-base font-bold bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus:border-blue-600 dark:focus:border-[#E8601C] focus:ring-blue-600/20 dark:focus:ring-[#E8601C]/20 text-center sm:text-left px-2 sm:px-4 ${!hasValue ? "opacity-60 grayscale" : ""}`}
-                                    />
+                                    {(() => {
+                                        const r = row?.grindingRate;
+                                        const rough = typeof r === 'object' ? r.rough : (Number(r) || 0);
+                                        const polished = typeof r === 'object' ? r.polished : (Number(r) || 0);
+                                        
+                                        const dr = defRow?.grindingRate;
+                                        const dRough = typeof dr === 'object' ? dr.rough : (Number(dr) || 50);
+                                        const dPolished = typeof dr === 'object' ? dr.polished : (Number(dr) || 60);
+
+                                        return (
+                                            <>
+                                                <Input
+                                                    type="number" min={0}
+                                                    placeholder={String(dRough)}
+                                                    value={rough || ""}
+                                                    onChange={e => updateGlassPrice(activeType, thickness, "rough", parseFloat(e.target.value) || 0)}
+                                                    className={`h-11 sm:h-12 rounded-xl text-sm sm:text-base font-bold bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus:border-blue-600 dark:focus:border-[#E8601C] focus:ring-blue-600/20 dark:focus:ring-[#E8601C]/20 text-center sm:text-left px-2 sm:px-4 ${!hasValue ? "opacity-60 grayscale" : ""}`}
+                                                />
+                                                <Input
+                                                    type="number" min={0}
+                                                    placeholder={String(dPolished)}
+                                                    value={polished || ""}
+                                                    onChange={e => updateGlassPrice(activeType, thickness, "polished", parseFloat(e.target.value) || 0)}
+                                                    className={`h-11 sm:h-12 rounded-xl text-sm sm:text-base font-bold bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus:border-blue-600 dark:focus:border-[#E8601C] focus:ring-blue-600/20 dark:focus:ring-[#E8601C]/20 text-center sm:text-left px-2 sm:px-4 ${!hasValue ? "opacity-60 grayscale" : ""}`}
+                                                />
+                                            </>
+                                        );
+                                    })()}
                                     <button
                                         type="button"
                                         onClick={() => {

@@ -25,7 +25,9 @@ import {
     X,
     Layers,
     Copy,
+    Maximize2,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -80,7 +82,7 @@ interface PaneSpec {
     quantity: number;
     estimatedPrice: number;
     pricePerSqFt: number;
-    grindingRate: number;
+    grindingRate: number | { rough: number; polished: number };
     holePriceEach: number;
     notchQty: number;
     notchPrice: number;
@@ -88,6 +90,15 @@ interface PaneSpec {
     rawGlassType: string;
     rawGlassColor: string;
     sheetsPerPane: number;
+    // Edge & Corner Gaps
+    edgeTop: string;
+    edgeBottom: string;
+    edgeLeft: string;
+    edgeRight: string;
+    cornerSpec: string; // fallback if needed
+    cornerNone: boolean;
+    cornerSize: string;
+    dimensionTolerances: string[];
 }
 
 let _paneIdSeq = 0;
@@ -110,6 +121,14 @@ const createDefaultPane = (ps: PricingSettings): PaneSpec => ({
     rawGlassType: "",
     rawGlassColor: "",
     sheetsPerPane: 1,
+    edgeTop: "N",
+    edgeBottom: "N",
+    edgeLeft: "N",
+    edgeRight: "N",
+    cornerSpec: "",
+    cornerNone: true,
+    cornerSize: "",
+    dimensionTolerances: [],
 });
 
 const EDGE_THRESHOLD = 5; // mm — cutout within this distance of an edge counts as a notch
@@ -163,12 +182,46 @@ const splitHolesAndNotches = (holes: HoleData[], glassW: number, glassH: number)
     return { notchList, holeList };
 };
 
-const calcPanePrice = (p: PaneSpec) => {
+const calculateGrindingCost = (p: PaneSpec, ps: PricingSettings): number => {
+    const wM = p.glassWidth / 1000;
+    const hM = p.glassHeight / 1000;
+    const thickness = p.thickness || "5mm";
+    
+    // Check for variant-specific structured rates first
+    const variant = ps.glassPrices[p.glassType]?.[thickness];
+    const vRate = variant?.grindingRate;
+    const isVRateObj = typeof vRate === 'object' && vRate !== null;
+
+    const getRate = (edge: string) => {
+        if (!edge || edge === 'N') return 0;
+        
+        if (edge === 'B') {
+            if (isVRateObj) return (vRate as any).rough;
+            return ps.grindingRates?.rough?.[thickness] ?? 50;
+        }
+        if (edge === 'D') {
+            if (isVRateObj) return (vRate as any).polished;
+            return ps.grindingRates?.polished?.[thickness] ?? 60;
+        }
+        if (edge === 'BE') return ps.grindingRates?.bevelRate ?? 250;
+        if (edge === 'AA' || edge === 'A') return ps.grindingRates?.arrisRate ?? 35;
+        return 0;
+    };
+
+    const topCost = wM * getRate(p.edgeTop);
+    const bottomCost = wM * getRate(p.edgeBottom);
+    const leftCost = hM * getRate(p.edgeLeft);
+    const rightCost = hM * getRate(p.edgeRight);
+
+    return topCost + bottomCost + leftCost + rightCost;
+};
+
+const calcPanePrice = (p: PaneSpec, ps: PricingSettings) => {
     const wM = p.glassWidth / 1000;
     const hM = p.glassHeight / 1000;
     const sqFt = wM * hM * 10.764;
     const glassPrice = sqFt * p.pricePerSqFt;
-    const grindingCost = 2 * (wM + hM) * p.grindingRate;
+    const grindingCost = calculateGrindingCost(p, ps);
     const { notches: autoNotchQty, interior: autoHoleQty } = countEdgeAndInterior(p.holes, p.glassWidth, p.glassHeight);
     const drillCost = autoHoleQty * p.holePriceEach;
     const notchCost = p.notchQty * p.notchPrice;
@@ -279,7 +332,7 @@ export default function CreateBillPage() {
     const thicknessRef = useRef<HTMLDivElement>(null);
 
     // ── Pricing calc for active pane ─────────────────────────────────────────
-    const pricingCalc = useMemo(() => calcPanePrice(ap), [ap]);
+    const pricingCalc = useMemo(() => calcPanePrice(ap, pricingSettings), [ap, pricingSettings]);
 
     // ── Auto-fill pricePerSqFt + grindingRate when glassType & thickness are set ──
     useEffect(() => {
@@ -580,7 +633,7 @@ export default function CreateBillPage() {
         setIsSubmitting(true);
 
         const totalQty = validPanes.reduce((sum, p) => sum + p.quantity, 0);
-        const totalPrice = validPanes.reduce((sum, p) => sum + calcPanePrice(p).total, 0);
+        const totalPrice = validPanes.reduce((sum, p) => sum + calcPanePrice(p, pricingSettings).total, 0);
         const typeDesc = validPanes.map(p => `${p.glassType} ${p.thickness} (${p.glassWidth}×${p.glassHeight}mm)`).join(' + ');
 
         const payload = {
@@ -642,7 +695,16 @@ export default function CreateBillPage() {
                                     },
                                 } : {}),
                                 ...(orderReleaseStationId ? { currentStation: orderReleaseStationId } : {}),
-                            } as Record<string, unknown>);
+                                // Edge & Corner Mapping
+                                edgeTasks: [
+                                    { side: "top", edgeProfile: pane.edgeTop, status: "pending" },
+                                    { side: "bottom", edgeProfile: pane.edgeBottom, status: "pending" },
+                                    { side: "left", edgeProfile: pane.edgeLeft, status: "pending" },
+                                    { side: "right", edgeProfile: pane.edgeRight, status: "pending" },
+                                ],
+                                cornerSpec: pane.cornerNone ? "ไม่มี" : (pane.cornerSize || "มีขนาด"),
+                                dimensionTolerance: pane.dimensionTolerances.join(', ') || "ตามมาตรฐาน มอก.",
+                            } as any);
                             panesCreated++;
                         } catch (paneErr) {
                             console.error(`[CreateBill] Failed to create pane:`, paneErr);
@@ -982,7 +1044,7 @@ export default function CreateBillPage() {
     };
 
     const selectedCustomer = customers.find(c => c._id === orderData.customer);
-    const grandTotal = useMemo(() => panes.reduce((sum, p) => sum + calcPanePrice(p).total, 0), [panes]);
+    const grandTotal = useMemo(() => panes.reduce((sum, p) => sum + calcPanePrice(p, pricingSettings).total, 0), [panes, pricingSettings]);
 
     return (
         <div className="flex flex-col lg:h-full lg:overflow-hidden">
@@ -1069,9 +1131,14 @@ export default function CreateBillPage() {
                         height={ap.glassHeight}
                         holes={ap.holes}
                         onHolesChange={handleHolesChange}
-                        vertices={ap.vertices}
                         onVerticesChange={handleVerticesChange}
                         thickness={parseInt(ap.thickness) || 6}
+                        edges={{
+                            top: ap.edgeTop,
+                            bottom: ap.edgeBottom,
+                            left: ap.edgeLeft,
+                            right: ap.edgeRight
+                        }}
                     />
                 </div>
 
@@ -1522,6 +1589,109 @@ export default function CreateBillPage() {
                             </div>
                         </div>
 
+                        {/* Edge Processing & Corners (Refined) */}
+                        <div className="space-y-4 pt-3 border-t border-slate-200 dark:border-slate-800">
+                            <div className="flex items-center gap-2">
+                                <Maximize2 className="h-4 w-4 text-primary dark:text-[#E8601C]" />
+                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">
+                                    {lang === 'th' ? 'การเจียรขอบและมุม' : 'Edges & Corners'}
+                                </h3>
+                            </div>
+
+                            {/* Edge Profiles Per Side */}
+                            <div className="grid grid-cols-2 gap-4">
+                                {(['top', 'bottom', 'left', 'right'] as const).map((side) => (
+                                    <div key={side} className="space-y-1.5">
+                                        <Label className="text-[10px] font-semibold text-slate-400 uppercase">
+                                            {lang === 'th' ? `ขอบ ${side === 'top' ? 'บน' : side === 'bottom' ? 'ล่าง' : side === 'left' ? 'ซ้าย' : 'ขวา'}` : `${side.charAt(0).toUpperCase() + side.slice(1)} Edge`}
+                                        </Label>
+                                        <Select
+                                            value={ap[`edge${side.charAt(0).toUpperCase() + side.slice(1)}` as keyof PaneSpec] as string}
+                                            onValueChange={(v) => updatePane({ [`edge${side.charAt(0).toUpperCase() + side.slice(1)}`]: v })}
+                                        >
+                                            <SelectTrigger className="h-9 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-xl font-bold text-xs">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent className="rounded-xl">
+                                                <SelectItem value="N" className="text-xs font-semibold">ตัดธรรมดา (Plain)</SelectItem>
+                                                <SelectItem value="D" className="text-xs font-semibold">D (เจียรริมขัดมัน)</SelectItem>
+                                                <SelectItem value="B" className="text-xs font-semibold">B (เจียรหยาบ)</SelectItem>
+                                                <SelectItem value="BE" className="text-xs font-semibold">BE (เจียรปลี)</SelectItem>
+                                                <SelectItem value="AA" className="text-xs font-semibold">AA (เจียรลูกหนู)</SelectItem>
+                                                <SelectItem value="A" className="text-xs font-semibold">A (ลบคม)</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Corner Spec (Checkbox based) */}
+                            <div className="space-y-2 border-t border-slate-100 dark:border-slate-800 pt-3">
+                                <Label className="text-[10px] font-semibold text-slate-400 uppercase block mb-1">
+                                    {lang === 'th' ? 'คิ้ว / มุม' : 'Corners'}
+                                </Label>
+                                <div className="flex flex-wrap gap-4">
+                                    <div className="flex items-center space-x-2">
+                                        <Checkbox 
+                                            id="corner-none" 
+                                            checked={ap.cornerNone} 
+                                            onCheckedChange={(checked) => updatePane({ cornerNone: !!checked, cornerSize: checked ? "" : ap.cornerSize })} 
+                                        />
+                                        <label htmlFor="corner-none" className="text-xs font-medium cursor-pointer">
+                                            {lang === 'th' ? 'ไม่มี' : 'None'}
+                                        </label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <Checkbox 
+                                            id="corner-has" 
+                                            checked={!ap.cornerNone} 
+                                            onCheckedChange={(checked) => updatePane({ cornerNone: !checked })} 
+                                        />
+                                        <label htmlFor="corner-has" className="text-xs font-medium cursor-pointer">
+                                            {lang === 'th' ? 'มี ขนาด' : 'With Size'}
+                                        </label>
+                                        {!ap.cornerNone && (
+                                            <Input
+                                                placeholder="..."
+                                                value={ap.cornerSize}
+                                                onChange={(e) => updatePane({ cornerSize: e.target.value })}
+                                                className="h-7 w-20 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-lg text-xs px-2"
+                                            />
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Dimension Tolerance (Checkbox based) */}
+                            <div className="space-y-3 border-t border-slate-100 dark:border-slate-800 pt-3">
+                                <Label className="text-[10px] font-semibold text-slate-400 uppercase block mb-2">
+                                    {lang === 'th' ? 'การยอมรับขนาด / การใช้งาน' : 'Tolerance / Usage'}
+                                </Label>
+                                {[
+                                    { id: 'strict', th: 'ตาม Dimension ที่ระบุเท่านั้น (+0/-1 มม.)', en: 'Strict Dimension (+0/-1 mm)' },
+                                    { id: 'flexible', th: 'ขนาดกระจกสามารถคลาดเคลื่อนได้ตามมาตรฐาน มอก.(+/-2มม.)', en: 'Flexible (+/-2 mm)' },
+                                    { id: 'furniture', th: 'งานเฟอร์นิเจอร์ งานบิวท์อิน', en: 'Furniture / Built-in' },
+                                    { id: 'center', th: 'ตามเซ็นเตอร์ที่ระบุเท่านั้น (+0/-1 มม.)', en: 'Center Only (+0/-1 mm)' },
+                                ].map((item) => (
+                                    <div key={item.id} className="flex items-center space-x-2 py-0.5">
+                                        <Checkbox 
+                                            id={`tol-${item.id}`} 
+                                            checked={ap.dimensionTolerances.includes(item.id)} 
+                                            onCheckedChange={(checked) => {
+                                                const newTols = checked 
+                                                    ? [...ap.dimensionTolerances, item.id]
+                                                    : ap.dimensionTolerances.filter(t => t !== item.id);
+                                                updatePane({ dimensionTolerances: newTols });
+                                            }} 
+                                        />
+                                        <label htmlFor={`tol-${item.id}`} className="text-[11px] leading-tight font-medium cursor-pointer text-slate-600 dark:text-slate-300">
+                                            {lang === 'th' ? item.th : item.en}
+                                        </label>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
                         {/* Cutouts List (per-pane) */}
                         {ap.holes.length > 0 && (
                             <div className="space-y-3">
@@ -1718,7 +1888,8 @@ export default function CreateBillPage() {
                                         </Label>
                                         <Input
                                             type="number" min={0}
-                                            value={ap.grindingRate}
+                                            value={typeof ap.grindingRate === 'object' ? '' : ap.grindingRate}
+                                            placeholder={typeof ap.grindingRate === 'object' ? 'Mixed' : '0'}
                                             onChange={e => updatePane({ grindingRate: parseFloat(e.target.value) || 0, priceAutoFilled: false })}
                                             className="h-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold px-3 focus:ring-[#E8601C]"
                                         />
@@ -1861,7 +2032,7 @@ export default function CreateBillPage() {
                                 </div>
                                 <div className="rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 p-3 space-y-1.5">
                                     {panes.map((p, idx) => {
-                                        const calc = calcPanePrice(p);
+                                        const calc = calcPanePrice(p, pricingSettings);
                                         const label = p.glassType
                                             ? `${p.glassType} ${p.thickness} (${p.glassWidth}×${p.glassHeight})`
                                             : (lang === 'th' ? 'ยังไม่ระบุ' : 'Not specified');

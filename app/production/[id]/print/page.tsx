@@ -66,11 +66,13 @@ function StaticGlassRenderer({
   height,
   holes: holesRaw,
   notches: notchesRaw,
+  edgeTasks,
 }: {
   width: number;
   height: number;
   holes: HoleData[] | number | undefined;
   notches?: HoleData[] | number | undefined;
+  edgeTasks?: { side: string; edgeProfile: string }[];
 }) {
   const { arr: holes, count: holeCount } = normalizeHoles(holesRaw, notchesRaw);
   const padding = 100; // Increased padding to prevent large labels from cutting off
@@ -448,6 +450,50 @@ function StaticGlassRenderer({
           H = {height}
         </text>
       </g>
+
+      {/* Edge Treatment Labels - NEW */}
+      {edgeTasks && (
+        <g 
+          fontSize={dimSize * 1.5} 
+          fontWeight="900" 
+          fill="#d32f2f" 
+          filter="url(#whiteOutlineEffect)"
+          textAnchor="middle"
+          dominantBaseline="middle"
+        >
+          {edgeTasks.map((et, idx) => {
+            const profile = et.edgeProfile;
+            if (!profile || profile === 'N') return null;
+            
+            let xPos = 0;
+            let yPos = 0;
+
+            if (et.side === 'top') {
+              xPos = width / 2;
+              yPos = -25;
+            } else if (et.side === 'bottom') {
+              xPos = width / 2;
+              yPos = height + 25;
+            } else if (et.side === 'left') {
+              xPos = -25;
+              yPos = height / 2;
+            } else if (et.side === 'right') {
+              xPos = width + 25;
+              yPos = height / 2;
+            }
+
+            return (
+              <text 
+                key={idx} 
+                x={xPos} 
+                y={yPos} 
+              >
+                {profile}
+              </text>
+            );
+          })}
+        </g>
+      )}
     </svg>
   );
 }
@@ -476,7 +522,11 @@ function getDesignSignature(p: Pane): string {
           })),
         )
       : String(holesCount);
-  return `${p.dimensions?.width}x${p.dimensions?.height}-${holesStr}`;
+  const edgeStr = (p.edgeTasks || []).map(t => `${t.side}:${t.edgeProfile}`).join(",");
+  const cornerStr = p.cornerSpec || "N";
+  const thickStr = String(p.dimensions?.thickness || "");
+  
+  return `${p.dimensions?.width}x${p.dimensions?.height}x${thickStr}-${holesStr}-${edgeStr}-${cornerStr}`;
 }
 
 // ── page ──────────────────────────────────────────────────────────────────────
@@ -724,20 +774,20 @@ export default function WorkOrderPrintPage() {
                   )}
                 </div>
 
-                <div className="flex flex-col text-right text-[10px] min-w-[200px] gap-0.5">
-                  <p>
-                    <span className="font-bold text-slate-500 mr-2">วันที่:</span>
-                    {fmtDate(order.createdAt)}
+                <div className="flex flex-col text-right text-[10px] min-w-[200px] gap-0">
+                  <p className="flex justify-end gap-1">
+                    <span className="font-bold text-slate-500 uppercase">วันที่:</span>
+                    <span>{fmtDate(order.createdAt)}</span>
                   </p>
-                  <p>
-                    <span className="font-bold text-slate-500 mr-2">จำนวนรวม:</span>
+                  <p className="flex justify-end gap-1">
+                    <span className="font-bold text-slate-500 uppercase">จำนวนรวม:</span>
                     <span className="font-bold text-[11px] text-red-600 border border-red-200 bg-red-50 px-1 rounded">
                       {panes.length} แผ่น
                     </span>
                   </p>
-                  <p>
-                    <span className="font-bold text-slate-500 mr-2">ออเดอร์พาร์ท:</span>
-                    {gIdx + 1}/{designGroups.length}
+                  <p className="flex justify-end gap-1">
+                    <span className="font-bold text-slate-500 uppercase">ออเดอร์พาร์ท:</span>
+                    <span>{gIdx + 1}/{designGroups.length}</span>
                   </p>
                 </div>
               </div>
@@ -827,12 +877,13 @@ export default function WorkOrderPrintPage() {
                   <p className="text-[10px] font-black text-slate-300 uppercase italic mb-2 tracking-widest leading-none">
                     TECHNICAL DRAFT / แบบวาดเทคนิค
                   </p>
-                  <div className="flex-1 flex items-center justify-center">
+                  <div className="flex-1 flex items-center justify-center p-8 bg-white min-h-[350px]">
                     <StaticGlassRenderer
                       width={samplePane.dimensions?.width || 800}
                       height={samplePane.dimensions?.height || 600}
-                      holes={samplePane.holes as HoleData[] | undefined}
-                      notches={samplePane.notches as HoleData[] | undefined}
+                      holes={samplePane.holes as any}
+                      notches={samplePane.notches as any}
+                      edgeTasks={samplePane.edgeTasks}
                     />
                   </div>
                 </div>
@@ -892,26 +943,36 @@ export default function WorkOrderPrintPage() {
                         <span className="w-1.5 h-1.5 bg-blue-800 rounded-full"></span>
                         Edging (เจียร)
                       </p>
-                      {[
-                        "เจียริมขัดมัน",
-                        "เจียรหยาบ",
-                        "เจียรปลี",
-                        "เจียรลูกหนู",
-                        "ลับคม",
-                      ].map((l, i) => (
-                        <div key={l} className="flex items-center gap-2">
-                          <div
-                            className={`w-4 h-4 border ${i === 1 ? "border-blue-600 bg-blue-50" : "border-slate-300"} flex items-center justify-center text-[10px]`}
-                          >
-                            <span className={i === 1 ? "font-black text-blue-600" : "text-transparent"}>✓</span>
-                          </div>
-                          <span
-                            className={`text-[10px] ${i === 1 ? "font-black text-blue-900" : "text-slate-600 font-medium"}`}
-                          >
-                            {l}
-                          </span>
-                        </div>
-                      ))}
+                      {(() => {
+                        const edgeLabels = {
+                          D: "เจียริมขัดมัน",
+                          B: "เจียรหยาบ",
+                          BE: "เจียรปลี",
+                          AA: "เจียรลูกหนู(AA)",
+                          A: "ลับคม(A)",
+                        };
+                        const selectedEdges = new Set(
+                          (samplePane.edgeTasks || []).map(t => t.edgeProfile).filter(p => p && p !== 'N')
+                        );
+                        // Also check legacy/fallback fields if any
+                        return Object.entries(edgeLabels).map(([code, label]) => {
+                          const isSelected = selectedEdges.has(code);
+                          return (
+                            <div key={code} className="flex items-center gap-2">
+                              <div
+                                className={`w-4 h-4 border ${isSelected ? "border-blue-600 bg-blue-50" : "border-slate-300"} flex items-center justify-center text-[10px]`}
+                              >
+                                <span className={isSelected ? "font-black text-blue-600" : "text-transparent"}>✓</span>
+                              </div>
+                              <span
+                                className={`text-[10px] ${isSelected ? "font-black text-blue-900" : "text-slate-600 font-medium"}`}
+                              >
+                                {label}
+                              </span>
+                            </div>
+                          );
+                        });
+                      })()}
                     </div>
 
                     <div className="space-y-1.5">
@@ -919,13 +980,23 @@ export default function WorkOrderPrintPage() {
                         <span className="w-1.5 h-1.5 bg-blue-800 rounded-full"></span>
                         Corners (คิ้ว)
                       </p>
-                      <div className="flex items-center gap-2 opacity-60">
-                        <div className="w-4 h-4 border border-slate-300 flex items-center justify-center text-transparent">
-                          ✓
+                      <div className="flex items-center gap-2">
+                        <div className={`w-4 h-4 border ${!samplePane.cornerSpec || samplePane.cornerSpec === 'ไม่มี' ? "border-slate-300 opacity-40" : "border-blue-600 bg-blue-50"} flex items-center justify-center text-[10px]`}>
+                          <span className={!samplePane.cornerSpec || samplePane.cornerSpec === 'ไม่มี' ? "text-transparent" : "font-black text-blue-600"}>✓</span>
                         </div>
-                        <span className="text-[10px] text-slate-500 font-medium italic">
-                          ไม่มี / No Details
+                        <span className={`text-[10px] ${!samplePane.cornerSpec || samplePane.cornerSpec === 'ไม่มี' ? "text-slate-400 italic" : "font-black text-blue-900"}`}>
+                          {samplePane.cornerSpec || "ไม่มี"}
                         </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <p className="font-black text-[10px] uppercase text-blue-800 border-b-2 border-blue-100 pb-1 mb-2 flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 bg-blue-800 rounded-full"></span>
+                        Tolerances (การยอมรับขนาด)
+                      </p>
+                      <div className="text-[9px] text-slate-700 font-bold leading-tight bg-slate-50 p-2 border border-slate-200 rounded min-h-[40px]">
+                        {samplePane.dimensionTolerance || "ตามมาตรฐาน มอก."}
                       </div>
                     </div>
 

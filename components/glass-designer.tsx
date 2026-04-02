@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MousePointer2, Circle, Undo2, Redo2, RotateCcw, Pen, Focus, Hand, Square, ChevronDown, Hexagon, RectangleHorizontal, Box, Maximize2, Minimize2, Copy, Clipboard, Trash2, CopyPlus, Layers2, Ungroup } from 'lucide-react';
+import type { EdgeProperties } from '@/lib/api/types';
 
 export type CutoutType = 'circle' | 'rectangle' | 'slot' | 'custom';
 
@@ -37,6 +38,7 @@ interface GlassDesignerProps {
     vertices?: VertexData[];
     onVerticesChange?: (vertices: VertexData[]) => void;
     thickness?: number;
+    edges?: EdgeProperties;
 }
 
 let holeCounter = 0;
@@ -519,7 +521,7 @@ function GlassCtxMenu({ pos, hasSelection, hasMultiSelection, hasGrouped, hasCli
     );
 }
 
-export function GlassDesigner({ width, height, holes, onHolesChange, vertices: externalVertices, onVerticesChange, thickness: glassMmThickness }: GlassDesignerProps) {
+export function GlassDesigner({ width, height, holes, onHolesChange, vertices: externalVertices, onVerticesChange, thickness: glassMmThickness, edges }: GlassDesignerProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
     const sceneRef = useRef<THREE.Scene | null>(null);
@@ -1066,8 +1068,34 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             `${Math.round(bb.height)}`, dimOffset, 'vertical', 0x1B4B9A
         );
 
+        // Edge Profile Labels (2D)
+        if (edges) {
+            const fontColor = '#D32F2F';
+            // In Three.js +Y is UP. minY=0 (bottom), maxY=600 (top).
+            if (edges.top && edges.top !== 'N') {
+                const lbl = makeTextSprite(edges.top, fontColor, false);
+                lbl.position.set((bb.minX + bb.maxX) / 2, bb.maxY + 30, 2); // Top label at maxY
+                group.add(lbl);
+            }
+            if (edges.bottom && edges.bottom !== 'N') {
+                const lbl = makeTextSprite(edges.bottom, fontColor, false);
+                lbl.position.set((bb.minX + bb.maxX) / 2, bb.minY - 30, 2); // Bottom label at minY
+                group.add(lbl);
+            }
+            if (edges.left && edges.left !== 'N') {
+                const lbl = makeTextSprite(edges.left, fontColor, false);
+                lbl.position.set(bb.minX - 30, (bb.minY + bb.maxY) / 2, 2);
+                group.add(lbl);
+            }
+            if (edges.right && edges.right !== 'N') {
+                const lbl = makeTextSprite(edges.right, fontColor, false);
+                lbl.position.set(bb.maxX + 30, (bb.minY + bb.maxY) / 2, 2);
+                group.add(lbl);
+            }
+        }
+
         renderScene();
-    }, [width, height, renderScene]);
+    }, [width, height, renderScene, edges]);
 
     // Initialize Three.js
     useEffect(() => {
@@ -2043,16 +2071,16 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             envMapIntensity: 1.0,
         });
 
+        const csgEvaluator = new Evaluator();
         let resultBrush: Brush | null = null;
 
+        // 1. Cut Holes
         if (holesRef.current.length > 0) {
-            const csgEvaluator = new Evaluator();
             const glassBrush = new Brush(glassGeo, glassMat);
             glassBrush.position.copy(offsetPos);
             glassBrush.updateMatrixWorld(true);
 
             let currentBrush = glassBrush;
-
             for (const h of holesRef.current) {
                 const cutPath = makeCutoutPath(h);
                 const cutShape = new THREE.Shape();
@@ -2068,16 +2096,94 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
 
                 try {
                     currentBrush = csgEvaluator.evaluate(currentBrush, cutBrush, SUBTRACTION);
-                } catch {
-                    // Fallback if CSG fails for a cutout
-                }
+                } catch { /* skip failing cutouts */ }
                 cutGeo.dispose();
             }
             resultBrush = currentBrush;
         }
 
+        // 2. Physical Edge Treatments (ALL TYPES)
+        if (edges) {
+            let treatmentBrush = resultBrush || new Brush(glassGeo, glassMat);
+            if (!resultBrush) {
+                treatmentBrush.position.copy(offsetPos);
+                treatmentBrush.updateMatrixWorld(true);
+            }
+
+            // More distinct materials for D (Polished) vs B (Rough)
+            const matteMat = new THREE.MeshStandardMaterial({ 
+                color: 0xeeeeee, 
+                roughness: 1.0, 
+                metalness: 0.0,
+                transparent: true,
+                opacity: 0.8
+            });
+            const shinyMat = new THREE.MeshPhysicalMaterial({ 
+                color: 0xffffff, 
+                roughness: 0.0, 
+                metalness: 0.1,
+                transmission: 0.9,
+                thickness: 1,
+                transparent: true,
+                opacity: 0.4
+            });
+
+            let modified = false;
+            const sides = [
+                { name: 'top', edge: edges.top, axis: 'y' as const, sign: 1, rotAxis: 'x' as const, rotSign: -1 },
+                { name: 'bottom', edge: edges.bottom, axis: 'y' as const, sign: -1, rotAxis: 'x' as const, rotSign: 1 },
+                { name: 'left', edge: edges.left, axis: 'x' as const, sign: -1, rotAxis: 'y' as const, rotSign: -1 },
+                { name: 'right', edge: edges.right, axis: 'x' as const, sign: 1, rotAxis: 'y' as const, rotSign: 1 },
+            ];
+
+            const topEdge = edges.top;
+            const bottomEdge = edges.bottom;
+
+            for (const s of sides) {
+                if (s.edge && s.edge !== 'N') {
+                    // Determine bevel/arris depth based on type
+                    let cutDepth = 2.0; // Default arris
+                    let cutMaterial: THREE.Material = shinyMat;
+                    
+                    if (s.edge === 'BE') cutDepth = 15;
+                    else if (s.edge === 'AA') cutDepth = 6.0; // Very distinct arris
+                    else if (s.edge === 'A') cutDepth = 1.5;
+                    else if (s.edge === 'B') {
+                        cutDepth = 2.5; 
+                        cutMaterial = matteMat; // Rough grinding
+                    }
+                    
+                    const cutterSize = 100;
+                    const cutGeo = (s.axis === 'y') 
+                        ? new THREE.BoxGeometry(bb3.width + 100, cutterSize, cutterSize)
+                        : new THREE.BoxGeometry(cutterSize, bb3.height + 100, cutterSize);
+                    
+                    const cutter = new Brush(cutGeo, cutMaterial);
+                    
+                    if (s.axis === 'y') {
+                        cutter.position.set(0, s.sign * (bb3.height / 2), depthScale);
+                        cutter.rotation.x = s.rotSign * (Math.PI / 4);
+                    } else {
+                        cutter.position.set(s.sign * (bb3.width / 2), 0, depthScale);
+                        cutter.rotation.y = s.rotSign * (Math.PI / 4);
+                    }
+                    
+                    const offset = cutDepth * Math.cos(Math.PI / 4);
+                    if (s.axis === 'y') cutter.position.y += s.sign * (cutterSize / 2 - offset);
+                    else cutter.position.x += s.sign * (cutterSize / 2 - offset);
+                    
+                    cutter.updateMatrixWorld(true);
+                    treatmentBrush = csgEvaluator.evaluate(treatmentBrush, cutter, SUBTRACTION);
+                    cutGeo.dispose();
+                    modified = true;
+                }
+            }
+
+            if (modified) resultBrush = treatmentBrush;
+        }
+
         if (resultBrush) {
-            resultBrush.material = glassMat;
+            // Preservation of multi-material is handled by the brush evaluation
             scene.add(resultBrush);
         } else {
             const mesh = new THREE.Mesh(glassGeo, glassMat);
@@ -2085,16 +2191,40 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             scene.add(mesh);
         }
 
-        const groundGeo = new THREE.PlaneGeometry(bb3.width * 2, bb3.height * 2);
-        const groundMat = new THREE.MeshBasicMaterial({ color: 0xf0f0f0, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false });
-        const groundBack = new THREE.Mesh(groundGeo, groundMat);
-        groundBack.position.set(0, 0, -depthScale / 2 - 10);
-        scene.add(groundBack);
-        const groundFront = new THREE.Mesh(groundGeo, groundMat);
-        groundFront.position.set(0, 0, depthScale / 2 + 10);
-        scene.add(groundFront);
+        // Removed ground planes for cleaner view
 
-        // Camera framing — only on first build so user's orbit position is preserved
+        // Edge Profile Labels (3D)
+        if (edges) {
+            const fontColor = '#D32F2F';
+            const scl = Math.max(bb3.width, bb3.height) / 10;
+            // Ensure labels match the actual Three.js coordinates (+Y = Up)
+            if (edges.top && edges.top !== 'N') {
+                const spr = makeTextSprite(edges.top, fontColor, false);
+                spr.position.set(0, bb3.height / 2 + 15, depthScale + 2);
+                spr.scale.set(scl, scl, 1);
+                scene.add(spr);
+            }
+            if (edges.bottom && edges.bottom !== 'N') {
+                const spr = makeTextSprite(edges.bottom, fontColor, false);
+                spr.position.set(0, -bb3.height / 2 - 15, depthScale + 2);
+                spr.scale.set(scl, scl, 1);
+                scene.add(spr);
+            }
+            if (edges.left && edges.left !== 'N') {
+                const spr = makeTextSprite(edges.left, fontColor, false);
+                spr.position.set(-bb3.width / 2 - 15, 0, depthScale + 2);
+                spr.scale.set(scl, scl, 1);
+                scene.add(spr);
+            }
+            if (edges.right && edges.right !== 'N') {
+                const spr = makeTextSprite(edges.right, fontColor, false);
+                spr.position.set(bb3.width / 2 + 15, 0, depthScale + 2);
+                spr.scale.set(scl, scl, 1);
+                scene.add(spr);
+            }
+        }
+
+        // Camera framing only on first build
         if (!preview3DInitRef.current) {
             const cam = previewCameraRef.current;
             if (cam) {
@@ -2110,7 +2240,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             }
             preview3DInitRef.current = true;
         }
-    }, [glassMmThickness]);
+    }, [glassMmThickness, edges]);
 
     // Keep ref in sync so lifecycle effect doesn't re-run on every build3DScene change
     useEffect(() => { build3DSceneRef.current = build3DScene; }, [build3DScene]);
@@ -2141,7 +2271,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.08;
-        controls.enablePan = false;
+        controls.enablePan = true;
         controls.minDistance = 50;
         controls.maxDistance = 5000;
         previewControlsRef.current = controls;
