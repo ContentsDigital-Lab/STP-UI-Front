@@ -393,19 +393,29 @@ export function OrderReleasePanel({
       // Strategy: prefer request-based lookup (reliable) → fall back to order-based
       let existingPanes = requestId
         ? await panesApi
-            .getAll({ request: requestId, limit: 100 })
+            .getAll({ request: requestId, status_ne: "claimed", limit: 100 })
             .catch(() => null)
         : null;
       // If request lookup found nothing, try order filter as secondary check
       if (!existingPanes?.success || (existingPanes.data ?? []).length === 0) {
         existingPanes = await panesApi
-          .getAll({ order: order._id, limit: 100 })
+          .getAll({ order: order._id, status_ne: "claimed", limit: 100 })
           .catch(() => null);
       }
-      const panes = existingPanes?.success ? (existingPanes.data ?? []) : [];
+      const allPanes = existingPanes?.success ? (existingPanes.data ?? []) : [];
+
+      // Only update panes that are unlinked or already belong to this order —
+      // don't steal panes that belong to a different order (e.g. during remake release)
+      const panes = allPanes.filter((p) => {
+        if (!p.order) return true;
+        const pOid =
+          typeof p.order === "string"
+            ? p.order
+            : (p.order as unknown as Record<string, string>)?._id;
+        return pOid === order._id;
+      });
 
       if (panes.length > 0) {
-        // Always stamp order._id so production tracking + print page can find these panes
         await Promise.all(
           panes.map((p) =>
             panesApi.update(p._id, {
@@ -421,7 +431,7 @@ export function OrderReleasePanel({
             }),
           ),
         );
-      } else {
+      } else if (allPanes.length === 0) {
         const qty = Math.max(1, order.quantity ?? 1);
         const spec = mat?.specDetails;
         const panePayload: Record<string, unknown> = {

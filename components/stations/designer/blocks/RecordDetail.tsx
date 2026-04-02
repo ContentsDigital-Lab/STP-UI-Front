@@ -118,7 +118,7 @@ function PaneListSection({ record, endpoint, showPaneQr: showPaneQrProp = true }
 
     const fetchPanes = async (recordId: string): Promise<{ success: boolean; data: Pane[] }> => {
         if (isOrderEndpoint) {
-            return panesApi.getAll({ order: recordId, limit: 100 });
+            return panesApi.getAll({ order: recordId, status_ne: "claimed", limit: 100 });
         }
         if (isRequestEndpoint) {
             return panesApi.getAll({ request: recordId, limit: 100 });

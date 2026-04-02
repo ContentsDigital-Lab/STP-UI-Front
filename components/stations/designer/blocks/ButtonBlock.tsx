@@ -399,10 +399,15 @@ export function ButtonBlock({
                     if (reqId) {
                         (async () => {
                             try {
-                                const pRes = await panesApi.getAll({ request: reqId, limit: 100 });
+                                const pRes = await panesApi.getAll({ request: reqId, status_ne: "claimed", limit: 100 });
                                 const routingIds = (body.stations as string[]);
                                 const firstStationId = routingIds[0];
-                                const panes = pRes.success ? pRes.data as Pane[] : [];
+                                const allPanes = pRes.success ? pRes.data as Pane[] : [];
+                                const panes = allPanes.filter(p => {
+                                    if (!p.order) return true;
+                                    const oid = typeof p.order === "string" ? p.order : (p.order as unknown as Record<string, unknown>)?._id as string;
+                                    return oid === newOrderId;
+                                });
                                 if (firstStationId) {
                                     await Promise.all(panes.map(p =>
                                         panesApi.update(p._id, {
@@ -492,10 +497,15 @@ export function ButtonBlock({
                 if (reqId) {
                     (async () => {
                         try {
-                            const pRes = await panesApi.getAll({ request: reqId, limit: 100 });
+                            const pRes = await panesApi.getAll({ request: reqId, status_ne: "claimed", limit: 100 });
                             const routingIds = (body.stations as string[]);
                             const firstStationId = routingIds[0];
-                            const panes = pRes.success ? pRes.data as Pane[] : [];
+                            const allPanes = pRes.success ? pRes.data as Pane[] : [];
+                            const panes = allPanes.filter(p => {
+                                if (!p.order) return true;
+                                const oid = typeof p.order === "string" ? p.order : (p.order as unknown as Record<string, unknown>)?._id as string;
+                                return oid === newOrderId;
+                            });
                             if (firstStationId) {
                                 await Promise.all(panes.map(p =>
                                     panesApi.update(p._id, {
@@ -506,7 +516,6 @@ export function ButtonBlock({
                                     })
                                 ));
                             }
-                            // Sync order.quantity to actual pane count
                             if (newOrderId && panes.length > 0) {
                                 fetchApi(`/orders/${newOrderId}`, {
                                     method: "PATCH",

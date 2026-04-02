@@ -172,6 +172,7 @@ export default function ProductionPage() {
         if (pRes?.success) {
             const map = new Map<string, Pane[]>();
             for (const p of pRes.data ?? []) {
+                if (p.currentStatus === "claimed") continue;
                 const oid = typeof p.order === "string" ? p.order : (p.order as Order)?._id;
                 if (!oid) continue;
                 if (!map.has(oid)) map.set(oid, []);
@@ -507,7 +508,7 @@ export default function ProductionPage() {
                                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                                             <span className="font-bold text-sm text-slate-900 dark:text-white">{bill.customer}</span>
                                             <span className="font-mono text-xs text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
-                                                {bill.orders[0]?.orderNumber ?? `#${bill.id.slice(-6).toUpperCase()}`}
+                                                {bill.request?.requestNumber ?? `#${bill.id.slice(-6).toUpperCase()}`}
                                             </span>
                                             {bill.request?.deadline && (
                                                 <div className="flex items-center gap-1 text-xs text-slate-400">

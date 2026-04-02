@@ -1153,8 +1153,9 @@ export default function ProductionDetailPage() {
       if (allRes?.success) {
         const allPanes = allRes.data ?? [];
 
-        // 1st priority: filter by order ID
+        // 1st priority: filter by order ID (exclude claimed panes — they have replacements)
         let found = allPanes.filter((p) => {
+          if (p.currentStatus === "claimed") return false;
           const oid =
             typeof p.order === "string"
               ? p.order
