@@ -204,6 +204,11 @@ export interface Pane {
   vertices?: VertexData[];
   withdrawal?: string;
   remakeOf?: string;
+  laminateRole?: "single" | "parent" | "sheet";
+  parentPane?: string | Pane;
+  childPanes?: (string | Pane)[];
+  sheetLabel?: string;
+  laminateStation?: string | { _id: string; name: string };
   startedAt?: string;
   completedAt?: string;
   deliveredAt?: string;
@@ -288,6 +293,7 @@ export interface Station {
   name: string;
   colorId: string;
   templateId?: string;
+  isLaminateStation?: boolean;
   createdAt: string;
   updatedAt: string;
 }

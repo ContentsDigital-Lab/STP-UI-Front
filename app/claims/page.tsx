@@ -733,7 +733,15 @@ export default function ClaimsPage() {
                                             <div className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3">
                                                 <div>
                                                     <p className="text-[11px] text-slate-400 mb-0.5">เลขแผ่น</p>
-                                                    <p className="text-sm font-bold font-mono text-slate-900 dark:text-white">{paneNum}</p>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <p className="text-sm font-bold font-mono text-slate-900 dark:text-white">{paneNum}</p>
+                                                        {paneObj?.laminateRole === "sheet" && paneObj.sheetLabel && (
+                                                            <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300">Sheet {paneObj.sheetLabel}</span>
+                                                        )}
+                                                        {paneObj?.laminateRole === "parent" && (
+                                                            <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300">LAM</span>
+                                                        )}
+                                                    </div>
                                                 </div>
                                                 {paneObj?.dimensions && (
                                                     <div>

@@ -204,6 +204,8 @@ function PaneListSection({ record, endpoint, showPaneQr: showPaneQrProp = true }
                         >
                             <QrCode className="h-3 w-3 text-muted-foreground/50 shrink-0" />
                             <span className="font-mono text-[11px] font-bold shrink-0">{pane.paneNumber}</span>
+                            {pane.laminateRole === "parent" && <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 shrink-0">LAM</span>}
+                            {pane.laminateRole === "sheet" && pane.sheetLabel && <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 shrink-0">{pane.sheetLabel}</span>}
                             <span className={`flex items-center gap-1 text-[10px] font-medium ${st.text}`}>
                                 <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />
                                 {st.label}
@@ -223,6 +225,8 @@ function PaneListSection({ record, endpoint, showPaneQr: showPaneQrProp = true }
                         >
                             <Package className="h-3 w-3 text-muted-foreground/50 shrink-0" />
                             <span className="font-mono text-[11px] font-bold shrink-0">{pane.paneNumber}</span>
+                            {pane.laminateRole === "parent" && <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 shrink-0">LAM</span>}
+                            {pane.laminateRole === "sheet" && pane.sheetLabel && <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 shrink-0">{pane.sheetLabel}</span>}
                             <span className={`flex items-center gap-1 text-[10px] font-medium ${st.text}`}>
                                 <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />
                                 {st.label}

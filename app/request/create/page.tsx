@@ -1532,8 +1532,8 @@ export default function CreateBillPage() {
                                         </div>
 
                                         {ap.sheetsPerPane > 1 && (
-                                            <p className="text-[11px] text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 rounded-xl border border-amber-100 dark:border-amber-900/30">
-                                                ⚠️ จะเบิกกระจกดิบ <span className="font-bold">{ap.sheetsPerPane} แผ่น</span> ต่อชิ้น — ระบบจะหักสต็อกตามจำนวนนี้
+                                            <p className="text-[11px] text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-950/20 px-3 py-2 rounded-xl border border-violet-100 dark:border-violet-900/30">
+                                                ระบบจะสร้างแผ่นดิบ <span className="font-bold">{ap.sheetsPerPane} แผ่น</span> ต่อชิ้น แยกผ่านสายการผลิตก่อนประกบที่สถานีลามิเนต
                                             </p>
                                         )}
                                     </>

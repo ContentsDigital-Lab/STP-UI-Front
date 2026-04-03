@@ -55,11 +55,12 @@ function StationModal({
     initial?:   Partial<Station>;
     templates:  StationTemplate[];
     onClose:    () => void;
-    onSave:     (data: { name: string; colorId: string; templateId?: string }) => void;
+    onSave:     (data: { name: string; colorId: string; templateId?: string; isLaminateStation?: boolean }) => void;
 }) {
     const [name,       setName]       = useState(initial?.name       ?? "");
     const [colorId,    setColorId]    = useState(initial?.colorId    ?? "sky");
     const [templateId, setTemplateId] = useState<string>(resolveTemplateId(initial?.templateId));
+    const [isLaminate, setIsLaminate] = useState(initial?.isLaminateStation ?? false);
 
     const color    = getColorOption(colorId);
     const isEdit   = Boolean(initial?._id);
@@ -89,7 +90,7 @@ function StationModal({
                         onChange={(e) => setName(e.target.value)}
                         placeholder="เช่น ตัดกระจก, QC, บรรจุ..."
                         className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-colors"
-                        onKeyDown={(e) => e.key === "Enter" && canSave && onSave({ name: name.trim(), colorId, templateId: templateId || undefined })}
+                        onKeyDown={(e) => e.key === "Enter" && canSave && onSave({ name: name.trim(), colorId, templateId: templateId || undefined, isLaminateStation: isLaminate || undefined })}
                     />
                     {name.trim() && (
                         <span className={`inline-block text-sm font-semibold px-2.5 py-1 rounded-lg mt-1 ${color.cls}`}>
@@ -126,10 +127,24 @@ function StationModal({
                     )}
                 </div>
 
+                {/* Laminate station toggle */}
+                <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                        type="checkbox"
+                        checked={isLaminate}
+                        onChange={(e) => setIsLaminate(e.target.checked)}
+                        className="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500"
+                    />
+                    <div>
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">สถานีลามิเนต</span>
+                        <p className="text-xs text-slate-400">เปิดใช้งานบอร์ดจับคู่แผ่นดิบและปุ่มประกบลามิเนต</p>
+                    </div>
+                </label>
+
                 {/* Actions */}
                 <div className="flex gap-2 justify-end pt-2">
                     <Button variant="outline" size="sm" className="rounded-xl" onClick={onClose}>ยกเลิก</Button>
-                    <Button size="sm" className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white" disabled={!canSave} onClick={() => onSave({ name: name.trim(), colorId, templateId: templateId || undefined })}>
+                    <Button size="sm" className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white" disabled={!canSave} onClick={() => onSave({ name: name.trim(), colorId, templateId: templateId || undefined, isLaminateStation: isLaminate || undefined })}>
                         <Plus className="h-3.5 w-3.5 mr-1" />
                         {isEdit ? "บันทึก" : "สร้างสถานี"}
                     </Button>
@@ -200,7 +215,7 @@ export default function StationsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const handleCreate = async (data: { name: string; colorId: string; templateId?: string }) => {
+    const handleCreate = async (data: { name: string; colorId: string; templateId?: string; isLaminateStation?: boolean }) => {
         try {
             await stationsApi.create(data);
             await reload();
@@ -211,7 +226,7 @@ export default function StationsPage() {
         }
     };
 
-    const handleUpdate = async (data: { name: string; colorId: string; templateId?: string }) => {
+    const handleUpdate = async (data: { name: string; colorId: string; templateId?: string; isLaminateStation?: boolean }) => {
         if (!editing) return;
         try {
             await stationsApi.update(editing._id, data);
@@ -291,9 +306,14 @@ export default function StationsPage() {
                             <div key={station._id} className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all p-5 sm:p-6 flex flex-col gap-4 group">
                                 {/* Name badge + actions */}
                                 <div className="flex items-start justify-between gap-2">
-                                    <span className={`text-sm font-bold px-3 py-1.5 rounded-xl ${color.cls}`}>
-                                        {station.name}
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`text-sm font-bold px-3 py-1.5 rounded-xl ${color.cls}`}>
+                                            {station.name}
+                                        </span>
+                                        {station.isLaminateStation && (
+                                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300">LAM</span>
+                                        )}
+                                    </div>
                                     <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                                         <button
                                             type="button"

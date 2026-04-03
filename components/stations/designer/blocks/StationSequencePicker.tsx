@@ -88,6 +88,9 @@ function DraggableSequence({
                         <GripVertical className="h-4 w-4 text-muted-foreground/30 shrink-0" />
                         <span className="text-xs text-muted-foreground/50 w-5 text-center shrink-0 font-mono">{i + 1}</span>
                         <span className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${colorCls}`}>{label}</span>
+                        {station?.isLaminateStation && (
+                            <span className="text-[8px] font-bold px-1 py-0.5 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 shrink-0">LAM</span>
+                        )}
                         <button
                             type="button"
                             onClick={() => onRemove(id)}

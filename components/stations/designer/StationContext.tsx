@@ -1,11 +1,13 @@
 "use client";
 
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
+import { stationsApi } from "@/lib/api/stations";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface StationContextValue {
     stationId:      string | null;
     stationName:    string | null;
+    isLaminateStation: boolean;
     formData:       Record<string, unknown>;
     fieldLabels:    Record<string, string>;
     setField:       (key: string, value: unknown) => void;
@@ -32,6 +34,7 @@ export interface StationContextValue {
 const StationContext = createContext<StationContextValue>({
     stationId:         null,
     stationName:       null,
+    isLaminateStation: false,
     formData:          {},
     fieldLabels:       {},
     setField:          () => {},
@@ -79,6 +82,14 @@ export function StationProvider({
     const [selectedRecord,  setSelectedRecord]  = useState<Record<string, unknown> | null>(initialOrderData ?? null);
     const [refreshCounter,  setRefreshCounter]  = useState(0);
     const [isOrderReleaseStation, setIsOrderReleaseStation] = useState(false);
+    const [isLaminateStation, setIsLaminateStation] = useState(false);
+
+    useEffect(() => {
+        if (!stationIdProp) return;
+        stationsApi.getById(stationIdProp).then(res => {
+            if (res.success && res.data?.isLaminateStation) setIsLaminateStation(true);
+        }).catch(() => {});
+    }, [stationIdProp]);
 
     useEffect(() => {
         if (initialOrderData && !selectedRecord) setSelectedRecord(initialOrderData);
@@ -133,6 +144,7 @@ export function StationProvider({
         <StationContext.Provider value={{
             stationId: stationIdProp ?? null,
             stationName: stationNameProp ?? null,
+            isLaminateStation,
             formData, fieldLabels, setField, setFieldLabel, resetForm,
             orderData, setOrderData, orderId,
             requestData, setRequestData, requestId,

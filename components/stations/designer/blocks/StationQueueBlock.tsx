@@ -6,7 +6,7 @@ import {
     ScanBarcode, Camera, CheckCircle2, XCircle, Loader2,
     Package, RotateCcw, ListChecks, MapPin,
     ChevronDown, ChevronRight, Play, CheckCheck, PackageOpen, QrCode,
-    AlertTriangle,
+    AlertTriangle, Layers, Merge,
 } from "lucide-react";
 import { panesApi } from "@/lib/api/panes";
 import { Pane } from "@/lib/api/types";
@@ -51,7 +51,7 @@ function extractOrderLabel(pane: Pane): string {
 export function StationQueueBlock({ title = "คิวสถานีนี้" }: StationQueueBlockProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
-    const { stationId, stationName, setPaneData, triggerRefresh, refreshCounter } = useStationContext();
+    const { stationId, stationName, isLaminateStation, setPaneData, triggerRefresh, refreshCounter } = useStationContext();
 
     const inputRef = useRef<HTMLInputElement>(null);
     /**
@@ -80,6 +80,18 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
         thisStation: string;
         paneNumber: string;
     } | null>(null);
+
+    // ── Laminate pairing board state ──────────────────────────────────────────
+    interface LaminateGroup {
+        parent: Pane;
+        sheets: Pane[];
+        sheetsPresent: number;
+        sheetsTotal: number;
+        ready: boolean;
+    }
+    const [laminateGroups, setLaminateGroups] = useState<LaminateGroup[]>([]);
+    const [mergeLoading, setMergeLoading] = useState<Record<string, boolean>>({});
+    const [mergeResult, setMergeResult] = useState<Record<string, "success" | "error">>({});
 
     // ── Fetch in_progress panes at this station ───────────────────────────────
     const fetchPanes = useCallback(async () => {
@@ -124,7 +136,87 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
     }, [stationId, stationName]);
 
     useEffect(() => { fetchPanes(); }, [fetchPanes, refreshCounter]);
-    useWebSocket("pane", ["pane:updated"], () => { setQrPane(null); fetchPanes(); });
+    useWebSocket("pane", ["pane:updated"], () => { setQrPane(null); fetchPanes(); if (isLaminateStation) fetchLaminateGroups(); });
+
+    // ── Laminate: fetch parent/sheet groups at this station ───────────────────
+    const fetchLaminateGroups = useCallback(async () => {
+        if (!isLaminateStation || !stationId) return;
+        try {
+            const sheetsRes = await panesApi.getAll({ laminateRole: "sheet", limit: 500 });
+            if (!sheetsRes?.success) return;
+
+            const sheetsAtStation = sheetsRes.data.filter(p =>
+                isStationMatch(p.currentStation, stationId, stationName) &&
+                p.currentStatus !== "claimed" && p.currentStatus !== "completed",
+            );
+
+            const parentIds = new Set<string>();
+            for (const s of sheetsAtStation) {
+                const pid = typeof s.parentPane === "string" ? s.parentPane : (s.parentPane as Pane)?._id;
+                if (pid) parentIds.add(pid);
+            }
+
+            const groups: LaminateGroup[] = [];
+            for (const pid of parentIds) {
+                const parentRes = await panesApi.getById(pid);
+                if (!parentRes.success) continue;
+                const parent = parentRes.data;
+
+                const allSheetsRes = await panesApi.getAll({ parentPane: pid, status_ne: "claimed", limit: 20 });
+                const allSheets = allSheetsRes.success ? allSheetsRes.data : [];
+                const sheetsTotal = allSheets.length;
+                const sheetsPresent = allSheets.filter(s =>
+                    isStationMatch(s.currentStation, stationId, stationName) &&
+                    s.currentStatus !== "completed",
+                ).length;
+
+                groups.push({
+                    parent,
+                    sheets: allSheets,
+                    sheetsPresent,
+                    sheetsTotal,
+                    ready: sheetsPresent >= sheetsTotal && sheetsTotal > 0,
+                });
+            }
+
+            setLaminateGroups(groups);
+        } catch { /* ignore */ }
+    }, [isLaminateStation, stationId, stationName]);
+
+    useEffect(() => { if (isLaminateStation) fetchLaminateGroups(); }, [fetchLaminateGroups, refreshCounter]);
+
+    // Laminate WebSocket events
+    useWebSocket("station", ["laminate:ready", "laminate:waiting", "pane:laminated"], () => {
+        if (isLaminateStation) fetchLaminateGroups();
+        fetchPanes();
+    });
+
+    // ── Laminate merge action ─────────────────────────────────────────────────
+    async function handleMerge(parentPaneNumber: string, parentId: string) {
+        if (!stationId) return;
+        setMergeLoading(prev => ({ ...prev, [parentId]: true }));
+        setMergeResult(prev => { const n = { ...prev }; delete n[parentId]; return n; });
+        try {
+            const res = await panesApi.scan(parentPaneNumber, { station: stationId, action: "laminate" });
+            if (!res.success) throw new Error(res.message ?? "ลามิเนตไม่สำเร็จ");
+            setMergeResult(prev => ({ ...prev, [parentId]: "success" }));
+            setPaneData(res.data.pane as unknown as Record<string, unknown>);
+            triggerRefresh();
+            setTimeout(() => {
+                setMergeResult(prev => { const n = { ...prev }; delete n[parentId]; return n; });
+                fetchLaminateGroups();
+            }, 2000);
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : "เกิดข้อผิดพลาด";
+            setScanError(msg);
+            setMergeResult(prev => ({ ...prev, [parentId]: "error" }));
+            setTimeout(() => {
+                setMergeResult(prev => { const n = { ...prev }; delete n[parentId]; return n; });
+            }, 3000);
+        } finally {
+            setMergeLoading(prev => { const n = { ...prev }; delete n[parentId]; return n; });
+        }
+    }
 
     // ── Group panes by order ──────────────────────────────────────────────────
     const orderGroups = (() => {
@@ -403,6 +495,104 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                 </div>
             )}
 
+            {/* Laminate pairing board */}
+            {isLaminateStation && laminateGroups.length > 0 && (
+                <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                        <Layers className="h-3.5 w-3.5 text-violet-500" />
+                        <h4 className="text-xs font-bold text-foreground">บอร์ดจับคู่ลามิเนต</h4>
+                        <span className="text-[10px] text-muted-foreground">{laminateGroups.length} ชุด</span>
+                    </div>
+                    <div className="space-y-2">
+                        {laminateGroups.map(group => {
+                            const pid = group.parent._id;
+                            const isMerging = mergeLoading[pid];
+                            const mResult = mergeResult[pid];
+                            return (
+                                <div key={pid} className={`rounded-xl border overflow-hidden ${
+                                    group.ready
+                                        ? "border-emerald-300 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-950/20"
+                                        : "border-border bg-card"
+                                }`}>
+                                    <div className="px-3 py-2.5 flex items-center gap-2">
+                                        <Layers className={`h-3.5 w-3.5 shrink-0 ${group.ready ? "text-emerald-500" : "text-muted-foreground"}`} />
+                                        <div className="flex-1 min-w-0">
+                                            <span className="font-mono text-xs font-bold text-foreground">{group.parent.paneNumber}</span>
+                                            {group.parent.dimensions && (
+                                                <span className="text-[10px] text-muted-foreground ml-1.5">
+                                                    {group.parent.dimensions.width}×{group.parent.dimensions.height}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                                            group.ready
+                                                ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300"
+                                                : "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"
+                                        }`}>
+                                            {group.sheetsPresent}/{group.sheetsTotal} แผ่น
+                                        </span>
+                                    </div>
+                                    <div className="border-t border-border/50 divide-y divide-border/30">
+                                        {group.sheets.map(sheet => {
+                                            const isHere = isStationMatch(sheet.currentStation, stationId, stationName) && sheet.currentStatus !== "completed";
+                                            return (
+                                                <div key={sheet._id} className="flex items-center gap-2 px-3 py-1.5">
+                                                    <span className={`h-2 w-2 rounded-full shrink-0 ${
+                                                        isHere ? "bg-emerald-500" : "bg-slate-300 dark:bg-slate-600"
+                                                    }`} />
+                                                    <span className="font-mono text-[11px] font-medium text-foreground">
+                                                        {sheet.paneNumber}
+                                                    </span>
+                                                    {sheet.sheetLabel && (
+                                                        <span className="text-[10px] font-semibold px-1 py-0.5 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300">
+                                                            Sheet {sheet.sheetLabel}
+                                                        </span>
+                                                    )}
+                                                    <span className={`ml-auto text-[10px] font-medium ${
+                                                        isHere ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
+                                                    }`}>
+                                                        {isHere ? "มาถึงแล้ว" : getStationName(sheet.currentStation) || "อยู่ระหว่างทาง"}
+                                                    </span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                    <div className="border-t border-border/50 px-3 py-2">
+                                        {mResult === "success" ? (
+                                            <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                                                <CheckCircle2 className="h-4 w-4" />
+                                                <span className="text-xs font-semibold">ลามิเนตสำเร็จ!</span>
+                                            </div>
+                                        ) : mResult === "error" ? (
+                                            <div className="flex items-center gap-1.5 text-red-500">
+                                                <XCircle className="h-4 w-4" />
+                                                <span className="text-xs font-medium">ผิดพลาด</span>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                onClick={() => handleMerge(group.parent.paneNumber, pid)}
+                                                disabled={!group.ready || isMerging}
+                                                className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all active:scale-[0.98] ${
+                                                    group.ready
+                                                        ? "bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white"
+                                                        : "bg-muted text-muted-foreground cursor-not-allowed"
+                                                }`}
+                                            >
+                                                {isMerging
+                                                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                    : <Merge className="h-3.5 w-3.5" />
+                                                }
+                                                {group.ready ? "ประกบลามิเนต" : `รอแผ่นดิบ ${group.sheetsPresent}/${group.sheetsTotal}`}
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
             {/* Queue content */}
             {loading && panes.length === 0 ? (
                 <div className="flex items-center justify-center gap-2 py-10 text-muted-foreground">
@@ -492,11 +682,16 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
 
                                                     {/* Pane info */}
                                                     <div className="flex-1 min-w-0">
-                                                        {/* Line 1: pane number + withdrawal badge */}
+                                                        {/* Line 1: pane number + sheet label + withdrawal badge */}
                                                         <div className="flex items-center gap-1.5">
                                                             <span className="font-mono text-xs font-bold text-foreground leading-none shrink-0">
                                                                 {pane.paneNumber}
                                                             </span>
+                                                            {pane.laminateRole === "sheet" && pane.sheetLabel && (
+                                                                <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 shrink-0">
+                                                                    Sheet {pane.sheetLabel}
+                                                                </span>
+                                                            )}
                                                             {isCutStation && (
                                                                 pane.withdrawal
                                                                     ? <span className="whitespace-nowrap text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 shrink-0">เบิกแล้ว</span>

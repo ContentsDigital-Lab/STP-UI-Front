@@ -173,6 +173,7 @@ export default function ProductionPage() {
             const map = new Map<string, Pane[]>();
             for (const p of pRes.data ?? []) {
                 if (p.currentStatus === "claimed") continue;
+                if (p.laminateRole === "sheet") continue;
                 const oid = typeof p.order === "string" ? p.order : (p.order as Order)?._id;
                 if (!oid) continue;
                 if (!map.has(oid)) map.set(oid, []);
@@ -710,6 +711,7 @@ export default function ProductionPage() {
                                                                     const stName = (() => {
                                                                         const cs = pane.currentStation;
                                                                         if (cs == null) {
+                                                                            if (pane.laminateRole === "parent") return "รอประกบ";
                                                                             if (pane.currentStatus === "pending") return "คิว";
                                                                             if (pane.currentStatus === "completed") return "เสร็จแล้ว";
                                                                             if (pane.currentStatus === "claimed") return "ถูกเคลม";
@@ -734,6 +736,9 @@ export default function ProductionPage() {
                                                                             <div className="flex items-center gap-1.5 min-w-0 flex-1">
                                                                                 <Package className="h-3 w-3 text-slate-400 shrink-0" />
                                                                                 <span className="font-mono text-xs font-medium text-slate-800 dark:text-slate-200">{pane.paneNumber}</span>
+                                                                                {pane.laminateRole === "parent" && (
+                                                                                    <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 shrink-0">LAM</span>
+                                                                                )}
                                                                                 {pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0) && (
                                                                                     <span className="text-[10px] text-slate-400 font-mono">
                                                                                         {pane.dimensions.width}×{pane.dimensions.height}

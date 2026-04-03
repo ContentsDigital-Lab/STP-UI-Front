@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -771,6 +771,13 @@ function PaneDetailModal({
                   accent="text-orange-600 dark:text-orange-400"
                 />
               )}
+              {pane.laminateRole === "parent" && (
+                <PaneField
+                  label="ลามิเนต"
+                  value={`Parent — ${(pane.childPanes?.length ?? 0)} แผ่นดิบ`}
+                  accent="text-violet-600 dark:text-violet-400"
+                />
+              )}
             </div>
           </div>
 
@@ -1115,6 +1122,9 @@ export default function ProductionDetailPage() {
   const stationMap = new Map(stations.map((s) => [s._id, s]));
   const stationByName = new Map(stations.map((s) => [s.name, s]));
 
+  const orderRef = useRef<Order | null>(null);
+  orderRef.current = order;
+
   const colorMap: Record<string, string> = (() => {
     if (typeof window === "undefined") return {};
     try {
@@ -1126,15 +1136,14 @@ export default function ProductionDetailPage() {
 
   const loadPanes = useCallback(
     async (reqId?: string | null) => {
-      // Strategy: fetch by request first (panes are linked to request, not order)
-      // reqId can be passed directly (from load()) or resolved from order state (websocket refresh)
+      const currentOrder = orderRef.current;
       const resolvedReqId =
         reqId !== undefined
           ? reqId
-          : order
-            ? typeof order.request === "string"
-              ? order.request
-              : ((order.request as OrderRequest)?._id ?? null)
+          : currentOrder
+            ? typeof currentOrder.request === "string"
+              ? currentOrder.request
+              : ((currentOrder.request as OrderRequest)?._id ?? null)
             : null;
 
       if (resolvedReqId) {
@@ -1148,14 +1157,13 @@ export default function ProductionDetailPage() {
       }
 
       // Fallback: fetch all and filter client-side
-      // Backend ?request= and ?order= filters are both unstable
       const allRes = await panesApi.getAll({ limit: 500 }).catch(() => null);
       if (allRes?.success) {
         const allPanes = allRes.data ?? [];
 
-        // 1st priority: filter by order ID (exclude claimed panes — they have replacements)
         let found = allPanes.filter((p) => {
           if (p.currentStatus === "claimed") return false;
+          if (p.laminateRole === "sheet") return false;
           const oid =
             typeof p.order === "string"
               ? p.order
@@ -1163,7 +1171,6 @@ export default function ProductionDetailPage() {
           return oid === id;
         });
 
-        // 2nd priority: filter by request ID (covers panes with order: null, e.g. holes panes)
         if (found.length === 0 && resolvedReqId) {
           found = allPanes.filter((p) => {
             const rid =
@@ -1177,7 +1184,7 @@ export default function ProductionDetailPage() {
         setPanes(found);
       }
     },
-    [id, order],
+    [id],
   );
 
   const load = useCallback(async () => {
@@ -1196,13 +1203,11 @@ export default function ProductionDetailPage() {
       setOrder(o);
       if (sRes.success) setStations(sRes.data ?? []);
 
-      // Resolve reqId from the freshly fetched order (not stale state)
       const reqId =
         o.request && typeof o.request === "object"
           ? (o.request as OrderRequest)._id
           : (o.request as string);
 
-      // Pass reqId directly so loadPanes doesn't read stale `order` state
       await loadPanes(reqId);
       if (reqId) {
         const rr = await requestsApi.getById(reqId).catch(() => null);
@@ -1646,6 +1651,7 @@ export default function ProductionDetailPage() {
                       if (pane.currentStation === "defected") return "ชำรุด";
                     }
                     if (pane.currentStation == null) {
+                      if (pane.laminateRole === "parent" && pane.currentStatus === "pending") return "รอประกบ";
                       if (pane.currentStatus === "pending") return "คิว";
                       if (pane.currentStatus === "completed")
                         return "เสร็จแล้ว";
@@ -1683,6 +1689,9 @@ export default function ProductionDetailPage() {
                           <span className="font-mono text-sm font-bold text-slate-800 dark:text-slate-200">
                             {pane.paneNumber}
                           </span>
+                          {pane.laminateRole === "parent" && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300">LAM</span>
+                          )}
                         </div>
                         <span
                           className={`flex items-center gap-1.5 text-[10px] font-bold px-2 py-1 rounded-lg ${stCfg.bg} dark:bg-transparent ${stCfg.text} border border-transparent dark:border-slate-800`}
