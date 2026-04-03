@@ -890,7 +890,6 @@ export default function WorkOrderPrintPage() {
 
                 {/* 4b. Right: Sidebar (Info + Checklist) */}
                 <div className="w-[300px] flex flex-col bg-white">
-                  {/* Dimension Summary */}
                   <div className="border-b border-slate-300">
                     <p className="bg-slate-800 text-white py-1 text-[10px] font-black text-center uppercase tracking-widest">
                       Dimension Table
@@ -936,6 +935,21 @@ export default function WorkOrderPrintPage() {
                     </table>
                   </div>
 
+                  {/* Glass IDs List - NEW */}
+                  <div className="border-b border-slate-300 bg-slate-50/50 p-2">
+                    <p className="text-[9px] font-black text-slate-400 uppercase mb-1 tracking-tighter">
+                      Glass ID List (รหัสกระจก)
+                    </p>
+                    <div className="flex flex-wrap gap-x-2 gap-y-0.5">
+                      {group.panes.map((p, idx) => (
+                        <span key={p._id} className="text-[11px] font-black text-blue-900">
+                          {p.paneNumber || p._id.slice(-6).toUpperCase()}
+                          {idx < group.panes.length - 1 ? "," : ""}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
                   {/* Edging & Corners */}
                   <div className="p-4 flex-1 flex flex-col gap-4">
                     <div className="space-y-1.5">
@@ -964,11 +978,11 @@ export default function WorkOrderPrintPage() {
                               >
                                 <span className={isSelected ? "font-black text-blue-600" : "text-transparent"}>✓</span>
                               </div>
-                              <span
-                                className={`text-[10px] ${isSelected ? "font-black text-blue-900" : "text-slate-600 font-medium"}`}
-                              >
-                                {label}
-                              </span>
+                                <span
+                                  className={`text-[10px] ${isSelected ? "font-black text-blue-900" : "text-slate-600 font-medium"}`}
+                                >
+                                  <span className="font-black text-blue-800 w-5 inline-block">{code}</span> {label}
+                                </span>
                             </div>
                           );
                         });

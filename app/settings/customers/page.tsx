@@ -26,6 +26,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Edit, Trash2, Loader2, Search, Plus, Users, AlertTriangle, ArrowLeft } from "lucide-react";
 
+// ── Phone Number Format Helper ──────────────────────────────────────────────
+const formatPhoneNumber = (val: string) => {
+    const digits = val.replace(/\D/g, '').substring(0, 10);
+    if (digits.length <= 3) return digits;
+    if (digits.length <= 6) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+    return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+};
+
 export default function CustomersManagementPage() {
     const router = useRouter();
     const [customers, setCustomers] = useState<Customer[]>([]);
@@ -98,7 +106,7 @@ export default function CustomersManagementPage() {
 
         const payload: Partial<Customer> = {
             name: formData.name,
-            phone: formData.phone,
+            phone: formData.phone.replace(/\D/g, ''),
             address: formData.address,
             discount: formData.discount === "" ? 0 : formData.discount,
             notes: formData.notes,
@@ -319,7 +327,10 @@ export default function CustomersManagementPage() {
                                     placeholder="เช่น 081-234-5678"
                                     className="h-10 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-sm"
                                     value={formData.phone}
-                                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                    onChange={(e) => {
+                                        const formatted = formatPhoneNumber(e.target.value);
+                                        setFormData({ ...formData, phone: formatted });
+                                    }}
                                 />
                             </div>
                             <div className="space-y-1.5">

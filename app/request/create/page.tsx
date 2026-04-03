@@ -130,6 +130,13 @@ const createDefaultPane = (ps: PricingSettings): PaneSpec => ({
     cornerSize: "",
     dimensionTolerances: [],
 });
+// ── Phone Number Format Helper ──────────────────────────────────────────────
+const formatPhoneNumber = (val: string) => {
+    const digits = val.replace(/\D/g, '').substring(0, 10);
+    if (digits.length <= 3) return digits;
+    if (digits.length <= 6) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+    return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+};
 
 const EDGE_THRESHOLD = 5; // mm — cutout within this distance of an edge counts as a notch
 
@@ -518,7 +525,9 @@ export default function CreateBillPage() {
         setIsCreatingCustomer(true);
         try {
             const payload: Partial<Customer> = { name: newCustomerForm.name.trim() };
-            if (newCustomerForm.phone.trim()) payload.phone = newCustomerForm.phone.trim();
+            if (newCustomerForm.phone.trim()) {
+                payload.phone = newCustomerForm.phone.replace(/\D/g, '');
+            }
             if (newCustomerForm.address.trim()) payload.address = newCustomerForm.address.trim();
             if (newCustomerForm.discount > 0) payload.discount = newCustomerForm.discount;
             if (newCustomerForm.notes.trim()) payload.notes = newCustomerForm.notes.trim();
@@ -2113,7 +2122,10 @@ export default function CreateBillPage() {
                                 <Input
                                     placeholder={lang === 'th' ? 'เช่น 081-234-5678' : 'e.g. 081-234-5678'}
                                     value={newCustomerForm.phone}
-                                    onChange={(e) => setNewCustomerForm(f => ({ ...f, phone: e.target.value }))}
+                                    onChange={(e) => {
+                                        const formatted = formatPhoneNumber(e.target.value);
+                                        setNewCustomerForm(f => ({ ...f, phone: formatted }));
+                                    }}
                                     className="h-11 rounded-xl border-slate-200 dark:border-slate-800"
                                 />
                             </div>

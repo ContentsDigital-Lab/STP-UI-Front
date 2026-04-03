@@ -2,6 +2,7 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import * as THREE from 'three';
+import { useTheme } from 'next-themes';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg';
 import { Button } from '@/components/ui/button';
@@ -619,6 +620,9 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
     const selectedVertexIdxRef = useRef(selectedVertexIdx);
     selectedVertexIdxRef.current = selectedVertexIdx;
 
+    const { resolvedTheme } = useTheme();
+    const isDark = resolvedTheme === 'dark';
+
     const pushUndo = useCallback(() => {
         undoStackRef.current.push({
             holes: JSON.parse(JSON.stringify(holesRef.current)),
@@ -641,7 +645,6 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         if (!renderer || !scene || !camera) return;
 
         if (!fastMode) {
-            // Dynamic infinite grid — skip during drag for performance
             if (gridObjRef.current) {
                 scene.remove(gridObjRef.current);
                 gridObjRef.current.geometry.dispose();
@@ -662,7 +665,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 gridLines.push(new THREE.Vector3(gLeft, y, -0.2), new THREE.Vector3(gRight, y, -0.2));
             }
             const gridGeo = new THREE.BufferGeometry().setFromPoints(gridLines);
-            const gridMat = new THREE.LineBasicMaterial({ color: 0xeeeeee });
+            const gridMat = new THREE.LineBasicMaterial({ color: isDark ? 0x1e293b : 0xe2e8f0 });
             const gridObj = new THREE.LineSegments(gridGeo, gridMat);
             gridObjRef.current = gridObj;
             scene.add(gridObj);
@@ -703,7 +706,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         }
 
         renderer.render(scene, camera);
-    }, []);
+    }, [isDark]);
 
     const getWorldPos = useCallback((clientX: number, clientY: number): THREE.Vector3 | null => {
         const renderer = rendererRef.current;
@@ -804,7 +807,6 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         const verts = verticesRef.current;
         const bb = getBoundingBox(verts);
 
-        // Glass panel shape from vertices — use CSG to avoid triangulation artifacts with overlapping holes
         const glassShape = new THREE.Shape();
         glassShape.moveTo(verts[0].x, verts[0].y);
         for (let i = 1; i < verts.length; i++) {
@@ -814,9 +816,9 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
 
         const extrudeSettings = { depth: 3, bevelEnabled: false };
         const glassMat = new THREE.MeshPhongMaterial({
-            color: 0xadd8e6,
+            color: isDark ? 0x334155 : 0xadd8e6,
             transparent: true,
-            opacity: 0.45,
+            opacity: 0.6,
             side: THREE.DoubleSide,
         });
 
@@ -824,7 +826,6 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         const useCSG = !isActivelyDraggingRef.current && holesRef.current.length > 0;
 
         if (useCSG) {
-            // Accurate CSG subtraction — used when not dragging
             const csgEvaluator = new Evaluator();
             const glassGeo = new THREE.ExtrudeGeometry(glassShape, extrudeSettings);
             let currentBrush: Brush = new Brush(glassGeo, glassMat);
@@ -845,13 +846,12 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
 
                 try {
                     currentBrush = csgEvaluator.evaluate(currentBrush, cutBrush, SUBTRACTION);
-                } catch { /* fallback: skip failed cutout */ }
+                } catch { }
                 cutGeo.dispose();
             }
             currentBrush.material = glassMat;
             glassMesh = currentBrush;
         } else if (holesRef.current.length > 0) {
-            // Fast Shape.holes path — used during active dragging
             holesRef.current.forEach(h => {
                 glassShape.holes.push(makeClippedCutoutPath(h, bb));
             });
@@ -864,13 +864,11 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         glassMeshRef.current = glassMesh;
         group.add(glassMesh);
 
-        // Glass border
         const borderPoints = verts.map(v => new THREE.Vector3(v.x, v.y, 3.1));
         borderPoints.push(new THREE.Vector3(verts[0].x, verts[0].y, 3.1));
-        const borderMat = new THREE.LineBasicMaterial({ color: 0x1B4B9A, linewidth: 2 });
+        const borderMat = new THREE.LineBasicMaterial({ color: isDark ? 0x60a5fa : 0x1B4B9A, linewidth: 2 });
         group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(borderPoints), borderMat));
 
-        // Vertex handles (only in editVertex mode)
         if (activeToolRef.current === 'editVertex') {
             const camera = cameraRef.current;
             const renderer = rendererRef.current;
@@ -902,7 +900,6 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 }
             });
 
-            // Edge midpoint indicators (small diamonds showing where you can add vertices)
             for (let i = 0; i < verts.length; i++) {
                 const j = (i + 1) % verts.length;
                 const mx = (verts[i].x + verts[j].x) / 2;
@@ -920,7 +917,6 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             }
         }
 
-        // Cutout visual markers
         holesRef.current.forEach(h => {
             const isSelected = h.id === selectedHoleIdRef.current || selectedHoleIdsRef.current.has(h.id);
             const isGrouped = !!h.groupId;
@@ -946,7 +942,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             group.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(crossPoints), crossMat));
 
             const labelText = getCutoutLabel(h);
-            const hLabel = makeTextSprite(labelText, isSelected ? '#E8601C' : '#aa5533');
+            const hLabel = makeTextSprite(labelText, isSelected ? '#E8601C' : (isDark ? '#f1f5f9' : '#334155'));
             let labelOffsetY = 28;
             if (h.type === 'circle') labelOffsetY = h.diameter / 2 + 28;
             else if (h.type === 'rectangle') labelOffsetY = (h.height || 60) / 2 + 28;
@@ -983,8 +979,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 });
             }
 
-            // Horizontal leader: from nearest left/right glass edge through hole center
-            const holeDimMatH = new THREE.LineBasicMaterial({ color: 0xcc8855 });
+            const holeDimMatH = new THREE.LineBasicMaterial({ color: isDark ? 0xf59e0b : 0xcc8855 });
             const distLeft = h.x - bb.minX;
             const distRight = bb.maxX - h.x;
             const hUseLeft = distLeft <= distRight;
@@ -998,7 +993,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             const hGapLine2 = new THREE.Line(new THREE.BufferGeometry().setFromPoints([hLineMid, hLineP2]), holeDimMatH);
             group.add(hGapLine1);
             group.add(hGapLine2);
-            const hDimLabel = makeTextSprite(`${hDist}`, '#cc8855');
+            const hDimLabel = makeTextSprite(`${hDist}`, isDark ? '#f59e0b' : '#cc8855');
             hDimLabel.position.set((h.x + hEdgeBound) / 2, h.y, 3.3);
             hDimLabel.userData.gapLine1 = hGapLine1;
             hDimLabel.userData.gapLine2 = hGapLine2;
@@ -1007,8 +1002,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             hDimLabel.userData.lineDirection = 'horizontal';
             group.add(hDimLabel);
 
-            // Vertical leader: from nearest top/bottom glass edge through hole center
-            const holeDimMatV = new THREE.LineBasicMaterial({ color: 0xcc8855 });
+            const holeDimMatV = new THREE.LineBasicMaterial({ color: isDark ? 0xf59e0b : 0xcc8855 });
             const distBottom = h.y - bb.minY;
             const distTop    = bb.maxY - h.y;
             const vUseBottom = distBottom <= distTop;
@@ -1022,7 +1016,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             const vGapLine2  = new THREE.Line(new THREE.BufferGeometry().setFromPoints([vLineMid, vLineP2]), holeDimMatV);
             group.add(vGapLine1);
             group.add(vGapLine2);
-            const vDimLabel = makeTextSprite(`${vDist}`, '#cc8855', true);
+            const vDimLabel = makeTextSprite(`${vDist}`, isDark ? '#f59e0b' : '#cc8855', true);
             vDimLabel.position.set(h.x, (h.y + vEdgeBound) / 2, 3.3);
             vDimLabel.userData.gapLine1 = vGapLine1;
             vDimLabel.userData.gapLine2 = vGapLine2;
@@ -1032,7 +1026,6 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             group.add(vDimLabel);
         });
 
-        // Custom polygon drawing preview
         if (isDrawingCustomRef.current && customDrawPointsRef.current.length > 0) {
             const pts = customDrawPointsRef.current;
             const previewPoints = pts.map(p => new THREE.Vector3(p.x, p.y, 4));
@@ -1057,29 +1050,27 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             });
         }
 
-        // Overall glass dimension lines (bounding box)
         const dimOffset = -50;
+        const mainDimColor = isDark ? 0x60a5fa : 0x1B4B9A;
         makeDimensionLine(group,
             new THREE.Vector3(bb.minX, bb.minY, 0), new THREE.Vector3(bb.maxX, bb.minY, 0),
-            `${Math.round(bb.width)}`, dimOffset, 'horizontal', 0x1B4B9A
+            `${Math.round(bb.width)}`, dimOffset, 'horizontal', mainDimColor
         );
         makeDimensionLine(group,
             new THREE.Vector3(bb.minX, bb.minY, 0), new THREE.Vector3(bb.minX, bb.maxY, 0),
-            `${Math.round(bb.height)}`, dimOffset, 'vertical', 0x1B4B9A
+            `${Math.round(bb.height)}`, dimOffset, 'vertical', mainDimColor
         );
 
-        // Edge Profile Labels (2D)
         if (edges) {
-            const fontColor = '#D32F2F';
-            // In Three.js +Y is UP. minY=0 (bottom), maxY=600 (top).
+            const fontColor = isDark ? '#f87171' : '#D32F2F';
             if (edges.top && edges.top !== 'N') {
                 const lbl = makeTextSprite(edges.top, fontColor, false);
-                lbl.position.set((bb.minX + bb.maxX) / 2, bb.maxY + 30, 2); // Top label at maxY
+                lbl.position.set((bb.minX + bb.maxX) / 2, bb.maxY + 30, 2);
                 group.add(lbl);
             }
             if (edges.bottom && edges.bottom !== 'N') {
                 const lbl = makeTextSprite(edges.bottom, fontColor, false);
-                lbl.position.set((bb.minX + bb.maxX) / 2, bb.minY - 30, 2); // Bottom label at minY
+                lbl.position.set((bb.minX + bb.maxX) / 2, bb.minY - 30, 2);
                 group.add(lbl);
             }
             if (edges.left && edges.left !== 'N') {
@@ -1095,9 +1086,8 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         }
 
         renderScene();
-    }, [width, height, renderScene, edges]);
+    }, [isDark, renderScene, edges]);
 
-    // Initialize Three.js
     useEffect(() => {
         const container = containerRef.current;
         if (!container) return;
@@ -1106,7 +1096,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         const h = container.clientHeight;
 
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xf9fafb);
+        scene.background = new THREE.Color(isDark ? 0x0f172a : 0xf9fafb);
         sceneRef.current = scene;
 
         const bb = getBoundingBox(verticesRef.current);
@@ -1186,15 +1176,15 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             renderer.dispose();
             container.removeChild(renderer.domElement);
         };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Re-render when glass props change (skip during active drag — refs are updated directly)
     useEffect(() => {
+        if (sceneRef.current) {
+            sceneRef.current.background = new THREE.Color(isDark ? 0x0f172a : 0xf9fafb);
+        }
         if (!isActivelyDraggingRef.current) buildGlassScene();
-    }, [width, height, holes, selectedHoleId, selectedHoleIds, internalVertices, activeTool, selectedVertexIdx, customDrawPoints, isDrawingCustom, buildGlassScene]);
+    }, [width, height, holes, selectedHoleId, selectedHoleIds, internalVertices, activeTool, selectedVertexIdx, customDrawPoints, isDrawingCustom, buildGlassScene, isDark]);
 
-    // Clipboard for copy/paste cutouts
     const clipboardRef = useRef<HoleData[]>([]);
 
     const handleDuplicate = useCallback(() => {
@@ -1894,15 +1884,39 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         const onWheel = (e: WheelEvent) => {
             e.preventDefault();
             const cam = cameraRef.current!;
-            const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9;
-            const cx = (cam.left + cam.right) / 2;
-            const cy = (cam.top + cam.bottom) / 2;
-            const halfW = ((cam.right - cam.left) / 2) * zoomFactor;
-            const halfH = ((cam.top - cam.bottom) / 2) * zoomFactor;
-            cam.left = cx - halfW;
-            cam.right = cx + halfW;
-            cam.top = cy + halfH;
-            cam.bottom = cy - halfH;
+            
+            if (e.ctrlKey) {
+                // Pinch-to-zoom or Ctrl+Scroll
+                const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9;
+                const cx = (cam.left + cam.right) / 2;
+                const cy = (cam.top + cam.bottom) / 2;
+                const halfW = ((cam.right - cam.left) / 2) * zoomFactor;
+                const halfH = ((cam.top - cam.bottom) / 2) * zoomFactor;
+                cam.left = cx - halfW;
+                cam.right = cx + halfW;
+                cam.top = cy + halfH;
+                cam.bottom = cy - halfH;
+            } else {
+                // Touchpad Panning (Two-finger scroll)
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = (cam.right - cam.left) / rect.width;
+                const scaleY = (cam.top - cam.bottom) / rect.height;
+                
+                // Scale delta values to world units
+                const dx = e.deltaX * scaleX;
+                const dy = -e.deltaY * scaleY;
+                
+                cam.left += dx;
+                cam.right += dx;
+                cam.top += dy;
+                cam.bottom += dy;
+            }
+
+            cam.position.set(
+                (cam.left + cam.right) / 2,
+                (cam.top + cam.bottom) / 2,
+                100
+            );
             cam.updateProjectionMatrix();
             renderScene();
         };
@@ -2262,7 +2276,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         previewRendererRef.current = renderer;
 
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xf8fafc);
+        scene.background = new THREE.Color(isDark ? 0x1e293b : 0xf8fafc);
         previewSceneRef.current = scene;
 
         const camera = new THREE.PerspectiveCamera(45, w / h, 5, 10000);
@@ -2310,7 +2324,14 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             preview3DInitRef.current = false;
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [show3DPreview]);
+    }, [show3DPreview, isDark]);
+
+    // 3D preview theme update
+    useEffect(() => {
+        if (previewSceneRef.current) {
+            previewSceneRef.current.background = new THREE.Color(isDark ? 0x1e293b : 0xf8fafc);
+        }
+    }, [isDark]);
 
     // Re-build 3D scene when design changes
     useEffect(() => {
