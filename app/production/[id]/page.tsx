@@ -1066,7 +1066,7 @@ function BillOrderList({
                   <span
                     className={`font-mono text-sm font-bold ${isCurrent ? "text-blue-600 dark:text-[#E8601C]" : "text-slate-700 dark:text-slate-300"}`}
                   >
-                    #{o.code ?? o._id.slice(-6).toUpperCase()}
+                    {o.orderNumber ?? (o.code ? `#${o.code}` : `#${o._id.slice(-6).toUpperCase()}`)}
                   </span>
                   {isCurrent && (
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-transparent text-blue-700 dark:text-[#E8601C]">
@@ -1305,7 +1305,8 @@ export default function ProductionDetailPage() {
                   <Factory className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600 dark:text-[#E8601C] shrink-0" />
                   <span className="break-all">
                     คำสั่งผลิต{" "}
-                    {order.orderNumber ??
+                    {request?.requestNumber ??
+                      order.orderNumber ??
                       (order.code
                         ? `#${order.code}`
                         : `#${order._id.slice(-6).toUpperCase()}`)}
@@ -1560,25 +1561,37 @@ export default function ProductionDetailPage() {
               </div>
               กระจกแต่ละชิ้น (Panes)
             </h2>
-            {panes.length > 0 && (
+            {(() => {
+              const op = panes.filter(p => {
+                const oid = typeof p.order === "string" ? p.order : (p.order as unknown as Record<string, string>)?._id;
+                return oid === id;
+              });
+              if (op.length === 0) return null;
+              const done = op.filter(p => p.currentStatus === "completed").length;
+              return (
               <div className="flex items-center gap-3">
                 <span className="text-xs font-bold text-slate-500 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
-                  {panes.filter((p) => p.currentStatus === "completed").length}/
-                  {panes.length} เสร็จแล้ว
+                  {done}/{op.length} เสร็จแล้ว
                 </span>
                 <div className="w-24 h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden shadow-inner">
                   <div
                     className="h-full rounded-full bg-green-500 transition-all duration-500"
-                    style={{
-                      width: `${(panes.filter((p) => p.currentStatus === "completed").length / panes.length) * 100}%`,
-                    }}
+                    style={{ width: `${(done / op.length) * 100}%` }}
                   />
                 </div>
               </div>
-            )}
+              );
+            })()}
           </div>
 
-          {panes.length === 0 ? (
+          {(() => {
+            const orderPanes = panes.filter(p => {
+              const oid = typeof p.order === "string"
+                ? p.order
+                : (p.order as unknown as Record<string, string>)?._id;
+              return oid === id;
+            });
+            if (orderPanes.length === 0) return (
             <div className="p-8 sm:p-12 flex flex-col items-center justify-center text-center">
               <div className="h-14 w-14 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-4">
                 <Package className="h-7 w-7 text-slate-300 dark:text-slate-600" />
@@ -1590,179 +1603,181 @@ export default function ProductionDetailPage() {
                 กระจกจะปรากฏที่นี่เมื่อถูกสร้างขึ้น ({order.quantity} ชิ้น)
               </p>
             </div>
-          ) : (
+          );
+            return (
             <div className="p-4 sm:p-8">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-                {panes.map((pane) => {
-                  const stCfg = (
-                    {
-                      pending: {
-                        label: "รอ",
-                        dot: "bg-amber-400",
-                        text: "text-amber-600 dark:text-amber-400",
-                        bg: "bg-amber-50",
-                      },
-                      in_progress: {
-                        label: "กำลังทำ",
-                        dot: "bg-blue-500",
-                        text: "text-blue-600 dark:text-blue-400",
-                        bg: "bg-blue-50",
-                      },
-                      completed: {
-                        label: "เสร็จ",
-                        dot: "bg-green-500",
-                        text: "text-green-600 dark:text-green-400",
-                        bg: "bg-green-50",
-                      },
-                      awaiting_scan_out: {
-                        label: "รอสแกนออก",
-                        dot: "bg-amber-500",
-                        text: "text-amber-600 dark:text-amber-400",
-                        bg: "bg-amber-50",
-                      },
-                      claimed: {
-                        label: "เคลม",
-                        dot: "bg-orange-500",
-                        text: "text-orange-600 dark:text-orange-400",
-                        bg: "bg-orange-50",
-                      },
-                    } as Record<
-                      string,
-                      { label: string; dot: string; text: string; bg: string }
-                    >
-                  )[pane.currentStatus] ?? {
-                    label: pane.currentStatus,
-                    dot: "bg-gray-400",
-                    text: "text-gray-500",
-                    bg: "bg-gray-50",
-                  };
+                {orderPanes.map((pane) => {
+                        const stCfg = (
+                          {
+                            pending: {
+                              label: "รอ",
+                              dot: "bg-amber-400",
+                              text: "text-amber-600 dark:text-amber-400",
+                              bg: "bg-amber-50",
+                            },
+                            in_progress: {
+                              label: "กำลังทำ",
+                              dot: "bg-blue-500",
+                              text: "text-blue-600 dark:text-blue-400",
+                              bg: "bg-blue-50",
+                            },
+                            completed: {
+                              label: "เสร็จ",
+                              dot: "bg-green-500",
+                              text: "text-green-600 dark:text-green-400",
+                              bg: "bg-green-50",
+                            },
+                            awaiting_scan_out: {
+                              label: "รอสแกนออก",
+                              dot: "bg-amber-500",
+                              text: "text-amber-600 dark:text-amber-400",
+                              bg: "bg-amber-50",
+                            },
+                            claimed: {
+                              label: "เคลม",
+                              dot: "bg-orange-500",
+                              text: "text-orange-600 dark:text-orange-400",
+                              bg: "bg-orange-50",
+                            },
+                          } as Record<
+                            string,
+                            { label: string; dot: string; text: string; bg: string }
+                          >
+                        )[pane.currentStatus] ?? {
+                          label: pane.currentStatus,
+                          dot: "bg-gray-400",
+                          text: "text-gray-500",
+                          bg: "bg-gray-50",
+                        };
 
-                  const curId = getStationId(pane.currentStation);
-                  const curName = getStationName(pane.currentStation);
-                  const paneStation =
-                    (curId ? stationMap.get(curId) : undefined) ??
-                    stationByName.get(curName) ??
-                    (curId ? stationByName.get(curId) : undefined);
+                        const curId = getStationId(pane.currentStation);
+                        const curName = getStationName(pane.currentStation);
+                        const paneStation =
+                          (curId ? stationMap.get(curId) : undefined) ??
+                          stationByName.get(curName) ??
+                          (curId ? stationByName.get(curId) : undefined);
 
-                  const stationName = (() => {
-                    if (typeof pane.currentStation === "string") {
-                      if (pane.currentStation === "queue") return "คิว";
-                      if (pane.currentStation === "ready") return "พร้อมส่ง";
-                      if (pane.currentStation === "defected") return "ชำรุด";
-                    }
-                    if (pane.currentStation == null) {
-                      if (pane.laminateRole === "parent" && pane.currentStatus === "pending") return "รอประกบ";
-                      if (pane.currentStatus === "pending") return "คิว";
-                      if (pane.currentStatus === "completed")
-                        return "เสร็จแล้ว";
-                      if (pane.currentStatus === "claimed") return "ถูกเคลม";
-                      return curName || "—";
-                    }
-                    return paneStation?.name ?? curName ?? curId;
-                  })();
-
-                  const isSpecialStation =
-                    (typeof pane.currentStation === "string" &&
-                      ["queue", "ready", "defected"].includes(
-                        pane.currentStation,
-                      )) ||
-                    (pane.currentStation == null &&
-                      ["pending", "completed", "claimed"].includes(
-                        pane.currentStatus,
-                      ));
-
-                  const paneColorId = isSpecialStation
-                    ? "slate"
-                    : (paneStation?.colorId ?? "sky");
-                  const paneColor = getColorOption(paneColorId);
-
-                  return (
-                    <button
-                      type="button"
-                      key={pane._id}
-                      onClick={() => setSelectedPane(pane)}
-                      className="relative overflow-hidden flex flex-col gap-2.5 p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm text-left w-full cursor-pointer hover:border-blue-300 dark:hover:border-[#E8601C]/50 hover:shadow-md transition-all group"
-                    >
-                      <div className="flex items-center justify-between w-full">
-                        <div className="flex items-center gap-2.5">
-                          <Package className="h-4 w-4 text-slate-300" />
-                          <span className="font-mono text-sm font-bold text-slate-800 dark:text-slate-200">
-                            {pane.paneNumber}
-                          </span>
-                          {pane.laminateRole === "parent" && (
-                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300">LAM</span>
-                          )}
-                        </div>
-                        <span
-                          className={`flex items-center gap-1.5 text-[10px] font-bold px-2 py-1 rounded-lg ${stCfg.bg} dark:bg-transparent ${stCfg.text} border border-transparent dark:border-slate-800`}
-                        >
-                          <span
-                            className={`h-1.5 w-1.5 rounded-full shadow-sm ${stCfg.dot}`}
-                          />
-                          {stCfg.label}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between w-full mt-1">
-                        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                          {pane.dimensions &&
-                            (pane.dimensions.width > 0 ||
-                              pane.dimensions.height > 0) && (
-                              <span className="text-[11px] font-mono font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg">
-                                {pane.dimensions.width}×{pane.dimensions.height}
-                              </span>
-                            )}
-                          {pane.jobType && (
-                            <span className="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-100 dark:border-violet-500/20">
-                              {pane.jobType}
-                            </span>
-                          )}
-                          {pane.processes
-                            ?.filter((p) => p !== pane.jobType)
-                            .map((proc) => (
-                              <span
-                                key={proc}
-                                className="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-100 dark:border-sky-500/20"
-                              >
-                                {proc}
-                              </span>
-                            ))}
-                        </div>
-                        <div
-                          className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-lg border ${
-                            isSpecialStation
-                              ? "text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700/50"
-                              : paneColor.cls
-                          }`}
-                          style={
-                            !isSpecialStation
-                              ? { borderColor: `${paneColor.swatch}30` }
-                              : undefined
+                        const stationName = (() => {
+                          if (typeof pane.currentStation === "string") {
+                            if (pane.currentStation === "queue") return "คิว";
+                            if (pane.currentStation === "ready") return "พร้อมส่ง";
+                            if (pane.currentStation === "defected") return "ชำรุด";
                           }
-                        >
-                          <span
-                            className={`h-1.5 w-1.5 rounded-full shrink-0 ${isSpecialStation ? "bg-slate-400" : ""}`}
-                            style={
-                              !isSpecialStation
-                                ? { backgroundColor: paneColor.swatch }
-                                : undefined
-                            }
-                          />
-                          <span className="truncate max-w-[100px]">
-                            {stationName}
-                          </span>
-                        </div>
-                      </div>
-                      {pane.currentStatus === "completed" && (
-                        <div className="absolute top-0 right-0 p-1.5 bg-green-500 rounded-bl-2xl">
-                          <CheckCheck className="h-4 w-4 text-white" />
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
+                          if (pane.currentStation == null) {
+                            if (pane.laminateRole === "parent" && pane.currentStatus === "pending") return "รอประกบ";
+                            if (pane.currentStatus === "pending") return "คิว";
+                            if (pane.currentStatus === "completed")
+                              return "เสร็จแล้ว";
+                            if (pane.currentStatus === "claimed") return "ถูกเคลม";
+                            return curName || "—";
+                          }
+                          return paneStation?.name ?? curName ?? curId;
+                        })();
+
+                        const isSpecialStation =
+                          (typeof pane.currentStation === "string" &&
+                            ["queue", "ready", "defected"].includes(
+                              pane.currentStation,
+                            )) ||
+                          (pane.currentStation == null &&
+                            ["pending", "completed", "claimed"].includes(
+                              pane.currentStatus,
+                            ));
+
+                        const paneColorId = isSpecialStation
+                          ? "slate"
+                          : (paneStation?.colorId ?? "sky");
+                        const paneColor = getColorOption(paneColorId);
+
+                        return (
+                          <button
+                            type="button"
+                            key={pane._id}
+                            onClick={() => setSelectedPane(pane)}
+                            className="relative overflow-hidden flex flex-col gap-2.5 p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-sm text-left w-full cursor-pointer hover:border-blue-300 dark:hover:border-[#E8601C]/50 hover:shadow-md transition-all group"
+                          >
+                            <div className="flex items-center justify-between w-full">
+                              <div className="flex items-center gap-2.5">
+                                <Package className="h-4 w-4 text-slate-300" />
+                                <span className="font-mono text-sm font-bold text-slate-800 dark:text-slate-200">
+                                  {pane.paneNumber}
+                                </span>
+                                {pane.laminateRole === "parent" && (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300">LAM</span>
+                                )}
+                              </div>
+                              <span
+                                className={`flex items-center gap-1.5 text-[10px] font-bold px-2 py-1 rounded-lg ${stCfg.bg} dark:bg-transparent ${stCfg.text} border border-transparent dark:border-slate-800`}
+                              >
+                                <span
+                                  className={`h-1.5 w-1.5 rounded-full shadow-sm ${stCfg.dot}`}
+                                />
+                                {stCfg.label}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between w-full mt-1">
+                              <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                                {pane.dimensions &&
+                                  (pane.dimensions.width > 0 ||
+                                    pane.dimensions.height > 0) && (
+                                    <span className="text-[11px] font-mono font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg">
+                                      {pane.dimensions.width}×{pane.dimensions.height}
+                                    </span>
+                                  )}
+                                {pane.jobType && (
+                                  <span className="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-100 dark:border-violet-500/20">
+                                    {pane.jobType}
+                                  </span>
+                                )}
+                                {pane.processes
+                                  ?.filter((p) => p !== pane.jobType)
+                                  .map((proc) => (
+                                    <span
+                                      key={proc}
+                                      className="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-100 dark:border-sky-500/20"
+                                    >
+                                      {proc}
+                                    </span>
+                                  ))}
+                              </div>
+                              <div
+                                className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-lg border ${
+                                  isSpecialStation
+                                    ? "text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-700/50"
+                                    : paneColor.cls
+                                }`}
+                                style={
+                                  !isSpecialStation
+                                    ? { borderColor: `${paneColor.swatch}30` }
+                                    : undefined
+                                }
+                              >
+                                <span
+                                  className={`h-1.5 w-1.5 rounded-full shrink-0 ${isSpecialStation ? "bg-slate-400" : ""}`}
+                                  style={
+                                    !isSpecialStation
+                                      ? { backgroundColor: paneColor.swatch }
+                                      : undefined
+                                  }
+                                />
+                                <span className="truncate max-w-[100px]">
+                                  {stationName}
+                                </span>
+                              </div>
+                            </div>
+                            {pane.currentStatus === "completed" && (
+                              <div className="absolute top-0 right-0 p-1.5 bg-green-500 rounded-bl-2xl">
+                                <CheckCheck className="h-4 w-4 text-white" />
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
               </div>
             </div>
-          )}
+          );
+          })()}
         </div>
       </div>
 

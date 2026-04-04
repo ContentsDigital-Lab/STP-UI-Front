@@ -25,15 +25,15 @@ export const panesApi = {
         });
     },
 
-    create: async (data: Partial<Pane>): Promise<ApiResponse<Pane>> => {
-        return fetchApi<ApiResponse<Pane>>("/panes", {
+    create: async (data: Partial<Pane>): Promise<ApiResponse<Pane | { parent: Pane; sheets: Pane[] }>> => {
+        return fetchApi<ApiResponse<Pane | { parent: Pane; sheets: Pane[] }>>("/panes", {
             method: "POST",
             body: JSON.stringify(data),
         });
     },
 
-    update: async (id: string, data: Partial<Pane>): Promise<ApiResponse<Pane>> => {
-        return fetchApi<ApiResponse<Pane>>(`/panes/${id}`, {
+    update: async (id: string, data: Partial<Pane>): Promise<ApiResponse<Pane | { parent: Pane; sheets: Pane[] }>> => {
+        return fetchApi<ApiResponse<Pane | { parent: Pane; sheets: Pane[] }>>(`/panes/${id}`, {
             method: "PATCH",
             body: JSON.stringify(data),
         });
