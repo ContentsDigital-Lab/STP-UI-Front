@@ -12,10 +12,10 @@ import { usePreview } from "../PreviewContext";
 import { useStationContext } from "../StationContext";
 
 const VARIANT_MAP: Record<string, string> = {
-    primary: "bg-blue-700 text-white hover:bg-blue-800 active:bg-blue-900",
-    outline: "border-2 border-blue-700 text-blue-700 bg-white hover:bg-blue-50 active:bg-blue-100",
-    danger:  "bg-red-600 text-white hover:bg-red-700 active:bg-red-800",
-    success: "bg-green-700 text-white hover:bg-green-800 active:bg-green-900",
+    primary: "bg-blue-700 text-white hover:bg-blue-800 active:bg-blue-900 dark:bg-blue-600 dark:hover:bg-blue-500 dark:active:bg-blue-400",
+    outline: "border-2 border-blue-700 text-blue-700 bg-white hover:bg-blue-50 active:bg-blue-100 dark:border-blue-500 dark:text-blue-400 dark:bg-slate-900 dark:hover:bg-blue-900/20",
+    danger:  "bg-red-600 text-white hover:bg-red-700 active:bg-red-800 dark:bg-red-700 dark:hover:bg-red-600",
+    success: "bg-green-700 text-white hover:bg-green-800 active:bg-green-900 dark:bg-green-600 dark:hover:bg-green-500",
 };
 const SIZE_MAP = {
     sm: "px-4 py-2.5 text-sm min-h-[44px]",
@@ -573,9 +573,9 @@ export function ButtonBlock({
                     </div>
                 )}
                 {showConfirm && confirmSummary && (
-                    <div className={`rounded-xl border-2 border-blue-700 bg-blue-50 p-4 space-y-3 ${fullWidth ? "w-full" : ""}`}>
-                        <p className="text-sm font-bold text-blue-900">ยืนยันการสร้างออเดอร์?</p>
-                        <div className="space-y-1.5 text-sm text-gray-800">
+                    <div className={`rounded-xl border-2 border-blue-700 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20 p-4 space-y-3 ${fullWidth ? "w-full" : ""}`}>
+                        <p className="text-sm font-bold text-blue-900 dark:text-blue-100">ยืนยันการสร้างออเดอร์?</p>
+                        <div className="space-y-1.5 text-sm text-gray-800 dark:text-slate-300">
                             <div className="flex gap-2"><span className="font-semibold min-w-[4.5rem]">ลูกค้า:</span><span className="font-medium">{confirmSummary.customerName}</span></div>
                             <div className="flex gap-2"><span className="font-semibold min-w-[4.5rem]">วัสดุ:</span><span className="font-medium">{confirmSummary.materialName}</span></div>
                             <div className="flex gap-2"><span className="font-semibold min-w-[4.5rem]">จำนวน:</span><span className="font-medium">{confirmSummary.quantity}</span></div>
@@ -584,13 +584,13 @@ export function ButtonBlock({
                         <div className="flex gap-2">
                             <button
                                 onClick={handleConfirm}
-                                className="flex-1 rounded-lg bg-blue-700 text-white font-bold py-2.5 text-sm active:bg-blue-800 min-h-[44px]"
+                                className="flex-1 rounded-lg bg-blue-700 dark:bg-blue-600 text-white font-bold py-2.5 text-sm active:bg-blue-800 dark:active:bg-blue-500 min-h-[44px]"
                             >
                                 ยืนยัน
                             </button>
                             <button
                                 onClick={() => { setShowConfirm(false); setPendingBody(null); setConfirmSummary(null); }}
-                                className="flex-1 rounded-lg border-2 border-gray-900 bg-white text-gray-900 font-bold py-2.5 text-sm active:bg-gray-100 min-h-[44px]"
+                                className="flex-1 rounded-lg border-2 border-gray-900 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 font-bold py-2.5 text-sm active:bg-gray-100 dark:active:bg-slate-700 min-h-[44px]"
                             >
                                 ยกเลิก
                             </button>

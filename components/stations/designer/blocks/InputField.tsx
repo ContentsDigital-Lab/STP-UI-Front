@@ -32,7 +32,7 @@ export function InputField({
 
     const content = (
         <div className="w-full space-y-2">
-            {label && <label className="block text-sm font-bold text-gray-900">{label}{required && <span className="text-red-600 ml-1">*</span>}</label>}
+            {label && <label className="block text-sm font-bold text-gray-900 dark:text-slate-100">{label}{required && <span className="text-red-600 ml-1">*</span>}</label>}
             {isPreview && controlled ? (
                 <input
                     type={fieldType}
@@ -40,10 +40,10 @@ export function InputField({
                     value={currentValue}
                     {...(fieldType === "number" ? { min: 0 } : {})}
                     onChange={(e) => setField(fieldKey, fieldType === "number" ? (e.target.value === "" ? "" : Math.max(0, Number(e.target.value))) : e.target.value)}
-                    className="w-full rounded-xl border-2 border-gray-900 bg-white px-4 py-3 text-base font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:border-blue-700 min-h-[52px]"
+                    className="w-full rounded-xl border-2 border-gray-900 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-base font-medium text-gray-900 dark:text-slate-100 placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-700 dark:focus:ring-blue-500 focus:border-blue-700 dark:focus:border-blue-500 min-h-[52px]"
                 />
             ) : (
-                <input type={fieldType} placeholder={placeholder} defaultValue={defaultValue} className="w-full rounded-xl border-2 border-gray-900 bg-white px-4 py-3 text-base font-medium text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:border-blue-700 min-h-[52px]" readOnly={!isPreview} />
+                <input type={fieldType} placeholder={placeholder} defaultValue={defaultValue} className="w-full rounded-xl border-2 border-gray-900 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-base font-medium text-gray-900 dark:text-slate-100 placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-700 dark:focus:ring-blue-500 focus:border-blue-700 dark:focus:border-blue-500 min-h-[52px]" readOnly={!isPreview} />
             )}
         </div>
     );

@@ -11,6 +11,7 @@ import { useLanguage } from "@/lib/i18n/language-context";
 import { Badge } from "@/components/ui/badge";
 import { Timer, Factory, Box, Info, Maximize2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useTheme } from "next-themes";
 
 interface ProductionAnalyticsProps {
     materialId?: string;
@@ -18,6 +19,7 @@ interface ProductionAnalyticsProps {
 
 export function ProductionAnalytics({ materialId }: ProductionAnalyticsProps) {
     const { t, lang } = useLanguage();
+    const { theme } = useTheme();
     const { stats, loading } = useProductionStats();
     const [metric, setMetric] = React.useState<"duration" | "area">("duration");
 
@@ -120,18 +122,18 @@ export function ProductionAnalytics({ materialId }: ProductionAnalyticsProps) {
                 <div className="h-[300px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(203, 213, 225, 0.4)" />
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'dark' ? "rgba(71, 85, 105, 0.3)" : "rgba(203, 213, 225, 0.4)"} />
                             <XAxis 
                                 dataKey="display" 
                                 axisLine={false} 
                                 tickLine={false} 
-                                tick={{ fontSize: 11, fontWeight: 500 }} 
+                                tick={{ fontSize: 11, fontWeight: 500, fill: theme === 'dark' ? '#94a3b8' : '#64748b' }} 
                                 dy={10}
                             />
                             <YAxis 
                                 axisLine={false} 
                                 tickLine={false} 
-                                tick={{ fontSize: 11, fontWeight: 500 }} 
+                                tick={{ fontSize: 11, fontWeight: 500, fill: theme === 'dark' ? '#94a3b8' : '#64748b' }} 
                             />
                             <Tooltip 
                                 cursor={{ fill: 'rgba(232, 96, 28, 0.05)' }} 

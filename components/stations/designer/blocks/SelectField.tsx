@@ -215,10 +215,10 @@ export function SelectField({
         const currentValue = controlled ? String(formData[effectiveKey] ?? "") : undefined;
         return (
             <div className="w-full space-y-2">
-                {label && <label className="block text-sm font-bold text-gray-900">{label}</label>}
+                {label && <label className="block text-sm font-bold text-gray-900 dark:text-slate-100">{label}</label>}
                 <div className="relative">
                     <select
-                        className="w-full rounded-xl border-2 border-gray-900 bg-white px-4 py-3 text-base font-medium text-gray-900 appearance-none pr-10 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:border-blue-700 min-h-[52px]"
+                        className="w-full rounded-xl border-2 border-gray-900 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 text-base font-medium text-gray-900 dark:text-slate-100 appearance-none pr-10 focus:outline-none focus:ring-2 focus:ring-blue-700 dark:focus:ring-blue-500 focus:border-blue-700 dark:focus:border-blue-500 min-h-[52px]"
                         value={controlled ? currentValue : undefined}
                         onChange={controlled ? (e) => {
                             const val = e.target.value;
@@ -236,18 +236,18 @@ export function SelectField({
                             }
                         } : undefined}
                     >
-                        <option value="">{fetching ? "กำลังโหลด..." : placeholder}</option>
+                        <option value="" className="dark:bg-slate-900">{fetching ? "กำลังโหลด..." : placeholder}</option>
                         {isApi
-                            ? apiItems.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)
-                            : staticOpts.map((o) => <option key={o} value={o}>{o}</option>)
+                            ? apiItems.map((o) => <option key={o.value} value={o.value} className="dark:bg-slate-900">{o.label}</option>)
+                            : staticOpts.map((o) => <option key={o} value={o} className="dark:bg-slate-900">{o}</option>)
                         }
                     </select>
                     {fetching
-                        ? <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-500 animate-spin" />
-                        : <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-700 pointer-events-none" />
+                        ? <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-500 dark:text-slate-400 animate-spin" />
+                        : <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-700 dark:text-slate-300 pointer-events-none" />
                     }
                 </div>
-                {isApi && <p className="text-xs font-semibold text-emerald-700">{apiItems.length} รายการจาก {SOURCE_LABEL[dataSource] ?? dataSource}</p>}
+                {isApi && <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">{apiItems.length} รายการจาก {SOURCE_LABEL[dataSource] ?? dataSource}</p>}
             </div>
         );
     }
