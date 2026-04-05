@@ -6,7 +6,7 @@ import {
     ScanBarcode, Camera, CheckCircle2, XCircle, Loader2,
     Package, RotateCcw, ListChecks, MapPin,
     ChevronDown, ChevronRight, Play, CheckCheck, PackageOpen, QrCode,
-    AlertTriangle, Layers, Merge,
+    AlertTriangle, Layers, Merge, Timer,
 } from "lucide-react";
 import { panesApi } from "@/lib/api/panes";
 import { Pane } from "@/lib/api/types";
@@ -67,6 +67,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
     const [phases,        setPhases]        = useState<Record<string, PanePhase>>({});
     const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
     const [actionResult,  setActionResult]  = useState<Record<string, "success" | "error">>({});
+    const [now,           setNow]           = useState(Date.now());
     const [scanError,     setScanError]     = useState<string | null>(null);
     const [showCamera,    setShowCamera]    = useState(false);
     /** Set of orderId that are manually collapsed */
@@ -137,6 +138,12 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
 
     useEffect(() => { fetchPanes(); }, [fetchPanes, refreshCounter]);
     useWebSocket("pane", ["pane:updated"], () => { setQrPane(null); fetchPanes(); if (isLaminateStation) fetchLaminateGroups(); });
+
+    // ── Live timer update ─────────────────────────────────────────────────────
+    useEffect(() => {
+        const timer = setInterval(() => setNow(Date.now()), 1000);
+        return () => clearInterval(timer);
+    }, []);
 
     // ── Laminate: fetch parent/sheet groups at this station ───────────────────
     const fetchLaminateGroups = useCallback(async () => {
@@ -715,10 +722,24 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                                         {/* Line 3: phase status */}
                                                         <span className={`text-[10px] font-medium mt-0.5 block ${
                                                             phase === "started"
-                                                                ? "text-blue-600 dark:text-blue-400"
+                                                                ? "text-blue-600 dark:text-blue-400 font-bold"
                                                                 : "text-amber-600 dark:text-amber-400"
                                                         }`}>
-                                                            {phase === "started" ? "กำลังดำเนินการ" : "ยืนยันแล้ว — รอเริ่ม"}
+                                                            {phase === "started" ? (
+                                                                <span className="flex items-center gap-1">
+                                                                    <Timer className="h-3 w-3" />
+                                                                    กำลังดำเนินการ: {
+                                                                        (() => {
+                                                                            const start = new Date(pane.updatedAt).getTime();
+                                                                            const diff = Math.max(0, Math.floor((now - start) / 1000));
+                                                                            const h = Math.floor(diff / 3600);
+                                                                            const m = Math.floor((diff % 3600) / 60);
+                                                                            const s = diff % 60;
+                                                                            return `${h > 0 ? `${h}:` : ""}${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+                                                                        })()
+                                                                    }
+                                                                </span>
+                                                            ) : "ยืนยันแล้ว — รอเริ่ม"}
                                                         </span>
                                                     </div>
 
