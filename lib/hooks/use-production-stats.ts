@@ -7,6 +7,7 @@ import { PaneLog } from "@/lib/api/types";
 export interface StationAverage {
     stationId: string;
     averageMs: number;
+    totalAreaSqm: number;
     count: number;
 }
 
@@ -23,23 +24,34 @@ export function useProductionStats() {
         setLoading(true);
         try {
             // Fetch a large number of logs to calculate averages
-            // In a real production system, this should be done on the backend
             const res = await paneLogsApi.getAll({ limit: 1000 });
             if (!res.success || !res.data) return;
 
             const logs = res.data;
-            const paneDurations: Record<string, Record<string, { start?: number; complete?: number; materialId?: string }>> = {};
+            const paneDurations: Record<string, Record<string, { start?: number; complete?: number; materialId?: string; area?: number }>> = {};
 
             // Group logs by pane and station
             logs.forEach(log => {
-                const paneId = typeof log.pane === "string" ? log.pane : log.pane._id;
+                const paneObj = typeof log.pane === "object" ? log.pane : null;
+                const paneId = paneObj ? paneObj._id : (log.pane as string);
                 const stationId = typeof log.station === "string" ? log.station : log.station._id;
                 const materialId = typeof log.material === "string" ? log.material : (log.material as any)?._id;
 
                 if (!paneId || !stationId) return;
 
                 if (!paneDurations[paneId]) paneDurations[paneId] = {};
-                if (!paneDurations[paneId][stationId]) paneDurations[paneId][stationId] = { materialId };
+                
+                // Extract dimensions if available
+                let area = 0;
+                if (paneObj?.dimensions) {
+                    area = (paneObj.dimensions.width / 1000) * (paneObj.dimensions.height / 1000);
+                }
+
+                if (!paneDurations[paneId][stationId]) {
+                    paneDurations[paneId][stationId] = { materialId, area };
+                } else if (area > 0) {
+                    paneDurations[paneId][stationId].area = area;
+                }
 
                 const ts = new Date(log.createdAt).getTime();
                 if (log.action === "start") {
@@ -51,23 +63,25 @@ export function useProductionStats() {
 
             const newStats: Record<string, MaterialStats> = {};
 
-            // Calculate durations and averages
+            // Calculate durations, area throughput, and averages
             Object.values(paneDurations).forEach(stationMap => {
                 Object.entries(stationMap).forEach(([stationId, data]) => {
                     if (data.start && data.complete && data.materialId) {
                         const duration = data.complete - data.start;
                         const matId = data.materialId;
+                        const area = data.area || 0;
 
                         if (!newStats[matId]) {
                             newStats[matId] = { materialId: matId, averages: {} };
                         }
 
                         if (!newStats[matId].averages[stationId]) {
-                            newStats[matId].averages[stationId] = { stationId, averageMs: 0, count: 0 };
+                            newStats[matId].averages[stationId] = { stationId, averageMs: 0, totalAreaSqm: 0, count: 0 };
                         }
 
                         const s = newStats[matId].averages[stationId];
                         s.averageMs = (s.averageMs * s.count + duration) / (s.count + 1);
+                        s.totalAreaSqm += area;
                         s.count += 1;
                     }
                 });

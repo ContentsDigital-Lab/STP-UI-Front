@@ -8,7 +8,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/auth-context";
 import { Loader2 } from "lucide-react";
 
-export function AppLayout({ children }: { children: React.ReactNode }) {
+export function AppLayout({ children, title }: { children: React.ReactNode; title?: string }) {
     const [collapsed, setCollapsed] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [mounted, setMounted] = useState(false);
@@ -16,11 +16,17 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     const router = useRouter();
     const { isAuthenticated, isLoading } = useAuth();
 
-    // Close mobile menu when route changes and set mounted state
     useEffect(() => {
         setMobileMenuOpen(false);
         setMounted(true);
     }, [pathname]);
+
+    // Update document title if provided
+    useEffect(() => {
+        if (title) {
+            document.title = `${title} | STP Control`;
+        }
+    }, [title]);
 
     // Handle Route Protection
     useEffect(() => {

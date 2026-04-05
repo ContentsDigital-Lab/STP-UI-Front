@@ -39,6 +39,7 @@ import { materialsApi } from "@/lib/api/materials";
 import { materialLogsApi } from "@/lib/api/material-logs";
 import { OrderRequest, Order, Inventory, Material, MaterialLog } from "@/lib/api/types";
 import { useAuth } from "@/lib/auth/auth-context";
+import { ProductionAnalytics } from "@/components/analytics/ProductionAnalytics";
 
 function getDayLabel(date: Date) {
   return date.toLocaleDateString("th-TH", { weekday: "short" });
@@ -598,6 +599,11 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* ── Production Analytics ─────────────────────────────── */}
+      <div className="mt-4">
+        <ProductionAnalytics />
+      </div>
 
       {/* ── Quick Links ─────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
     ChevronLeft,
     ChevronDown,
+    ChevronRight,
     Save,
     FileDown,
     FileUp,
@@ -270,42 +271,67 @@ export default function CreateBillPage() {
     const ap = panes[activeTab] ?? panes[0];
 
     const estimatedCompletion = useMemo(() => {
-        if (!ap?.glassType || !productionStats) return null;
+        if (!ap?.glassType || !productionStats || allStations.length === 0) return null;
         
-        const typeKeywords: Record<string, string[]> = {
-            'tempered': ['ตัด', 'เจียร', 'ซัก', 'อบ', 'เทมเปอร์', 'qc', 'ส่ง'],
-            'laminated': ['ตัด', 'เจียร', 'ซัก', 'ประกบ', 'ลามิเนต', 'เข้าเตา', 'qc', 'ส่ง'],
-            'clear': ['ตัด', 'เจียร', 'ซัก', 'qc', 'ส่ง'],
-            'tinted': ['ตัด', 'เจียร', 'ซัก', 'qc', 'ส่ง'],
+        // Define common manufacturing paths with both Thai and English keywords
+        const typeKeywords: Record<string, string[][]> = {
+            'tempered': [
+                ['ตัด', 'cut'], 
+                ['เจียร', 'grind', 'polish'], 
+                ['ซัก', 'wash'], 
+                ['อบ', 'temper', 'oven'], 
+                ['qc', 'check'], 
+                ['ส่ง', 'deliver', 'ship']
+            ],
+            'laminated': [
+                ['ตัด', 'cut'], 
+                ['เจียร', 'grind', 'polish'], 
+                ['ซัก', 'wash'], 
+                ['ประกบ', 'laminate'], 
+                ['อบ', 'temper', 'oven'], 
+                ['qc', 'check'], 
+                ['ส่ง', 'deliver', 'ship']
+            ],
+            'default': [
+                ['ตัด', 'cut'], 
+                ['เจียร', 'grind', 'polish'], 
+                ['ซัก', 'wash'], 
+                ['qc', 'check'], 
+                ['ส่ง', 'deliver', 'ship']
+            ],
         };
 
-        const targetType = Object.keys(typeKeywords).find(k => new RegExp(k, 'i').test(ap.glassType)) || 'clear';
-        const keywords = typeKeywords[targetType];
+        const targetType = Object.keys(typeKeywords).find(k => new RegExp(k, 'i').test(ap.glassType)) || 'default';
+        const keywordsGroups = typeKeywords[targetType];
 
-        const routingStations = keywords.map(kw => 
-            allStations.find(s => s.name.toLowerCase().includes(kw))
+        // Find stations matching any keyword in each group
+        const routingStations = keywordsGroups.map(group => 
+            allStations.find(s => group.some(kw => s.name.toLowerCase().includes(kw)))
         ).filter(Boolean) as Station[];
 
         if (routingStations.length === 0) return null;
 
         let totalMs = 0;
+        // Try to find stats for this specific material, or fallback to first available
         const matStats = productionStats[ap.glassType] || Object.values(productionStats)[0];
 
-        if (matStats) {
-            routingStations.forEach(s => {
-                const avg = matStats.averages[s._id]?.averageMs || (15 * 60000);
-                totalMs += avg;
-            });
-        } else {
-            totalMs = routingStations.length * 15 * 60000;
-        }
+        routingStations.forEach(s => {
+            const avg = matStats?.averages[s._id]?.averageMs || (15 * 60000);
+            totalMs += avg;
+        });
 
-        totalMs += 20 * 60000;
+        // Add buffer for transitions between stations
+        if (routingStations.length > 1) {
+            totalMs += (routingStations.length - 1) * 15 * 60000;
+        } else {
+            totalMs += 15 * 60000; // Min buffer
+        }
 
         return {
             ms: totalMs,
             date: new Date(Date.now() + totalMs),
-            stationsCount: routingStations.length
+            stationsCount: routingStations.length,
+            path: routingStations.map(s => s.name)
         };
     }, [ap?.glassType, productionStats, allStations]);
 
@@ -433,6 +459,26 @@ export default function CreateBillPage() {
         setThicknessOpen(false);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeTab]);
+
+    // ── Auto-fill expectedDeliveryDate based on estimation ───────────────────
+    const [isDateAutoFilled, setIsDateAutoFilled] = useState(false);
+    useEffect(() => {
+        if (!estimatedCompletion?.date) return;
+        
+        // If the date is empty or was previously auto-filled, update it
+        if (!orderData.expectedDeliveryDate || isDateAutoFilled) {
+            const dateStr = estimatedCompletion.date.toISOString().split('T')[0]; // YYYY-MM-DD
+            if (orderData.expectedDeliveryDate !== dateStr) {
+                setOrderData(prev => ({ ...prev, expectedDeliveryDate: dateStr }));
+                setIsDateAutoFilled(true);
+            }
+        }
+    }, [estimatedCompletion?.date, orderData.expectedDeliveryDate, isDateAutoFilled]);
+
+    const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setOrderData(prev => ({ ...prev, expectedDeliveryDate: e.target.value }));
+        setIsDateAutoFilled(false); // User manually edited, stop auto-filling
+    };
 
     // ── Fetch pricing settings from server on mount ──────────────────────────
     useEffect(() => {
@@ -2067,11 +2113,68 @@ export default function CreateBillPage() {
                                     <Input
                                         type="date"
                                         value={orderData.expectedDeliveryDate}
-                                        onChange={(e) => setOrderData(prev => ({ ...prev, expectedDeliveryDate: e.target.value }))}
+                                        onChange={handleDateChange}
                                         className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm px-4 focus:ring-[#E8601C]"
                                     />
                                 </div>
                             </div>
+
+                            {/* ── Production Estimation ── */}
+                            {estimatedCompletion && (
+                                <div className="rounded-2xl bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 p-4 space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <Timer className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                            <span className="text-xs font-bold text-blue-900 dark:text-blue-100">
+                                                {lang === 'th' ? 'การคาดการณ์การผลิต' : 'Production Forecast'}
+                                            </span>
+                                        </div>
+                                        <Badge variant="outline" className="text-[10px] bg-white dark:bg-slate-900 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400">
+                                            {estimatedCompletion.stationsCount} {lang === 'th' ? 'สถานี' : 'stations'}
+                                        </Badge>
+                                    </div>
+                                    
+                                    <div className="space-y-1">
+                                        <div className="flex flex-wrap gap-1 mb-2">
+                                            {estimatedCompletion.path?.map((step: string, idx: number) => (
+                                                <div key={idx} className="flex items-center gap-1">
+                                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-100/50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
+                                                        {step}
+                                                    </span>
+                                                    {idx < (estimatedCompletion.path?.length || 0) - 1 && <ChevronRight className="h-2 w-2 text-blue-300" />}
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <p className="text-[11px] text-blue-700/70 dark:text-blue-300/70">
+                                            {lang === 'th' ? 'เวลาผลิตโดยประมาณ (ต่อชิ้น):' : 'Est. time per pane:'}
+                                            <span className="ml-1 font-bold text-blue-900 dark:text-blue-100">
+                                                {Math.floor(estimatedCompletion.ms / 3600000)}h {Math.floor((estimatedCompletion.ms % 3600000) / 60000)}m
+                                            </span>
+                                        </p>
+                                        <div className="flex items-baseline gap-1">
+                                            <span className="text-[11px] text-blue-700/70 dark:text-blue-300/70">{lang === 'th' ? 'คาดว่าจะเสร็จ:' : 'Expected at:'}</span>
+                                            <span className="text-sm font-black text-blue-600 dark:text-blue-400">
+                                                {estimatedCompletion.date.toLocaleString(lang === 'th' ? 'th-TH' : 'en-US', {
+                                                    day: 'numeric',
+                                                    month: 'short',
+                                                    hour: '2-digit',
+                                                    minute: '2-digit',
+                                                    hour12: false
+                                                })}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="flex items-start gap-1.5 pt-1 border-t border-blue-100 dark:border-blue-900/40">
+                                        <Info className="h-3 w-3 text-blue-400 mt-0.5 shrink-0" />
+                                        <p className="text-[9px] text-blue-500 italic">
+                                            {lang === 'th' 
+                                                ? '* คำนวณจากค่าเฉลี่ยประวัติการผลิตจริงของเส้นทางผลิต ' + estimatedCompletion.stationsCount + ' สถานี'
+                                                : '* Calculated from average historical speed for this routing (' + estimatedCompletion.stationsCount + ' stations)'}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="space-y-1.5">
                                 <Label className="text-[10px] font-semibold text-slate-400 uppercase flex items-center gap-1">
@@ -2144,52 +2247,6 @@ export default function CreateBillPage() {
                                     </div>
                                 </div>
 
-                                {/* ── Production Estimation ── */}
-                                {estimatedCompletion && (
-                                    <div className="rounded-2xl bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 p-4 space-y-2">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <Timer className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                                                <span className="text-xs font-bold text-blue-900 dark:text-blue-100">
-                                                    {lang === 'th' ? 'การคาดการณ์การผลิต' : 'Production Forecast'}
-                                                </span>
-                                            </div>
-                                            <Badge variant="outline" className="text-[10px] bg-white dark:bg-slate-900 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400">
-                                                {estimatedCompletion.stationsCount} {lang === 'th' ? 'สถานี' : 'stations'}
-                                            </Badge>
-                                        </div>
-                                        
-                                        <div className="space-y-1">
-                                            <p className="text-[11px] text-blue-700/70 dark:text-blue-300/70">
-                                                {lang === 'th' ? 'เวลาผลิตโดยประมาณ (ต่อชิ้น):' : 'Est. time per pane:'}
-                                                <span className="ml-1 font-bold text-blue-900 dark:text-blue-100">
-                                                    {Math.floor(estimatedCompletion.ms / 3600000)}h {Math.floor((estimatedCompletion.ms % 3600000) / 60000)}m
-                                                </span>
-                                            </p>
-                                            <div className="flex items-baseline gap-1">
-                                                <span className="text-[11px] text-blue-700/70 dark:text-blue-300/70">{lang === 'th' ? 'คาดว่าจะเสร็จ:' : 'Expected at:'}</span>
-                                                <span className="text-sm font-black text-blue-600 dark:text-blue-400">
-                                                    {estimatedCompletion.date.toLocaleString(lang === 'th' ? 'th-TH' : 'en-US', {
-                                                        day: 'numeric',
-                                                        month: 'short',
-                                                        hour: '2-digit',
-                                                        minute: '2-digit',
-                                                        hour12: false
-                                                    })}
-                                                </span>
-                                            </div>
-                                        </div>
-                                        
-                                        <div className="flex items-start gap-1.5 pt-1 border-t border-blue-100 dark:border-blue-900/40">
-                                            <Info className="h-3 w-3 text-blue-400 mt-0.5 shrink-0" />
-                                            <p className="text-[9px] text-blue-500 italic">
-                                                {lang === 'th' 
-                                                    ? '* คำนวณจากค่าเฉลี่ยประวัติการผลิตจริง ไม่รวมเวลารอรอยืนยันหรือคิวสะสม'
-                                                    : '* Based on historical data. Does not account for queue or waiting times.'}
-                                            </p>
-                                        </div>
-                                    </div>
-                                )}
                             </div>
                         )}
                     </div>
