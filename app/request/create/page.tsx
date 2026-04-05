@@ -734,12 +734,11 @@ export default function CreateBillPage() {
                         pane.rawGlassType ? `(ดิบ: ${pane.rawGlassColor ? pane.rawGlassColor + ' ' : ''}${pane.rawGlassType} ${pane.thickness}mm×${pane.sheetsPerPane}แผ่น)` : null,
                         `${pane.glassWidth}×${pane.glassHeight}mm`,
                     ].filter(Boolean).join(' ');
-                    // Backend now supports Array of Objects for holes and notches
                     const { notchList, holeList } = splitHolesAndNotches(pane.holes, pane.glassWidth, pane.glassHeight);
                     const qty = Math.max(1, pane.quantity);
                     for (let i = 0; i < qty; i++) {
                         try {
-                            await panesApi.create({
+                            const paneRes = await panesApi.create({
                                 request: requestId,
                                 dimensions: { width: pane.glassWidth, height: pane.glassHeight, thickness: thicknessMm },
                                 glassType: pane.glassType,
@@ -748,16 +747,15 @@ export default function CreateBillPage() {
                                 holes: holeList.length > 0 ? holeList : undefined,
                                 notches: notchList.length > 0 ? notchList : undefined,
                                 ...(pane.vertices && pane.vertices.length > 0 ? { vertices: pane.vertices } : {}),
-                                ...(pane.rawGlassType ? {
+                                ...(pane.rawGlassType || pane.sheetsPerPane > 1 ? {
                                     rawGlass: {
-                                        glassType: pane.rawGlassType,
-                                        color: pane.rawGlassColor,
-                                        thickness: parseFloat(pane.thickness) || 0,
+                                        ...(pane.rawGlassType ? { glassType: pane.rawGlassType } : {}),
+                                        ...(pane.rawGlassColor ? { color: pane.rawGlassColor } : {}),
+                                        thickness: thicknessMm,
                                         sheetsPerPane: pane.sheetsPerPane,
                                     },
                                 } : {}),
                                 ...(orderReleaseStationId ? { currentStation: orderReleaseStationId } : {}),
-                                // Edge & Corner Mapping
                                 edgeTasks: [
                                     { side: "top", edgeProfile: pane.edgeTop, status: "pending" },
                                     { side: "bottom", edgeProfile: pane.edgeBottom, status: "pending" },
@@ -767,7 +765,14 @@ export default function CreateBillPage() {
                                 cornerSpec: pane.cornerNone ? "ไม่มี" : (pane.cornerSize || "มีขนาด"),
                                 dimensionTolerance: pane.dimensionTolerances.join(', ') || "ตามมาตรฐาน มอก.",
                             } as any);
-                            panesCreated++;
+                            if (paneRes.success) {
+                                const d = paneRes.data as any;
+                                if (d?.parent && Array.isArray(d?.sheets)) {
+                                    panesCreated += 1 + d.sheets.length;
+                                } else {
+                                    panesCreated++;
+                                }
+                            }
                         } catch (paneErr) {
                             console.error(`[CreateBill] Failed to create pane:`, paneErr);
                         }

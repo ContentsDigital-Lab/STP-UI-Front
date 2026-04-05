@@ -88,6 +88,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
         sheets: Pane[];
         sheetsPresent: number;
         sheetsTotal: number;
+        sheetsWorking: number;
         ready: boolean;
     }
     const [laminateGroups, setLaminateGroups] = useState<LaminateGroup[]>([]);
@@ -152,37 +153,52 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
             const sheetsRes = await panesApi.getAll({ laminateRole: "sheet", limit: 500 });
             if (!sheetsRes?.success) return;
 
-            const sheetsAtStation = sheetsRes.data.filter(p =>
-                isStationMatch(p.currentStation, stationId, stationName) &&
-                p.currentStatus !== "claimed" && p.currentStatus !== "completed",
-            );
+            const allSheetData = sheetsRes.data.filter(s => s.currentStatus !== "claimed");
 
-            const parentIds = new Set<string>();
-            for (const s of sheetsAtStation) {
+            const sheetsByParent = new Map<string, Pane[]>();
+            for (const s of allSheetData) {
                 const pid = typeof s.parentPane === "string" ? s.parentPane : (s.parentPane as Pane)?._id;
-                if (pid) parentIds.add(pid);
+                if (!pid) continue;
+                if (!sheetsByParent.has(pid)) sheetsByParent.set(pid, []);
+                sheetsByParent.get(pid)!.push(s);
             }
 
-            const groups: LaminateGroup[] = [];
-            for (const pid of parentIds) {
-                const parentRes = await panesApi.getById(pid);
-                if (!parentRes.success) continue;
-                const parent = parentRes.data;
-
-                const allSheetsRes = await panesApi.getAll({ parentPane: pid, status_ne: "claimed", limit: 20 });
-                const allSheets = allSheetsRes.success ? allSheetsRes.data : [];
-                const sheetsTotal = allSheets.length;
-                const sheetsPresent = allSheets.filter(s =>
+            const parentIds = [...sheetsByParent.keys()].filter(pid => {
+                const sheets = sheetsByParent.get(pid)!;
+                return sheets.some(s =>
                     isStationMatch(s.currentStation, stationId, stationName) &&
                     s.currentStatus !== "completed",
-                ).length;
+                );
+            });
+
+            const parentResults = await Promise.all(
+                parentIds.map(pid => panesApi.getById(pid).catch(() => null)),
+            );
+
+            const groups: LaminateGroup[] = [];
+            for (let i = 0; i < parentIds.length; i++) {
+                const pid = parentIds[i];
+                const parentRes = parentResults[i];
+                if (!parentRes?.success) continue;
+
+                const allSheets = sheetsByParent.get(pid) ?? [];
+                const sheetsTotal = allSheets.length;
+                const atStation = allSheets.filter(s =>
+                    isStationMatch(s.currentStation, stationId, stationName) &&
+                    s.currentStatus !== "completed",
+                );
+                const sheetsPresent = atStation.length;
+                const sheetsWorking = atStation.filter(s => s.currentStatus === "in_progress").length;
+
+                if (sheetsPresent === 0) continue;
 
                 groups.push({
-                    parent,
+                    parent: parentRes.data,
                     sheets: allSheets,
                     sheetsPresent,
                     sheetsTotal,
-                    ready: sheetsPresent >= sheetsTotal && sheetsTotal > 0,
+                    sheetsWorking,
+                    ready: sheetsPresent >= sheetsTotal && sheetsWorking >= sheetsTotal && sheetsTotal > 0,
                 });
             }
 
@@ -227,8 +243,15 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
 
     // ── Group panes by order ──────────────────────────────────────────────────
     const orderGroups = (() => {
+        const filtered = isLaminateStation
+            ? panes.filter(p => {
+                if (p.laminateRole === "sheet") return false;
+                if (p.laminateRole === "parent" && p.currentStatus === "pending") return false;
+                return true;
+            })
+            : panes;
         const map = new Map<string, { label: string; panes: Pane[] }>();
-        for (const p of panes) {
+        for (const p of filtered) {
             const oid   = extractOrderId(p);
             const label = extractOrderLabel(p);
             if (!map.has(oid)) map.set(oid, { label, panes: [] });
@@ -519,7 +542,9 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                 <div key={pid} className={`rounded-xl border overflow-hidden ${
                                     group.ready
                                         ? "border-emerald-300 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-950/20"
-                                        : "border-border bg-card"
+                                        : group.sheetsPresent >= group.sheetsTotal
+                                            ? "border-amber-300 dark:border-amber-700 bg-amber-50/30 dark:bg-amber-950/10"
+                                            : "border-border bg-card"
                                 }`}>
                                     <div className="px-3 py-2.5 flex items-center gap-2">
                                         <Layers className={`h-3.5 w-3.5 shrink-0 ${group.ready ? "text-emerald-500" : "text-muted-foreground"}`} />
@@ -542,10 +567,11 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                     <div className="border-t border-border/50 divide-y divide-border/30">
                                         {group.sheets.map(sheet => {
                                             const isHere = isStationMatch(sheet.currentStation, stationId, stationName) && sheet.currentStatus !== "completed";
+                                            const isWorking = isHere && sheet.currentStatus === "in_progress";
                                             return (
                                                 <div key={sheet._id} className="flex items-center gap-2 px-3 py-1.5">
                                                     <span className={`h-2 w-2 rounded-full shrink-0 ${
-                                                        isHere ? "bg-emerald-500" : "bg-slate-300 dark:bg-slate-600"
+                                                        isWorking ? "bg-emerald-500" : isHere ? "bg-amber-400" : "bg-slate-300 dark:bg-slate-600"
                                                     }`} />
                                                     <span className="font-mono text-[11px] font-medium text-foreground">
                                                         {sheet.paneNumber}
@@ -556,9 +582,13 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                                         </span>
                                                     )}
                                                     <span className={`ml-auto text-[10px] font-medium ${
-                                                        isHere ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
+                                                        isWorking
+                                                            ? "text-emerald-600 dark:text-emerald-400"
+                                                            : isHere
+                                                                ? "text-amber-600 dark:text-amber-400"
+                                                                : "text-muted-foreground"
                                                     }`}>
-                                                        {isHere ? "มาถึงแล้ว" : getStationName(sheet.currentStation) || "อยู่ระหว่างทาง"}
+                                                        {isWorking ? "เข้างานแล้ว" : isHere ? "มาถึง — รอสแกนเข้า" : getStationName(sheet.currentStation) || "อยู่ระหว่างทาง"}
                                                     </span>
                                                 </div>
                                             );
@@ -589,7 +619,12 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                                     ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                                     : <Merge className="h-3.5 w-3.5" />
                                                 }
-                                                {group.ready ? "ประกบลามิเนต" : `รอแผ่นดิบ ${group.sheetsPresent}/${group.sheetsTotal}`}
+                                                {group.ready
+                                                    ? "ประกบลามิเนต"
+                                                    : group.sheetsPresent < group.sheetsTotal
+                                                        ? `รอแผ่นดิบ ${group.sheetsPresent}/${group.sheetsTotal}`
+                                                        : `รอสแกนเข้างาน ${group.sheetsWorking}/${group.sheetsTotal}`
+                                                }
                                             </button>
                                         )}
                                     </div>
