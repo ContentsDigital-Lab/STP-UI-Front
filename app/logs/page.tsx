@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { materialLogsApi } from "@/lib/api/material-logs";
+import { panesApi } from "@/lib/api/panes";
 import { productionLogsApi } from "@/lib/api/production-logs";
 import { MaterialLog, Order, Material, Worker, Inventory, PaneLog, TimelineEvent, Pane, Station } from "@/lib/api/types";
 import { inventoriesApi } from "@/lib/api/inventories";
@@ -182,6 +183,8 @@ export default function MaterialLogsPage() {
     const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
     const [timelineLoading, setTimelineLoading] = useState(false);
     const [selectedMatId, setSelectedMatId] = useState<string>("");
+    const [showAllPanes, setShowAllPanes] = useState(false);
+    const [viewingPane, setViewingPane] = useState<Pane | null>(null);
 
     const fetchLogs = useCallback(async () => {
         setIsLoading(true);
@@ -280,6 +283,8 @@ export default function MaterialLogsPage() {
         setDetailLogs(filtered);
         setDetailInventory(null);
         setSelectedMatId(matId);
+        setShowAllPanes(false);
+        setViewingPane(null);
         setIsDetailOpen(true);
 
         // Fetch timeline (MaterialLog + PaneLog merged)
@@ -456,13 +461,13 @@ export default function MaterialLogsPage() {
 
     const renderOrderRef = (log: MaterialLog) => {
         if (!log.order) return <span className="text-slate-300 dark:text-slate-700">—</span>;
-        const orderId = typeof log.order === "object" && log.order !== null
-            ? ((log.order as Order)._id ?? "")
-            : String(log.order);
+        const orderObj = typeof log.order === "object" && log.order !== null ? log.order as Order : null;
+        const orderId = orderObj?._id ?? String(log.order);
         if (!orderId) return <span className="text-slate-300 dark:text-slate-700">—</span>;
+        const label = orderObj?.orderNumber ?? `#${orderId.slice(-6).toUpperCase()}`;
         return (
             <span className="text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-2 py-1 rounded-md">
-                #{orderId.slice(-6).toUpperCase()}
+                {label}
             </span>
         );
     };
@@ -967,70 +972,42 @@ export default function MaterialLogsPage() {
 
                         {/* Pane Position Summary */}
                         {(() => {
-                            const paneLogs = timeline.filter(e => e.logType === "pane_log") as (PaneLog & { logType: "pane_log" })[];
+                            const paneLogs = timeline.filter(e => e.logType === "pane_log" && e.action === "start") as (PaneLog & { logType: "pane_log" })[];
                             if (paneLogs.length === 0) return null;
-                            // Latest event per pane
                             const byPane = new Map<string, typeof paneLogs[0]>();
                             for (const e of paneLogs) {
                                 const pid = typeof e.pane === "object" ? (e.pane as Pane)._id : String(e.pane);
                                 if (!pid) continue;
                                 const existing = byPane.get(pid);
-                                if (!existing || new Date(e.createdAt) > new Date(existing.createdAt)) byPane.set(pid, e);
+                                if (!existing || new Date(e.createdAt) < new Date(existing.createdAt)) byPane.set(pid, e);
                             }
                             const panePositions = [...byPane.values()];
+                            const visiblePanes = showAllPanes ? panePositions : panePositions.slice(0, 6);
+                            const hasMore = panePositions.length > 6;
 
-                            // Group counts for mini summary
-                            const statusGroups = { scan_in: 0, start: 0, complete: 0, scan_out: 0 } as Record<string, number>;
-                            panePositions.forEach(e => { statusGroups[e.action] = (statusGroups[e.action] ?? 0) + 1; });
-                            const completedCount = (statusGroups.complete ?? 0) + (statusGroups.scan_out ?? 0);
-                            const inProgressCount = statusGroups.start ?? 0;
-                            const waitingCount = statusGroups.scan_in ?? 0;
-
-                            const STATUS_CFG: Record<string, { label: string; bg: string; text: string; dot: string }> = {
-                                scan_in:  { label: lang === "th" ? "เข้าสถานี"  : "At station",  bg: "bg-blue-50 dark:bg-blue-500/10",     text: "text-blue-600 dark:text-blue-400",     dot: "bg-blue-500" },
-                                start:    { label: lang === "th" ? "กำลังทำ"   : "In progress", bg: "bg-amber-50 dark:bg-amber-500/10",   text: "text-amber-600 dark:text-amber-400",   dot: "bg-amber-500" },
-                                complete: { label: lang === "th" ? "เสร็จสิ้น"  : "Complete",    bg: "bg-emerald-50 dark:bg-emerald-500/10", text: "text-emerald-600 dark:text-emerald-400", dot: "bg-emerald-500" },
-                                scan_out: { label: lang === "th" ? "ออกสถานี"  : "Scan out",    bg: "bg-violet-50 dark:bg-violet-500/10", text: "text-violet-600 dark:text-violet-400", dot: "bg-violet-500" },
+                            const getUsageLabel = (stationName: string | null) => {
+                                const sn = (stationName ?? "").toLowerCase();
+                                const isCut = sn.includes("cut") || sn.includes("ตัด");
+                                const label = isCut ? (lang === "th" ? "ตัดกระจก" : "Glass cutting") : (lang === "th" ? `กระบวนการ${stationName ?? ""}` : (stationName || "process"));
+                                return { label, dot: "bg-amber-500", bg: "bg-amber-50 dark:bg-amber-500/10", text: "text-amber-600 dark:text-amber-400" };
                             };
 
                             return (
                                 <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800">
-                                    {/* Section header with status summary pills */}
                                     <div className="flex items-center justify-between gap-2 mb-3">
                                         <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">
                                             {lang === "th" ? "กระจกที่ตัดจากวัสดุนี้" : "Panes from material"}
                                         </p>
-                                        <div className="flex items-center gap-1.5">
-                                            {completedCount > 0 && (
-                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                                                    ✓ {completedCount}
-                                                </span>
-                                            )}
-                                            {inProgressCount > 0 && (
-                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                                                    ◉ {inProgressCount}
-                                                </span>
-                                            )}
-                                            {waitingCount > 0 && (
-                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                                                    ○ {waitingCount}
-                                                </span>
-                                            )}
-                                            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
-                                                {panePositions.length} {lang === "th" ? "ชิ้น" : "pcs"}
-                                            </span>
-                                        </div>
+                                        <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
+                                            {panePositions.length} {lang === "th" ? "ชิ้น" : "pcs"}
+                                        </span>
                                     </div>
 
-                                    {/* Pane cards — compact 2-line layout */}
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                        {panePositions.map(e => {
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {visiblePanes.map(e => {
                                             const pane = typeof e.pane === "object" ? e.pane as Pane : null;
                                             const order = typeof e.order === "object" ? e.order as Order : null;
-                                            const worker = typeof e.worker === "object" ? e.worker as Worker : null;
-                                            const stCfg = STATUS_CFG[e.action] ?? { label: e.action, bg: "bg-slate-50 dark:bg-slate-800", text: "text-slate-500", dot: "bg-slate-400" };
 
-                                            // Resolve station name from stationMap
                                             const resolvedStationName = (() => {
                                                 if (e.station == null || e.station === "") return null;
                                                 const sid = getStationId(e.station);
@@ -1038,54 +1015,63 @@ export default function MaterialLogsPage() {
                                                 return (mapped ?? getStationName(e.station)) || null;
                                             })();
 
+                                            const stCfg = getUsageLabel(resolvedStationName);
+                                            const orderLabel = order?.orderNumber ?? (order?._id ? `#${order._id.slice(-6).toUpperCase()}` : null);
+
+                                            const dims = pane?.dimensions;
+                                            const dimStr = dims && (dims.width > 0 || dims.height > 0)
+                                                ? `${dims.width}×${dims.height}${dims.thickness > 0 ? ` (${dims.thickness}mm)` : ""}`
+                                                : null;
+
                                             return (
-                                                <div
+                                                <button
                                                     key={e._id}
-                                                    className="rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 hover:border-slate-200 dark:hover:border-slate-700 transition-colors"
+                                                    type="button"
+                                                    onClick={async () => {
+                                                        if (!pane?._id) return;
+                                                        try {
+                                                            const res = await panesApi.getById(pane._id);
+                                                            setIsDetailOpen(false);
+                                                            setViewingPane((res?.data as Pane) ?? pane);
+                                                        } catch {
+                                                            setIsDetailOpen(false);
+                                                            setViewingPane(pane);
+                                                        }
+                                                    }}
+                                                    className="rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 hover:border-blue-200 dark:hover:border-blue-800 hover:shadow-sm transition-all text-left group cursor-pointer"
                                                 >
-                                                    {/* Line 1: Pane number + status */}
-                                                    <div className="flex items-center justify-between gap-2 mb-1.5">
-                                                        <div className="flex items-center gap-2 min-w-0">
-                                                            <span className={`h-2 w-2 rounded-full shrink-0 ${stCfg.dot}`} />
-                                                            <span className="font-mono text-sm font-bold text-slate-800 dark:text-white truncate">
-                                                                {pane?.paneNumber ?? "—"}
-                                                            </span>
-                                                        </div>
-                                                        <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${stCfg.bg} ${stCfg.text}`}>
-                                                            {stCfg.label}
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <span className={`h-2 w-2 rounded-full shrink-0 ${stCfg.dot}`} />
+                                                        <span className="font-mono text-[13px] font-bold text-slate-800 dark:text-white truncate">
+                                                            {pane?.paneNumber ?? "—"}
                                                         </span>
                                                     </div>
-
-                                                    {/* Line 2: Station · Order · Worker */}
-                                                    <div className="flex items-center gap-1.5 pl-4 text-[11px] text-slate-400">
-                                                        {resolvedStationName && (
-                                                            <>
-                                                                <Factory className="h-2.5 w-2.5 shrink-0" />
-                                                                <span className="truncate max-w-[100px]">{resolvedStationName}</span>
-                                                            </>
-                                                        )}
-                                                        {order && (
-                                                            <>
-                                                                {resolvedStationName && <span className="text-slate-200 dark:text-slate-700">·</span>}
-                                                                <span className="font-mono font-bold text-blue-500 dark:text-blue-400 shrink-0">
-                                                                    {order.orderNumber ?? `#${(order._id ?? "").slice(-6).toUpperCase()}`}
-                                                                </span>
-                                                            </>
-                                                        )}
-                                                        {worker && (
-                                                            <>
-                                                                <span className="text-slate-200 dark:text-slate-700">·</span>
-                                                                <span className="flex items-center gap-0.5 truncate">
-                                                                    <User className="h-2.5 w-2.5 shrink-0" />
-                                                                    {worker.name ?? worker.username}
-                                                                </span>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                </div>
+                                                    {dimStr && (
+                                                        <p className="text-[11px] font-mono text-slate-400 mb-1.5 truncate">{dimStr}</p>
+                                                    )}
+                                                    <span className={`inline-flex text-[10px] font-semibold px-2 py-0.5 rounded-md ${stCfg.bg} ${stCfg.text}`}>
+                                                        {stCfg.label}
+                                                    </span>
+                                                    {orderLabel && (
+                                                        <p className="text-[11px] font-mono font-semibold text-blue-500 dark:text-blue-400 mt-1">{orderLabel}</p>
+                                                    )}
+                                                </button>
                                             );
                                         })}
                                     </div>
+
+                                    {hasMore && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowAllPanes(prev => !prev)}
+                                            className="w-full mt-2 py-2 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors"
+                                        >
+                                            {showAllPanes
+                                                ? (lang === "th" ? "ย่อรายการ" : "Show less")
+                                                : (lang === "th" ? `ดูทั้งหมด ${panePositions.length} ชิ้น` : `Show all ${panePositions.length} panes`)
+                                            }
+                                        </button>
+                                    )}
                                 </div>
                             );
                         })()}
@@ -1131,7 +1117,9 @@ export default function MaterialLogsPage() {
                                             // ── Material Log card ──────────────────────────────
                                             if (matLog) {
                                                 const workerName = resolveWorkerName(matLog.worker, workerMap);
-                                                const ordId = matLog.order ? (typeof matLog.order === "object" ? ((matLog.order as Order)._id ?? "") : String(matLog.order)) : null;
+                                                const orderObj = matLog.order && typeof matLog.order === "object" ? matLog.order as Order : null;
+                                                const ordId = orderObj?._id ?? (matLog.order ? String(matLog.order) : null);
+                                                const ordLabel = orderObj?.orderNumber ?? (ordId ? `#${ordId.slice(-6).toUpperCase()}` : null);
                                                 const stockType = matLog.stockType ?? (matLog.referenceId && !matLog.referenceType ? invMap.get(matLog.referenceId)?.stockType : undefined);
                                                 const moveLocs = getMoveLocations(matLog, moveSourceIds, invMap, parentLogMap, logById);
                                                 const singleLoc = !moveLocs ? getLocation(matLog, invMap) : null;
@@ -1168,9 +1156,9 @@ export default function MaterialLogsPage() {
                                                                         <User className="h-2.5 w-2.5 inline mr-1" />{workerName}
                                                                     </span>
                                                                 )}
-                                                                {ordId && (
+                                                                {ordLabel && (
                                                                     <span className="text-[11px] font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 rounded-md">
-                                                                        #{ordId.slice(-6).toUpperCase()}
+                                                                        {ordLabel}
                                                                     </span>
                                                                 )}
                                                                 {matLog.referenceType && matLog.referenceId && (
@@ -1190,21 +1178,24 @@ export default function MaterialLogsPage() {
                                                 const order  = typeof paneLog.order  === "object" ? paneLog.order  as Order  : null;
                                                 const worker = typeof paneLog.worker === "object" ? paneLog.worker as Worker : null;
                                                 const workerName = worker?.name ?? worker?.username ?? (typeof paneLog.worker === "string" ? workerMap.get(paneLog.worker)?.name : null) ?? null;
-                                                const actionCfg = {
-                                                    scan_in:  { label: lang === "th" ? "เข้าสถานี"  : "Entered station", icon: <Circle   className="h-3 w-3" />, dot: "bg-blue-500",   cls: "bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/40"   },
-                                                    start:    { label: lang === "th" ? "เริ่มงาน"   : "Started work",    icon: <Play     className="h-3 w-3" />, dot: "bg-amber-500",  cls: "bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/40" },
-                                                    complete: { label: lang === "th" ? "เสร็จสิ้น" : "Completed",       icon: <CheckCircle2 className="h-3 w-3" />, dot: "bg-emerald-500", cls: "bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/40" },
-                                                    scan_out: { label: lang === "th" ? "ออกสถานี"  : "Scan out",        icon: <Circle   className="h-3 w-3" />, dot: "bg-violet-500", cls: "bg-violet-50 text-violet-700 border-violet-100 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-900/40" },
-                                                }[paneLog.action];
+                                                const actionCfg: Record<string, { label: string; icon: React.ReactNode; dot: string; cls: string }> = {
+                                                    scan_in:           { label: lang === "th" ? "เข้าสถานี"  : "Entered station",  icon: <Circle       className="h-3 w-3" />, dot: "bg-blue-500",    cls: "bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/40" },
+                                                    start:             { label: lang === "th" ? "เริ่มงาน"   : "Started work",     icon: <Play         className="h-3 w-3" />, dot: "bg-amber-500",   cls: "bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/40" },
+                                                    complete:          { label: lang === "th" ? "เสร็จสิ้น"  : "Completed",        icon: <CheckCircle2 className="h-3 w-3" />, dot: "bg-emerald-500", cls: "bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/40" },
+                                                    scan_out:          { label: lang === "th" ? "ออกสถานี"   : "Scan out",         icon: <Circle       className="h-3 w-3" />, dot: "bg-violet-500",  cls: "bg-violet-50 text-violet-700 border-violet-100 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-900/40" },
+                                                    laminate_start:    { label: lang === "th" ? "เริ่มประกบ"  : "Laminate start",   icon: <Layers       className="h-3 w-3" />, dot: "bg-fuchsia-500", cls: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-100 dark:bg-fuchsia-950/30 dark:text-fuchsia-400 dark:border-fuchsia-900/40" },
+                                                    laminate_complete: { label: lang === "th" ? "ประกบเสร็จ"  : "Laminate done",    icon: <CheckCircle2 className="h-3 w-3" />, dot: "bg-fuchsia-500", cls: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-100 dark:bg-fuchsia-950/30 dark:text-fuchsia-400 dark:border-fuchsia-900/40" },
+                                                };
+                                                const cfg = actionCfg[paneLog.action];
                                                 return (
                                                     <div key={paneLog._id} className="relative pl-7 pb-4">
-                                                        <div className={`absolute left-0 top-1.5 w-3 h-3 rounded-full ${actionCfg?.dot ?? "bg-slate-400"}`} />
+                                                        <div className={`absolute left-0 top-1.5 w-3 h-3 rounded-full ${cfg?.dot ?? "bg-slate-400"}`} />
                                                         <div className="bg-slate-50/50 dark:bg-slate-800/30 rounded-lg border border-slate-100 dark:border-slate-800 p-3 hover:border-slate-200 dark:hover:border-slate-700 transition-colors">
                                                             <div className="flex items-start justify-between gap-3 mb-2">
                                                                 <div className="flex flex-col gap-1">
-                                                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium border ${actionCfg?.cls ?? ""}`}>
-                                                                        {actionCfg?.icon}
-                                                                        {actionCfg?.label ?? paneLog.action}
+                                                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium border ${cfg?.cls ?? ""}`}>
+                                                                        {cfg?.icon}
+                                                                        {cfg?.label ?? paneLog.action}
                                                                     </span>
                                                                     <div className="flex items-center gap-1 text-[11px] text-slate-400 mt-0.5">
                                                                         <Clock className="h-2.5 w-2.5" />
@@ -1214,10 +1205,13 @@ export default function MaterialLogsPage() {
                                                                 <span className="font-mono text-xs font-medium text-slate-600 dark:text-slate-300 shrink-0">{pane?.paneNumber ?? "—"}</span>
                                                             </div>
                                                             <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
-                                                                <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 px-2 py-0.5 rounded-md">{getStationName(paneLog.station)}</span>
+                                                                <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 px-2 py-0.5 rounded-md">{(() => {
+                                                                    const sid = getStationId(paneLog.station);
+                                                                    return (sid ? stationMap.get(sid)?.name : null) ?? getStationName(paneLog.station) ?? "—";
+                                                                })()}</span>
                                                                 {order && (
                                                                     <span className="text-[11px] font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 rounded-md">
-                                                                        #{(order._id ?? "").slice(-6).toUpperCase()}
+                                                                        {order.orderNumber ?? `#${(order._id ?? "").slice(-6).toUpperCase()}`}
                                                                     </span>
                                                                 )}
                                                                 {workerName && (
@@ -1252,6 +1246,122 @@ export default function MaterialLogsPage() {
                 </div>
             </SheetContent>
         </Sheet>
+
+        {/* Pane Detail Modal */}
+        {viewingPane && (
+            <div
+                className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-0 sm:p-4"
+                onClick={() => { setViewingPane(null); setIsDetailOpen(true); }}
+            >
+                <div
+                    className="bg-white dark:bg-slate-900 w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-h-[80vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200"
+                    onClick={(ev) => ev.stopPropagation()}
+                >
+                    <div className="flex items-center gap-3 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 shrink-0">
+                        <Layers className="h-5 w-5 text-slate-400 shrink-0" />
+                        <span className="text-base font-bold text-slate-900 dark:text-white font-mono flex-1 truncate">
+                            {viewingPane.paneNumber}
+                        </span>
+                        <button
+                            onClick={() => { setViewingPane(null); setIsDetailOpen(true); }}
+                            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
+                        >
+                            <X className="h-5 w-5" />
+                        </button>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                        {(() => {
+                            const p = viewingPane;
+                            const dims = p.dimensions;
+                            const dimStr = dims && (dims.width > 0 || dims.height > 0)
+                                ? `${dims.width} × ${dims.height}${dims.thickness > 0 ? ` × ${dims.thickness}` : ""} mm`
+                                : null;
+                            const rawGlassStr = p.rawGlass
+                                ? [p.rawGlass.glassType, p.rawGlass.color, p.rawGlass.thickness ? `${p.rawGlass.thickness}mm` : null, p.rawGlass.sheetsPerPane > 1 ? `${p.rawGlass.sheetsPerPane} แผ่น/ชิ้น` : null].filter(Boolean).join(" · ")
+                                : null;
+                            const statusLabel: Record<string, string> = { pending: "รอดำเนินการ", in_progress: "กำลังดำเนินการ", completed: "เสร็จแล้ว", awaiting_scan_out: "รอสแกนออก", claimed: "ถูกเคลม" };
+                            const curStName = (() => {
+                                if (!p.currentStation) {
+                                    if (p.currentStatus === "completed") return "เสร็จแล้ว";
+                                    if (p.currentStatus === "pending") return p.laminateRole === "parent" ? "รอประกบ" : "คิว";
+                                    return "—";
+                                }
+                                const sid = getStationId(p.currentStation);
+                                return (sid ? stationMap.get(sid)?.name : null) ?? getStationName(p.currentStation) ?? "—";
+                            })();
+                            const rows: { label: string; value: string | null }[] = [
+                                { label: "หมายเลข", value: p.paneNumber },
+                                { label: "QR Code", value: p.qrCode },
+                                { label: "สถานะ", value: statusLabel[p.currentStatus] ?? p.currentStatus },
+                                { label: "สถานีปัจจุบัน", value: curStName },
+                                { label: "ขนาด", value: dimStr },
+                                { label: "กระจกดิบ", value: rawGlassStr },
+                                { label: "ประเภทงาน", value: p.jobType ?? null },
+                            ];
+                            if (p.laminateRole === "parent") rows.push({ label: "ลามิเนต", value: `Parent — ${p.childPanes?.length ?? 0} แผ่นดิบ` });
+                            if (p.laminateRole === "sheet") rows.push({ label: "ลามิเนต", value: `Sheet ${p.sheetLabel ?? ""}` });
+
+                            return (
+                                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800">
+                                    {rows.filter(r => r.value).map(r => (
+                                        <div key={r.label} className="flex items-start gap-3 px-4 py-2.5">
+                                            <span className="text-xs font-semibold text-slate-400 w-24 shrink-0 pt-0.5">{r.label}</span>
+                                            <span className="text-sm font-medium text-slate-800 dark:text-slate-200 break-all min-w-0">{r.value}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            );
+                        })()}
+
+                        {(viewingPane.processes?.length ?? 0) > 0 && (
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">กระบวนการ</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {viewingPane.processes.map((proc, i) => (
+                                        <span key={i} className="text-xs font-medium px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400">{proc}</span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {(viewingPane.edgeTasks?.length ?? 0) > 0 && (
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">งานขอบ</p>
+                                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800">
+                                    {viewingPane.edgeTasks.map((et, i) => (
+                                        <div key={i} className="flex items-center gap-3 px-4 py-2.5">
+                                            <span className="text-xs font-bold text-slate-500 w-12 shrink-0 uppercase">{et.side}</span>
+                                            <span className="text-[13px] font-medium text-slate-700 dark:text-slate-300 flex-1 truncate">{et.edgeProfile}{et.machineType ? ` (${et.machineType})` : ""}</span>
+                                            <span className={`text-[10px] font-bold shrink-0 ${et.status === "completed" ? "text-green-600" : et.status === "in_progress" ? "text-blue-600" : "text-slate-400"}`}>
+                                                {et.status === "completed" ? "เสร็จ" : et.status === "in_progress" ? "กำลังทำ" : "รอ"}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Link to production page */}
+                        {(() => {
+                            const oid = typeof viewingPane.order === "string" ? viewingPane.order : (viewingPane.order as unknown as Record<string, string>)?._id;
+                            if (!oid) return null;
+                            return (
+                                <button
+                                    type="button"
+                                    onClick={() => window.open(`/production/${oid}`, "_blank")}
+                                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors"
+                                >
+                                    <Factory className="h-4 w-4" />
+                                    {lang === "th" ? "ดูในหน้าการผลิต" : "View in production"}
+                                    <ChevronRight className="h-4 w-4" />
+                                </button>
+                            );
+                        })()}
+                    </div>
+                </div>
+            </div>
+        )}
         </>
     );
 }

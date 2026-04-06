@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useEffect, useState } from "react";
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, 
     Tooltip, ResponsiveContainer, Cell, Legend 
@@ -12,6 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { Timer, Factory, Box, Info, Maximize2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTheme } from "next-themes";
+import { stationsApi } from "@/lib/api/stations";
+import { Station } from "@/lib/api/types";
 
 interface ProductionAnalyticsProps {
     materialId?: string;
@@ -22,6 +24,17 @@ export function ProductionAnalytics({ materialId }: ProductionAnalyticsProps) {
     const { theme } = useTheme();
     const { stats, loading } = useProductionStats();
     const [metric, setMetric] = React.useState<"duration" | "area">("duration");
+    const [stationMap, setStationMap] = useState<Map<string, string>>(new Map());
+
+    useEffect(() => {
+        stationsApi.getAll().then(res => {
+            if (res?.data) {
+                const map = new Map<string, string>();
+                (res.data as Station[]).forEach(s => map.set(s._id, s.name));
+                setStationMap(map);
+            }
+        }).catch(() => {});
+    }, []);
 
     const chartData = useMemo(() => {
         if (!stats) return [];
@@ -30,8 +43,8 @@ export function ProductionAnalytics({ materialId }: ProductionAnalyticsProps) {
         if (materialId && stats[materialId]) {
             const matStats = stats[materialId];
             return Object.values(matStats.averages).map(avg => ({
-                name: avg.stationId,
-                display: avg.stationId.slice(-6).toUpperCase(),
+                name: stationMap.get(avg.stationId) ?? avg.stationId.slice(-6).toUpperCase(),
+                display: stationMap.get(avg.stationId) ?? avg.stationId.slice(-6).toUpperCase(),
                 duration: Math.round(avg.averageMs / 1000 / 60 * 10) / 10,
                 area: Math.round(avg.totalAreaSqm * 100) / 100,
                 count: avg.count
@@ -50,13 +63,13 @@ export function ProductionAnalytics({ materialId }: ProductionAnalyticsProps) {
         });
 
         return Object.entries(stationSums).map(([stationId, data]) => ({
-            name: stationId,
-            display: stationId.slice(-6).toUpperCase(),
+            name: stationMap.get(stationId) ?? stationId.slice(-6).toUpperCase(),
+            display: stationMap.get(stationId) ?? stationId.slice(-6).toUpperCase(),
             duration: Math.round(data.totalMs / data.count / 1000 / 60 * 10) / 10,
             area: Math.round(data.totalArea * 100) / 100,
             count: data.count
         })).sort((a, b) => metric === "duration" ? b.duration - a.duration : b.area - a.area);
-    }, [stats, materialId, metric]);
+    }, [stats, materialId, metric, stationMap]);
 
     if (loading) {
         return (
