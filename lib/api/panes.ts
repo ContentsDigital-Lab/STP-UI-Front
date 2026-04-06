@@ -2,7 +2,7 @@ import { fetchApi } from "./config";
 import { ApiResponse, Pane, PaginatedResponse } from "./types";
 
 export const panesApi = {
-    getAll: async (params?: { order?: string; request?: string; material?: string; status_ne?: string; laminateRole?: string; parentPane?: string; page?: number; limit?: number; sort?: string }): Promise<PaginatedResponse<Pane>> => {
+    getAll: async (params?: { order?: string; request?: string; material?: string; status_ne?: string; laminateRole?: string; parentPane?: string; page?: number; limit?: number; sort?: string; populate?: string }): Promise<PaginatedResponse<Pane>> => {
         const qs = new URLSearchParams();
         if (params?.order)        qs.set("order",        params.order);
         if (params?.request)      qs.set("request",      params.request);
@@ -13,6 +13,7 @@ export const panesApi = {
         if (params?.page)         qs.set("page",         String(params.page));
         if (params?.limit)        qs.set("limit",        String(params.limit));
         if (params?.sort)         qs.set("sort",         params.sort);
+        if (params?.populate)     qs.set("populate",     params.populate);
         const query = qs.toString();
         return fetchApi<PaginatedResponse<Pane>>(`/panes${query ? `?${query}` : ""}`, {
             method: "GET",
@@ -64,6 +65,21 @@ export const panesApi = {
         mergedSheets?: number;
     }>> => {
         return fetchApi(`/panes/${encodeURIComponent(paneNumber)}/scan`, {
+            method: "POST",
+            body: JSON.stringify(data),
+        });
+    },
+
+    batchScan: async (data: {
+        paneNumbers: string[];
+        station: string;
+        action: "scan_in" | "start" | "complete";
+        worker?: string;
+    }): Promise<ApiResponse<{
+        panes: Pane[];
+        logs: Record<string, unknown>[];
+    }>> => {
+        return fetchApi("/panes/batch-scan", {
             method: "POST",
             body: JSON.stringify(data),
         });

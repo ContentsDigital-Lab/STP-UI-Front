@@ -58,11 +58,11 @@ export interface Material {
   unit: string;
   reorderPoint: number;
   specDetails: {
-    thickness?: string;
+    thickness?: number;
     color?: string;
     glassType?: string;
-    width?: string;
-    length?: string;
+    width?: number;
+    length?: number;
   };
   createdAt: string;
   updatedAt: string;
@@ -89,7 +89,7 @@ export interface MaterialLog {
   totalPrice?: number;
   stockType?: "Raw" | "Reuse";
   order?: string | Order;
-  pane?: string | Pane;
+  panes?: (string | Pane)[];
   parentLog?: string | MaterialLog;
   worker?: string | Worker;
   createdAt: string;
@@ -184,7 +184,7 @@ export interface Pane {
     | "claimed";
   routing: (string | { _id: string; name: string })[];
   customRouting: boolean;
-  dimensions: { width: number; height: number; thickness: number };
+  dimensions: { width: number; height: number; thickness: number; area?: number };
   glassType: string;
   glassTypeLabel: string;
   processes: string[];
@@ -260,7 +260,7 @@ export interface Withdrawal {
   material: string | Material;
   quantity: number;
   stockType: "Raw" | "Reuse";
-  pane?: string | Pane;
+  panes?: (string | Pane)[];
   inventory?: string | Inventory;
   withdrawnDate: string;
   createdAt: string;

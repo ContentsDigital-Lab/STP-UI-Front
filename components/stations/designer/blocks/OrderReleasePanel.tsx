@@ -441,9 +441,9 @@ export function OrderReleasePanel({
           currentStatus: "pending",
           routing: stationsToSave.length > 0 ? stationsToSave : undefined,
           dimensions: {
-            width: spec?.width ? parseFloat(spec.width) || 0 : 0,
-            height: spec?.length ? parseFloat(spec.length) || 0 : 0,
-            thickness: spec?.thickness ? parseFloat(spec.thickness) || 0 : 0,
+            width: Number(spec?.width) || 0,
+            height: Number(spec?.length) || 0,
+            thickness: Number(spec?.thickness) || 0,
           },
           glassType: mId || undefined,
           glassTypeLabel: matName(order.material) || undefined,

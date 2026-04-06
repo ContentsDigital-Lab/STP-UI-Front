@@ -27,7 +27,7 @@ function getMaterialSpec(material: unknown): string {
   const m = material as Material;
   const parts: string[] = [];
   if (m.specDetails?.glassType) parts.push(m.specDetails.glassType);
-  if (m.specDetails?.thickness) parts.push(m.specDetails.thickness);
+  if (m.specDetails?.thickness) parts.push(String(m.specDetails.thickness));
   if (m.specDetails?.color) parts.push(m.specDetails.color);
   return parts.join(" / ");
 }

@@ -85,7 +85,7 @@ export function WithdrawModal({ stationId, onClose, initialPane }: WithdrawModal
                     const mat = typeof inv.material === "object" ? inv.material as Material : null;
                     if (!mat?.specDetails) return false;
                     const typeMatch = (mat.specDetails.glassType ?? "").toLowerCase() === rg.glassType.toLowerCase();
-                    const thicknessMatch = !rg.thickness || parseInt(mat.specDetails.thickness ?? "0") === rg.thickness;
+                    const thicknessMatch = !rg.thickness || (mat.specDetails.thickness ?? 0) === rg.thickness;
                     const colorMatch = !rg.color ||
                         (mat.specDetails.color ?? "").toLowerCase().includes(rg.color.toLowerCase()) ||
                         rg.color.toLowerCase().includes((mat.specDetails.color ?? "").toLowerCase());

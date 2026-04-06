@@ -545,7 +545,7 @@ export default function CreateBillPage() {
                     const extraThicknesses = new Set<string>();
                     for (const mat of matRes.data) {
                         const gt = mat.specDetails?.glassType?.trim();
-                        const th = mat.specDetails?.thickness?.trim();
+                        const th = mat.specDetails?.thickness?.toString()?.trim();
                         if (gt) rawTypes.add(gt);
                         if (th) {
                             const num = parseInt(th);

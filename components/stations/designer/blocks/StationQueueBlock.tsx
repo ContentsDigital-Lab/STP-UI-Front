@@ -2,12 +2,12 @@
 
 import { useNode } from "@craftjs/core";
 import { useCallback, useEffect, useRef, useState, KeyboardEvent } from "react";
-import {
-    ScanBarcode, Camera, CheckCircle2, XCircle, Loader2,
-    Package, RotateCcw, ListChecks, MapPin,
-    ChevronDown, ChevronRight, Play, CheckCheck, PackageOpen, QrCode,
-    AlertTriangle, Layers, Merge, Timer,
+import { 
+    RotateCcw, Camera, ScanBarcode, QrCode, XCircle, CheckCircle2, AlertTriangle, 
+    ChevronDown, ChevronRight, Package, Grid3X3, PackageOpen, Loader2, MapPin, 
+    Layers, Merge, Bell, CheckCheck, Play, Maximize, Box, ListChecks
 } from "lucide-react";
+import { toast } from "sonner";
 import { panesApi } from "@/lib/api/panes";
 import { Pane } from "@/lib/api/types";
 import { parseQrScan } from "@/lib/utils/parseQrScan";
@@ -28,9 +28,6 @@ interface StationQueueBlockProps {
     title?: string;
 }
 
-/** Local phase for each in_progress pane.
- *  Backend only has in_progress for both "scan_in done" and "start done" states,
- *  so we track the distinction in component state. */
 type PanePhase = "confirmed" | "started";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -54,12 +51,6 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
     const { stationId, stationName, isLaminateStation, setPaneData, triggerRefresh, refreshCounter } = useStationContext();
 
     const inputRef = useRef<HTMLInputElement>(null);
-    /**
-     * Panes scanned in this session that may not pass the station filter yet
-     * (backend can store currentStation as slug, ObjectId, or display name —
-     * we keep these panes visible until they naturally appear via fetchPanes or
-     * are explicitly completed / after a 60-second grace period).
-     */
     const guardedPanesRef = useRef<Map<string, Pane>>(new Map());
 
     const [panes,         setPanes]         = useState<Pane[]>([]);
@@ -67,22 +58,21 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
     const [phases,        setPhases]        = useState<Record<string, PanePhase>>({});
     const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
     const [actionResult,  setActionResult]  = useState<Record<string, "success" | "error">>({});
-    const [now,           setNow]           = useState(Date.now());
     const [scanError,     setScanError]     = useState<string | null>(null);
     const [showCamera,    setShowCamera]    = useState(false);
-    /** Set of orderId that are manually collapsed */
     const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-    /** Pane whose QR code is being displayed */
     const [qrPane, setQrPane] = useState<Pane | null>(null);
 
-    /** Station mismatch confirmation */
+    const [viewMode,      setViewMode]      = useState<"order" | "cutting">("order");
+    const [selectedPanes, setSelectedPanes] = useState<Set<string>>(new Set());
+    const [batchLoading,  setBatchLoading]  = useState(false);
+
     const [mismatchInfo, setMismatchInfo] = useState<{
         paneStation: string;
         thisStation: string;
         paneNumber: string;
     } | null>(null);
 
-    // ── Laminate pairing board state ──────────────────────────────────────────
     interface LaminateGroup {
         parent: Pane;
         sheets: Pane[];
@@ -95,24 +85,23 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
     const [mergeLoading, setMergeLoading] = useState<Record<string, boolean>>({});
     const [mergeResult, setMergeResult] = useState<Record<string, "success" | "error">>({});
 
-    // ── Fetch in_progress panes at this station ───────────────────────────────
     const fetchPanes = useCallback(async () => {
         if (!stationId && !stationName) return;
         setLoading(true);
         try {
-            const res = await panesApi.getAll({ limit: 300 }).catch(() => null);
+            const res = await panesApi.getAll({ 
+                limit: 500,
+                populate: "order,order.request" 
+            }).catch(() => null);
             if (!res || !res.success || !Array.isArray(res.data)) return;
 
             const atStation = res.data.filter(p =>
                 isStationMatch(p.currentStation, stationId, stationName) && p.currentStatus === "in_progress",
             );
 
-            // Merge: keep locally-scanned panes the filter hasn't matched yet
-            // (backend may use a different currentStation format: slug vs ObjectId vs name)
             const merged = [...atStation];
             for (const [id, guardedPane] of guardedPanesRef.current.entries()) {
                 if (atStation.some(p => p._id === id)) {
-                    // Now properly returned by API — remove from guard
                     guardedPanesRef.current.delete(id);
                 } else {
                     merged.push(guardedPane);
@@ -120,7 +109,6 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
             }
             setPanes(merged);
 
-            // Sync local phase map: add "confirmed" for new panes, remove stale ones
             setPhases(prev => {
                 const next = { ...prev };
                 const currentIds = new Set(merged.map(p => p._id));
@@ -140,20 +128,13 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
     useEffect(() => { fetchPanes(); }, [fetchPanes, refreshCounter]);
     useWebSocket("pane", ["pane:updated"], () => { setQrPane(null); fetchPanes(); if (isLaminateStation) fetchLaminateGroups(); });
 
-    // ── Live timer update ─────────────────────────────────────────────────────
-    useEffect(() => {
-        const timer = setInterval(() => setNow(Date.now()), 1000);
-        return () => clearInterval(timer);
-    }, []);
-
-    // ── Laminate: fetch parent/sheet groups at this station ───────────────────
     const fetchLaminateGroups = useCallback(async () => {
         if (!isLaminateStation || !stationId) return;
         try {
             const sheetsRes = await panesApi.getAll({ laminateRole: "sheet", limit: 500 });
             if (!sheetsRes?.success) return;
 
-            const allSheetData = sheetsRes.data.filter(s => s.currentStatus !== "claimed");
+            const allSheetData = (sheetsRes.data as Pane[]).filter(s => s.currentStatus !== "claimed");
 
             const sheetsByParent = new Map<string, Pane[]>();
             for (const s of allSheetData) {
@@ -208,13 +189,11 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
 
     useEffect(() => { if (isLaminateStation) fetchLaminateGroups(); }, [fetchLaminateGroups, refreshCounter]);
 
-    // Laminate WebSocket events
     useWebSocket("station", ["laminate:ready", "laminate:waiting", "pane:laminated"], () => {
         if (isLaminateStation) fetchLaminateGroups();
         fetchPanes();
     });
 
-    // ── Laminate merge action ─────────────────────────────────────────────────
     async function handleMerge(parentPaneNumber: string, parentId: string) {
         if (!stationId) return;
         setMergeLoading(prev => ({ ...prev, [parentId]: true }));
@@ -241,7 +220,81 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
         }
     }
 
-    // ── Group panes by order ──────────────────────────────────────────────────
+    const seenPaneIds = useRef<Set<string>>(new Set());
+
+    useEffect(() => {
+        if (loading || panes.length === 0) return;
+        
+        const urgentPanes = panes.filter(p => {
+            const pObj = (typeof p.order === "object" ? p.order : null) as any;
+            const priority = pObj?.priority ?? 0;
+            return priority >= 3 && !seenPaneIds.current.has(p._id);
+        });
+
+        if (urgentPanes.length > 0) {
+            const target = urgentPanes[0];
+            toast.error(`พบงานด่วนใหม่! ${target.paneNumber}`, {
+                description: "ลำดับความด่วน P3 ถูกดันขึ้นหัวคิวแล้ว",
+                icon: <Bell className="h-4 w-4 text-red-500 animate-bounce" />,
+                duration: 10000,
+            });
+
+            const audio = new Audio("https://cdn.pixabay.com/audio/2022/03/10/audio_c350718d7c.mp3");
+            audio.play().catch(() => console.log("Sound blocked"));
+            
+            panes.forEach(p => seenPaneIds.current.add(p._id));
+        } else {
+            panes.forEach(p => seenPaneIds.current.add(p._id));
+        }
+    }, [panes, loading]);
+
+    const materialGroups = (() => {
+        const atStation = panes.filter(p =>
+            isStationMatch(p.currentStation, stationId, stationName) && 
+            p.currentStatus === "in_progress" &&
+            p.withdrawal // Show only panes that have been withdrawn
+        );
+        const map = new Map<string, {
+            label: string;
+            thickness?: number;
+            color?: string;
+            glassType?: string;
+            materialId?: string;
+            material?: any;
+            panes: Pane[]
+        }>();
+
+        for (const p of atStation) {
+            const matObj = (typeof p.material === "object" ? p.material : null) as any;
+            const mid = typeof p.material === "string" ? p.material : (matObj?._id || "unknown");
+            const glassType = p.glassType || matObj?.specDetails?.glassType || "ทั่วไป";
+            const thickness = p.dimensions?.thickness || matObj?.specDetails?.thickness || 0;
+            const color = matObj?.specDetails?.color || "";
+            
+            const groupKey = `${glassType}-${thickness}-${color}-${mid}`;
+            if (!map.has(groupKey)) {
+                map.set(groupKey, {
+                    label: `${glassType} ${thickness > 0 ? `${thickness}mm` : ""} ${color}`.trim(),
+                    thickness,
+                    color,
+                    glassType,
+                    materialId: mid,
+                    material: matObj,
+                    panes: []
+                });
+            }
+            map.get(groupKey)!.panes.push(p);
+        }
+
+        return [...map.entries()]
+            .map(([key, v]) => ({ 
+                key, 
+                ...v,
+                panes: v.panes.sort((a, b) => (b.dimensions?.area ?? 0) - (a.dimensions?.area ?? 0))
+            }))
+            .sort((a, b) => a.label.localeCompare(b.label));
+    })();
+
     const orderGroups = (() => {
         const filtered = isLaminateStation
             ? panes.filter(p => {
@@ -250,17 +303,79 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                 return true;
             })
             : panes;
-        const map = new Map<string, { label: string; panes: Pane[] }>();
+        const map = new Map<string, { label: string; panes: Pane[]; priority: number; createdAt: string; deadline: string }>();
         for (const p of filtered) {
             const oid   = extractOrderId(p);
             const label = extractOrderLabel(p);
-            if (!map.has(oid)) map.set(oid, { label, panes: [] });
+            if (!map.has(oid)) {
+                const orderObj = (typeof p.order === "object" ? p.order : null) as any;
+                const reqObj   = (typeof orderObj?.request === "object" ? orderObj?.request : null) as any;
+                
+                map.set(oid, { 
+                    label, 
+                    panes: [],
+                    priority: orderObj?.priority ?? 0,
+                    createdAt: orderObj?.createdAt ?? p.createdAt,
+                    deadline: orderObj?.deadline || reqObj?.deadline || ""
+                });
+            }
             map.get(oid)!.panes.push(p);
         }
-        return [...map.entries()].map(([orderId, v]) => ({ orderId, label: v.label, panes: v.panes }));
+
+        return [...map.entries()]
+            .map(([orderId, v]) => ({ orderId, label: v.label, panes: v.panes, priority: v.priority, createdAt: v.createdAt, deadline: v.deadline }))
+            .sort((a, b) => {
+                if (b.priority !== a.priority) return b.priority - a.priority;
+                if (a.deadline && b.deadline) {
+                    const dtA = new Date(a.deadline).getTime();
+                    const dtB = new Date(b.deadline).getTime();
+                    if (dtA !== dtB) return dtA - dtB;
+                }
+                return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+            });
     })();
 
-    // ── Scan → scan_in ───────────────────────────────────────────────────────
+    async function handleBatchAction(action: "start" | "complete", panesToProcess: Pane[]) {
+        if (!stationId || panesToProcess.length === 0) return;
+        setBatchLoading(true);
+        setScanError(null);
+        try {
+            const paneNumbers = panesToProcess.map(p => p.paneNumber);
+            const res = await panesApi.batchScan({ paneNumbers, station: stationId, action });
+            if (!res.success) throw new Error(res.message || "ดำเนินการแบบกลุ่มไม่สำเร็จ");
+            setSelectedPanes(prev => {
+                const n = new Set(prev);
+                panesToProcess.forEach(p => n.delete(p._id));
+                return n;
+            });
+            triggerRefresh();
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการทำงานแบบกลุ่ม";
+            setScanError(msg);
+        } finally {
+            setBatchLoading(false);
+        }
+    }
+
+    function togglePaneSelection(id: string) {
+        setSelectedPanes(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    }
+
+    function selectAllInGroup(groupPanes: Pane[]) {
+        const allSelected = groupPanes.every(p => selectedPanes.has(p._id));
+        setSelectedPanes(prev => {
+            const next = new Set(prev);
+            if (allSelected) groupPanes.forEach(p => next.delete(p._id));
+            else groupPanes.forEach(p => next.add(p._id));
+            return next;
+        });
+    }
+
     async function handleScan(raw: string) {
         const trimmed = raw.trim();
         if (!trimmed) return;
@@ -270,18 +385,16 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
         const pn = parsed.type === "pane" ? parsed.value : trimmed.replace(/^STDPLUS:/i, "").trim();
         setScanError(null);
 
-        if (!stationId) { setScanError("ไม่ระบุสถานี — กรุณาเปิดจากหน้าสถานี"); return; }
+        if (!stationId) { setScanError("ไม่ระบุสถานี"); return; }
 
-        // Already in queue (already in_progress)?
         const already = panes.find(p => p.paneNumber === pn || p.paneNumber.endsWith(pn));
         if (already) {
             const oid = extractOrderId(already);
             setCollapsed(prev => { const n = new Set(prev); n.delete(oid); return n; });
-            setScanError(`"${pn}" อยู่ในคิวแล้ว — ดูในรายการด้านล่าง`);
+            setScanError(`"${pn}" อยู่ในคิวแล้ว`);
             return;
         }
 
-        // Pre-check: verify the pane's current station matches this station
         try {
             const lookupRes = await panesApi.getById(pn);
             if (lookupRes.success && lookupRes.data) {
@@ -289,17 +402,11 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                 const paneStationStr = getStationName(cs);
                 const isHere = !cs || isStationMatch(cs, stationId, stationName);
                 if (!isHere) {
-                    setMismatchInfo({
-                        paneStation: paneStationStr,
-                        thisStation: stationName ?? "",
-                        paneNumber: pn,
-                    });
+                    setMismatchInfo({ paneStation: paneStationStr, thisStation: stationName ?? "", paneNumber: pn });
                     return;
                 }
             }
-        } catch {
-            // lookup failed — proceed with scan anyway
-        }
+        } catch { /* ignore */ }
 
         await executeScanIn(pn);
     }
@@ -308,22 +415,14 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
         const tempKey = `scan-${pn}`;
         setActionLoading(prev => ({ ...prev, [tempKey]: true }));
         try {
-            const res = await panesApi.scan(pn, {
-                station: stationId!,
-                action: "scan_in",
-                ...(force ? { force: true } : {}),
-            });
+            const res = await panesApi.scan(pn, { station: stationId!, action: "scan_in", ...(force ? { force: true } : {}) });
             if (!res.success) throw new Error(res.message ?? "สแกนไม่สำเร็จ");
-
-            const scannedPane = res.data.pane;
-
+            const scannedPane = res.data.pane as Pane;
             guardedPanesRef.current.set(scannedPane._id, { ...scannedPane, currentStatus: "in_progress" });
             const pid = scannedPane._id;
             setTimeout(() => { guardedPanesRef.current.delete(pid); }, 60_000);
-
             setPanes(prev => prev.some(p => p._id === scannedPane._id) ? prev : [...prev, scannedPane]);
             setPhases(prev => prev[scannedPane._id] ? prev : { ...prev, [scannedPane._id]: "confirmed" });
-
             setPaneData(scannedPane as unknown as Record<string, unknown>);
             triggerRefresh();
         } catch (err) {
@@ -341,15 +440,9 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
         await executeScanIn(pn, true);
     }
 
-    function handleMismatchDismiss() {
-        setMismatchInfo(null);
-    }
+    function handleMismatchDismiss() { setMismatchInfo(null); }
+    function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) { if (e.key === "Enter") handleScan(e.currentTarget.value); }
 
-    function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-        if (e.key === "Enter") handleScan(e.currentTarget.value);
-    }
-
-    // ── Per-pane action (start / complete) ────────────────────────────────────
     async function doAction(pane: Pane, action: "start" | "complete") {
         if (!stationId) { setScanError("ไม่ระบุสถานี"); return; }
         setActionLoading(prev => ({ ...prev, [pane._id]: true }));
@@ -358,16 +451,11 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
             const res = await panesApi.scan(pane.paneNumber, { station: stationId, action });
             if (!res.success) throw new Error(res.message ?? "ดำเนินการไม่สำเร็จ");
             setPaneData(res.data.pane as unknown as Record<string, unknown>);
-
             if (action === "start") {
-                // Advance local phase; pane stays in queue
                 setPhases(prev => ({ ...prev, [pane._id]: "started" }));
                 setActionResult(prev => ({ ...prev, [pane._id]: "success" }));
-                setTimeout(() => {
-                    setActionResult(prev => { const n = { ...prev }; delete n[pane._id]; return n; });
-                }, 1500);
+                setTimeout(() => { setActionResult(prev => { const n = { ...prev }; delete n[pane._id]; return n; }); }, 1500);
             } else {
-                // complete → pane leaves the queue, remove guard so fetchPanes can clean it up
                 guardedPanesRef.current.delete(pane._id);
                 triggerRefresh();
             }
@@ -375,520 +463,471 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
             const msg = err instanceof Error ? err.message : "เกิดข้อผิดพลาด";
             setActionResult(prev => ({ ...prev, [pane._id]: "error" }));
             setScanError(msg);
-            setTimeout(() => {
-                setActionResult(prev => { const n = { ...prev }; delete n[pane._id]; return n; });
-            }, 3000);
+            setTimeout(() => { setActionResult(prev => { const n = { ...prev }; delete n[pane._id]; return n; }); }, 3000);
         } finally {
             setActionLoading(prev => { const n = { ...prev }; delete n[pane._id]; return n; });
         }
     }
 
-    // ── Designer preview ──────────────────────────────────────────────────────
-    if (!isPreview) {
+    if (isPreview) {
+        const isCutStation = Boolean(stationName && /ตัด|cut/i.test(stationName));
+        const scanningCount = Object.values(actionLoading).filter(Boolean).length;
+
         return (
-            <div
-                ref={(ref) => { ref && connect(drag(ref)); }}
-                className={`rounded-xl border-2 p-3 select-none cursor-grab active:cursor-grabbing transition-colors ${
-                    selected ? "border-primary bg-primary/5" : "border-dashed border-muted-foreground/30 hover:border-primary/50"
-                }`}
-            >
-                <div className="flex flex-wrap items-center gap-1 mb-2">
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-[10px] font-medium">
-                        <ListChecks className="h-2.5 w-2.5" />
-                        Station Queue
-                    </span>
-                    <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px] font-medium">
-                        scan_in → เริ่ม → เสร็จสิ้น
-                    </span>
-                    <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-medium">
-                        grouped by order
-                    </span>
-                </div>
-
-                {/* Scan input preview */}
-                <div className="flex items-center gap-2 pointer-events-none mb-2">
-                    <div className="flex-1 rounded-xl border border-muted bg-background px-3 py-2 flex items-center gap-2">
-                        <ScanBarcode className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
-                        <span className="text-[11px] text-muted-foreground/40 truncate">สแกน QR เพื่อยืนยันกระจกเข้าสถานีนี้...</span>
-                    </div>
-                    <div className="shrink-0 rounded-xl border border-muted bg-background p-2">
-                        <Camera className="h-4 w-4 text-muted-foreground/40" />
-                    </div>
-                </div>
-
-                {/* Skeleton order groups */}
-                <div className="space-y-2 opacity-50 pointer-events-none">
-                    {([
-                        { order: "ORD-001", rows: [{ phase: "started", w: "w-20" }, { phase: "started", w: "w-16" }] },
-                        { order: "ORD-002", rows: [{ phase: "confirmed", w: "w-24" }] },
-                    ] as const).map((g, i) => (
-                        <div key={i} className="rounded-xl border border-muted overflow-hidden">
-                            <div className="flex items-center gap-2 px-3 py-2 bg-muted/20 border-b border-muted">
-                                <Package className="h-3 w-3 text-muted-foreground/60" />
-                                <span className="text-[11px] font-bold text-muted-foreground">ออเดอร์ {g.order}</span>
-                                <span className="text-[10px] text-muted-foreground ml-auto">{g.rows.length} ชิ้น</span>
-                                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/50" />
-                            </div>
-                            <div className="divide-y divide-muted/30">
-                                {g.rows.map((row, j) => (
-                                    <div key={j} className="flex items-center gap-3 px-3 py-2">
-                                        <span className={`h-2 w-2 rounded-full shrink-0 ${row.phase === "started" ? "bg-blue-500" : "bg-amber-400"}`} />
-                                        <div className={`h-3 ${row.w} rounded bg-muted`} />
-                                        <div className="ml-auto">
-                                            <div className={`h-6 w-20 rounded-lg ${row.phase === "started" ? "bg-emerald-100 dark:bg-emerald-900/30" : "bg-blue-100 dark:bg-blue-900/30"}`} />
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+            <div className="w-full space-y-3">
+                <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                            <h3 className="text-sm font-bold text-foreground truncate">{title}</h3>
+                            {panes.length > 0 && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+                                    {panes.length} ชิ้น
+                                </span>
+                            )}
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-400">
+                                <Bell className="h-2.5 w-2.5" /> Urgency System Active
+                            </span>
                         </div>
-                    ))}
-                </div>
-
-                <p className="text-[10px] text-emerald-500 dark:text-emerald-400 mt-2">
-                    🏭 คิวกระจกแบ่งตามออเดอร์ · realtime · scan_in → เริ่ม → เสร็จสิ้น
-                </p>
-            </div>
-        );
-    }
-
-    // ── Live UI ───────────────────────────────────────────────────────────────
-    const scanningCount = Object.values(actionLoading).filter(Boolean).length;
-
-    // Cut station: withdrawal must exist before worker can start
-    const isCutStation = Boolean(
-        stationName && /ตัด|cut/i.test(stationName)
-    );
-
-    return (
-        <div className="w-full space-y-3">
-
-            {/* Header */}
-            <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                    <h3 className="text-sm font-bold text-foreground truncate">{title}</h3>
-                    {panes.length > 0 && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
-                            <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
-                            {panes.length} ชิ้น
-                        </span>
-                    )}
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                    {stationName && (
-                        <span className="hidden sm:inline-flex items-center gap-1 text-[10px] text-muted-foreground">
-                            <MapPin className="h-3 w-3" />{stationName}
-                        </span>
-                    )}
-                    <button
-                        onClick={fetchPanes}
-                        disabled={loading}
-                        className="p-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-40"
-                        title="รีเฟรช"
-                    >
-                        <RotateCcw className={`h-3.5 w-3.5 text-muted-foreground ${loading ? "animate-spin" : ""}`} />
-                    </button>
-                </div>
-            </div>
-
-            {/* Scan input */}
-            <div className="flex flex-col sm:flex-row gap-1.5 sm:gap-2">
-                <div className="relative flex-1 min-w-0">
-                    <ScanBarcode className={`absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none ${scanningCount > 0 ? "text-primary animate-pulse" : "text-muted-foreground/50"}`} />
-                    <input
-                        ref={inputRef}
-                        type="text"
-                        placeholder="สแกน QR เพื่อยืนยันกระจกเข้าสถานีนี้..."
-                        onKeyDown={handleKeyDown}
-                        autoComplete="off"
-                        autoFocus
-                        className="w-full rounded-xl border bg-background pl-9 sm:pl-10 pr-3 sm:pr-4 py-2 sm:py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 placeholder:text-muted-foreground/40"
-                    />
-                </div>
-                <button
-                    onClick={() => setShowCamera(true)}
-                    title="สแกนด้วยกล้อง"
-                    className="shrink-0 rounded-xl bg-blue-600 hover:bg-blue-500 active:bg-blue-700 sm:bg-background sm:hover:bg-muted sm:border sm:border-input px-2.5 sm:px-3 py-2.5 transition-colors flex items-center justify-center gap-1.5 sm:w-auto"
-                >
-                    <Camera className="h-4 w-4 text-white sm:text-muted-foreground" />
-                    <span className="sm:hidden text-xs font-medium text-white">สแกนเข้าด้วยกล้อง</span>
-                </button>
-            </div>
-
-            {/* Scan error banner */}
-            {scanError && (
-                <div className="flex items-start gap-2 rounded-xl border border-red-200 dark:border-red-800/50 bg-red-50 dark:bg-red-900/20 px-3 py-2.5">
-                    <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-                    <p className="flex-1 text-xs text-red-600 dark:text-red-400 font-medium whitespace-pre-line">{scanError}</p>
-                    <button onClick={() => setScanError(null)} className="text-red-400 hover:text-red-500 shrink-0 transition-colors">
-                        <XCircle className="h-3.5 w-3.5" />
-                    </button>
-                </div>
-            )}
-
-            {/* Laminate pairing board */}
-            {isLaminateStation && laminateGroups.length > 0 && (
-                <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                        <Layers className="h-3.5 w-3.5 text-violet-500" />
-                        <h4 className="text-xs font-bold text-foreground">บอร์ดจับคู่ลามิเนต</h4>
-                        <span className="text-[10px] text-muted-foreground">{laminateGroups.length} ชุด</span>
+                        <div className="flex items-center gap-1 shrink-0">
+                            {stationName && (
+                                <span className="hidden sm:inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                                    <MapPin className="h-3 w-3" />{stationName}
+                                </span>
+                            )}
+                            <button
+                                onClick={fetchPanes}
+                                disabled={loading}
+                                className="p-1.5 rounded-lg hover:bg-muted transition-colors disabled:opacity-40"
+                                title="รีเฟรช"
+                            >
+                                <RotateCcw className={`h-3.5 w-3.5 text-muted-foreground ${loading ? "animate-spin" : ""}`} />
+                            </button>
+                        </div>
                     </div>
+
+                    {isCutStation && (
+                        <div className="flex p-0.5 rounded-xl bg-muted/40 border border-muted w-full sm:w-fit self-start">
+                            <button
+                                onClick={() => setViewMode("order")}
+                                className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                    viewMode === "order"
+                                        ? "bg-white dark:bg-slate-900 shadow-sm text-foreground border border-border"
+                                        : "text-muted-foreground hover:text-foreground"
+                                }`}
+                            >
+                                <Package className="h-3.5 w-3.5" />
+                                ตามออเดอร์
+                            </button>
+                            <button
+                                onClick={() => setViewMode("cutting")}
+                                className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                    viewMode === "cutting"
+                                        ? "bg-white dark:bg-slate-900 shadow-sm text-foreground border border-border"
+                                        : "text-muted-foreground hover:text-foreground"
+                                }`}
+                            >
+                                <Grid3X3 className="h-3.5 w-3.5" />
+                                ตามรุ่นกระจก
+                            </button>
+                        </div>
+                    )}
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-1.5 sm:gap-2">
+                    <div className="relative flex-1 min-w-0">
+                        <ScanBarcode className={`absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none ${scanningCount > 0 ? "text-primary animate-pulse" : "text-muted-foreground/50"}`} />
+                        <input
+                            ref={inputRef}
+                            type="text"
+                            placeholder="สแกน QR เพื่อยืนยันกระจกเข้าสถานีนี้..."
+                            onKeyDown={handleKeyDown}
+                            autoComplete="off"
+                            autoFocus
+                            className="w-full rounded-xl border bg-background pl-9 sm:pl-10 pr-3 sm:pr-4 py-2 sm:py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 placeholder:text-muted-foreground/40"
+                        />
+                    </div>
+                    <button
+                        onClick={() => setShowCamera(true)}
+                        title="สแกนด้วยกล้อง"
+                        className="shrink-0 rounded-xl bg-blue-600 hover:bg-blue-500 active:bg-blue-700 sm:bg-background sm:hover:bg-muted sm:border sm:border-input px-2.5 sm:px-3 py-2.5 transition-colors flex items-center justify-center gap-1.5 sm:w-auto"
+                    >
+                        <Camera className="h-4 w-4 text-white sm:text-muted-foreground" />
+                        <span className="sm:hidden text-xs font-medium text-white">สแกนด้วยกล้อง</span>
+                    </button>
+                </div>
+
+                {scanError && (
+                    <div className="flex items-start gap-2 rounded-xl border border-red-200 dark:border-red-800/50 bg-red-50 dark:bg-red-900/20 px-3 py-2.5">
+                        <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                        <p className="flex-1 text-xs text-red-600 dark:text-red-400 font-medium whitespace-pre-line">{scanError}</p>
+                        <button onClick={() => setScanError(null)} className="text-red-400 hover:text-red-500 shrink-0 transition-colors">
+                            <XCircle className="h-3.5 w-3.5" />
+                        </button>
+                    </div>
+                )}
+
+                {isLaminateStation && laminateGroups.length > 0 && (
                     <div className="space-y-2">
-                        {laminateGroups.map(group => {
-                            const pid = group.parent._id;
-                            const isMerging = mergeLoading[pid];
-                            const mResult = mergeResult[pid];
-                            return (
-                                <div key={pid} className={`rounded-xl border overflow-hidden ${
-                                    group.ready
-                                        ? "border-emerald-300 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-950/20"
-                                        : group.sheetsPresent >= group.sheetsTotal
-                                            ? "border-amber-300 dark:border-amber-700 bg-amber-50/30 dark:bg-amber-950/10"
+                        <div className="flex items-center gap-2">
+                            <Layers className="h-3.5 w-3.5 text-violet-500" />
+                            <h4 className="text-xs font-bold text-foreground">บอร์ดจับคู่ลามิเนต</h4>
+                            <span className="text-[10px] text-muted-foreground">{laminateGroups.length} ชุด</span>
+                        </div>
+                        <div className="space-y-2">
+                            {laminateGroups.map(group => {
+                                const pid = group.parent._id;
+                                const isMerging = mergeLoading[pid];
+                                const mResult = mergeResult[pid];
+                                return (
+                                    <div key={pid} className={`rounded-xl border overflow-hidden ${
+                                        group.ready
+                                            ? "border-emerald-300 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-950/20"
                                             : "border-border bg-card"
-                                }`}>
-                                    <div className="px-3 py-2.5 flex items-center gap-2">
-                                        <Layers className={`h-3.5 w-3.5 shrink-0 ${group.ready ? "text-emerald-500" : "text-muted-foreground"}`} />
-                                        <div className="flex-1 min-w-0">
-                                            <span className="font-mono text-xs font-bold text-foreground">{group.parent.paneNumber}</span>
-                                            {group.parent.dimensions && (
-                                                <span className="text-[10px] text-muted-foreground ml-1.5">
-                                                    {group.parent.dimensions.width}×{group.parent.dimensions.height}
-                                                </span>
+                                    }`}>
+                                        <div className="px-3 py-2.5 flex items-center justify-between gap-2">
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                <Layers className={`h-3.5 w-3.5 shrink-0 ${group.ready ? "text-emerald-500" : "text-muted-foreground"}`} />
+                                                <span className="font-mono text-xs font-bold text-foreground truncate">{group.parent.paneNumber}</span>
+                                            </div>
+                                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                                                group.ready
+                                                    ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300"
+                                                    : "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"
+                                            }`}>
+                                                {group.sheetsPresent}/{group.sheetsTotal} แผ่น
+                                            </span>
+                                        </div>
+                                        <div className="border-t border-border/50 divide-y divide-border/30">
+                                            {group.sheets.map(sheet => {
+                                                const isHere = isStationMatch(sheet.currentStation, stationId, stationName) && sheet.currentStatus !== "completed";
+                                                const isWorking = isHere && sheet.currentStatus === "in_progress";
+                                                return (
+                                                    <div key={sheet._id} className="flex items-center gap-2 px-3 py-2">
+                                                        <span className={`h-2 w-2 rounded-full shrink-0 ${isWorking ? "bg-emerald-500" : isHere ? "bg-amber-400" : "bg-slate-300"}`} />
+                                                        <span className="font-mono text-[11px] text-foreground flex-1">{sheet.paneNumber}</span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                        <div className="p-2 bg-muted/20 border-t">
+                                            {mResult === "success" ? (
+                                                <div className="flex items-center justify-center gap-1.5 text-emerald-600 text-xs font-bold py-1.5"><CheckCircle2 className="h-4 w-4" />สำเร็จ</div>
+                                            ) : (
+                                                <button
+                                                    onClick={() => handleMerge(group.parent.paneNumber, pid)}
+                                                    disabled={!group.ready || isMerging}
+                                                    className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
+                                                        group.ready ? "bg-violet-600 hover:bg-violet-500 text-white" : "bg-muted text-muted-foreground grayscale"
+                                                    }`}
+                                                >
+                                                    {isMerging ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Merge className="h-3.5 w-3.5" />}
+                                                    {group.ready ? "ประกบลามิเนต" : "รอแผ่นกระจกครบ"}
+                                                </button>
                                             )}
                                         </div>
-                                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
-                                            group.ready
-                                                ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300"
-                                                : "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"
-                                        }`}>
-                                            {group.sheetsPresent}/{group.sheetsTotal} แผ่น
-                                        </span>
                                     </div>
-                                    <div className="border-t border-border/50 divide-y divide-border/30">
-                                        {group.sheets.map(sheet => {
-                                            const isHere = isStationMatch(sheet.currentStation, stationId, stationName) && sheet.currentStatus !== "completed";
-                                            const isWorking = isHere && sheet.currentStatus === "in_progress";
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {loading && panes.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
+                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                        <span className="text-sm font-medium">กำลังโหลดคิว...</span>
+                    </div>
+                ) : (viewMode === "order" ? orderGroups : materialGroups).length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-20 gap-3 border-2 border-dashed border-muted rounded-2xl bg-muted/5">
+                        <PackageOpen className="h-10 w-10 text-muted-foreground/30" />
+                        <div className="text-center">
+                            <p className="text-sm font-bold text-foreground">ยังไม่มีกระจกในคิว</p>
+                            <p className="text-xs text-muted-foreground mt-1">สแกน QR เพื่อยืนยันเข้าสถานีเป็นรายการแรก</p>
+                        </div>
+                    </div>
+                ) : viewMode === "order" ? (
+                    <div className="space-y-3">
+                        {orderGroups.map(({ orderId, label, panes: groupPanes, priority }) => {
+                            const isExpanded = !collapsed.has(orderId);
+                            const withdrawnCount = groupPanes.filter(p => p.withdrawal).length;
+                            const urgencyCls = priority >= 3 
+                                ? "border-red-500 dark:border-red-400 bg-red-50/80 dark:bg-red-950/30 shadow-red-200/50 dark:shadow-red-900/20 animate-pulse-subtle" 
+                                : priority >= 2 
+                                ? "border-amber-400 dark:border-amber-500/60 bg-amber-50/50 dark:bg-amber-900/10 shadow-amber-100/30"
+                                : "border-border bg-card shadow-sm";
+                            
+                            return (
+                                <div key={orderId} className={`rounded-xl border overflow-hidden transition-all duration-500 ${urgencyCls}`}>
+                                    <button
+                                        onClick={() => setCollapsed(prev => {
+                                            const next = new Set(prev);
+                                            if (next.has(orderId)) next.delete(orderId);
+                                            else next.add(orderId);
+                                            return next;
+                                        })}
+                                        className="w-full flex items-center gap-3 px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors text-left"
+                                    >
+                                        <Package className="h-4 w-4 text-primary shrink-0" />
+                                        <div className="flex flex-1 items-center gap-2 min-w-0">
+                                            <span className="text-xs font-bold text-foreground truncate">ออเดอร์ {label}</span>
+                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                                                priority >= 3 ? "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400" :
+                                                priority >= 2 ? "bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400" :
+                                                priority >= 1 ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300" :
+                                                "bg-slate-100 dark:bg-slate-200 text-slate-500 dark:text-slate-600"
+                                            }`}>
+                                                P{priority}
+                                            </span>
+                                        </div>
+                                        {isCutStation && (
+                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${withdrawnCount === groupPanes.length ? "bg-emerald-100 text-emerald-700" : "bg-orange-100 text-orange-700"}`}>
+                                                เบิก {withdrawnCount}/{groupPanes.length}
+                                            </span>
+                                        )}
+                                        <span className="text-[10px] text-muted-foreground font-medium shrink-0">{groupPanes.length} ชิ้น</span>
+                                        {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                                    </button>
+
+                                    {isExpanded && (
+                                        <div className="divide-y divide-border/40">
+                                            {groupPanes.map(pane => {
+                                                const phase = phases[pane._id] ?? "confirmed";
+                                                const isLoading = actionLoading[pane._id];
+                                                const result = actionResult[pane._id];
+
+                                                return (
+                                                    <div key={pane._id} className="flex items-center gap-4 px-4 py-3 bg-card hover:bg-muted/5 transition-colors">
+                                                        <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${phase === "started" ? "bg-blue-500 animate-pulse" : "bg-amber-400"}`} />
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-mono text-xs font-bold text-foreground leading-none">{pane.paneNumber}</span>
+                                                                {isCutStation && !pane.withdrawal && <span className="text-[9px] font-bold text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30 px-1 rounded">ยังไม่เบิก</span>}
+                                                            </div>
+                                                            <div className="text-[10px] text-muted-foreground mt-0.5 flex flex-wrap gap-x-2">
+                                                                <span>{pane.glassTypeLabel}</span>
+                                                                <span className="font-medium opacity-60">{pane.dimensions?.width}×{pane.dimensions?.height}</span>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex items-center gap-2 shrink-0">
+                                                            {pane.qrCode && (
+                                                                <button onClick={(e) => { e.stopPropagation(); setQrPane(pane); }} className="p-1.5 rounded-lg border hover:bg-muted text-muted-foreground">
+                                                                    <QrCode className="h-3.5 w-3.5" />
+                                                                </button>
+                                                            )}
+
+                                                            {result === "success" ? (
+                                                                <div className="h-8 w-8 flex items-center justify-center text-emerald-600"><CheckCircle2 className="h-5 w-5" /></div>
+                                                            ) : result === "error" ? (
+                                                                <div className="h-8 w-8 flex items-center justify-center text-red-500"><XCircle className="h-5 w-5" /></div>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={() => doAction(pane, phase === "started" ? "complete" : "start")}
+                                                                    disabled={isLoading}
+                                                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-all active:scale-[0.98] disabled:opacity-50 disabled:grayscale ${
+                                                                        phase === "started" ? "bg-emerald-600 hover:bg-emerald-500" : "bg-blue-600 hover:bg-blue-500"
+                                                                    }`}
+                                                                >
+                                                                    {isLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : phase === "started" ? <CheckCheck className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                                                                    <span>{phase === "started" ? "เสร็จ" : "เริ่ม"}</span>
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        {materialGroups.map((group) => {
+                            const groupSelected = group.panes.filter(p => selectedPanes.has(p._id));
+                            const isAllSelected = groupSelected.length === group.panes.length && group.panes.length > 0;
+                            const isAnySelected = groupSelected.length > 0;
+                            const totalAreaM2 = groupSelected.reduce((sum, p) => sum + (p.dimensions?.area ?? 0), 0) / 1_000_000;
+                            const msWidth = group.material?.specDetails?.width || 0;
+                            const msLength = group.material?.specDetails?.length || 0;
+                            const msAreaM2 = (msWidth * msLength) / 1_000_000;
+                            const efficiency = msAreaM2 > 0 ? (totalAreaM2 / msAreaM2) * 100 : 0;
+
+                            return (
+                                <div key={group.key} className="rounded-2xl border border-border bg-card overflow-hidden shadow-md">
+                                    <div className="px-4 py-3 bg-muted/20 border-b flex items-center gap-3">
+                                        <button 
+                                            onClick={() => selectAllInGroup(group.panes)}
+                                            className={`h-5 w-5 rounded-md border-2 flex items-center justify-center transition-all ${
+                                                isAllSelected ? "bg-primary border-primary text-white" : isAnySelected ? "bg-primary/20 border-primary text-primary" : "bg-background border-muted-foreground/30"
+                                            }`}
+                                        >
+                                            {isAllSelected && <CheckCheck className="h-3.5 w-3.5" />}
+                                            {!isAllSelected && isAnySelected && <div className="h-2 w-2 rounded-sm bg-primary" />}
+                                        </button>
+                                        <div className="flex-1 min-w-0">
+                                            <h4 className="text-sm font-bold text-foreground truncate">{group.label}</h4>
+                                            <p className="text-[10px] text-muted-foreground font-medium">{group.panes.length} ชิ้นในระบบ</p>
+                                        </div>
+                                        {isAnySelected && (
+                                            <button 
+                                                onClick={() => handleBatchAction("complete", groupSelected)}
+                                                disabled={batchLoading}
+                                                className="px-4 py-2 flex items-center  rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-lg active:scale-95 disabled:opacity-50"
+                                            >
+                                                {batchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCheck className="h-4 w-4" />}
+                                                <span className="ml-2">สำเร็จ {groupSelected.length} ชิ้น</span>
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {isAnySelected && msAreaM2 > 0 && (
+                                        <div className="px-4 py-3 bg-blue-50/50 dark:bg-blue-900/10 border-b border-blue-100/50">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
+                                                    <Maximize className="h-3.5 w-3.5" />
+                                                    <span className="text-[10px] font-bold">ความคุ้มค่าพื้นผิว</span>
+                                                </div>
+                                                <span className={`text-[11px] font-bold ${efficiency > 90 ? "text-emerald-600" : "text-blue-600"}`}>{efficiency.toFixed(1)}%</span>
+                                            </div>
+                                            <div className="h-2 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                                                <div className="h-full bg-blue-500 transition-all duration-500" style={{ width: `${Math.min(100, efficiency)}%` }} />
+                                            </div>
+                                            <div className="flex justify-between mt-1 text-[9px] text-muted-foreground font-medium">
+                                                <span>งานรวม: {totalAreaM2.toFixed(3)} m²</span>
+                                                <span>แผ่นมาตราฐาน: {msAreaM2.toFixed(3)} m² ({msWidth}×{msLength})</span>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="divide-y divide-border/40 max-h-[400px] overflow-y-auto">
+                                        {group.panes.map(pane => {
+                                            const isSelected = selectedPanes.has(pane._id);
+                                            const phase = phases[pane._id] ?? "confirmed";
                                             return (
-                                                <div key={sheet._id} className="flex items-center gap-2 px-3 py-1.5">
-                                                    <span className={`h-2 w-2 rounded-full shrink-0 ${
-                                                        isWorking ? "bg-emerald-500" : isHere ? "bg-amber-400" : "bg-slate-300 dark:bg-slate-600"
-                                                    }`} />
-                                                    <span className="font-mono text-[11px] font-medium text-foreground">
-                                                        {sheet.paneNumber}
-                                                    </span>
-                                                    {sheet.sheetLabel && (
-                                                        <span className="text-[10px] font-semibold px-1 py-0.5 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300">
-                                                            Sheet {sheet.sheetLabel}
-                                                        </span>
-                                                    )}
-                                                    <span className={`ml-auto text-[10px] font-medium ${
-                                                        isWorking
-                                                            ? "text-emerald-600 dark:text-emerald-400"
-                                                            : isHere
-                                                                ? "text-amber-600 dark:text-amber-400"
-                                                                : "text-muted-foreground"
-                                                    }`}>
-                                                        {isWorking ? "เข้างานแล้ว" : isHere ? "มาถึง — รอสแกนเข้า" : getStationName(sheet.currentStation) || "อยู่ระหว่างทาง"}
-                                                    </span>
+                                                <div 
+                                                    key={pane._id}
+                                                    onClick={() => togglePaneSelection(pane._id)}
+                                                    className={`flex items-center gap-3 px-4 py-3 transition-colors cursor-pointer ${isSelected ? "bg-primary/5 dark:bg-primary/10" : "hover:bg-muted/30"}`}
+                                                >
+                                                    <div className={`h-4 w-4 rounded border transition-all flex items-center justify-center ${isSelected ? "bg-primary border-primary text-white" : "border-muted-foreground/30"}`}>
+                                                        {isSelected && <CheckCheck className="h-2.5 w-2.5" />}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-mono text-xs font-bold text-foreground">{pane.paneNumber}</span>
+                                                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-bold">ORD: {extractOrderLabel(pane)}</span>
+                                                        </div>
+                                                        <div className="text-[10px] text-muted-foreground mt-0.5 font-medium">
+                                                            {pane.dimensions?.width}×{pane.dimensions?.height} mm · Area: {((pane.dimensions?.area ?? 0) / 1_000_000).toFixed(4)} m²
+                                                        </div>
+                                                    </div>
+                                                    <div className="shrink-0 flex items-center gap-2">
+                                                        <span className={`h-2 w-2 rounded-full ${phase === "started" ? "bg-blue-500 animate-pulse" : "bg-amber-400"}`} />
+                                                        <span className="text-[10px] font-bold text-muted-foreground">{phase === "started" ? "เริ่มแล้ว" : "รอตัด"}</span>
+                                                    </div>
                                                 </div>
                                             );
                                         })}
-                                    </div>
-                                    <div className="border-t border-border/50 px-3 py-2">
-                                        {mResult === "success" ? (
-                                            <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
-                                                <CheckCircle2 className="h-4 w-4" />
-                                                <span className="text-xs font-semibold">ลามิเนตสำเร็จ!</span>
-                                            </div>
-                                        ) : mResult === "error" ? (
-                                            <div className="flex items-center gap-1.5 text-red-500">
-                                                <XCircle className="h-4 w-4" />
-                                                <span className="text-xs font-medium">ผิดพลาด</span>
-                                            </div>
-                                        ) : (
-                                            <button
-                                                onClick={() => handleMerge(group.parent.paneNumber, pid)}
-                                                disabled={!group.ready || isMerging}
-                                                className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all active:scale-[0.98] ${
-                                                    group.ready
-                                                        ? "bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white"
-                                                        : "bg-muted text-muted-foreground cursor-not-allowed"
-                                                }`}
-                                            >
-                                                {isMerging
-                                                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                                    : <Merge className="h-3.5 w-3.5" />
-                                                }
-                                                {group.ready
-                                                    ? "ประกบลามิเนต"
-                                                    : group.sheetsPresent < group.sheetsTotal
-                                                        ? `รอแผ่นดิบ ${group.sheetsPresent}/${group.sheetsTotal}`
-                                                        : `รอสแกนเข้างาน ${group.sheetsWorking}/${group.sheetsTotal}`
-                                                }
-                                            </button>
-                                        )}
                                     </div>
                                 </div>
                             );
                         })}
                     </div>
+                )}
+
+                {/* Modals */}
+                {showCamera && (
+                    <CameraScanModal
+                        onScan={(raw) => { setShowCamera(false); handleScan(raw); }}
+                        onClose={() => setShowCamera(false)}
+                    />
+                )}
+
+                {qrPane && (
+                    <QrCodeModal
+                        code={qrPane.paneNumber}
+                        value={qrPane.qrCode}
+                        label={`กระจก ${qrPane.paneNumber}`}
+                        onClose={() => setQrPane(null)}
+                    />
+                )}
+
+                {mismatchInfo && (
+                    <Dialog open onOpenChange={(open) => { if (!open) handleMismatchDismiss(); }}>
+                        <DialogContent showCloseButton={false} className="sm:max-w-md">
+                            <DialogHeader>
+                                <DialogTitle className="flex items-center gap-2 text-amber-600"><AlertTriangle className="h-5 w-5" />สถานีไม่ตรงกัน</DialogTitle>
+                                <DialogDescription className="pt-2">
+                                    Glass Pane นี้อยู่ที่สถานี &ldquo;{mismatchInfo.paneStation}&rdquo; แต่คุณกำลังสแกนที่ &ldquo;{mismatchInfo.thisStation}&rdquo;
+                                    <span className="block mt-2 font-bold text-amber-700">ต้องการดำเนินการต่อหรือไม่?</span>
+                                </DialogDescription>
+                            </DialogHeader>
+                            <DialogFooter className="gap-2 sm:gap-0">
+                                <Button variant="outline" onClick={handleMismatchDismiss}>ยกเลิก</Button>
+                                <Button onClick={handleMismatchConfirm} className="bg-amber-600 hover:bg-amber-500 text-white">ยืนยันดำเนินการ</Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+                )}
+            </div>
+        );
+    }
+
+    // ── Designer View (Craft.js) ──────────────────────────────────────────────
+    return (
+        <div
+            ref={(ref) => { ref && connect(drag(ref)); }}
+            className={`rounded-xl border-2 p-3 select-none cursor-grab active:cursor-grabbing transition-colors ${
+                selected ? "border-primary bg-primary/5" : "border-dashed border-muted-foreground/30 hover:border-primary/50"
+            }`}
+        >
+            <div className="flex flex-wrap items-center gap-1 mb-2">
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-[10px] font-medium">
+                    <ListChecks className="h-2.5 w-2.5" />
+                    Station Queue
+                </span>
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px] font-medium">
+                    scan_in → เริ่ม → เสร็จสิ้น
+                </span>
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-medium">
+                    grouped by order
+                </span>
+            </div>
+
+            {/* Scan input preview */}
+            <div className="flex items-center gap-2 pointer-events-none mb-2">
+                <div className="flex-1 rounded-xl border border-muted bg-background px-3 py-2 flex items-center gap-2">
+                    <ScanBarcode className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
+                    <span className="text-[11px] text-muted-foreground/40 truncate">สแกน QR เพื่อยืนยันกระจกเข้าสถานีนี้...</span>
                 </div>
-            )}
-
-            {/* Queue content */}
-            {loading && panes.length === 0 ? (
-                <div className="flex items-center justify-center gap-2 py-10 text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span className="text-sm">กำลังโหลด...</span>
+                <div className="shrink-0 rounded-xl border border-muted bg-background p-2">
+                    <Camera className="h-4 w-4 text-muted-foreground/40" />
                 </div>
-            ) : !stationId && !stationName ? (
-                <div className="flex flex-col items-center justify-center py-10 gap-2 text-muted-foreground">
-                    <MapPin className="h-8 w-8 opacity-30" />
-                    <p className="text-sm font-medium">ไม่ได้เปิดจากหน้าสถานี</p>
-                    <p className="text-xs opacity-60">Block นี้ต้องใช้งานจากหน้าสถานีเท่านั้น</p>
+            </div>
+
+            <p className="text-[11px] font-bold text-foreground mb-2">คิวสถานี ({panes.length})</p>
+
+            {/* Skeleton order groups */}
+            <div className="space-y-2 opacity-50 pointer-events-none">
+                <div className="rounded-xl border border-muted overflow-hidden">
+                    <div className="flex items-center gap-2 px-3 py-2 bg-muted/20 border-b border-muted">
+                        <Package className="h-3.5 w-3.5 text-muted-foreground/60" />
+                        <span className="text-[11px] font-bold text-muted-foreground">Preview Queue</span>
+                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/50 ml-auto" />
+                    </div>
+                    <div className="p-4 flex flex-col items-center justify-center gap-2">
+                        <Box className="h-8 w-8 text-muted-foreground/20" />
+                        <span className="text-[10px] text-muted-foreground">ระบบจำลองการทำงานจริง</span>
+                    </div>
                 </div>
-            ) : orderGroups.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-10 gap-2 text-muted-foreground">
-                    <Package className="h-8 w-8 opacity-30" />
-                    <p className="text-sm font-medium">ยังไม่มีกระจกในคิว</p>
-                    <p className="text-xs opacity-60 text-center">สแกน QR กระจกจาก "รายการข้อมูล" เพื่อยืนยันเข้าสถานีนี้</p>
-                </div>
-            ) : (
-                <div className="space-y-3">
-                    {orderGroups.map(({ orderId, label, panes: groupPanes }) => {
-                        const isExpanded   = !collapsed.has(orderId); // default open
-                        const startedCount = groupPanes.filter(p => (phases[p._id] ?? "confirmed") === "started").length;
-                        const confirmedCount = groupPanes.length - startedCount;
-                        const withdrawnCount = isCutStation ? groupPanes.filter(p => p.withdrawal).length : groupPanes.length;
+            </div>
 
-                        return (
-                            <div key={orderId} className="rounded-xl border border-border overflow-hidden">
-                                {/* Order header row */}
-                                <button
-                                    type="button"
-                                    onClick={() => setCollapsed(prev => {
-                                        const next = new Set(prev);
-                                        if (next.has(orderId)) next.delete(orderId);
-                                        else next.add(orderId);
-                                        return next;
-                                    })}
-                                    className="w-full flex items-center gap-2 px-3 py-2.5 bg-muted/30 hover:bg-muted/50 transition-colors text-left border-b border-border/50"
-                                >
-                                    <Package className="h-3.5 w-3.5 text-primary shrink-0" />
-                                    <span className="text-xs font-bold text-foreground flex-1 truncate">ออเดอร์ {label}</span>
-                                    {startedCount > 0 && (
-                                        <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px] font-semibold shrink-0">
-                                            <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
-                                            {startedCount} กำลังทำ
-                                        </span>
-                                    )}
-                                    {confirmedCount > 0 && (
-                                        <span className="px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[10px] font-semibold shrink-0">
-                                            {confirmedCount} รอ
-                                        </span>
-                                    )}
-                                    {isCutStation && (
-                                        <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold shrink-0 ${
-                                            withdrawnCount === groupPanes.length
-                                                ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400"
-                                                : "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400"
-                                        }`}>
-                                            <PackageOpen className="h-2.5 w-2.5" />
-                                            เบิกแล้ว {withdrawnCount}/{groupPanes.length}
-                                        </span>
-                                    )}
-                                    <span className="text-[10px] text-muted-foreground shrink-0">{groupPanes.length} ชิ้น</span>
-                                    {isExpanded
-                                        ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                                        : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                                    }
-                                </button>
-
-                                {/* Pane rows */}
-                                {isExpanded && (
-                                    <div className="divide-y divide-border/40">
-                                        {groupPanes.map(pane => {
-                                            const phase     = phases[pane._id] ?? "confirmed";
-                                            const isLoading = actionLoading[pane._id];
-                                            const result    = actionResult[pane._id];
-
-                                            return (
-                                                <div
-                                                    key={pane._id}
-                                                    className="flex items-center gap-3 px-3 py-2.5 bg-card hover:bg-muted/10 transition-colors"
-                                                >
-                                                    {/* Phase dot */}
-                                                    <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${
-                                                        phase === "started" ? "bg-blue-500 animate-pulse" : "bg-amber-400"
-                                                    }`} />
-
-                                                    {/* Pane info */}
-                                                    <div className="flex-1 min-w-0">
-                                                        {/* Line 1: pane number + sheet label + withdrawal badge */}
-                                                        <div className="flex items-center gap-1.5">
-                                                            <span className="font-mono text-xs font-bold text-foreground leading-none shrink-0">
-                                                                {pane.paneNumber}
-                                                            </span>
-                                                            {pane.laminateRole === "sheet" && pane.sheetLabel && (
-                                                                <span className="text-[9px] font-bold px-1 py-0.5 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 shrink-0">
-                                                                    Sheet {pane.sheetLabel}
-                                                                </span>
-                                                            )}
-                                                            {isCutStation && (
-                                                                pane.withdrawal
-                                                                    ? <span className="whitespace-nowrap text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 shrink-0">เบิกแล้ว</span>
-                                                                    : <span className="whitespace-nowrap text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-950/30 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800 shrink-0">ยังไม่เบิก</span>
-                                                            )}
-                                                        </div>
-                                                        {/* Line 2: glass type label + dimensions */}
-                                                        {(pane.glassTypeLabel || (pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0))) && (
-                                                            <div className="flex items-center gap-1 mt-0.5 min-w-0">
-                                                                {pane.glassTypeLabel && (
-                                                                    <span className="text-[10px] text-muted-foreground truncate">{pane.glassTypeLabel}</span>
-                                                                )}
-                                                                {pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0) && (
-                                                                    <span className="text-[10px] text-muted-foreground/60 shrink-0">
-                                                                        {pane.dimensions.width}×{pane.dimensions.height}
-                                                                        {pane.dimensions.thickness > 0 && ` (${pane.dimensions.thickness}mm)`}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                        {/* Line 3: phase status */}
-                                                        <span className={`text-[10px] font-medium mt-0.5 block ${
-                                                            phase === "started"
-                                                                ? "text-blue-600 dark:text-blue-400 font-bold"
-                                                                : "text-amber-600 dark:text-amber-400"
-                                                        }`}>
-                                                            {phase === "started" ? (
-                                                                <span className="flex items-center gap-1">
-                                                                    <Timer className="h-3 w-3" />
-                                                                    กำลังดำเนินการ: {
-                                                                        (() => {
-                                                                            const start = new Date(pane.updatedAt).getTime();
-                                                                            const diff = Math.max(0, Math.floor((now - start) / 1000));
-                                                                            const h = Math.floor(diff / 3600);
-                                                                            const m = Math.floor((diff % 3600) / 60);
-                                                                            const s = diff % 60;
-                                                                            return `${h > 0 ? `${h}:` : ""}${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-                                                                        })()
-                                                                    }
-                                                                </span>
-                                                            ) : "ยืนยันแล้ว — รอเริ่ม"}
-                                                        </span>
-                                                    </div>
-
-                                                    {/* QR code button */}
-                                                    {pane.qrCode && (
-                                                        <button
-                                                            onClick={() => setQrPane(pane)}
-                                                            title="แสดง QR Code กระจก"
-                                                            className="shrink-0 p-1.5 rounded-lg border border-border hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-                                                        >
-                                                            <QrCode className="h-3.5 w-3.5" />
-                                                        </button>
-                                                    )}
-
-                                                    {/* Action button */}
-                                                    {result === "success" ? (
-                                                        <span className="shrink-0 flex items-center gap-1 text-emerald-600 dark:text-emerald-400 text-xs font-semibold animate-in fade-in">
-                                                            <CheckCircle2 className="h-4 w-4" />
-                                                            สำเร็จ
-                                                        </span>
-                                                    ) : result === "error" ? (
-                                                        <span className="shrink-0 flex items-center gap-1 text-red-500 text-xs font-medium">
-                                                            <XCircle className="h-4 w-4" />
-                                                            ผิดพลาด
-                                                        </span>
-                                                    ) : phase === "confirmed" ? (
-                                                        <button
-                                                            onClick={() => doAction(pane, "start")}
-                                                            disabled={isLoading || (isCutStation && !pane.withdrawal)}
-                                                            title={isCutStation && !pane.withdrawal ? "ต้องเบิกกระจกก่อนเริ่มตัด" : undefined}
-                                                            className="shrink-0 flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
-                                                        >
-                                                            {isLoading
-                                                                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                                                : <Play className="h-3.5 w-3.5" />
-                                                            }
-                                                            <span className="hidden sm:inline">เริ่มดำเนินการ</span>
-                                                            <span className="sm:hidden">เริ่ม</span>
-                                                        </button>
-                                                    ) : (
-                                                        <button
-                                                            onClick={() => doAction(pane, "complete")}
-                                                            disabled={isLoading}
-                                                            className="shrink-0 flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-[11px] sm:text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
-                                                        >
-                                                            {isLoading
-                                                                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                                                : <CheckCheck className="h-3.5 w-3.5" />
-                                                            }
-                                                            <span className="hidden sm:inline">เสร็จสิ้น</span>
-                                                            <span className="sm:hidden">เสร็จ</span>
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
-
-            {/* Camera modal */}
-            {showCamera && (
-                <CameraScanModal
-                    onScan={(raw) => { setShowCamera(false); handleScan(raw); }}
-                    onClose={() => setShowCamera(false)}
-                />
-            )}
-
-            {/* QR code modal */}
-            {qrPane && (
-                <QrCodeModal
-                    code={qrPane.paneNumber}
-                    value={qrPane.qrCode}
-                    label={`กระจก ${qrPane.paneNumber}`}
-                    onClose={() => setQrPane(null)}
-                />
-            )}
-
-            {/* Station mismatch confirmation */}
-            {mismatchInfo && (
-                <Dialog open onOpenChange={(open) => { if (!open) handleMismatchDismiss(); }}>
-                    <DialogContent showCloseButton={false} className="sm:max-w-md">
-                        <DialogHeader>
-                            <DialogTitle className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
-                                <AlertTriangle className="h-5 w-5" />
-                                สถานีไม่ตรงกัน
-                            </DialogTitle>
-                            <DialogDescription className="pt-2 space-y-2">
-                                <span className="block">
-                                    Pane นี้อยู่ที่สถานี <strong className="text-foreground">&ldquo;{mismatchInfo.paneStation}&rdquo;</strong>
-                                    {" "}แต่คุณกำลังสแกนที่สถานี <strong className="text-foreground">&ldquo;{mismatchInfo.thisStation}&rdquo;</strong>
-                                </span>
-                                <span className="block text-amber-600 dark:text-amber-400 font-medium">
-                                    คุณแน่ใจหรือไม่ว่าต้องการดำเนินการต่อ?
-                                </span>
-                            </DialogDescription>
-                        </DialogHeader>
-                        <DialogFooter>
-                            <Button variant="outline" onClick={handleMismatchDismiss}>ยกเลิก</Button>
-                            <Button
-                                onClick={handleMismatchConfirm}
-                                className="bg-amber-600 hover:bg-amber-500 text-white"
-                            >
-                                ดำเนินการต่อ
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-            )}
-
+            <p className="text-[10px] text-emerald-500 dark:text-emerald-400 mt-2">
+                🏭 คิวกระจกแบ่งตามออเดอร์ · realtime · scan_in → เริ่ม → เสร็จสิ้น
+            </p>
         </div>
     );
 }

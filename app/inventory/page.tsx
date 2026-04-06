@@ -534,9 +534,10 @@ export default function InventoryPage() {
     };
 
     // Append "mm" unit if value is purely numeric (no existing unit)
-    const addMmUnit = (val?: string): string => {
-        if (!val) return '—';
-        return /^[\d.,\s]+$/.test(val.trim()) ? `${val} mm` : val;
+    const addMmUnit = (val?: string | number): string => {
+        if (val === undefined || val === null || val === '') return '—';
+        const str = String(val);
+        return /^[\d.,\s]+$/.test(str.trim()) ? `${str} mm` : str;
     };
 
     // Helper to get material info
@@ -580,7 +581,7 @@ export default function InventoryPage() {
                 inv.location.toLowerCase().includes(searchLower);
             const matchesType = stockTypeFilter === "all" || inv.stockType === stockTypeFilter;
             const matchesLocation = locationFilter === "all" || inv.location === locationFilter;
-            const matchesThickness = thicknessFilter === "all" || mat?.specDetails?.thickness === thicknessFilter;
+            const matchesThickness = thicknessFilter === "all" || mat?.specDetails?.thickness?.toString() === thicknessFilter;
             const matchesColor = colorFilter === "all" || mat?.specDetails?.color === colorFilter;
             const matchesGlassType = glassTypeFilter === "all" || mat?.specDetails?.glassType === glassTypeFilter;
 

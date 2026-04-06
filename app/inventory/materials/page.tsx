@@ -104,11 +104,11 @@ export default function MaterialsManagementPage() {
                 name: material.name || "",
                 unit: material.unit || "",
                 reorderPoint: material.reorderPoint || 0,
-                thickness: material.specDetails?.thickness || "",
+                thickness: material.specDetails?.thickness?.toString() || "",
                 color: material.specDetails?.color || "",
                 glassType: material.specDetails?.glassType || "",
-                width: material.specDetails?.width || "",
-                length: material.specDetails?.length || ""
+                width: material.specDetails?.width?.toString() || "",
+                length: material.specDetails?.length?.toString() || ""
             });
         } else {
             setEditingMaterial(null);
@@ -132,11 +132,11 @@ export default function MaterialsManagementPage() {
 
         // Only send non-empty specDetails fields to avoid backend stripping empty strings
         const specDetails: Material["specDetails"] = {};
-        if (formData.thickness) specDetails.thickness = formData.thickness;
+        if (formData.thickness) specDetails.thickness = parseFloat(formData.thickness) || 0;
         if (formData.color) specDetails.color = formData.color;
         if (formData.glassType) specDetails.glassType = formData.glassType;
-        if (formData.width) specDetails.width = formData.width;
-        if (formData.length) specDetails.length = formData.length;
+        if (formData.width) specDetails.width = parseFloat(formData.width) || 0;
+        if (formData.length) specDetails.length = parseFloat(formData.length) || 0;
 
         const payload: Partial<Material> = {
             name: formData.name,
@@ -213,7 +213,7 @@ export default function MaterialsManagementPage() {
     };
 
     // Filter Options
-    const thicknesses = useMemo(() => Array.from(new Set(materials.map(m => m.specDetails?.thickness).filter(Boolean))), [materials]);
+    const thicknesses = useMemo(() => Array.from(new Set(materials.map(m => m.specDetails?.thickness?.toString()).filter(Boolean))), [materials]);
     const colors = useMemo(() => Array.from(new Set(materials.map(m => m.specDetails?.color).filter(Boolean))), [materials]);
     const glassTypes = useMemo(() => Array.from(new Set(materials.map(m => m.specDetails?.glassType).filter(Boolean))), [materials]);
 
@@ -224,13 +224,13 @@ export default function MaterialsManagementPage() {
             const matchesSearch = !searchQuery ||
                 m.name.toLowerCase().includes(searchLower) ||
                 (m.specDetails?.glassType || "").toLowerCase().includes(searchLower) ||
-                (m.specDetails?.thickness || "").toLowerCase().includes(searchLower) ||
+                (m.specDetails?.thickness?.toString() || "").toLowerCase().includes(searchLower) ||
                 (m.specDetails?.color || "").toLowerCase().includes(searchLower) ||
-                (m.specDetails?.width || "").toLowerCase().includes(searchLower) ||
-                (m.specDetails?.length || "").toLowerCase().includes(searchLower) ||
+                (m.specDetails?.width?.toString() || "").toLowerCase().includes(searchLower) ||
+                (m.specDetails?.length?.toString() || "").toLowerCase().includes(searchLower) ||
                 (m.unit || "").toLowerCase().includes(searchLower);
 
-            const matchesThickness = thicknessFilter === "all" || m.specDetails?.thickness === thicknessFilter;
+            const matchesThickness = thicknessFilter === "all" || m.specDetails?.thickness?.toString() === thicknessFilter;
             const matchesColor = colorFilter === "all" || m.specDetails?.color === colorFilter;
             const matchesGlassType = glassTypeFilter === "all" || m.specDetails?.glassType === glassTypeFilter;
 

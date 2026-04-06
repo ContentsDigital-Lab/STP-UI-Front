@@ -78,7 +78,7 @@ export default function PricingSettingsPage() {
 
                 for (const mat of matRes.data) {
                     const gt = mat.specDetails?.glassType?.trim();
-                    const th = mat.specDetails?.thickness?.trim();
+                    const th = mat.specDetails?.thickness?.toString()?.trim();
                     if (gt) {
                         extraTypes.add(gt);
                         if (!extraThicknesses[gt]) extraThicknesses[gt] = new Set();

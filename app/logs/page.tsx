@@ -474,7 +474,7 @@ export default function MaterialLogsPage() {
 
     const renderStation = (log: MaterialLog) => {
         // Try to get station from pane first (most accurate for current station)
-        const pane = log.pane && typeof log.pane === "object" ? log.pane as Pane : null;
+        const pane = log.panes && log.panes.length > 0 && typeof log.panes[0] === "object" ? log.panes[0] as Pane : null;
         if (pane && pane.currentStation) {
             const currentId = getStationId(pane.currentStation);
             const station = currentId ? stationMap.get(currentId) : undefined;
