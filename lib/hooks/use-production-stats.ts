@@ -34,7 +34,7 @@ export function useProductionStats() {
             logs.forEach(log => {
                 const paneObj = typeof log.pane === "object" ? log.pane : null;
                 const paneId = paneObj ? paneObj._id : (log.pane as string);
-                const stationId = typeof log.station === "string" ? log.station : log.station._id;
+                const stationId = typeof log.station === "string" ? log.station : (log.station as any)?._id;
                 const materialId = typeof log.material === "string" ? log.material : (log.material as any)?._id;
 
                 if (!paneId || !stationId) return;
