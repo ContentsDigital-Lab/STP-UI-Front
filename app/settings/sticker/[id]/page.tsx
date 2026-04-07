@@ -1217,9 +1217,12 @@ export default function StickerDesignerPage() {
                         <Tag className="h-5 w-5" />
                     </div>
                     <div>
-                        <h1 className="text-xl font-bold tracking-tight text-foreground">
-                            {templateName || "ออกแบบสติ๊กเกอร์"}
-                        </h1>
+                        <input
+                            value={templateName}
+                            onChange={(e) => setTemplateName(e.target.value)}
+                            placeholder="ชื่อ template..."
+                            className="text-xl font-bold tracking-tight text-foreground bg-transparent border-0 border-b-2 border-transparent hover:border-slate-200 focus:border-blue-500 dark:hover:border-slate-700 dark:focus:border-orange-500 outline-none transition-colors px-0 py-0.5 w-full max-w-[300px]"
+                        />
                         <p className="text-xs text-muted-foreground">ออกแบบ template สติ๊กเกอร์ QR สำหรับพิมพ์ติดออเดอร์</p>
                     </div>
                 </div>

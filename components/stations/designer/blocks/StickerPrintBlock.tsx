@@ -27,7 +27,7 @@ function sub(text: string, pane: Pane, order: Record<string, unknown> | null): s
         // ── กระจก ─────────────────────────────────────────────────────────
         "{{paneNumber}}":   pane.paneNumber ?? "",
         "{{paneId}}":       pane._id ?? "",
-        "{{glassType}}":    pane.glassTypeLabel ?? "",
+        "{{glassType}}":    pane.jobType ?? pane.glassType ?? pane.glassTypeLabel ?? "",
         "{{dimensions}}":   pane.dimensions
             ? `${pane.dimensions.width}×${pane.dimensions.height}${pane.dimensions.thickness > 0 ? `×${pane.dimensions.thickness}` : ""}mm`
             : "",
@@ -264,9 +264,14 @@ export function StickerPrintBlock({ label = "พิมพ์สติ๊กเ�
                         @media screen { #stk-print-portal { display: none; } }
                         @media print {
                             @page { size: ${template!.width}mm ${template!.height}mm; margin: 0; }
+                            html, body { margin: 0 !important; padding: 0 !important; width: ${template!.width}mm !important; }
                             body > * { display: none !important; }
-                            body > #stk-print-portal { display: block !important; }
-                            #stk-print-portal .stk-page { break-after: page; page-break-after: always; }
+                            body > #stk-print-portal { display: block !important; margin: 0 !important; padding: 0 !important; }
+                            #stk-print-portal .stk-page {
+                                break-after: page; page-break-after: always;
+                                width: ${template!.width}mm; height: ${template!.height}mm;
+                                overflow: hidden; margin: 0; padding: 0;
+                            }
                             #stk-print-portal .stk-page:last-child { break-after: auto; page-break-after: auto; }
                             #stk-print-portal * {
                                 -webkit-print-color-adjust: exact !important;

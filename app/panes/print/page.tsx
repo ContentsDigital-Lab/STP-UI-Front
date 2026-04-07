@@ -26,7 +26,7 @@ function substituteVars(text: string, pane: Pane, order: Record<string, unknown>
 
     const vars: Record<string, string> = {
         "{{paneNumber}}":   pane.paneNumber ?? "",
-        "{{glassType}}":    pane.glassTypeLabel ?? "",
+        "{{glassType}}":    pane.jobType ?? pane.glassType ?? pane.glassTypeLabel ?? "",
         "{{dimensions}}":   pane.dimensions
             ? `${pane.dimensions.width}×${pane.dimensions.height}${pane.dimensions.thickness > 0 ? `×${pane.dimensions.thickness}` : ""}mm`
             : "",
@@ -274,12 +274,17 @@ export default function PaneStickerPrintPage() {
             <style>{`
                 @media print {
                     ${pageStyle}
-                    body { visibility: hidden; }
+                    html, body { margin: 0 !important; padding: 0 !important; visibility: hidden; ${template ? `width: ${template.width}mm !important;` : ""} }
                     #pane-sticker-print, #pane-sticker-print * { visibility: visible; }
                     #pane-sticker-print { position: absolute; top: 0; left: 0; background: #fff; margin: 0; padding: 0; }
                     .no-print { display: none !important; }
-                    .sticker-page { break-after: page; page-break-after: always; }
+                    .sticker-page {
+                        break-after: page; page-break-after: always;
+                        ${template ? `width: ${template.width}mm; height: ${template.height}mm; overflow: hidden;` : ""}
+                        margin: 0; padding: 0;
+                    }
                     .sticker-page:last-child { break-after: auto; page-break-after: auto; }
+                    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
                 }
             `}</style>
 

@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { Plus, Tag, Clock, Pencil, Trash2, Search, ArrowLeft } from "lucide-react";
+import { Plus, Tag, Clock, Pencil, Trash2, Search, ArrowLeft, Copy } from "lucide-react";
 import type { StickerElement } from "./types";
 
 const StickerThumbnail = dynamic(() => import("./StickerThumbnail"), {
@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import {
     getStickerTemplates,
+    getStickerTemplate,
     createStickerTemplate,
     deleteStickerTemplate,
     StickerTemplateRecord,
@@ -43,11 +44,12 @@ function SkeletonCard() {
 }
 
 // ── Template card ─────────────────────────────────────────────────────────────
-function TemplateCard({ tmpl, deleting, onEdit, onDelete }: {
+function TemplateCard({ tmpl, deleting, onEdit, onDelete, onDuplicate }: {
     tmpl: StickerTemplateRecord;
     deleting: string | null;
     onEdit: (id: string) => void;
     onDelete: (id: string) => void;
+    onDuplicate: (id: string) => void;
 }) {
     const fmtDate = (d: string) =>
         new Date(d).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
@@ -79,6 +81,14 @@ function TemplateCard({ tmpl, deleting, onEdit, onDelete }: {
                     <Button size="sm" className="flex-1 gap-1.5 rounded-xl h-8 bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white text-xs font-bold shadow-sm border-0" onClick={() => onEdit(tmpl._id)}>
                         <Pencil className="h-3.5 w-3.5" />
                         เปิดแก้ไข
+                    </Button>
+                    <Button
+                        size="sm" variant="outline"
+                        className="h-8 w-8 p-0 rounded-lg border-slate-200 dark:border-slate-700 hover:bg-blue-50 dark:hover:bg-blue-950"
+                        onClick={() => onDuplicate(tmpl._id)}
+                        title="คัดลอก template"
+                    >
+                        <Copy className="h-3.5 w-3.5 text-blue-500" />
                     </Button>
                     <Button
                         size="sm" variant="outline"
@@ -178,6 +188,23 @@ export default function StickerGalleryPage() {
         }
     };
 
+    const handleDuplicate = async (id: string) => {
+        try {
+            const original = await getStickerTemplate(id);
+            if (!original) { toast.error("ไม่พบ template"); return; }
+            await createStickerTemplate({
+                name: `${original.name} (สำเนา)`,
+                width: original.width,
+                height: original.height,
+                elements: original.elements,
+            });
+            toast.success("คัดลอก template แล้ว");
+            fetchTemplates();
+        } catch {
+            toast.error("คัดลอกไม่สำเร็จ");
+        }
+    };
+
     const handleEdit = (id: string) => router.push(`/settings/sticker/${id}`);
 
     return (
@@ -254,7 +281,7 @@ export default function StickerGalleryPage() {
             ) : (
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                     {paginated.map((tmpl) => (
-                        <TemplateCard key={tmpl._id} tmpl={tmpl} deleting={deleting} onEdit={handleEdit} onDelete={handleDelete} />
+                        <TemplateCard key={tmpl._id} tmpl={tmpl} deleting={deleting} onEdit={handleEdit} onDelete={handleDelete} onDuplicate={handleDuplicate} />
                     ))}
                 </div>
             )}
