@@ -80,6 +80,22 @@ function resolveValue(row: Record<string, unknown>, key: string): unknown {
     return raw;
 }
 
+function getRecordUrgency(row: Record<string, any>): "critical" | "warn" | "normal" {
+    const priority = row.priority ?? 0;
+    const deadline = row.deadline ?? (typeof row.request === "object" ? row.request?.deadline : null);
+    
+    if (priority >= 3) return "critical";
+    if (deadline) {
+        const dl = new Date(deadline);
+        if (isNaN(dl.getTime())) return "normal";
+        const now = new Date();
+        const diffDays = (dl.getTime() - now.getTime()) / (1000 * 3600 * 24);
+        if (diffDays <= 0) return "critical";
+        if (diffDays <= 3) return "warn";
+    }
+    return "normal";
+}
+
 // ── Cell renderers ────────────────────────────────────────────────────────────
 function CellValue({ col, value }: { col: ColumnDef; value: unknown }) {
     const str = value == null ? "—" : String(value);
@@ -389,7 +405,7 @@ export function RecordList({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [refreshCounter, expandedRowId]);
 
-    const allFiltered = useMemo(() => rows
+    const baseFiltered = useMemo(() => rows
         .filter((r) => {
             if (shouldFilterStation && dataSource === "/orders") {
                 const stations = r.stations;
@@ -415,6 +431,39 @@ export function RecordList({
         }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [rows, shouldFilterStation, dataSource, stationId, stationName, effectivePendingOnly, pendingCountByOrder, query, columns]);
+
+    const allFiltered = useMemo(() => {
+        const severity = { critical: 3, warn: 2, normal: 1 };
+        return [...baseFiltered].sort((a, b) => {
+            const urgencyA = getRecordUrgency(a);
+            const urgencyB = getRecordUrgency(b);
+            if (urgencyA !== urgencyB) return severity[urgencyB] - severity[urgencyA];
+            
+            // Within same urgency, sort by deadline
+            const reqA = (typeof a.request === "object" ? a.request : null) as { deadline?: string } | null;
+            const reqB = (typeof b.request === "object" ? b.request : null) as { deadline?: string } | null;
+            const dlA = a.deadline ?? reqA?.deadline;
+            const dlB = b.deadline ?? reqB?.deadline;
+            if (dlA && dlB) {
+                const diff = new Date(dlA as string).getTime() - new Date(dlB as string).getTime();
+                if (diff !== 0) return diff;
+            } else if (dlA) return -1;
+            else if (dlB) return 1;
+
+            // Then by priority
+            const pA = Number(a.priority ?? 0);
+            const pB = Number(b.priority ?? 0);
+            if (pB !== pA) return pB - pA;
+
+            // Then by creation date (older first)
+            const cA = a.createdAt as string;
+            const cB = b.createdAt as string;
+            if (cA && cB) {
+                return new Date(cA).getTime() - new Date(cB).getTime();
+            }
+            return 0;
+        });
+    }, [baseFiltered]);
 
     const PAGE_SIZE = 20;
     const capped = allFiltered.slice(0, maxRows);
@@ -516,13 +565,16 @@ export function RecordList({
                                     const rowId = String(row[idField] ?? i);
                                     const isSelected = selectable && selectedRecord && String(selectedRecord[idField] ?? "") === rowId;
                                     const clickable  = selectable || !!navPath;
+                                    const urgency = getRecordUrgency(row);
+                                    const urgencyCls = urgency === "critical" 
+                                        ? "bg-red-50/80 dark:bg-red-950/20 hover:bg-red-100/80 dark:hover:bg-red-900/30" 
+                                        : urgency === "warn" 
+                                            ? "bg-amber-50/80 dark:bg-amber-950/20 hover:bg-amber-100/80 dark:hover:bg-amber-900/30" 
+                                            : isSelected ? "bg-primary/10" : clickable ? "hover:bg-muted/30 cursor-pointer group" : "";
+
                                     const rowCls = `flex items-center gap-4 px-3 sm:px-4 py-3 transition-colors min-w-[400px] ${
-                                        isSelected
-                                            ? "bg-primary/10 border-l-2 border-primary"
-                                            : clickable
-                                                ? "hover:bg-muted/30 cursor-pointer group"
-                                                : ""
-                                    }`;
+                                        isSelected ? "border-l-4 border-primary" : ""
+                                    } ${urgencyCls}`;
 
                                     const handleClick = selectable
                                         ? () => setSelectedRecord(isSelected ? null : row)

@@ -44,6 +44,30 @@ function extractOrderLabel(pane: Pane): string {
     return String(o.orderNumber ?? o.code ?? (o._id as string ?? "").slice(-6).toUpperCase());
 }
 
+function getUrgencyLevel(pane: Pane): "critical" | "warn" | "normal" {
+    const o = (typeof pane.order === "object" ? pane.order : null) as any;
+    const r = (typeof pane.request === "object" ? pane.request : (o?.request && typeof o.request === "object" ? o.request : null)) as any;
+    
+    const priority = o?.priority ?? 0;
+    const deadline = r?.deadline;
+
+    if (priority >= 3) return "critical";
+    if (deadline) {
+        const dl = new Date(deadline);
+        const now = new Date();
+        const diffDays = (dl.getTime() - now.getTime()) / (1000 * 3600 * 24);
+        if (diffDays <= 0) return "critical";
+        if (diffDays <= 3) return "warn";
+    }
+    return "normal";
+}
+
+function getUrgencyClass(level: "critical" | "warn" | "normal"): string {
+    if (level === "critical") return "bg-red-50/80 dark:bg-red-950/20 hover:bg-red-100/80 dark:hover:bg-red-900/30 border-red-100 dark:border-red-900/30";
+    if (level === "warn") return "bg-amber-50/80 dark:bg-amber-950/20 hover:bg-amber-100/80 dark:hover:bg-amber-900/30 border-amber-100 dark:border-amber-900/30";
+    return "bg-card hover:bg-muted/5 border-border";
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 export function StationQueueBlock({ title = "คิวสถานีนี้" }: StationQueueBlockProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
@@ -287,12 +311,32 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
         }
 
         return [...map.entries()]
-            .map(([key, v]) => ({ 
-                key, 
-                ...v,
-                panes: v.panes.sort((a, b) => (b.dimensions?.area ?? 0) - (a.dimensions?.area ?? 0))
-            }))
-            .sort((a, b) => a.label.localeCompare(b.label));
+            .map(([key, v]) => {
+                const maxUrgency = v.panes.reduce((max, p) => {
+                    const level = getUrgencyLevel(p);
+                    if (level === "critical") return "critical";
+                    if (level === "warn" && max !== "critical") return "warn";
+                    return max;
+                }, "normal" as "critical" | "warn" | "normal");
+
+                return { 
+                    key, 
+                    ...v,
+                    maxUrgency,
+                    panes: v.panes.sort((a, b) => {
+                        const levelA = getUrgencyLevel(a);
+                        const levelB = getUrgencyLevel(b);
+                        const severity = { critical: 3, warn: 2, normal: 1 };
+                        if (levelA !== levelB) return severity[levelB] - severity[levelA];
+                        return (b.dimensions?.area ?? 0) - (a.dimensions?.area ?? 0);
+                    })
+                };
+            })
+            .sort((a, b) => {
+                const severity = { critical: 3, warn: 2, normal: 1 };
+                if (a.maxUrgency !== b.maxUrgency) return severity[b.maxUrgency] - severity[a.maxUrgency];
+                return a.label.localeCompare(b.label);
+            });
     })();
 
     const orderGroups = (() => {
@@ -323,8 +367,20 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
         }
 
         return [...map.entries()]
-            .map(([orderId, v]) => ({ orderId, label: v.label, panes: v.panes, priority: v.priority, createdAt: v.createdAt, deadline: v.deadline }))
+            .map(([orderId, v]) => {
+                const maxLevel = v.panes.reduce((max, p) => {
+                    const level = getUrgencyLevel(p);
+                    if (level === "critical") return "critical";
+                    if (level === "warn" && max !== "critical") return "warn";
+                    return max;
+                }, "normal" as "critical" | "warn" | "normal");
+
+                return { orderId, label: v.label, panes: v.panes, priority: v.priority, createdAt: v.createdAt, deadline: v.deadline, maxUrgency: maxLevel };
+            })
             .sort((a, b) => {
+                const severity = { critical: 3, warn: 2, normal: 1 };
+                if (a.maxUrgency !== b.maxUrgency) return severity[b.maxUrgency] - severity[a.maxUrgency];
+                
                 if (b.priority !== a.priority) return b.priority - a.priority;
                 if (a.deadline && b.deadline) {
                     const dtA = new Date(a.deadline).getTime();
@@ -697,7 +753,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                                 const result = actionResult[pane._id];
 
                                                 return (
-                                                    <div key={pane._id} className="flex items-center gap-4 px-4 py-3 bg-card hover:bg-muted/5 transition-colors">
+                                                    <div key={pane._id} className={`flex items-center gap-4 px-4 py-3 transition-colors border-b last:border-b-0 ${getUrgencyClass(getUrgencyLevel(pane))}`}>
                                                         <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${phase === "started" ? "bg-blue-500 animate-pulse" : "bg-amber-400"}`} />
                                                         <div className="flex-1 min-w-0">
                                                             <div className="flex items-center gap-2">
@@ -810,7 +866,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                                 <div 
                                                     key={pane._id}
                                                     onClick={() => togglePaneSelection(pane._id)}
-                                                    className={`flex items-center gap-3 px-4 py-3 transition-colors cursor-pointer ${isSelected ? "bg-primary/5 dark:bg-primary/10" : "hover:bg-muted/30"}`}
+                                                    className={`flex items-center gap-3 px-4 py-3 transition-colors cursor-pointer border-b last:border-b-0 ${isSelected ? "bg-primary/10 dark:bg-primary/20 ring-1 ring-inset ring-primary/20" : getUrgencyClass(getUrgencyLevel(pane))}`}
                                                 >
                                                     <div className={`h-4 w-4 rounded border transition-all flex items-center justify-center ${isSelected ? "bg-primary border-primary text-white" : "border-muted-foreground/30"}`}>
                                                         {isSelected && <CheckCheck className="h-2.5 w-2.5" />}
