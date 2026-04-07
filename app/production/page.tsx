@@ -274,27 +274,38 @@ export default function ProductionPage() {
                 if (b.id.slice(-6).toLowerCase().includes(q)) return true;
                 if ((b.request?.requestNumber ?? "").toLowerCase().includes(q)) return true;
                 if (fmtDate(b.request?.deadline).toLowerCase().includes(q)) return true;
-                return b.orders.some(o =>
-                    (o.code ?? "").toLowerCase().includes(q) ||
-                    (o.orderNumber ?? "").toLowerCase().includes(q) ||
-                    o._id.toLowerCase().includes(q) ||
-                    o._id.slice(-6).toLowerCase().includes(q) ||
-                    getName(o.material).toLowerCase().includes(q) ||
-                    getName(o.customer).toLowerCase().includes(q) ||
-                    getName(o.assignedTo).toLowerCase().includes(q) ||
-                    (ORDER_STATUS[o.status as StatusKey]?.label ?? "").toLowerCase().includes(q) ||
-                    (o.stations ?? []).some(s => {
-                        const stId = getStationId(s);
-                        const st = stId ? stationMap.get(stId) : undefined;
-                        const nm = (st?.name ?? getStationName(s)).toLowerCase();
-                        return nm.includes(q);
-                    })
-                );
+                return b.orders.some(o => {
+                    if (
+                        (o.code ?? "").toLowerCase().includes(q) ||
+                        (o.orderNumber ?? "").toLowerCase().includes(q) ||
+                        o._id.toLowerCase().includes(q) ||
+                        o._id.slice(-6).toLowerCase().includes(q) ||
+                        getName(o.material).toLowerCase().includes(q) ||
+                        getName(o.customer).toLowerCase().includes(q) ||
+                        getName(o.assignedTo).toLowerCase().includes(q) ||
+                        (ORDER_STATUS[o.status as StatusKey]?.label ?? "").toLowerCase().includes(q) ||
+                        (o.stations ?? []).some(s => {
+                            const stId = getStationId(s);
+                            const st = stId ? stationMap.get(stId) : undefined;
+                            const nm = (st?.name ?? getStationName(s)).toLowerCase();
+                            return nm.includes(q);
+                        })
+                    ) return true;
+
+                    const panes = paneMap.get(o._id) ?? [];
+                    return panes.some(p =>
+                        p.paneNumber?.toLowerCase().includes(q) ||
+                        p._id.toLowerCase().includes(q) ||
+                        p._id.slice(-6).toLowerCase().includes(q) ||
+                        (p.glassType ?? "").toLowerCase().includes(q) ||
+                        (p.glassTypeLabel ?? "").toLowerCase().includes(q)
+                    );
+                });
             });
         }
 
         return result;
-    }, [bills, search, stationMap, filterStatus, filterStation, dateFilter]);
+    }, [bills, search, stationMap, paneMap, filterStatus, filterStation, dateFilter]);
 
     // Reset to page 1 when search, filters or dateFilter change
     useEffect(() => { setPage(1); }, [search, filterStatus, filterStation, dateFilter]);
@@ -379,7 +390,7 @@ export default function ProductionPage() {
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                     <Input
-                        placeholder="ค้นหา ลูกค้า, รหัสบิล, วัสดุ, สถานี..."
+                        placeholder="ค้นหา ลูกค้า, รหัสบิล, วัสดุ, สถานี, เลขกระจก..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         className="pl-9 pr-9 h-10 w-full rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-sm"

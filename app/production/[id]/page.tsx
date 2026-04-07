@@ -438,18 +438,45 @@ function PaneDetailModal({
   onClose: () => void;
 }) {
   const [logs, setLogs] = useState<PaneLog[]>([]);
+  const [childPanes, setChildPanes] = useState<Pane[]>([]);
+  const [childLogs, setChildLogs] = useState<PaneLog[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
-    paneLogsApi
-      .getAll({ paneId: pane._id, limit: 300 })
-      .then((res) => {
-        if (res.success) setLogs(res.data ?? []);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [pane._id]);
+    const fetchAll = async () => {
+      try {
+        const childIds = (pane.laminateRole === "parent" && pane.childPanes?.length)
+          ? pane.childPanes.map(c => typeof c === "string" ? c : c._id)
+          : [];
+
+        const [logRes, ...childResults] = await Promise.all([
+          paneLogsApi.getAll({ paneId: pane._id, limit: 300 }),
+          ...childIds.flatMap(cid => [
+            panesApi.getById(cid),
+            paneLogsApi.getAll({ paneId: cid, limit: 300 }),
+          ]),
+        ]);
+
+        if (logRes.success) setLogs(logRes.data ?? []);
+
+        if (childIds.length > 0) {
+          const fetched: Pane[] = [];
+          const allChildLogs: PaneLog[] = [];
+          for (let i = 0; i < childIds.length; i++) {
+            const cPane = childResults[i * 2] as Awaited<ReturnType<typeof panesApi.getById>>;
+            const cLogs = childResults[i * 2 + 1] as Awaited<ReturnType<typeof paneLogsApi.getAll>>;
+            if (cPane.success && cPane.data) fetched.push(cPane.data);
+            if (cLogs.success) allChildLogs.push(...(cLogs.data ?? []));
+          }
+          setChildPanes(fetched);
+          setChildLogs(allChildLogs);
+        }
+      } catch {}
+      setLoading(false);
+    };
+    fetchAll();
+  }, [pane._id, pane.laminateRole, pane.childPanes]);
 
   useEffect(() => {
     document.body.style.overflow = "hidden";
@@ -458,46 +485,82 @@ function PaneDetailModal({
     };
   }, []);
 
-  const routing = pane.routing ?? [];
+  const isLamParent = pane.laminateRole === "parent" && childPanes.length > 0;
+
+  const childRouting = isLamParent ? (childPanes[0]?.routing ?? []) : [];
+  const parentRouting = pane.routing ?? [];
+  const routing = isLamParent
+    ? [...childRouting, ...parentRouting]
+    : parentRouting;
+
+  const childRoutingLen = childRouting.length;
 
   const stationLogsMap = new Map<
     string,
     { scan_in?: PaneLog; start?: PaneLog; complete?: PaneLog }
   >();
-  for (const log of logs) {
-    for (let routeIdx = 0; routeIdx < routing.length; routeIdx++) {
-      const routeRef = routing[routeIdx];
-      const rid = getStationId(routeRef);
-      const rname = getStationName(routeRef);
-      const stById = rid ? stationMap.get(rid) : undefined;
-      const stByName = rname ? stationByName.get(rname) : undefined;
-      const stationName = stById?.name ?? stByName?.name ?? rname ?? rid;
-      const stationId = stById?._id ?? stByName?._id ?? rid;
 
-      const mapKey = rid || `routing-${routeIdx}`;
-      if (
-        isStationMatch(log.station, stationId, stationName) ||
-        isStationMatch(log.station, rid, rname)
-      ) {
-        if (!stationLogsMap.has(mapKey)) stationLogsMap.set(mapKey, {});
-        const entry = stationLogsMap.get(mapKey)!;
-        if (log.action === "scan_in" && !entry.scan_in) entry.scan_in = log;
-        if (log.action === "start" && !entry.start) entry.start = log;
-        if (log.action === "complete" && !entry.complete) entry.complete = log;
-        break;
+  const matchLogsToRouting = (
+    logsToMatch: PaneLog[],
+    routeSlice: (string | { _id: string; name: string })[],
+    idxOffset: number,
+  ) => {
+    for (const log of logsToMatch) {
+      for (let i = 0; i < routeSlice.length; i++) {
+        const routeRef = routeSlice[i];
+        const rid = getStationId(routeRef);
+        const rname = getStationName(routeRef);
+        const stById = rid ? stationMap.get(rid) : undefined;
+        const stByName = rname ? stationByName.get(rname) : undefined;
+        const stationName = stById?.name ?? stByName?.name ?? rname ?? rid;
+        const stationId = stById?._id ?? stByName?._id ?? rid;
+        const mapKey = rid || `routing-${idxOffset + i}`;
+        if (
+          isStationMatch(log.station, stationId, stationName) ||
+          isStationMatch(log.station, rid, rname)
+        ) {
+          if (!stationLogsMap.has(mapKey)) stationLogsMap.set(mapKey, {});
+          const entry = stationLogsMap.get(mapKey)!;
+          if (log.action === "scan_in" && !entry.scan_in) entry.scan_in = log;
+          if (log.action === "start" && !entry.start) entry.start = log;
+          if (log.action === "complete" && !entry.complete) entry.complete = log;
+          break;
+        }
       }
     }
+  };
+
+  if (isLamParent) {
+    matchLogsToRouting(childLogs, childRouting, 0);
+    matchLogsToRouting(logs, parentRouting, childRoutingLen);
+  } else {
+    matchLogsToRouting(logs, parentRouting, 0);
   }
 
   const curPaneId = getStationId(pane.currentStation);
   const curPaneName = getStationName(pane.currentStation);
-  const currentStationIdx = routing.findIndex(
-    (routeRef) =>
-      pane.currentStation != null &&
-      isStationMatch(routeRef, curPaneId, curPaneName),
-  );
 
   const isCompleted = pane.currentStatus === "completed";
+
+  const currentStationIdx = (() => {
+    if (isLamParent) {
+      const parentIdx = parentRouting.findIndex(
+        (routeRef) =>
+          pane.currentStation != null &&
+          isStationMatch(routeRef, curPaneId, curPaneName),
+      );
+      if (parentIdx >= 0) return childRoutingLen + parentIdx;
+      if (isCompleted) return -1;
+      const childDone = childPanes.every(c => c.currentStatus === "completed");
+      if (childDone && pane.currentStatus === "pending") return childRoutingLen;
+      return -1;
+    }
+    return routing.findIndex(
+      (routeRef) =>
+        pane.currentStation != null &&
+        isStationMatch(routeRef, curPaneId, curPaneName),
+    );
+  })();
 
   const currentStationName = (() => {
     if (
@@ -557,10 +620,16 @@ function PaneDetailModal({
     return getColorOption("sky");
   })();
 
-  const completedCount = routing.filter(
-    (_, idx) =>
-      isCompleted || (currentStationIdx >= 0 && idx < currentStationIdx),
-  ).length;
+  const completedCount = routing.filter((_, idx) => {
+    if (isCompleted) return true;
+    if (isLamParent && idx < childRoutingLen) {
+      const rr = routing[idx];
+      const rrid = getStationId(rr);
+      const mk = rrid || `routing-${idx}`;
+      return !!stationLogsMap.get(mk)?.complete;
+    }
+    return currentStationIdx >= 0 && idx < currentStationIdx;
+  }).length;
 
   const totalMs =
     pane.startedAt && pane.completedAt
@@ -766,7 +835,7 @@ function PaneDetailModal({
               {pane.remakeOf && (
                 <PaneField
                   label="ผลิตซ้ำจาก"
-                  value={pane.remakeOf}
+                  value={typeof pane.remakeOf === "string" ? pane.remakeOf : (pane.remakeOf as unknown as Pane).paneNumber ?? (pane.remakeOf as unknown as Pane)._id}
                   mono
                   accent="text-orange-600 dark:text-orange-400"
                 />
@@ -855,6 +924,8 @@ function PaneDetailModal({
               ) : (
                 <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden divide-y divide-slate-100 dark:divide-slate-800/60">
                   {routing.map((routeRef, idx) => {
+                    const isChildStation = isLamParent && idx < childRoutingLen;
+
                     const rid = getStationId(routeRef);
                     const rname = getStationName(routeRef);
                     const mapKey = rid || `routing-${idx}`;
@@ -866,9 +937,10 @@ function PaneDetailModal({
                     const color = getColorOption(colorId);
                     const stLogs = stationLogsMap.get(mapKey) ?? {};
                     const isCurrent = idx === currentStationIdx && !isCompleted;
-                    const isPassed =
-                      isCompleted ||
-                      (currentStationIdx >= 0 && idx < currentStationIdx);
+                    const parentMovedOn = isLamParent && currentStationIdx >= childRoutingLen;
+                    const isPassed = isChildStation
+                      ? (parentMovedOn || isCompleted || !!stLogs.complete)
+                      : isCompleted || (currentStationIdx >= 0 && idx < currentStationIdx);
                     const isFuture = !isCurrent && !isPassed;
 
                     let duration: string | null = null;
@@ -883,15 +955,15 @@ function PaneDetailModal({
                     }
 
                     return (
-                      <div
-                        key={mapKey}
-                        className={`px-4 py-3 ${isCurrent ? "" : ""}`}
-                        style={
-                          isCurrent
-                            ? { backgroundColor: `${color.swatch}08` }
-                            : undefined
-                        }
-                      >
+                      <div key={mapKey}>
+                        <div
+                          className={`px-4 py-3`}
+                          style={
+                            isCurrent
+                              ? { backgroundColor: `${color.swatch}08` }
+                              : undefined
+                          }
+                        >
                         <div className="flex items-center gap-3">
                           <div
                             className={`shrink-0 rounded-full flex items-center justify-center ${
@@ -968,6 +1040,7 @@ function PaneDetailModal({
                               ไม่มีข้อมูลเวลา
                             </div>
                           ))}
+                        </div>
                       </div>
                     );
                   })}
@@ -1368,6 +1441,13 @@ export default function ProductionDetailPage() {
               {/* Order tab */}
               {infoTab === "order" && (
                 <>
+                  {order.orderNumber && (
+                    <InfoRow
+                      icon={Info}
+                      label="ออเดอร์"
+                      value={order.orderNumber}
+                    />
+                  )}
                   <InfoRow
                     icon={User}
                     label="ลูกค้า"
