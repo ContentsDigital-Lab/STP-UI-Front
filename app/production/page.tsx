@@ -741,7 +741,11 @@ export default function ProductionPage() {
                                                                         <button
                                                                             key={pane._id}
                                                                             type="button"
-                                                                            onClick={() => router.push(`/production/${order._id}`)}
+                                                                            onClick={() =>
+                                                                                router.push(
+                                                                                    `/production/${order._id}?paneId=${encodeURIComponent(pane._id)}`,
+                                                                                )
+                                                                            }
                                                                             className="flex items-center gap-2.5 p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 hover:border-blue-200 dark:hover:border-blue-800 hover:shadow-sm transition-all text-left cursor-pointer"
                                                                         >
                                                                             <div className="flex items-center gap-1.5 min-w-0 flex-1">
