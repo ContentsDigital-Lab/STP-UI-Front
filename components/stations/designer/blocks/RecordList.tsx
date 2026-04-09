@@ -96,6 +96,27 @@ function getRecordUrgency(row: Record<string, any>): "critical" | "warn" | "norm
     return "normal";
 }
 
+/** REQ-1474 → 1474; used after urgency so newest IDs float up within the same tier. */
+function parseListSequence(row: Record<string, unknown>, dataSource: string): number {
+    if (dataSource === "/requests") {
+        const raw = row.requestNumber;
+        if (typeof raw === "string") {
+            const m = raw.match(/(\d+)/g);
+            if (m?.length) return parseInt(m[m.length - 1], 10);
+        }
+    }
+    if (dataSource === "/orders") {
+        for (const key of ["orderNumber", "code"] as const) {
+            const raw = row[key];
+            if (typeof raw === "string") {
+                const m = raw.match(/(\d+)/g);
+                if (m?.length) return parseInt(m[m.length - 1], 10);
+            }
+        }
+    }
+    return 0;
+}
+
 // ── Cell renderers ────────────────────────────────────────────────────────────
 function CellValue({ col, value }: { col: ColumnDef; value: unknown }) {
     const str = value == null ? "—" : String(value);
@@ -455,15 +476,22 @@ export function RecordList({
             const pB = Number(b.priority ?? 0);
             if (pB !== pA) return pB - pA;
 
-            // Then by creation date (older first)
+            // Newest first within same urgency (so REQ-1474 sits above REQ-1153 after red rows)
             const cA = a.createdAt as string;
             const cB = b.createdAt as string;
             if (cA && cB) {
-                return new Date(cA).getTime() - new Date(cB).getTime();
-            }
-            return 0;
+                const byCreated = new Date(cB).getTime() - new Date(cA).getTime();
+                if (byCreated !== 0) return byCreated;
+            } else if (cB) return 1;
+            else if (cA) return -1;
+
+            const seqB = parseListSequence(b, dataSource);
+            const seqA = parseListSequence(a, dataSource);
+            if (seqB !== seqA) return seqB - seqA;
+
+            return String(b._id ?? "").localeCompare(String(a._id ?? ""));
         });
-    }, [baseFiltered]);
+    }, [baseFiltered, dataSource]);
 
     const PAGE_SIZE = 20;
     const capped = allFiltered.slice(0, maxRows);
