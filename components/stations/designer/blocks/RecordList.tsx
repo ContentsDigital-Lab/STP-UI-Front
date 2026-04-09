@@ -13,6 +13,11 @@ import { usePreview } from "../PreviewContext";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { useStationContext } from "../StationContext";
 import { getStationId, getStationName, isStationMatch } from "@/lib/utils/station-helpers";
+import { isPaneRetiredByMerge } from "@/lib/utils/pane-laminate";
+
+function floorPanes(list: Pane[] | undefined): Pane[] {
+    return (list ?? []).filter((p) => !isPaneRetiredByMerge(p));
+}
 import { getRoleName } from "@/lib/auth/role-utils";
 import type { Role } from "@/lib/api/types";
 import { STATUS_CONFIG } from "./StatusIndicator";
@@ -94,6 +99,27 @@ function getRecordUrgency(row: Record<string, any>): "critical" | "warn" | "norm
         if (diffDays <= 3) return "warn";
     }
     return "normal";
+}
+
+/** REQ-1474 → 1474; used after urgency so newest IDs float up within the same tier. */
+function parseListSequence(row: Record<string, unknown>, dataSource: string): number {
+    if (dataSource === "/requests") {
+        const raw = row.requestNumber;
+        if (typeof raw === "string") {
+            const m = raw.match(/(\d+)/g);
+            if (m?.length) return parseInt(m[m.length - 1], 10);
+        }
+    }
+    if (dataSource === "/orders") {
+        for (const key of ["orderNumber", "code"] as const) {
+            const raw = row[key];
+            if (typeof raw === "string") {
+                const m = raw.match(/(\d+)/g);
+                if (m?.length) return parseInt(m[m.length - 1], 10);
+            }
+        }
+    }
+    return 0;
 }
 
 // ── Cell renderers ────────────────────────────────────────────────────────────
@@ -288,6 +314,7 @@ export function RecordList({
                     const requestsWithPendingPanes = new Set<string>();
                     if (panesRes?.success && Array.isArray(panesRes.data)) {
                         for (const pane of panesRes.data) {
+                            if (isPaneRetiredByMerge(pane)) continue;
                             if (!isStationMatch(pane.currentStation, stationId, stationName)) continue;
                             if (pane.currentStatus !== "pending") continue;
                             const reqId = pane.request
@@ -334,6 +361,7 @@ export function RecordList({
             }
 
             for (const pane of res.data) {
+                if (isPaneRetiredByMerge(pane)) continue;
                 const atStation = isStationMatch(pane.currentStation, stationId, stationName);
                 if (!atStation || pane.currentStatus !== "pending") continue;
 
@@ -370,7 +398,7 @@ export function RecordList({
         if (isApi) loadData(true);
     }, { debounceMs: 500 });
 
-    useWebSocket("pane", ["pane:updated"], () => {
+    useWebSocket("pane", ["pane:updated", "pane:laminated"], () => {
         if (isApi) loadData(true);
         loadPendingPaneCounts();
         setQrPane(null);
@@ -379,7 +407,7 @@ export function RecordList({
             ? panesApi.getAll({ order: expandedRowId, status_ne: "claimed", limit: 100 })
             : panesApi.getAll({ request: expandedRowId, limit: 100 });
         fetchFn
-            .then(res => setRowPanes(res.success ? res.data ?? [] : []))
+            .then((res) => setRowPanes(res.success ? floorPanes(res.data) : []))
             .catch(() => {});
     }, { debounceMs: 500 });
 
@@ -405,7 +433,9 @@ export function RecordList({
             ? panesApi.getAll({ order: expandedRowId, status_ne: "claimed", limit: 100 })
             : panesApi.getAll({ request: expandedRowId, limit: 100 });
         fetchFn
-            .then(res => { if (res.success) setRowPanes(res.data ?? []); })
+            .then((res) => {
+                if (res.success) setRowPanes(floorPanes(res.data));
+            })
             .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [refreshCounter, expandedRowId]);
@@ -460,15 +490,22 @@ export function RecordList({
             const pB = Number(b.priority ?? 0);
             if (pB !== pA) return pB - pA;
 
-            // Then by creation date (older first)
+            // Newest first within same urgency (so REQ-1474 sits above REQ-1153 after red rows)
             const cA = a.createdAt as string;
             const cB = b.createdAt as string;
             if (cA && cB) {
-                return new Date(cA).getTime() - new Date(cB).getTime();
-            }
-            return 0;
+                const byCreated = new Date(cB).getTime() - new Date(cA).getTime();
+                if (byCreated !== 0) return byCreated;
+            } else if (cB) return 1;
+            else if (cA) return -1;
+
+            const seqB = parseListSequence(b, dataSource);
+            const seqA = parseListSequence(a, dataSource);
+            if (seqB !== seqA) return seqB - seqA;
+
+            return String(b._id ?? "").localeCompare(String(a._id ?? ""));
         });
-    }, [baseFiltered]);
+    }, [baseFiltered, dataSource]);
 
     const PAGE_SIZE = 20;
     const capped = allFiltered.slice(0, maxRows);
@@ -499,10 +536,10 @@ export function RecordList({
         try {
             if (dataSource === "/orders") {
                 const res = await panesApi.getAll({ order: rid, status_ne: "claimed", limit: 100 });
-                setRowPanes(res.success ? res.data ?? [] : []);
+                setRowPanes(res.success ? floorPanes(res.data) : []);
             } else {
                 const res = await panesApi.getAll({ request: rid, limit: 100 });
-                setRowPanes(res.success ? res.data ?? [] : []);
+                setRowPanes(res.success ? floorPanes(res.data) : []);
             }
         } catch {
             setRowPanes([]);

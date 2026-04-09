@@ -57,12 +57,13 @@ export interface Material {
   name: string;
   unit: string;
   reorderPoint: number;
+  /** API create/update: thickness, width, length must be strings (Zod). GET may return numbers from DB. */
   specDetails: {
-    thickness?: string;
+    thickness?: string | number;
     color?: string;
     glassType?: string;
-    width?: string;
-    length?: string;
+    width?: string | number;
+    length?: string | number;
   };
   createdAt: string;
   updatedAt: string;
@@ -202,12 +203,15 @@ export interface Pane {
   holes?: HoleData[] | number;
   notches?: HoleData[] | number;
   vertices?: VertexData[];
-  withdrawal?: string;
+  withdrawal?: string | Withdrawal;
   remakeOf?: string;
   laminateRole?: "single" | "parent" | "sheet";
   parentPane?: string | Pane;
   childPanes?: (string | Pane)[];
   sheetLabel?: string;
+  /** Retired pane points at survivor after laminate merge. */
+  mergedInto?: string | Pane;
+  laminateMergedAt?: string;
   laminateStation?: string | { _id: string; name: string };
   startedAt?: string;
   completedAt?: string;

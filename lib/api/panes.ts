@@ -2,7 +2,7 @@ import { fetchApi } from "./config";
 import { ApiResponse, Pane, PaginatedResponse } from "./types";
 
 export const panesApi = {
-    getAll: async (params?: { order?: string; request?: string; material?: string; status_ne?: string; laminateRole?: string; parentPane?: string; page?: number; limit?: number; sort?: string; populate?: string }): Promise<PaginatedResponse<Pane>> => {
+    getAll: async (params?: { order?: string; request?: string; material?: string; status_ne?: string; laminateRole?: string; parentPane?: string; page?: number; limit?: number; sort?: string; populate?: string; includeMerged?: boolean }): Promise<PaginatedResponse<Pane>> => {
         const qs = new URLSearchParams();
         if (params?.order)        qs.set("order",        params.order);
         if (params?.request)      qs.set("request",      params.request);
@@ -14,6 +14,7 @@ export const panesApi = {
         if (params?.limit)        qs.set("limit",        String(params.limit));
         if (params?.sort)         qs.set("sort",         params.sort);
         if (params?.populate)     qs.set("populate",     params.populate);
+        if (params?.includeMerged) qs.set("includeMerged", "true");
         const query = qs.toString();
         return fetchApi<PaginatedResponse<Pane>>(`/panes${query ? `?${query}` : ""}`, {
             method: "GET",
@@ -61,12 +62,18 @@ export const panesApi = {
         reason?: string;
         description?: string;
         remakeStationId?: string;
+        /** Laminate: sheet QR to keep; required when path is parent; optional when path is a sheet. */
+        laminateSurvivorPaneNumber?: string;
     }): Promise<ApiResponse<{
         pane: Pane;
         log: Record<string, unknown>;
         nextStation?: string;
         mergedSheets?: number;
         remadePane?: Pane;
+        survivorPane?: Pane;
+        survivorPaneNumber?: string;
+        retiredPaneNumbers?: string[];
+        parentRetired?: boolean;
     }>> => {
         return fetchApi(`/panes/${encodeURIComponent(paneNumber)}/scan`, {
             method: "POST",

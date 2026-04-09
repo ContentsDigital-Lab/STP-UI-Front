@@ -48,6 +48,16 @@ function resolveMat(m: unknown): Material | null {
 function matId(m: unknown) {
   return resolveMat(m)?._id ?? (typeof m === "string" ? m : "");
 }
+
+function parseOrderSeq(o: Order): number {
+  for (const raw of [o.orderNumber, o.code]) {
+    if (typeof raw === "string") {
+      const m = raw.match(/(\d+)/g);
+      if (m?.length) return parseInt(m[m.length - 1], 10);
+    }
+  }
+  return 0;
+}
 function matName(m: unknown) {
   return resolveMat(m)?.name ?? (typeof m === "string" ? m : "-");
 }
@@ -182,7 +192,14 @@ export function OrderReleasePanel({
       let list: Order[] = ordRes.success ? ordRes.data : [];
       list = list.filter((o) => o.status === "pending");
       list = list
-        .sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0))
+        .sort((a, b) => {
+          const pr = (b.priority ?? 0) - (a.priority ?? 0);
+          if (pr !== 0) return pr;
+          const ta = new Date(a.createdAt).getTime();
+          const tb = new Date(b.createdAt).getTime();
+          if (tb !== ta) return tb - ta;
+          return parseOrderSeq(b) - parseOrderSeq(a);
+        })
         .slice(0, maxItems);
 
       setOrders(list);

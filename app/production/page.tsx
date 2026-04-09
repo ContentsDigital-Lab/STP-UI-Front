@@ -18,6 +18,7 @@ import { getColorOption } from "@/lib/stations/stations-store";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { Order, OrderRequest, Station, Pane } from "@/lib/api/types";
 import { getStationId, getStationName } from "@/lib/utils/station-helpers";
+import { isPaneRetiredByMerge } from "@/lib/utils/pane-laminate";
 
 // ── status config ─────────────────────────────────────────────────────────────
 const ORDER_STATUS = {
@@ -172,6 +173,7 @@ export default function ProductionPage() {
         if (pRes?.success) {
             const map = new Map<string, Pane[]>();
             for (const p of pRes.data ?? []) {
+                if (isPaneRetiredByMerge(p)) continue;
                 if (p.currentStatus === "claimed") continue;
                 if (p.laminateRole === "sheet") continue;
                 const oid = typeof p.order === "string" ? p.order : (p.order as Order)?._id;
@@ -201,7 +203,7 @@ export default function ProductionPage() {
     }, [loadPanes]);
     useEffect(() => { load(); }, [load]);
 
-    const { status: wsStatus } = useWebSocket("production", [...SOCKET_EVENTS, "pane:updated"], () => {
+    const { status: wsStatus } = useWebSocket("production", [...SOCKET_EVENTS, "pane:updated", "pane:laminated"], () => {
         load();
     });
 

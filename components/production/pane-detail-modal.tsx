@@ -486,6 +486,26 @@ export function PaneDetailModal({
                   accent="text-orange-600 dark:text-orange-400"
                 />
               )}
+              {pane.mergedInto && (
+                <PaneField
+                  label="รวมเข้าแผ่น"
+                  value={
+                    typeof pane.mergedInto === "string"
+                      ? pane.mergedInto
+                      : (pane.mergedInto as Pane).paneNumber ??
+                        (pane.mergedInto as Pane)._id
+                  }
+                  mono
+                  accent="text-violet-600 dark:text-violet-400"
+                />
+              )}
+              {pane.laminateMergedAt && (
+                <PaneField
+                  label="เวลาประกบลามิเนต"
+                  value={fmtTime(pane.laminateMergedAt)}
+                  accent="text-violet-600 dark:text-violet-400"
+                />
+              )}
               {pane.laminateRole === "parent" && (
                 <PaneField
                   label="ลามิเนต"

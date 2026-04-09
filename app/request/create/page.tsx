@@ -1626,31 +1626,6 @@ export default function CreateBillPage() {
                                         ))}
                                     </div>
                                 </div>
-
-                                {/* sheetsPerPane — only for laminated glass */}
-                                {/laminated/i.test(ap.glassType) && (
-                                    <>
-                                        <div className="space-y-1.5">
-                                            <Label className="text-[10px] font-semibold text-slate-400 uppercase">
-                                                {lang === 'th' ? 'จำนวนแผ่นดิบต่อชิ้น' : 'Sheets/pane'}
-                                            </Label>
-                                            <Input
-                                                type="number"
-                                                min={2}
-                                                max={10}
-                                                value={ap.sheetsPerPane}
-                                                onChange={(e) => updatePane({ sheetsPerPane: Math.max(2, parseInt(e.target.value) || 2) })}
-                                                className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm px-4 focus:ring-[#E8601C]"
-                                            />
-                                        </div>
-
-                                        {ap.sheetsPerPane > 1 && (
-                                            <p className="text-[11px] text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-950/20 px-3 py-2 rounded-xl border border-violet-100 dark:border-violet-900/30">
-                                                ระบบจะสร้างแผ่นดิบ <span className="font-bold">{ap.sheetsPerPane} แผ่น</span> ต่อชิ้น แยกผ่านสายการผลิตก่อนประกบที่สถานีลามิเนต
-                                            </p>
-                                        )}
-                                    </>
-                                )}
                             </div>
                         </div>
 

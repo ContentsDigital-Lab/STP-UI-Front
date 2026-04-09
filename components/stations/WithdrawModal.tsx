@@ -40,6 +40,16 @@ function matSpecs(m: string | Material | undefined | null): string {
         .filter(Boolean).join(" • ");
 }
 
+/** One withdraw per physical pane; laminate sheet/parent rows used to bill 2+ via rawGlass.sheetsPerPane — stock deduct 1 only. */
+function withdrawalQuantityForPane(p: Pane): number {
+    const fromSpec = p.rawGlass?.sheetsPerPane ?? 1;
+    const laminated =
+        /laminate/i.test(String(p.glassType ?? "")) ||
+        p.laminateRole === "sheet" ||
+        p.laminateRole === "parent";
+    return laminated ? 1 : fromSpec;
+}
+
 export function WithdrawModal({ stationId, onClose, initialPane }: WithdrawModalProps) {
     const { user } = useAuth();
     const [step, setStep] = useState<Step>(initialPane ? "confirm" : "scan");
@@ -89,8 +99,10 @@ export function WithdrawModal({ stationId, onClose, initialPane }: WithdrawModal
                     const mat = typeof inv.material === "object" ? inv.material as Material : null;
                     if (!mat?.specDetails) return false;
                     const typeMatch = (mat.specDetails.glassType ?? "").toLowerCase() === rg.glassType.toLowerCase();
+                    
                     const matThickness = parseFloat(String(mat.specDetails.thickness ?? 0));
                     const thicknessMatch = !rg.thickness || matThickness === rg.thickness;
+                    
                     const colorMatch = !rg.color ||
                         (mat.specDetails.color ?? "").toLowerCase().includes(rg.color.toLowerCase()) ||
                         rg.color.toLowerCase().includes((mat.specDetails.color ?? "").toLowerCase());
@@ -162,7 +174,7 @@ export function WithdrawModal({ stationId, onClose, initialPane }: WithdrawModal
                 : null;
             // Prefer material from selected inventory slot (rawGlass flow) over pane.material
             const materialId = selectedInv ? matId(selectedInv.material) : matId(pane.material);
-            const sheetsNeeded = pane.rawGlass?.sheetsPerPane ?? 1;
+            const sheetsNeeded = withdrawalQuantityForPane(pane);
 
             const res = await withdrawalsApi.create({
                 order: orderId ?? undefined,
@@ -282,7 +294,9 @@ export function WithdrawModal({ stationId, onClose, initialPane }: WithdrawModal
                     )}
 
                     {/* ── Step 2: Confirm ── */}
-                    {step === "confirm" && pane && (
+                    {step === "confirm" && pane && (() => {
+                        const withdrawQty = withdrawalQuantityForPane(pane);
+                        return (
                         <>
                             {/* Pane info card */}
                             <div className="rounded-2xl border bg-slate-50 dark:bg-slate-800/50 p-4 space-y-2.5">
@@ -326,7 +340,7 @@ export function WithdrawModal({ stationId, onClose, initialPane }: WithdrawModal
                                     <Boxes className="h-3.5 w-3.5 text-blue-500 shrink-0" />
                                     <span className="text-blue-700 dark:text-blue-300 font-medium">
                                         ต้องการ <span className="font-bold">{pane.rawGlass.glassType}{pane.rawGlass.color ? ` ${pane.rawGlass.color}` : ''}{pane.rawGlass.thickness ? ` ${pane.rawGlass.thickness}mm` : ''}</span>
-                                        {' × '}<span className="font-bold">{pane.rawGlass.sheetsPerPane} แผ่น</span>
+                                        {' × '}<span className="font-bold">{withdrawQty} แผ่น</span>
                                     </span>
                                 </div>
                             )}
@@ -402,14 +416,14 @@ export function WithdrawModal({ stationId, onClose, initialPane }: WithdrawModal
                                                     </div>
                                                     <div className="shrink-0 text-right">
                                                         <span className={`text-base font-bold ${
-                                                            pane.rawGlass?.sheetsPerPane && inv.quantity < pane.rawGlass.sheetsPerPane
+                                                            withdrawQty > 0 && inv.quantity < withdrawQty
                                                                 ? "text-red-500"
                                                                 : inv.quantity <= 5 ? "text-amber-600" : "text-emerald-600 dark:text-emerald-400"
                                                         }`}>
                                                             {inv.quantity}
                                                         </span>
                                                         <span className="text-[10px] text-muted-foreground block">
-                                                            {pane.rawGlass?.sheetsPerPane && pane.rawGlass.sheetsPerPane > 1 ? `/ ${pane.rawGlass.sheetsPerPane} แผ่น` : 'ชิ้น'}
+                                                            {withdrawQty > 1 ? `/ ${withdrawQty} แผ่น` : "ชิ้น"}
                                                         </span>
                                                     </div>
                                                 </button>
@@ -425,10 +439,10 @@ export function WithdrawModal({ stationId, onClose, initialPane }: WithdrawModal
                             </div>
 
 
-                            {selectedInv && pane.rawGlass?.sheetsPerPane && selectedInv.quantity < pane.rawGlass.sheetsPerPane && (
+                            {selectedInv && withdrawQty > 0 && selectedInv.quantity < withdrawQty && (
                                 <div className="flex items-center gap-2 text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 px-3 py-2.5 rounded-xl border border-red-100 dark:border-red-900/30">
                                     <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                                    สต็อกไม่เพียงพอ — มี {selectedInv.quantity} แผ่น ต้องการ {pane.rawGlass.sheetsPerPane} แผ่น
+                                    สต็อกไม่เพียงพอ — มี {selectedInv.quantity} แผ่น ต้องการ {withdrawQty} แผ่น
                                 </div>
                             )}
 
@@ -449,7 +463,7 @@ export function WithdrawModal({ stationId, onClose, initialPane }: WithdrawModal
                                         submitting ||
                                         loadingInv ||
                                         (!loadingInv && matchingInvs.length === 0) ||
-                                        !!(selectedInv && pane.rawGlass?.sheetsPerPane && selectedInv.quantity < pane.rawGlass.sheetsPerPane)
+                                        !!(selectedInv && withdrawQty > 0 && selectedInv.quantity < withdrawQty)
                                     }
                                     className="flex-1 h-11 rounded-xl font-bold bg-orange-600 hover:bg-orange-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
@@ -458,7 +472,8 @@ export function WithdrawModal({ stationId, onClose, initialPane }: WithdrawModal
                                 </Button>
                             </div>
                         </>
-                    )}
+                        );
+                    })()}
 
                     {/* ── Step 3: Success ── */}
                     {step === "success" && (

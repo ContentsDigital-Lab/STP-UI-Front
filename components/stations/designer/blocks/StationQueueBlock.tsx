@@ -5,13 +5,15 @@ import { useCallback, useEffect, useRef, useState, KeyboardEvent } from "react";
 import { 
     RotateCcw, Camera, ScanBarcode, QrCode, XCircle, CheckCircle2, AlertTriangle, 
     ChevronDown, ChevronRight, Package, Grid3X3, PackageOpen, Loader2, MapPin, 
-    Layers, Merge, Bell, CheckCheck, Play, Maximize, Box, ListChecks
+    Layers, Merge, Bell, CheckCheck, Play, Maximize, Box, ListChecks, Database
 } from "lucide-react";
 import { toast } from "sonner";
 import { panesApi } from "@/lib/api/panes";
 import { Pane } from "@/lib/api/types";
 import { parseQrScan } from "@/lib/utils/parseQrScan";
 import { getStationName, isStationMatch } from "@/lib/utils/station-helpers";
+import { isPaneRetiredByMerge, resolveActivePane } from "@/lib/utils/pane-laminate";
+import { withMergedIntoScanRetry } from "@/lib/utils/merged-into-scan";
 import { usePreview } from "../PreviewContext";
 import { useStationContext } from "../StationContext";
 import { useWebSocket } from "@/lib/hooks/use-socket";
@@ -72,7 +74,7 @@ function getUrgencyClass(level: "critical" | "warn" | "normal"): string {
 export function StationQueueBlock({ title = "คิวสถานีนี้" }: StationQueueBlockProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
-    const { stationId, stationName, isLaminateStation, setPaneData, triggerRefresh, refreshCounter } = useStationContext();
+    const { stationId, stationName, isLaminateStation, setPaneData, triggerRefresh, refreshCounter, queueFrontOrderId, pinQueueOrderToFront } = useStationContext();
 
     const inputRef = useRef<HTMLInputElement>(null);
     const guardedPanesRef = useRef<Map<string, Pane>>(new Map());
@@ -106,6 +108,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
         ready: boolean;
     }
     const [laminateGroups, setLaminateGroups] = useState<LaminateGroup[]>([]);
+    const [laminateSurvivorChoice, setLaminateSurvivorChoice] = useState<Record<string, string>>({});
     const [mergeLoading, setMergeLoading] = useState<Record<string, boolean>>({});
     const [mergeResult, setMergeResult] = useState<Record<string, "success" | "error">>({});
 
@@ -120,6 +123,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
             if (!res || !res.success || !Array.isArray(res.data)) return;
 
             const atStation = res.data.filter(p =>
+                !isPaneRetiredByMerge(p) &&
                 isStationMatch(p.currentStation, stationId, stationName) && p.currentStatus === "in_progress",
             );
 
@@ -150,7 +154,11 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
     }, [stationId, stationName]);
 
     useEffect(() => { fetchPanes(); }, [fetchPanes, refreshCounter]);
-    useWebSocket("pane", ["pane:updated"], () => { setQrPane(null); fetchPanes(); if (isLaminateStation) fetchLaminateGroups(); }, { debounceMs: 500 });
+    useWebSocket("pane", ["pane:updated", "pane:laminated"], () => { 
+        setQrPane(null); 
+        fetchPanes(); 
+        if (isLaminateStation) fetchLaminateGroups(); 
+    }, { debounceMs: 500 });
 
     const fetchLaminateGroups = useCallback(async () => {
         if (!isLaminateStation || !stationId) return;
@@ -158,7 +166,9 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
             const sheetsRes = await panesApi.getAll({ laminateRole: "sheet", limit: 500 });
             if (!sheetsRes?.success) return;
 
-            const allSheetData = (sheetsRes.data as Pane[]).filter(s => s.currentStatus !== "claimed");
+            const allSheetData = (sheetsRes.data as Pane[]).filter(
+                (s) => s.currentStatus !== "claimed" && !isPaneRetiredByMerge(s),
+            );
 
             const sheetsByParent = new Map<string, Pane[]>();
             for (const s of allSheetData) {
@@ -184,9 +194,33 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
             for (let i = 0; i < parentIds.length; i++) {
                 const pid = parentIds[i];
                 const parentRes = parentResults[i];
-                if (!parentRes?.success) continue;
-
                 const allSheets = sheetsByParent.get(pid) ?? [];
+                const firstSheet = allSheets[0];
+                if (!firstSheet) continue;
+
+                const parentPane: Pane =
+                    parentRes?.success && parentRes.data
+                        ? parentRes.data
+                        : ({
+                              _id: pid,
+                              paneNumber: firstSheet.paneNumber,
+                              laminateRole: "parent",
+                              currentStation: firstSheet.currentStation,
+                              currentStatus: firstSheet.currentStatus,
+                              routing: firstSheet.routing,
+                              customRouting: firstSheet.customRouting,
+                              dimensions: firstSheet.dimensions,
+                              glassType: firstSheet.glassType,
+                              glassTypeLabel: firstSheet.glassTypeLabel,
+                              processes: firstSheet.processes,
+                              edgeTasks: firstSheet.edgeTasks,
+                              order: firstSheet.order,
+                              createdAt: firstSheet.createdAt,
+                              updatedAt: firstSheet.updatedAt,
+                          } as Pane);
+
+                if (isPaneRetiredByMerge(parentPane)) continue;
+
                 const sheetsTotal = allSheets.length;
                 const atStation = allSheets.filter(s =>
                     isStationMatch(s.currentStation, stationId, stationName) &&
@@ -198,7 +232,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                 if (sheetsPresent === 0) continue;
 
                 groups.push({
-                    parent: parentRes.data,
+                    parent: parentPane,
                     sheets: allSheets,
                     sheetsPresent,
                     sheetsTotal,
@@ -218,15 +252,40 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
         fetchPanes();
     }, { debounceMs: 500 });
 
-    async function handleMerge(parentPaneNumber: string, parentId: string) {
+    async function handleMerge(parentId: string, group: LaminateGroup) {
         if (!stationId) return;
+        const sheets = group.sheets.filter((s) => !isPaneRetiredByMerge(s));
+        if (sheets.length === 0) return;
+
+        const chosen =
+            laminateSurvivorChoice[parentId] &&
+            sheets.some((s) => s.paneNumber === laminateSurvivorChoice[parentId])
+                ? laminateSurvivorChoice[parentId]
+                : sheets[0].paneNumber;
+
+        const laminateBody =
+            sheets.length > 1 ? { laminateSurvivorPaneNumber: chosen } : {};
+
         setMergeLoading(prev => ({ ...prev, [parentId]: true }));
         setMergeResult(prev => { const n = { ...prev }; delete n[parentId]; return n; });
         try {
-            const res = await panesApi.scan(parentPaneNumber, { station: stationId, action: "laminate" });
-            if (!res.success) throw new Error(res.message ?? "ลามิเนตไม่สำเร็จ");
+            const res = await withMergedIntoScanRetry(chosen, async (pn) => {
+                const r = await panesApi.scan(pn, {
+                    station: stationId!,
+                    action: "laminate",
+                    ...laminateBody,
+                });
+                if (!r.success) throw new Error(r.message ?? "ลามิเนตไม่สำเร็จ");
+                return r;
+            });
             setMergeResult(prev => ({ ...prev, [parentId]: "success" }));
-            setPaneData(res.data.pane as unknown as Record<string, unknown>);
+            setLaminateSurvivorChoice((prev) => {
+                const n = { ...prev };
+                delete n[parentId];
+                return n;
+            });
+            const d = res.data as { survivorPane?: Pane; pane: Pane };
+            setPaneData((d.survivorPane ?? d.pane) as unknown as Record<string, unknown>);
             triggerRefresh();
             setTimeout(() => {
                 setMergeResult(prev => { const n = { ...prev }; delete n[parentId]; return n; });
@@ -274,6 +333,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
 
     const materialGroups = (() => {
         const atStation = panes.filter(p =>
+            !isPaneRetiredByMerge(p) &&
             isStationMatch(p.currentStation, stationId, stationName) && 
             p.currentStatus === "in_progress" &&
             p.withdrawal // Show only panes that have been withdrawn
@@ -292,6 +352,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
             const matObj = (typeof p.material === "object" ? p.material : null) as any;
             const mid = typeof p.material === "string" ? p.material : (matObj?._id || "unknown");
             const glassType = p.glassType || matObj?.specDetails?.glassType || "ทั่วไป";
+            
             const thicknessRaw = p.dimensions?.thickness || matObj?.specDetails?.thickness || 0;
             const thickness = typeof thicknessRaw === 'number' ? thicknessRaw : parseFloat(thicknessRaw) || 0;
             const color = matObj?.specDetails?.color || "";
@@ -343,11 +404,12 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
     const orderGroups = (() => {
         const filtered = isLaminateStation
             ? panes.filter(p => {
+                if (isPaneRetiredByMerge(p)) return false;
                 if (p.laminateRole === "sheet") return false;
                 if (p.laminateRole === "parent" && p.currentStatus === "pending") return false;
                 return true;
             })
-            : panes;
+            : panes.filter((p) => !isPaneRetiredByMerge(p));
         const map = new Map<string, { label: string; panes: Pane[]; priority: number; createdAt: string; deadline: string }>();
         for (const p of filtered) {
             const oid   = extractOrderId(p);
@@ -379,6 +441,11 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                 return { orderId, label: v.label, panes: v.panes, priority: v.priority, createdAt: v.createdAt, deadline: v.deadline, maxUrgency: maxLevel };
             })
             .sort((a, b) => {
+                if (queueFrontOrderId) {
+                    const aFront = a.orderId === queueFrontOrderId ? 1 : 0;
+                    const bFront = b.orderId === queueFrontOrderId ? 1 : 0;
+                    if (aFront !== bFront) return bFront - aFront;
+                }
                 const severity = { critical: 3, warn: 2, normal: 1 };
                 if (a.maxUrgency !== b.maxUrgency) return severity[b.maxUrgency] - severity[a.maxUrgency];
                 
@@ -397,12 +464,17 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
         setBatchLoading(true);
         setScanError(null);
         try {
-            const paneNumbers = panesToProcess.map(p => p.paneNumber);
+            const eligible = panesToProcess.filter((p) => !isPaneRetiredByMerge(p));
+            if (eligible.length === 0) {
+                setScanError("ไม่มีแผ่นที่ใช้สแกนแบบกลุ่มได้ (รวมลามิเนตแล้วหรือถูกรวมเข้าแผ่นอื่น)");
+                return;
+            }
+            const paneNumbers = eligible.map((p) => p.paneNumber);
             const res = await panesApi.batchScan({ paneNumbers, station: stationId, action });
             if (!res.success) throw new Error(res.message || "ดำเนินการแบบกลุ่มไม่สำเร็จ");
             setSelectedPanes(prev => {
                 const n = new Set(prev);
-                panesToProcess.forEach(p => n.delete(p._id));
+                eligible.forEach((p) => n.delete(p._id));
                 return n;
             });
             triggerRefresh();
@@ -455,7 +527,8 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
         try {
             const lookupRes = await panesApi.getById(pn);
             if (lookupRes.success && lookupRes.data) {
-                const cs = lookupRes.data.currentStation;
+                const active = resolveActivePane(lookupRes.data);
+                const cs = active.currentStation;
                 const paneStationStr = getStationName(cs);
                 const isHere = !cs || isStationMatch(cs, stationId, stationName);
                 if (!isHere) {
@@ -472,9 +545,17 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
         const tempKey = `scan-${pn}`;
         setActionLoading(prev => ({ ...prev, [tempKey]: true }));
         try {
-            const res = await panesApi.scan(pn, { station: stationId!, action: "scan_in", ...(force ? { force: true } : {}) });
-            if (!res.success) throw new Error(res.message ?? "สแกนไม่สำเร็จ");
+            const res = await withMergedIntoScanRetry(pn, async (paneNum) => {
+                const r = await panesApi.scan(paneNum, {
+                    station: stationId!,
+                    action: "scan_in",
+                    ...(force ? { force: true } : {}),
+                });
+                if (!r.success) throw new Error(r.message ?? "สแกนไม่สำเร็จ");
+                return r;
+            });
             const scannedPane = res.data.pane as Pane;
+            pinQueueOrderToFront(extractOrderId(scannedPane));
             guardedPanesRef.current.set(scannedPane._id, { ...scannedPane, currentStatus: "in_progress" });
             const pid = scannedPane._id;
             setTimeout(() => { guardedPanesRef.current.delete(pid); }, 60_000);
@@ -505,8 +586,11 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
         setActionLoading(prev => ({ ...prev, [pane._id]: true }));
         setActionResult(prev => { const n = { ...prev }; delete n[pane._id]; return n; });
         try {
-            const res = await panesApi.scan(pane.paneNumber, { station: stationId, action });
-            if (!res.success) throw new Error(res.message ?? "ดำเนินการไม่สำเร็จ");
+            const res = await withMergedIntoScanRetry(pane.paneNumber, async (paneNum) => {
+                const r = await panesApi.scan(paneNum, { station: stationId, action });
+                if (!r.success) throw new Error(r.message ?? "ดำเนินการไม่สำเร็จ");
+                return r;
+            });
             setPaneData(res.data.pane as unknown as Record<string, unknown>);
             if (action === "start") {
                 setPhases(prev => ({ ...prev, [pane._id]: "started" }));
@@ -636,6 +720,14 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                 const pid = group.parent._id;
                                 const isMerging = mergeLoading[pid];
                                 const mResult = mergeResult[pid];
+                                const activeSheets = group.sheets.filter((s) => !isPaneRetiredByMerge(s));
+                                const defaultSurvivorPn = activeSheets[0]?.paneNumber ?? "";
+                                const survivorPnForGroup =
+                                    laminateSurvivorChoice[pid] &&
+                                    activeSheets.some((s) => s.paneNumber === laminateSurvivorChoice[pid])
+                                        ? laminateSurvivorChoice[pid]
+                                        : defaultSurvivorPn;
+                                const showSurvivorPick = activeSheets.length > 1;
                                 return (
                                     <div key={pid} className={`rounded-xl border overflow-hidden ${
                                         group.ready
@@ -655,6 +747,11 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                                 {group.sheetsPresent}/{group.sheetsTotal} แผ่น
                                             </span>
                                         </div>
+                                        {showSurvivorPick ? (
+                                            <p className="px-3 py-1.5 text-[10px] text-muted-foreground bg-violet-50/80 dark:bg-violet-950/20 border-b border-border/40">
+                                                เลือกสติกเกอร์ที่จะใช้ต่อหลังประกบ (QR ที่ยังสแกนได้)
+                                            </p>
+                                        ) : null}
                                         <div className="border-t border-border/50 divide-y divide-border/30">
                                             {group.sheets.map(sheet => {
                                                 const isHere = isStationMatch(sheet.currentStation, stationId, stationName) && sheet.currentStatus !== "completed";
@@ -662,26 +759,60 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                                 return (
                                                     <div key={sheet._id} className="flex items-center gap-2 px-3 py-2">
                                                         <span className={`h-2 w-2 rounded-full shrink-0 ${isWorking ? "bg-emerald-500" : isHere ? "bg-amber-400" : "bg-slate-300"}`} />
-                                                        <span className="font-mono text-[11px] text-foreground flex-1">{sheet.paneNumber}</span>
+                                                        <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                                                            <span className="font-mono text-[11px] text-foreground">
+                                                                {sheet.paneNumber}
+                                                                {sheet.sheetLabel ? (
+                                                                    <span className="text-muted-foreground font-normal ml-1">({sheet.sheetLabel})</span>
+                                                                ) : null}
+                                                            </span>
+                                                            {showSurvivorPick && !isPaneRetiredByMerge(sheet) ? (
+                                                                <label className="flex items-center gap-1.5 cursor-pointer shrink-0">
+                                                                    <input
+                                                                        type="radio"
+                                                                        name={`lam-survivor-${pid}`}
+                                                                        className="h-3.5 w-3.5 accent-violet-600"
+                                                                        checked={survivorPnForGroup === sheet.paneNumber}
+                                                                        onChange={() =>
+                                                                            setLaminateSurvivorChoice((prev) => ({
+                                                                                ...prev,
+                                                                                [pid]: sheet.paneNumber,
+                                                                            }))
+                                                                        }
+                                                                    />
+                                                                    <span className="text-[10px] text-muted-foreground">คงสติกเกอร์นี้</span>
+                                                                </label>
+                                                            ) : null}
+                                                        </div>
                                                     </div>
                                                 );
                                             })}
                                         </div>
-                                        <div className="p-2 bg-muted/20 border-t">
-                                            {mResult === "success" ? (
-                                                <div className="flex items-center justify-center gap-1.5 text-emerald-600 text-xs font-bold py-1.5"><CheckCircle2 className="h-4 w-4" />สำเร็จ</div>
-                                            ) : (
-                                                <button
-                                                    onClick={() => handleMerge(group.parent.paneNumber, pid)}
-                                                    disabled={!group.ready || isMerging}
-                                                    className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
-                                                        group.ready ? "bg-violet-600 hover:bg-violet-500 text-white" : "bg-muted text-muted-foreground grayscale"
-                                                    }`}
-                                                >
-                                                    {isMerging ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Merge className="h-3.5 w-3.5" />}
-                                                    {group.ready ? "ประกบลามิเนต" : "รอแผ่นกระจกครบ"}
-                                                </button>
-                                            )}
+                                        <div className="px-3 py-2 bg-muted/20 flex items-center justify-between gap-2">
+                                            <div className="flex items-center gap-2">
+                                                <Merge className="h-3 w-3 text-muted-foreground" />
+                                                <span className="text-[10px] text-muted-foreground italic">รวมกระจกเข้าด้วยกัน</span>
+                                            </div>
+                                            <Button
+                                                size="sm"
+                                                variant={group.ready ? "default" : "outline"}
+                                                disabled={!group.ready || isMerging}
+                                                onClick={() => handleMerge(pid, group)}
+                                                className={`h-8 px-4 rounded-lg font-bold transition-all ${
+                                                    group.ready && !isMerging
+                                                        ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                                                        : ""
+                                                }`}
+                                            >
+                                                {isMerging ? (
+                                                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                                                ) : mResult === "success" ? (
+                                                    <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                                                ) : (
+                                                    <Merge className="h-3.5 w-3.5 mr-1.5" />
+                                                )}
+                                                {isMerging ? "กำลังรวม..." : mResult === "success" ? "สำเร็จ" : "รวมแผ่น"}
+                                            </Button>
                                         </div>
                                     </div>
                                 );
@@ -690,301 +821,321 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                     </div>
                 )}
 
-                {loading && panes.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
-                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                        <span className="text-sm font-medium">กำลังโหลดคิว...</span>
-                    </div>
-                ) : (viewMode === "order" ? orderGroups : materialGroups).length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-20 gap-3 border-2 border-dashed border-muted rounded-2xl bg-muted/5">
-                        <PackageOpen className="h-10 w-10 text-muted-foreground/30" />
-                        <div className="text-center">
-                            <p className="text-sm font-bold text-foreground">ยังไม่มีกระจกในคิว</p>
-                            <p className="text-xs text-muted-foreground mt-1">สแกน QR เพื่อยืนยันเข้าสถานีเป็นรายการแรก</p>
-                        </div>
-                    </div>
-                ) : viewMode === "order" ? (
-                    <div className="space-y-3">
-                        {orderGroups.map(({ orderId, label, panes: groupPanes, priority }) => {
-                            const isExpanded = !collapsed.has(orderId);
-                            const withdrawnCount = groupPanes.filter(p => p.withdrawal).length;
-                            const urgencyCls = priority >= 3 
-                                ? "border-red-500 dark:border-red-400 bg-red-50/80 dark:bg-red-950/30 shadow-red-200/50 dark:shadow-red-900/20 animate-pulse-subtle" 
-                                : priority >= 2 
-                                ? "border-amber-400 dark:border-amber-500/60 bg-amber-50/50 dark:bg-amber-900/10 shadow-amber-100/30"
-                                : "border-border bg-card shadow-sm";
-                            
-                            return (
-                                <div key={orderId} className={`rounded-xl border overflow-hidden transition-all duration-500 ${urgencyCls}`}>
-                                    <button
-                                        onClick={() => setCollapsed(prev => {
-                                            const next = new Set(prev);
-                                            if (next.has(orderId)) next.delete(orderId);
-                                            else next.add(orderId);
-                                            return next;
-                                        })}
-                                        className="w-full flex items-center gap-3 px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors text-left"
-                                    >
-                                        <Package className="h-4 w-4 text-primary shrink-0" />
-                                        <div className="flex flex-1 items-center gap-2 min-w-0">
-                                            <span className="text-xs font-bold text-foreground truncate">ออเดอร์ {label}</span>
-                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
-                                                priority >= 3 ? "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400" :
-                                                priority >= 2 ? "bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400" :
-                                                priority >= 1 ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300" :
-                                                "bg-slate-100 dark:bg-slate-200 text-slate-500 dark:text-slate-600"
-                                            }`}>
-                                                P{priority}
-                                            </span>
+                <div className="space-y-4">
+                    {/* View: Cutting (Material Groups) */}
+                    {isCutStation && viewMode === "cutting" ? (
+                        materialGroups.length === 0 ? (
+                            <div className="py-12 flex flex-col items-center justify-center text-muted-foreground space-y-2 border-2 border-dashed rounded-2xl bg-muted/10">
+                                <Box className="h-8 w-8 opacity-20" />
+                                <p className="text-sm">ไม่มีงานรอตัดในคิว</p>
+                            </div>
+                        ) : (
+                            materialGroups.map(group => {
+                                const gSelected = group.panes.every(p => selectedPanes.has(p._id));
+                                const someSelected = group.panes.some(p => selectedPanes.has(p._id));
+                                return (
+                                    <div key={group.key} className={`rounded-2xl border overflow-hidden transition-all ${getUrgencyClass(group.maxUrgency)}`}>
+                                        <div className="px-4 py-3 border-b flex items-center justify-between gap-3 bg-muted/5">
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <button 
+                                                    onClick={() => selectAllInGroup(group.panes)}
+                                                    className={`h-5 w-5 rounded border-2 flex items-center justify-center transition-colors ${
+                                                        gSelected ? "bg-primary border-primary" : someSelected ? "bg-primary/20 border-primary" : "border-muted-foreground/30 hover:border-primary/50"
+                                                    }`}
+                                                >
+                                                    {gSelected && <CheckCheck className="h-3.5 w-3.5 text-primary-foreground font-bold" />}
+                                                    {!gSelected && someSelected && <div className="h-1.5 w-1.5 bg-primary rounded-sm" />}
+                                                </button>
+                                                <div className="flex flex-col min-w-0">
+                                                    <span className="font-bold text-sm truncate">{group.label}</span>
+                                                    <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">{group.panes.length} ชิ้น</span>
+                                                </div>
+                                            </div>
+                                            <Button
+                                                size="sm"
+                                                variant="secondary"
+                                                onClick={() => handleBatchAction("complete", group.panes.filter(p => selectedPanes.has(p._id)))}
+                                                disabled={!someSelected || batchLoading}
+                                                className="h-8 px-3 rounded-lg font-bold"
+                                            >
+                                                {batchLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <CheckCheck className="h-3.5 w-3.5 mr-1.5" />}
+                                                ทำเสร็จที่เลือก
+                                            </Button>
                                         </div>
-                                        {isCutStation && (
-                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${withdrawnCount === groupPanes.length ? "bg-emerald-100 text-emerald-700" : "bg-orange-100 text-orange-700"}`}>
-                                                เบิก {withdrawnCount}/{groupPanes.length}
-                                            </span>
-                                        )}
-                                        <span className="text-[10px] text-muted-foreground font-medium shrink-0">{groupPanes.length} ชิ้น</span>
-                                        {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-                                    </button>
-
-                                    {isExpanded && (
                                         <div className="divide-y divide-border/40">
-                                            {groupPanes.map(pane => {
-                                                const phase = phases[pane._id] ?? "confirmed";
-                                                const isLoading = actionLoading[pane._id];
-                                                const result = actionResult[pane._id];
-
+                                            {group.panes.map(pane => {
+                                                const isSel = selectedPanes.has(pane._id);
+                                                const urg = getUrgencyLevel(pane);
                                                 return (
-                                                    <div key={pane._id} className={`flex items-center gap-4 px-4 py-3 transition-colors border-b last:border-b-0 ${getUrgencyClass(getUrgencyLevel(pane))}`}>
-                                                        <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${phase === "started" ? "bg-blue-500 animate-pulse" : "bg-amber-400"}`} />
-                                                        <div className="flex-1 min-w-0">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="font-mono text-xs font-bold text-foreground leading-none">{pane.paneNumber}</span>
-                                                                {isCutStation && !pane.withdrawal && <span className="text-[9px] font-bold text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30 px-1 rounded">ยังไม่เบิก</span>}
+                                                    <div 
+                                                        key={pane._id}
+                                                        onClick={() => togglePaneSelection(pane._id)}
+                                                        className={`group flex items-center justify-between gap-4 px-4 py-3 cursor-pointer transition-all hover:bg-muted/10 ${isSel ? "bg-primary/[0.03]" : ""}`}
+                                                    >
+                                                        <div className="flex items-center gap-3 min-w-0">
+                                                            <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center transition-colors ${
+                                                                isSel ? "bg-primary border-primary" : "border-muted-foreground/20 group-hover:border-primary/40"
+                                                            }`}>
+                                                                {isSel && <CheckCheck className="h-2.5 w-2.5 text-primary-foreground font-bold" />}
                                                             </div>
-                                                            <div className="text-[10px] text-muted-foreground mt-0.5 flex flex-wrap gap-x-2">
-                                                                <span>{pane.glassTypeLabel}</span>
-                                                                <span className="font-medium opacity-60">{pane.dimensions?.width}×{pane.dimensions?.height}</span>
+                                                            <div className="flex flex-col min-w-0">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="font-mono text-[13px] font-bold text-foreground">{pane.paneNumber}</span>
+                                                                    {urg === "critical" && (
+                                                                        <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse shrink-0" title="งานด่วน P3" />
+                                                                    )}
+                                                                </div>
+                                                                <span className="text-[11px] text-muted-foreground">
+                                                                    {pane.dimensions?.width} × {pane.dimensions?.height} mm
+                                                                </span>
                                                             </div>
                                                         </div>
-
-                                                        <div className="flex items-center gap-2 shrink-0">
-                                                            {pane.qrCode && (
-                                                                <button onClick={(e) => { e.stopPropagation(); setQrPane(pane); }} className="p-1.5 rounded-lg border hover:bg-muted text-muted-foreground">
-                                                                    <QrCode className="h-3.5 w-3.5" />
-                                                                </button>
-                                                            )}
-
-                                                            {result === "success" ? (
-                                                                <div className="h-8 w-8 flex items-center justify-center text-emerald-600"><CheckCircle2 className="h-5 w-5" /></div>
-                                                            ) : result === "error" ? (
-                                                                <div className="h-8 w-8 flex items-center justify-center text-red-500"><XCircle className="h-5 w-5" /></div>
-                                                            ) : (
-                                                                <button
-                                                                    onClick={() => doAction(pane, phase === "started" ? "complete" : "start")}
-                                                                    disabled={isLoading}
-                                                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-all active:scale-[0.98] disabled:opacity-50 disabled:grayscale ${
-                                                                        phase === "started" ? "bg-emerald-600 hover:bg-emerald-500" : "bg-blue-600 hover:bg-blue-500"
-                                                                    }`}
-                                                                >
-                                                                    {isLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : phase === "started" ? <CheckCheck className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-                                                                    <span>{phase === "started" ? "เสร็จ" : "เริ่ม"}</span>
-                                                                </button>
-                                                            )}
+                                                        <div className="flex items-center gap-3 shrink-0">
+                                                             <div className="text-right flex flex-col items-end">
+                                                                <span className="text-[10px] font-bold text-foreground">
+                                                                    ออเดอร์: {extractOrderLabel(pane)}
+                                                                </span>
+                                                                {pane.withdrawal && typeof pane.withdrawal === "object" && pane.withdrawal.stockType && (
+                                                                    <span className="text-[9px] text-muted-foreground">
+                                                                        จาก: {pane.withdrawal.stockType === "Raw" ? "วัตถุดิบ" : "นำกลับมาใช้"}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); setQrPane(pane); }}
+                                                                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                                            >
+                                                                <QrCode className="h-4 w-4" />
+                                                            </button>
                                                         </div>
                                                     </div>
                                                 );
                                             })}
                                         </div>
-                                    )}
+                                    </div>
+                                );
+                            })
+                        )
+                    ) : (
+                        /* View: Order (Standard Mode) */
+                        orderGroups.length === 0 ? (
+                            <div className="py-16 flex flex-col items-center justify-center text-muted-foreground space-y-3 border-2 border-dashed rounded-3xl bg-muted/5 transition-all hover:bg-muted/10">
+                                <PackageOpen className="h-10 w-10 opacity-20" />
+                                <div className="text-center">
+                                    <p className="text-sm font-bold">ไม่มีงานค้างที่สถานีนี้</p>
+                                    <p className="text-[11px] opacity-60">สแกนรหัสกระจกด้านบนเพื่อจัดคิวทำงาน</p>
                                 </div>
-                            );
-                        })}
-                    </div>
-                ) : (
-                    <div className="space-y-4">
-                        {materialGroups.map((group) => {
-                            const groupSelected = group.panes.filter(p => selectedPanes.has(p._id));
-                            const isAllSelected = groupSelected.length === group.panes.length && group.panes.length > 0;
-                            const isAnySelected = groupSelected.length > 0;
-                            const totalAreaM2 = groupSelected.reduce((sum, p) => sum + (p.dimensions?.area ?? 0), 0) / 1_000_000;
-                            const msWidth = group.material?.specDetails?.width || 0;
-                            const msLength = group.material?.specDetails?.length || 0;
-                            const msAreaM2 = (msWidth * msLength) / 1_000_000;
-                            const efficiency = msAreaM2 > 0 ? (totalAreaM2 / msAreaM2) * 100 : 0;
-
-                            return (
-                                <div key={group.key} className="rounded-2xl border border-border bg-card overflow-hidden shadow-md">
-                                    <div className="px-4 py-3 bg-muted/20 border-b flex items-center gap-3">
-                                        <button 
-                                            onClick={() => selectAllInGroup(group.panes)}
-                                            className={`h-5 w-5 rounded-md border-2 flex items-center justify-center transition-all ${
-                                                isAllSelected ? "bg-primary border-primary text-white" : isAnySelected ? "bg-primary/20 border-primary text-primary" : "bg-background border-muted-foreground/30"
-                                            }`}
+                            </div>
+                        ) : (
+                            orderGroups.map(group => {
+                                const isCollapsed = collapsed.has(group.orderId);
+                                const urgCls = getUrgencyClass(group.maxUrgency);
+                                
+                                return (
+                                    <div key={group.orderId} className={`rounded-2xl border transition-all overflow-hidden ${urgCls} ${isCollapsed ? "shadow-none" : "shadow-sm shadow-black/5"}`}>
+                                        <div 
+                                            className="px-4 py-3 flex items-center justify-between gap-3 cursor-pointer group"
+                                            onClick={() => setCollapsed(prev => {
+                                                const n = new Set(prev);
+                                                if (n.has(group.orderId)) n.delete(group.orderId);
+                                                else n.add(group.orderId);
+                                                return n;
+                                            })}
                                         >
-                                            {isAllSelected && <CheckCheck className="h-3.5 w-3.5" />}
-                                            {!isAllSelected && isAnySelected && <div className="h-2 w-2 rounded-sm bg-primary" />}
-                                        </button>
-                                        <div className="flex-1 min-w-0">
-                                            <h4 className="text-sm font-bold text-foreground truncate">{group.label}</h4>
-                                            <p className="text-[10px] text-muted-foreground font-medium">{group.panes.length} ชิ้นในระบบ</p>
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className={`h-8 w-8 rounded-xl bg-muted/40 flex items-center justify-center transition-colors group-hover:bg-muted/60`}>
+                                                    <Package className={`h-4 w-4 ${group.maxUrgency === "critical" ? "text-red-500 animate-pulse" : "text-muted-foreground"}`} />
+                                                </div>
+                                                <div className="flex flex-col min-w-0">
+                                                    <div className="flex items-center gap-2">
+                                                        <h4 className="font-bold text-sm tracking-tight truncate">ออเดอร์ {group.label}</h4>
+                                                        {group.priority >= 3 && (
+                                                            <span className="px-1.5 py-0.5 rounded-lg bg-red-500 text-white text-[9px] font-black uppercase tracking-tighter shadow-sm animate-pulse">URGENT</span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-x-2 gap-y-1 flex-wrap text-[10px] text-muted-foreground">
+                                                        <span className="font-bold text-foreground/40">{group.panes.length} ชิ้นในคิว</span>
+                                                        {group.deadline && (
+                                                            <span className="flex items-center gap-1">
+                                                                <AlertTriangle className={`h-2.5 w-2.5 ${group.maxUrgency === "critical" ? "text-red-500" : "text-amber-500"}`} />
+                                                                {new Date(group.deadline).toLocaleDateString("th-TH")}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className={`p-1.5 rounded-full transition-all ${isCollapsed ? "" : "bg-muted shadow-inner rotate-180"}`}>
+                                                <ChevronDown className="h-4 w-4 text-muted-foreground/60" />
+                                            </div>
                                         </div>
-                                        {isAnySelected && (
-                                            <button 
-                                                onClick={() => handleBatchAction("complete", groupSelected)}
-                                                disabled={batchLoading}
-                                                className="px-4 py-2 flex items-center  rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all shadow-lg active:scale-95 disabled:opacity-50"
-                                            >
-                                                {batchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCheck className="h-4 w-4" />}
-                                                <span className="ml-2">สำเร็จ {groupSelected.length} ชิ้น</span>
-                                            </button>
+
+                                        {!isCollapsed && (
+                                            <div className="divide-y divide-border/30 border-t border-border/40">
+                                                {group.panes.map(pane => {
+                                                    const phase = phases[pane._id] || "confirmed";
+                                                    const isLoading = actionLoading[pane._id];
+                                                    const res = actionResult[pane._id];
+                                                    const urg = getUrgencyLevel(pane);
+
+                                                    return (
+                                                        <div key={pane._id} className="group/item flex items-center justify-between gap-4 px-4 py-3.5 hover:bg-muted/[0.03] transition-colors">
+                                                            <div className="flex items-center gap-4 min-w-0">
+                                                                <div className="relative">
+                                                                    <div className={`h-10 w-10 flex items-center justify-center rounded-xl bg-background border transition-all ${phase === 'started' ? 'border-primary ring-4 ring-primary/5 bg-primary/5' : 'border-border/60 group-hover/item:border-border'}`}>
+                                                                        {phase === 'started' ? <Play className="h-4 w-4 text-primary fill-primary/10" /> : <ListChecks className="h-4 w-4 text-muted-foreground/40" />}
+                                                                    </div>
+                                                                    {urg === "critical" && (
+                                                                        <div className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 border-2 border-white dark:border-slate-800" />
+                                                                    )}
+                                                                </div>
+                                                                <div className="flex flex-col min-w-0">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="font-mono text-sm font-black text-foreground">{pane.paneNumber}</span>
+                                                                        {pane.laminateRole === "parent" && (
+                                                                            <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-violet-600/10 text-violet-600 border border-violet-600/20 uppercase tracking-tighter">LAM</span>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground font-medium">
+                                                                        <span>{pane.dimensions?.width}×{pane.dimensions?.height}</span>
+                                                                        {pane.dimensions?.thickness && (
+                                                                            <span className="opacity-40">({pane.dimensions.thickness}mm)</span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            <div className="flex items-center gap-2 shrink-0">
+                                                                <button
+                                                                    onClick={() => setQrPane(pane)}
+                                                                    className="p-2 rounded-xl text-muted-foreground/40 hover:text-foreground hover:bg-muted transition-all"
+                                                                    title="ดู QR"
+                                                                >
+                                                                    <QrCode className="h-4 w-4" />
+                                                                </button>
+                                                                
+                                                                {phase === "confirmed" ? (
+                                                                    <Button
+                                                                        size="sm"
+                                                                        onClick={() => doAction(pane, "start")}
+                                                                        disabled={isLoading}
+                                                                        className="h-9 px-4 rounded-xl font-bold bg-secondary hover:bg-secondary/80 text-foreground shadow-sm"
+                                                                    >
+                                                                        {isLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <span>เริ่มผลิต</span>}
+                                                                    </Button>
+                                                                ) : (
+                                                                    <div className="flex items-center gap-1 bg-primary/5 rounded-xl p-1 border border-primary/10">
+                                                                        <Button
+                                                                            size="sm"
+                                                                            onClick={() => doAction(pane, "complete")}
+                                                                            disabled={isLoading}
+                                                                            className={`h-7 px-3 rounded-lg font-black text-[10px] uppercase tracking-wider transition-all shadow-sm ${
+                                                                                res === "success" 
+                                                                                    ? "bg-emerald-500 hover:bg-emerald-500 text-white" 
+                                                                                    : "bg-primary hover:bg-primary/90 text-primary-foreground"
+                                                                            }`}
+                                                                        >
+                                                                            {isLoading ? <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> : res === "success" ? <CheckCheck className="h-3 w-3 mr-1.5" /> : null}
+                                                                            ทำเสร็จ
+                                                                        </Button>
+                                                                        <button
+                                                                            onClick={() => setPhases(prev => ({ ...prev, [pane._id]: "confirmed" }))}
+                                                                            className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-primary/10 transition-colors text-primary/40 hover:text-primary"
+                                                                            title="ย้อนกลับ"
+                                                                        >
+                                                                            <RotateCcw className="h-3 w-3" />
+                                                                        </button>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
                                         )}
                                     </div>
+                                );
+                            })
+                        )
+                    )}
+                </div>
 
-                                    {isAnySelected && msAreaM2 > 0 && (
-                                        <div className="px-4 py-3 bg-blue-50/50 dark:bg-blue-900/10 border-b border-blue-100/50">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
-                                                    <Maximize className="h-3.5 w-3.5" />
-                                                    <span className="text-[10px] font-bold">ความคุ้มค่าพื้นผิว</span>
-                                                </div>
-                                                <span className={`text-[11px] font-bold ${efficiency > 90 ? "text-emerald-600" : "text-blue-600"}`}>{efficiency.toFixed(1)}%</span>
-                                            </div>
-                                            <div className="h-2 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
-                                                <div className="h-full bg-blue-500 transition-all duration-500" style={{ width: `${Math.min(100, efficiency)}%` }} />
-                                            </div>
-                                            <div className="flex justify-between mt-1 text-[9px] text-muted-foreground font-medium">
-                                                <span>งานรวม: {totalAreaM2.toFixed(3)} m²</span>
-                                                <span>แผ่นมาตราฐาน: {msAreaM2.toFixed(3)} m² ({msWidth}×{msLength})</span>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    <div className="divide-y divide-border/40 max-h-[400px] overflow-y-auto">
-                                        {group.panes.map(pane => {
-                                            const isSelected = selectedPanes.has(pane._id);
-                                            const phase = phases[pane._id] ?? "confirmed";
-                                            return (
-                                                <div 
-                                                    key={pane._id}
-                                                    onClick={() => togglePaneSelection(pane._id)}
-                                                    className={`flex items-center gap-3 px-4 py-3 transition-colors cursor-pointer border-b last:border-b-0 ${isSelected ? "bg-primary/10 dark:bg-primary/20 ring-1 ring-inset ring-primary/20" : getUrgencyClass(getUrgencyLevel(pane))}`}
-                                                >
-                                                    <div className={`h-4 w-4 rounded border transition-all flex items-center justify-center ${isSelected ? "bg-primary border-primary text-white" : "border-muted-foreground/30"}`}>
-                                                        {isSelected && <CheckCheck className="h-2.5 w-2.5" />}
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="font-mono text-xs font-bold text-foreground">{pane.paneNumber}</span>
-                                                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-bold">ORD: {extractOrderLabel(pane)}</span>
-                                                        </div>
-                                                        <div className="text-[10px] text-muted-foreground mt-0.5 font-medium">
-                                                            {pane.dimensions?.width}×{pane.dimensions?.height} mm · Area: {((pane.dimensions?.area ?? 0) / 1_000_000).toFixed(4)} m²
-                                                        </div>
-                                                    </div>
-                                                    <div className="shrink-0 flex items-center gap-2">
-                                                        <span className={`h-2 w-2 rounded-full ${phase === "started" ? "bg-blue-500 animate-pulse" : "bg-amber-400"}`} />
-                                                        <span className="text-[10px] font-bold text-muted-foreground">{phase === "started" ? "เริ่มแล้ว" : "รอตัด"}</span>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
-
-                {/* Modals */}
                 {showCamera && (
                     <CameraScanModal
-                        onScan={(raw) => { setShowCamera(false); handleScan(raw); }}
+                        onScan={(raw) => { handleScan(raw); setShowCamera(false); }}
                         onClose={() => setShowCamera(false)}
                     />
                 )}
-
                 {qrPane && (
-                    <QrCodeModal
+                    <QrCodeModal 
                         code={qrPane.paneNumber}
-                        value={qrPane.qrCode}
-                        label={`กระจก ${qrPane.paneNumber}`}
+                        label={`${qrPane.glassTypeLabel ?? ''} ${qrPane.dimensions?.width ?? ''}×${qrPane.dimensions?.height ?? ''}`.trim()}
+                        value={qrPane.qrCode || `STDPLUS:${qrPane.paneNumber}`}
                         onClose={() => setQrPane(null)}
                     />
                 )}
 
-                {mismatchInfo && (
-                    <Dialog open onOpenChange={(open) => { if (!open) handleMismatchDismiss(); }}>
-                        <DialogContent showCloseButton={false} className="sm:max-w-md">
-                            <DialogHeader>
-                                <DialogTitle className="flex items-center gap-2 text-amber-600"><AlertTriangle className="h-5 w-5" />สถานีไม่ตรงกัน</DialogTitle>
-                                <DialogDescription className="pt-2">
-                                    Glass Pane นี้อยู่ที่สถานี &ldquo;{mismatchInfo.paneStation}&rdquo; แต่คุณกำลังสแกนที่ &ldquo;{mismatchInfo.thisStation}&rdquo;
-                                    <span className="block mt-2 font-bold text-amber-700">ต้องการดำเนินการต่อหรือไม่?</span>
+                <Dialog open={!!mismatchInfo} onOpenChange={(open) => !open && handleMismatchDismiss()}>
+                    <DialogContent className="max-w-xs sm:max-w-sm rounded-3xl p-6">
+                        <DialogHeader>
+                            <div className="h-14 w-14 rounded-2xl bg-amber-100 dark:bg-amber-950/30 flex items-center justify-center mx-auto mb-4">
+                                <AlertTriangle className="h-7 w-7 text-amber-600 dark:text-amber-400" />
+                            </div>
+                            <DialogTitle className="text-center font-black text-xl tracking-tight">สถานีไม่ตรงกัน</DialogTitle>
+                            <div className="space-y-4 pt-4">
+                                <div className="p-4 rounded-2xl bg-muted/40 border border-muted flex flex-col items-center gap-1">
+                                    <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">กระจกหมายเลข</span>
+                                    <span className="font-mono text-lg font-black">{mismatchInfo?.paneNumber}</span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3 pb-2">
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-[9px] font-bold text-muted-foreground uppercase opacity-60">สถานีปัจจุบัน</span>
+                                        <span className="text-sm font-bold truncate text-foreground">{mismatchInfo?.paneStation || "ไม่ระบุ"}</span>
+                                    </div>
+                                    <div className="flex flex-col gap-1 border-l pl-3 border-border/50">
+                                        <span className="text-[9px] font-bold text-muted-foreground uppercase opacity-60">สถานีนี้</span>
+                                        <span className="text-sm font-bold truncate text-primary">{mismatchInfo?.thisStation}</span>
+                                    </div>
+                                </div>
+                                <DialogDescription className="text-center text-xs leading-relaxed font-medium">
+                                    กระจกชิ้นนี้ถูกกำหนดให้หยุดที่อื่น แต่คุณกำลังสแกนเข้าสถานีนี้ ต้องการบังคับดึงงานมาที่สถานีนี้หรือไม่?
                                 </DialogDescription>
-                            </DialogHeader>
-                            <DialogFooter className="gap-2 sm:gap-0">
-                                <Button variant="outline" onClick={handleMismatchDismiss}>ยกเลิก</Button>
-                                <Button onClick={handleMismatchConfirm} className="bg-amber-600 hover:bg-amber-500 text-white">ยืนยันดำเนินการ</Button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
-                )}
+                            </div>
+                        </DialogHeader>
+                        <DialogFooter className="flex flex-col sm:flex-row gap-2 mt-2">
+                            <Button variant="outline" onClick={handleMismatchDismiss} className="w-full rounded-xl border-2 font-bold h-11">ยกเลิก</Button>
+                            <Button onClick={handleMismatchConfirm} className="w-full rounded-xl font-bold h-11 bg-amber-600 hover:bg-amber-700 text-white border-0 shadow-lg shadow-amber-600/20 underline decoration-white/20">ดึงเข้าสถานีนี้</Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             </div>
         );
     }
 
-    // ── Designer View (Craft.js) ──────────────────────────────────────────────
     return (
         <div
             ref={(ref) => { ref && connect(drag(ref)); }}
-            className={`rounded-xl border-2 p-3 select-none cursor-grab active:cursor-grabbing transition-colors ${
-                selected ? "border-primary bg-primary/5" : "border-dashed border-muted-foreground/30 hover:border-primary/50"
-            }`}
+            className={`w-full rounded-xl border-2 sm:border-3 p-4 border-dashed transition-all
+                ${selected ? "border-primary bg-primary/5 ring-4 ring-primary/10 scale-[0.99]" : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"}`}
         >
-            <div className="flex flex-wrap items-center gap-1 mb-2">
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-[10px] font-medium">
-                    <ListChecks className="h-2.5 w-2.5" />
-                    Station Queue
-                </span>
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px] font-medium">
-                    scan_in → เริ่ม → เสร็จสิ้น
-                </span>
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] font-medium">
-                    grouped by order
-                </span>
+            <div className="flex items-center gap-2 mb-3">
+                <Grid3X3 className="h-4 w-4 text-primary opacity-60" />
+                <p className="text-xs font-black uppercase tracking-widest text-foreground/40">{title}</p>
             </div>
-
-            {/* Scan input preview */}
-            <div className="flex items-center gap-2 pointer-events-none mb-2">
-                <div className="flex-1 rounded-xl border border-muted bg-background px-3 py-2 flex items-center gap-2">
-                    <ScanBarcode className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
-                    <span className="text-[11px] text-muted-foreground/40 truncate">สแกน QR เพื่อยืนยันกระจกเข้าสถานีนี้...</span>
-                </div>
-                <div className="shrink-0 rounded-xl border border-muted bg-background p-2">
-                    <Camera className="h-4 w-4 text-muted-foreground/40" />
+            
+            <div className="py-12 flex flex-col items-center justify-center text-center space-y-4 border-2 border-dashed rounded-3xl bg-muted/5 opacity-50">
+                <ScanBarcode className="h-10 w-10 text-muted-foreground/30" />
+                <div>
+                    <p className="text-sm font-bold text-foreground/40">Queue Interaction Block</p>
+                    <p className="text-[11px] text-muted-foreground/50 max-w-[200px] mx-auto mt-1">แสดงรายการงานที่แสกนเข้าสถานี และปุ่มเริ่มผลิต/ทำเสร็จ (สแตติกในโหมดออกแบบ)</p>
                 </div>
             </div>
-
-            <p className="text-[11px] font-bold text-foreground mb-2">คิวสถานี ({panes.length})</p>
-
-            {/* Skeleton order groups */}
-            <div className="space-y-2 opacity-50 pointer-events-none">
-                <div className="rounded-xl border border-muted overflow-hidden">
-                    <div className="flex items-center gap-2 px-3 py-2 bg-muted/20 border-b border-muted">
-                        <Package className="h-3.5 w-3.5 text-muted-foreground/60" />
-                        <span className="text-[11px] font-bold text-muted-foreground">Preview Queue</span>
-                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/50 ml-auto" />
-                    </div>
-                    <div className="p-4 flex flex-col items-center justify-center gap-2">
-                        <Box className="h-8 w-8 text-muted-foreground/20" />
-                        <span className="text-[10px] text-muted-foreground">ระบบจำลองการทำงานจริง</span>
-                    </div>
-                </div>
+            
+            <div className="mt-4 pt-4 border-t border-dashed border-border/40 flex items-center justify-between">
+                <span className="text-[9px] font-bold text-muted-foreground/30 uppercase tracking-tighter">Production Station Logic</span>
+                <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[9px] font-black text-slate-400">
+                    <Database className="h-2.5 w-2.5" /> LIVE CONNECTED
+                </span>
             </div>
-
-            <p className="text-[10px] text-emerald-500 dark:text-emerald-400 mt-2">
-                🏭 คิวกระจกแบ่งตามออเดอร์ · realtime · scan_in → เริ่ม → เสร็จสิ้น
-            </p>
         </div>
     );
 }
@@ -993,5 +1144,5 @@ StationQueueBlock.craft = {
     displayName: "Station Queue",
     props: {
         title: "คิวสถานีนี้",
-    } as StationQueueBlockProps,
+    },
 };

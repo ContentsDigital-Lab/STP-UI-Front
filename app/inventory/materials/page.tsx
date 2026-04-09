@@ -42,6 +42,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2, Search, Plus, Edit, Trash2, FilterX, ChevronLeft, Package, X } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { ApiError } from "@/lib/api/api-error";
+import {
+    MATERIAL_UNIT_OPTIONS,
+    materialPayloadFromForm,
+    materialUnitDisplayLabel,
+    normalizeMaterialUnit,
+} from "@/lib/utils/material-payload";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -70,7 +77,7 @@ export default function MaterialsManagementPage() {
     // Form state
     const [formData, setFormData] = useState({
         name: "",
-        unit: "piece",
+        unit: "sheet",
         reorderPoint: 10,
         thickness: "",
         color: "",
@@ -102,19 +109,19 @@ export default function MaterialsManagementPage() {
             setEditingMaterial(material);
             setFormData({
                 name: material.name || "",
-                unit: material.unit || "",
+                unit: normalizeMaterialUnit(material.unit || "sheet"),
                 reorderPoint: material.reorderPoint || 0,
-                thickness: material.specDetails?.thickness || "",
+                thickness: material.specDetails?.thickness?.toString() || "",
                 color: material.specDetails?.color || "",
                 glassType: material.specDetails?.glassType || "",
-                width: material.specDetails?.width || "",
-                length: material.specDetails?.length || ""
+                width: material.specDetails?.width?.toString() || "",
+                length: material.specDetails?.length?.toString() || ""
             });
         } else {
             setEditingMaterial(null);
             setFormData({
                 name: "",
-                unit: "แผ่น",
+                unit: "sheet",
                 reorderPoint: 10,
                 thickness: "",
                 color: "",
@@ -127,23 +134,10 @@ export default function MaterialsManagementPage() {
     };
 
     const handleSave = async () => {
-        if (!formData.name) return;
+        if (!formData.name.trim()) return;
         setIsSubmitting(true);
 
-        // Only send non-empty specDetails fields to avoid backend stripping empty strings
-        const specDetails: Material["specDetails"] = {};
-        if (formData.thickness) specDetails.thickness = formData.thickness;
-        if (formData.color) specDetails.color = formData.color;
-        if (formData.glassType) specDetails.glassType = formData.glassType;
-        if (formData.width) specDetails.width = formData.width;
-        if (formData.length) specDetails.length = formData.length;
-
-        const payload: Partial<Material> = {
-            name: formData.name,
-            unit: formData.unit,
-            reorderPoint: formData.reorderPoint,
-            specDetails,
-        };
+        const payload = materialPayloadFromForm(formData) as Partial<Material>;
 
         try {
             if (editingMaterial) {
@@ -165,7 +159,13 @@ export default function MaterialsManagementPage() {
             setIsModalOpen(false);
         } catch (error) {
             console.error("Failed to save material:", error);
-            toast.error('บันทึกไม่สำเร็จ');
+            const msg =
+                error instanceof ApiError
+                    ? error.message
+                    : error instanceof Error
+                      ? error.message
+                      : "บันทึกไม่สำเร็จ";
+            toast.error(msg);
         } finally {
             setIsSubmitting(false);
         }
@@ -325,7 +325,7 @@ export default function MaterialsManagementPage() {
                             <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
                                 <SelectItem value="all" className="focus:bg-slate-100 focus:text-slate-900">ทั้งหมด</SelectItem>
                                 {glassTypes.map(gt => (
-                                    <SelectItem key={gt} value={gt!} className="focus:bg-slate-100 focus:text-slate-900">{gt}</SelectItem>
+                                    <SelectItem key={gt!} value={gt!} className="focus:bg-slate-100 focus:text-slate-900">{gt}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
@@ -341,7 +341,7 @@ export default function MaterialsManagementPage() {
                             <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
                                 <SelectItem value="all" className="focus:bg-slate-100 focus:text-slate-900">ทั้งหมด</SelectItem>
                                 {thicknesses.map(t => (
-                                    <SelectItem key={t} value={t!} className="focus:bg-slate-100 focus:text-slate-900">{t}</SelectItem>
+                                    <SelectItem key={t!} value={t!} className="focus:bg-slate-100 focus:text-slate-900">{t}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
@@ -357,7 +357,7 @@ export default function MaterialsManagementPage() {
                             <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
                                 <SelectItem value="all" className="focus:bg-slate-100 focus:text-slate-900">ทั้งหมด</SelectItem>
                                 {colors.map(c => (
-                                    <SelectItem key={c} value={c!} className="focus:bg-slate-100 focus:text-slate-900">{c}</SelectItem>
+                                    <SelectItem key={c!} value={c!} className="focus:bg-slate-100 focus:text-slate-900">{c}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
@@ -440,7 +440,9 @@ export default function MaterialsManagementPage() {
                                                     {material.reorderPoint}
                                                 </span>
                                             </TableCell>
-                                            <TableCell className="text-[13px] text-slate-600 dark:text-slate-400">{material.unit}</TableCell>
+                                            <TableCell className="text-[13px] text-slate-600 dark:text-slate-400">
+                                                {materialUnitDisplayLabel(material.unit)}
+                                            </TableCell>
                                             <TableCell>
                                                 <div className="flex flex-col text-[11px] text-slate-400 dark:text-slate-500">
                                                     <span>{new Date(material.createdAt).toLocaleDateString()}</span>
@@ -534,13 +536,25 @@ export default function MaterialsManagementPage() {
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1.5">
                                 <Label htmlFor="unit" className="text-[13px] font-medium text-slate-700">หน่วยวัด</Label>
-                                <Input
-                                    id="unit"
-                                    placeholder="เช่น ชิ้น, แผ่น"
-                                    className="h-10 border-slate-200 rounded-xl"
+                                <Select
                                     value={formData.unit}
-                                    onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                                />
+                                    onValueChange={(v) => {
+                                        if (v) setFormData({ ...formData, unit: v });
+                                    }}
+                                >
+                                    <SelectTrigger id="unit" className="h-10 w-full border-slate-200 rounded-xl">
+                                        <SelectValue placeholder="เลือกหน่วย">
+                                            {materialUnitDisplayLabel(formData.unit)}
+                                        </SelectValue>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {MATERIAL_UNIT_OPTIONS.map((o) => (
+                                            <SelectItem key={o.value} value={o.value}>
+                                                {o.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <div className="space-y-1.5">
                                 <Label htmlFor="reorderPoint" className="text-[13px] font-medium text-slate-700">จุดแจ้งเตือน</Label>
@@ -624,7 +638,7 @@ export default function MaterialsManagementPage() {
                         </Button>
                         <Button
                             onClick={handleSave}
-                            disabled={isSubmitting || !formData.name}
+                            disabled={isSubmitting || !formData.name.trim()}
                             className="bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white min-w-[120px] h-9 rounded-xl font-bold shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0"
                         >
                             {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "บันทึก"}
