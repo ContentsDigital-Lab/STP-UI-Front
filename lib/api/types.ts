@@ -298,6 +298,8 @@ export interface Station {
   colorId: string;
   templateId?: string;
   isLaminateStation?: boolean;
+  /** When false, hide เบิก / เคลม buttons on the live station header. Default: show (undefined = true). */
+  showWithdrawClaimActions?: boolean;
   createdAt: string;
   updatedAt: string;
 }

@@ -545,7 +545,7 @@ export default function ClaimsPage() {
                             <div className="space-y-1.5">
                                 <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">Order <span className="text-red-500">*</span></Label>
                                 <Select value={createForm.order} onValueChange={(v) => setCreateForm((f) => ({ ...f, order: v ?? "" }))}>
-                                    <SelectTrigger className="h-10 rounded-xl text-sm">
+                                    <SelectTrigger className="h-10 w-full rounded-xl text-sm border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50">
                                         <SelectValue placeholder="เลือก Order...">
                                             {(value: string | null) => {
                                                 if (!value) return <span className="text-slate-400">เลือก Order...</span>;
@@ -566,7 +566,7 @@ export default function ClaimsPage() {
                             <div className="space-y-1.5">
                                 <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">วัสดุ <span className="text-red-500">*</span></Label>
                                 <Select value={createForm.material} onValueChange={(v) => setCreateForm((f) => ({ ...f, material: v ?? "" }))}>
-                                    <SelectTrigger className="h-10 rounded-xl text-sm">
+                                    <SelectTrigger className="h-10 w-full rounded-xl text-sm border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50">
                                         <SelectValue placeholder="เลือกวัสดุ...">
                                             {(value: string | null) => {
                                                 if (!value) return <span className="text-slate-400">เลือกวัสดุ...</span>;
@@ -585,11 +585,25 @@ export default function ClaimsPage() {
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1.5">
                                 <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">แหล่งที่มา <span className="text-red-500">*</span></Label>
-                                <Select value={createForm.source} onValueChange={(v) => setCreateForm((f) => ({ ...f, source: v as "customer" | "worker" }))}>
-                                    <SelectTrigger className="h-10 rounded-xl text-sm">
-                                        <SelectValue />
+                                <Select
+                                    value={createForm.source}
+                                    onValueChange={(v) => {
+                                        if (v === "customer" || v === "worker") {
+                                            setCreateForm((f) => ({ ...f, source: v }));
+                                        }
+                                    }}
+                                >
+                                    <SelectTrigger className="h-10 w-full rounded-xl text-sm border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50">
+                                        <SelectValue placeholder="เลือกแหล่งที่มา...">
+                                            {(value: string | null) => {
+                                                if (!value) return <span className="text-slate-400">เลือกแหล่งที่มา...</span>;
+                                                if (value === "customer") return "ลูกค้า (Customer)";
+                                                if (value === "worker") return "พนักงาน (Worker)";
+                                                return value;
+                                            }}
+                                        </SelectValue>
                                     </SelectTrigger>
-                                    <SelectContent>
+                                    <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
                                         <SelectItem value="customer">ลูกค้า (Customer)</SelectItem>
                                         <SelectItem value="worker">พนักงาน (Worker)</SelectItem>
                                     </SelectContent>
@@ -599,7 +613,7 @@ export default function ClaimsPage() {
                                 <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">วันที่เคลม</Label>
                                 <Input
                                     type="date"
-                                    className="h-10 rounded-xl text-sm"
+                                    className="h-10 w-full rounded-xl text-sm border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50"
                                     value={createForm.claimDate}
                                     onChange={(e) => setCreateForm((f) => ({ ...f, claimDate: e.target.value }))}
                                 />
@@ -608,7 +622,7 @@ export default function ClaimsPage() {
                         <div className="space-y-1.5">
                             <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">รายงานโดย <span className="text-red-500">*</span></Label>
                             <Select value={createForm.reportedBy} onValueChange={(v) => setCreateForm((f) => ({ ...f, reportedBy: v ?? "" }))}>
-                                <SelectTrigger className="h-10 rounded-xl text-sm">
+                                <SelectTrigger className="h-10 w-full rounded-xl text-sm border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50">
                                     <SelectValue placeholder="เลือกผู้รายงาน...">
                                         {(value: string | null) => {
                                             if (!value) return <span className="text-slate-400">เลือกผู้รายงาน...</span>;

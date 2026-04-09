@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { customersApi } from "@/lib/api/customers";
 import { Customer } from "@/lib/api/types";
@@ -24,7 +24,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Edit, Trash2, Loader2, Search, Plus, Users, AlertTriangle, ArrowLeft } from "lucide-react";
+import { Edit, Trash2, Loader2, Search, Plus, Users, ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
+
+const ITEMS_PER_PAGE = 20;
 
 // ── Phone Number Format Helper ──────────────────────────────────────────────
 const formatPhoneNumber = (val: string) => {
@@ -37,8 +39,28 @@ const formatPhoneNumber = (val: string) => {
 export default function CustomersManagementPage() {
     const router = useRouter();
     const [customers, setCustomers] = useState<Customer[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const [serverPage, setServerPage] = useState(1);
+    const [searchPage, setSearchPage] = useState(1);
+    const [paginationMeta, setPaginationMeta] = useState({
+        page: 1,
+        limit: ITEMS_PER_PAGE,
+        total: 0,
+        totalPages: 1,
+    });
+    const [allCustomersCache, setAllCustomersCache] = useState<Customer[] | null>(null);
+    const [listLoading, setListLoading] = useState(true);
+    const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+    const [listRefreshKey, setListRefreshKey] = useState(0);
+    const [searchFetchKey, setSearchFetchKey] = useState(0);
     const [searchQuery, setSearchQuery] = useState("");
+    const [debouncedSearch, setDebouncedSearch] = useState("");
+
+    useEffect(() => {
+        const t = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+        return () => clearTimeout(t);
+    }, [searchQuery]);
+
+    const isSearchActive = debouncedSearch.trim().length > 0;
 
     // Create/Edit modal state
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -60,22 +82,104 @@ export default function CustomersManagementPage() {
     });
 
     useEffect(() => {
-        fetchCustomers();
-    }, []);
-
-    const fetchCustomers = async () => {
-        setIsLoading(true);
-        try {
-            const response = await customersApi.getAll();
-            if (response.success && response.data) {
-                setCustomers(response.data);
+        if (debouncedSearch.trim()) return;
+        let cancelled = false;
+        (async () => {
+            setListLoading(true);
+            try {
+                const response = await customersApi.getAll({
+                    page: serverPage,
+                    limit: ITEMS_PER_PAGE,
+                    sort: "-createdAt",
+                });
+                if (cancelled) return;
+                if (response.success && response.data) {
+                    setCustomers(response.data);
+                    if (response.pagination) {
+                        setPaginationMeta(response.pagination);
+                    }
+                    setHasLoadedOnce(true);
+                }
+            } catch (error) {
+                console.error("Failed to fetch customers:", error);
+            } finally {
+                if (!cancelled) setListLoading(false);
             }
-        } catch (error) {
-            console.error("Failed to fetch customers:", error);
-        } finally {
-            setIsLoading(false);
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [serverPage, debouncedSearch, listRefreshKey]);
+
+    useEffect(() => {
+        if (!debouncedSearch.trim()) {
+            setAllCustomersCache(null);
+            return;
         }
-    };
+        let cancelled = false;
+        setListLoading(true);
+        setSearchPage(1);
+        (async () => {
+            const acc: Customer[] = [];
+            let page = 1;
+            let totalPages = 1;
+            try {
+                do {
+                    const res = await customersApi.getAll({
+                        page,
+                        limit: 100,
+                        sort: "-createdAt",
+                    });
+                    if (cancelled || !res.success || !res.data) break;
+                    acc.push(...res.data);
+                    totalPages = res.pagination?.totalPages ?? 1;
+                    page++;
+                    if (page > 100) break;
+                } while (page <= totalPages);
+                if (!cancelled) {
+                    setAllCustomersCache(acc);
+                    setHasLoadedOnce(true);
+                }
+            } catch (error) {
+                console.error("Failed to load customers for search:", error);
+            } finally {
+                if (!cancelled) setListLoading(false);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [debouncedSearch, searchFetchKey]);
+
+    const filteredForSearch = useMemo(() => {
+        if (!isSearchActive || allCustomersCache === null) return [];
+        const q = debouncedSearch.toLowerCase();
+        return allCustomersCache.filter(
+            (customer) =>
+                customer.name.toLowerCase().includes(q) ||
+                (customer.phone || "").toLowerCase().includes(q) ||
+                (customer.address || "").toLowerCase().includes(q)
+        );
+    }, [isSearchActive, allCustomersCache, debouncedSearch]);
+
+    const displayCustomers = useMemo(() => {
+        if (isSearchActive) {
+            return filteredForSearch.slice(
+                (searchPage - 1) * ITEMS_PER_PAGE,
+                searchPage * ITEMS_PER_PAGE
+            );
+        }
+        return customers;
+    }, [isSearchActive, filteredForSearch, searchPage, customers]);
+
+    const totalPages = Math.max(
+        1,
+        isSearchActive
+            ? Math.ceil(filteredForSearch.length / ITEMS_PER_PAGE) || 1
+            : paginationMeta.totalPages
+    );
+    const totalItems = isSearchActive ? filteredForSearch.length : paginationMeta.total;
+    const activePage = isSearchActive ? searchPage : serverPage;
 
     const handleOpenModal = (customer?: Customer) => {
         if (customer) {
@@ -116,14 +220,23 @@ export default function CustomersManagementPage() {
             if (editingCustomer) {
                 const response = await customersApi.update(editingCustomer._id, payload);
                 if (response.success && response.data) {
-                    setCustomers(customers.map(c =>
-                        c._id === editingCustomer._id ? response.data : c
-                    ));
+                    if (debouncedSearch.trim()) {
+                        setSearchFetchKey((k) => k + 1);
+                    } else {
+                        setCustomers((prev) =>
+                            prev.map((c) => (c._id === editingCustomer._id ? response.data! : c))
+                        );
+                    }
                 }
             } else {
                 const response = await customersApi.create(payload);
                 if (response.success && response.data) {
-                    setCustomers([response.data, ...customers]);
+                    if (debouncedSearch.trim()) {
+                        setSearchFetchKey((k) => k + 1);
+                    } else {
+                        setServerPage(1);
+                        setListRefreshKey((k) => k + 1);
+                    }
                 }
             }
             setIsModalOpen(false);
@@ -146,9 +259,15 @@ export default function CustomersManagementPage() {
         try {
             const response = await customersApi.delete(deletingCustomer._id);
             if (response.success) {
-                setCustomers(customers.filter(c => c._id !== deletingCustomer._id));
                 setIsDeleteOpen(false);
                 setDeletingCustomer(null);
+                if (debouncedSearch.trim()) {
+                    setSearchFetchKey((k) => k + 1);
+                } else if (customers.length === 1 && serverPage > 1) {
+                    setServerPage((p) => p - 1);
+                } else {
+                    setListRefreshKey((k) => k + 1);
+                }
             }
         } catch (error) {
             console.error("Failed to delete customer:", error);
@@ -157,16 +276,7 @@ export default function CustomersManagementPage() {
         }
     };
 
-    const filteredCustomers = customers.filter((customer) => {
-        const searchLower = searchQuery.toLowerCase();
-        return (
-            customer.name.toLowerCase().includes(searchLower) ||
-            (customer.phone || "").toLowerCase().includes(searchLower) ||
-            (customer.address || "").toLowerCase().includes(searchLower)
-        );
-    });
-
-    if (isLoading) {
+    if (!hasLoadedOnce && listLoading) {
         return (
             <div className="flex h-[60vh] w-full items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -218,13 +328,18 @@ export default function CustomersManagementPage() {
                         </div>
                     </div>
                     <span className="text-xs text-slate-400 dark:text-slate-500 font-medium whitespace-nowrap shrink-0 pb-2.5">
-                        {filteredCustomers.length} รายการ
+                        {totalItems} รายการ
                     </span>
                 </div>
             </div>
 
             {/* Table */}
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden relative">
+                {listLoading && hasLoadedOnce && (
+                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 dark:bg-slate-900/70 backdrop-blur-[1px] rounded-2xl">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    </div>
+                )}
                 <div className="overflow-x-auto">
                 <Table>
                     <TableHeader>
@@ -237,7 +352,7 @@ export default function CustomersManagementPage() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {filteredCustomers.length === 0 ? (
+                        {!listLoading && displayCustomers.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={5} className="py-16 text-center border-none">
                                     <div className="flex flex-col items-center gap-2">
@@ -249,7 +364,7 @@ export default function CustomersManagementPage() {
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            filteredCustomers.map((customer) => (
+                            displayCustomers.map((customer) => (
                                 <TableRow key={customer._id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 border-slate-100 dark:border-slate-800">
                                     <TableCell className="font-medium text-sm text-slate-900 dark:text-white py-3.5 px-4">{customer.name}</TableCell>
                                     <TableCell className="text-sm text-slate-500 dark:text-slate-400 py-3.5">{customer.phone || "—"}</TableCell>
@@ -291,6 +406,72 @@ export default function CustomersManagementPage() {
                     </TableBody>
                 </Table>
                 </div>
+
+                {totalPages > 1 && (
+                    <div className="px-4 py-3 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                        <span className="text-xs text-slate-400 dark:text-slate-500">
+                            {activePage} / {totalPages} ({totalItems} รายการ)
+                        </span>
+                        <div className="flex items-center justify-center gap-1">
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                disabled={activePage === 1 || listLoading}
+                                onClick={() =>
+                                    isSearchActive
+                                        ? setSearchPage((p) => Math.max(1, p - 1))
+                                        : setServerPage((p) => Math.max(1, p - 1))
+                                }
+                                className="h-8 w-8 p-0 rounded-lg"
+                            >
+                                <ChevronLeft className="h-4 w-4" />
+                            </Button>
+                            {[...Array(Math.min(totalPages, 7))].map((_, i) => {
+                                let pageNum: number;
+                                if (totalPages <= 7) {
+                                    pageNum = i + 1;
+                                } else if (activePage <= 4) {
+                                    pageNum = i + 1;
+                                } else if (activePage >= totalPages - 3) {
+                                    pageNum = totalPages - 6 + i;
+                                } else {
+                                    pageNum = activePage - 3 + i;
+                                }
+                                return (
+                                    <button
+                                        type="button"
+                                        key={pageNum}
+                                        disabled={listLoading}
+                                        onClick={() =>
+                                            isSearchActive ? setSearchPage(pageNum) : setServerPage(pageNum)
+                                        }
+                                        className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-medium transition-colors disabled:opacity-50 ${activePage === pageNum
+                                            ? "bg-blue-600 text-white dark:bg-[#E8601C]"
+                                            : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                            }`}
+                                    >
+                                        {pageNum}
+                                    </button>
+                                );
+                            })}
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                disabled={activePage === totalPages || listLoading}
+                                onClick={() =>
+                                    isSearchActive
+                                        ? setSearchPage((p) => Math.min(totalPages, p + 1))
+                                        : setServerPage((p) => Math.min(totalPages, p + 1))
+                                }
+                                className="h-8 w-8 p-0 rounded-lg"
+                            >
+                                <ChevronRight className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Create/Edit Dialog */}

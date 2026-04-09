@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+    effectiveShowWithdrawClaimActions,
+    removeWithdrawClaimLocalPreference,
+    syncWithdrawClaimLocalPreference,
+} from "@/lib/stations/withdraw-claim-visibility";
 import { useRouter } from "next/navigation";
 import {
     Factory, Plus, Play, Pencil, Trash2,
@@ -55,12 +60,26 @@ function StationModal({
     initial?:   Partial<Station>;
     templates:  StationTemplate[];
     onClose:    () => void;
-    onSave:     (data: { name: string; colorId: string; templateId?: string; isLaminateStation?: boolean }) => void;
+    onSave:     (data: { name: string; colorId: string; templateId?: string; isLaminateStation?: boolean; showWithdrawClaimActions?: boolean }) => void;
 }) {
     const [name,       setName]       = useState(initial?.name       ?? "");
     const [colorId,    setColorId]    = useState(initial?.colorId    ?? "sky");
     const [templateId, setTemplateId] = useState<string>(resolveTemplateId(initial?.templateId));
     const [isLaminate, setIsLaminate] = useState(initial?.isLaminateStation ?? false);
+    const [showWithdrawClaim, setShowWithdrawClaim] = useState(() => {
+        if (initial?._id) {
+            return effectiveShowWithdrawClaimActions(initial as Station);
+        }
+        return initial?.showWithdrawClaimActions !== false;
+    });
+
+    useEffect(() => {
+        if (!initial?._id) {
+            setShowWithdrawClaim(initial?.showWithdrawClaimActions !== false);
+        } else {
+            setShowWithdrawClaim(effectiveShowWithdrawClaimActions(initial as Station));
+        }
+    }, [initial?._id, initial?.showWithdrawClaimActions]);
 
     const color    = getColorOption(colorId);
     const isEdit   = Boolean(initial?._id);
@@ -90,7 +109,13 @@ function StationModal({
                         onChange={(e) => setName(e.target.value)}
                         placeholder="เช่น ตัดกระจก, QC, บรรจุ..."
                         className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-colors"
-                        onKeyDown={(e) => e.key === "Enter" && canSave && onSave({ name: name.trim(), colorId, templateId: templateId || undefined, isLaminateStation: isLaminate || undefined })}
+                        onKeyDown={(e) => e.key === "Enter" && canSave && onSave({
+                            name: name.trim(),
+                            colorId,
+                            templateId: templateId || undefined,
+                            isLaminateStation: isLaminate || undefined,
+                            showWithdrawClaimActions: showWithdrawClaim,
+                        })}
                     />
                     {name.trim() && (
                         <span className={`inline-block text-sm font-semibold px-2.5 py-1 rounded-lg mt-1 ${color.cls}`}>
@@ -141,10 +166,29 @@ function StationModal({
                     </div>
                 </label>
 
+                <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                        type="checkbox"
+                        checked={showWithdrawClaim}
+                        onChange={(e) => setShowWithdrawClaim(e.target.checked)}
+                        className="h-4 w-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500"
+                    />
+                    <div>
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">แสดงปุ่มเบิก / เคลม</span>
+                        <p className="text-xs text-slate-400">แสดงปุ่มเบิกวัสดุและแจ้งเคลมที่หัวหน้าจอสถานี</p>
+                    </div>
+                </label>
+
                 {/* Actions */}
                 <div className="flex gap-2 justify-end pt-2">
                     <Button variant="outline" size="sm" className="rounded-xl" onClick={onClose}>ยกเลิก</Button>
-                    <Button size="sm" className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white" disabled={!canSave} onClick={() => onSave({ name: name.trim(), colorId, templateId: templateId || undefined, isLaminateStation: isLaminate || undefined })}>
+                    <Button size="sm" className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white" disabled={!canSave} onClick={() => onSave({
+                        name: name.trim(),
+                        colorId,
+                        templateId: templateId || undefined,
+                        isLaminateStation: isLaminate || undefined,
+                        showWithdrawClaimActions: showWithdrawClaim,
+                    })}>
                         <Plus className="h-3.5 w-3.5 mr-1" />
                         {isEdit ? "บันทึก" : "สร้างสถานี"}
                     </Button>
@@ -215,9 +259,12 @@ export default function StationsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const handleCreate = async (data: { name: string; colorId: string; templateId?: string; isLaminateStation?: boolean }) => {
+    const handleCreate = async (data: { name: string; colorId: string; templateId?: string; isLaminateStation?: boolean; showWithdrawClaimActions?: boolean }) => {
         try {
-            await stationsApi.create(data);
+            const res = await stationsApi.create(data);
+            if (res.success && res.data?._id) {
+                syncWithdrawClaimLocalPreference(res.data._id, data.showWithdrawClaimActions);
+            }
             await reload();
             setShowCreate(false);
             toast.success("สร้างสถานีแล้ว");
@@ -226,10 +273,13 @@ export default function StationsPage() {
         }
     };
 
-    const handleUpdate = async (data: { name: string; colorId: string; templateId?: string; isLaminateStation?: boolean }) => {
+    const handleUpdate = async (data: { name: string; colorId: string; templateId?: string; isLaminateStation?: boolean; showWithdrawClaimActions?: boolean }) => {
         if (!editing) return;
         try {
-            await stationsApi.update(editing._id, data);
+            const res = await stationsApi.update(editing._id, data);
+            if (res.success) {
+                syncWithdrawClaimLocalPreference(editing._id, data.showWithdrawClaimActions);
+            }
             await reload();
             setEditing(null);
             toast.success("บันทึกแล้ว");
@@ -242,6 +292,7 @@ export default function StationsPage() {
         if (!deleting) return;
         try {
             await stationsApi.delete(deleting._id);
+            removeWithdrawClaimLocalPreference(deleting._id);
             await reload();
             setDeleting(null);
             toast.success("ลบสถานีแล้ว");

@@ -29,3 +29,16 @@ export class ApiError extends Error {
     return undefined;
   }
 }
+
+/** Human-readable text from `fetchApi` / `ApiError` (message + formatted errors). */
+export function getApiErrorMessage(error: unknown, fallback = "เกิดข้อผิดพลาด"): string {
+  if (error instanceof ApiError) {
+    const m = error.message?.trim();
+    return m || fallback;
+  }
+  if (error instanceof Error) {
+    const m = error.message?.trim();
+    return m || fallback;
+  }
+  return fallback;
+}
