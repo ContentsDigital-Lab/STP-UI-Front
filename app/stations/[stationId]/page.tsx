@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { ArrowLeft, LayoutTemplate, Settings2, Bell, Package, X, PackageOpen, FileWarning, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -16,6 +16,7 @@ import { ordersApi } from "@/lib/api/orders";
 import { requestsApi } from "@/lib/api/requests";
 import { Station, Order, Customer, Material } from "@/lib/api/types";
 import { getColorOption } from "@/lib/stations/stations-store";
+import { effectiveShowWithdrawClaimActions } from "@/lib/stations/withdraw-claim-visibility";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { useCheckinSocket } from "@/lib/hooks/use-checkin-socket";
 import { playNotificationSound } from "@/lib/notification-sounds";
@@ -98,11 +99,32 @@ export default function LiveStationPage() {
     const [showCheckinQr,   setShowCheckinQr]   = useState(false);
     const [showWithdraw,    setShowWithdraw]    = useState(false);
     const [showClaim,       setShowClaim]       = useState(false);
+    /** Bumps when local withdraw/claim visibility pref changes (same tab). */
+    const [withdrawClaimPrefRev, setWithdrawClaimPrefRev] = useState(0);
 
     // ── Track known orders at this station to detect new arrivals ─────────────
     const knownOrderIdsRef = useRef<Set<string>>(new Set());
     const stationRef       = useRef<Station | null>(null);
     useEffect(() => { stationRef.current = station; }, [station]);
+
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const d = (e as CustomEvent<{ stationId?: string }>).detail;
+            if (d?.stationId === stationId) setWithdrawClaimPrefRev((n) => n + 1);
+        };
+        window.addEventListener("std-withdraw-claim-pref", handler as EventListener);
+        return () => window.removeEventListener("std-withdraw-claim-pref", handler as EventListener);
+    }, [stationId]);
+
+    useEffect(() => {
+        const onStorage = (e: StorageEvent) => {
+            if (e.key === "std_station_show_withdraw_claim_v1") {
+                setWithdrawClaimPrefRev((n) => n + 1);
+            }
+        };
+        window.addEventListener("storage", onStorage);
+        return () => window.removeEventListener("storage", onStorage);
+    }, []);
 
     // Seed known orders on mount — so we don't notify about existing work
     useEffect(() => {
@@ -231,6 +253,11 @@ export default function LiveStationPage() {
 
     const color = station ? getColorOption(station.colorId) : null;
 
+    const showWithdrawClaimButtons = useMemo(() => {
+        if (!station) return false;
+        return effectiveShowWithdrawClaimActions(station);
+    }, [station, withdrawClaimPrefRev]);
+
     const checkinUrl = typeof window !== "undefined"
         ? `${window.location.origin}/stations/${stationId}/checkin`
         : "";
@@ -249,22 +276,24 @@ export default function LiveStationPage() {
                     {station.name}
                 </span>
             )}
-            <div className="ml-auto flex items-center gap-2 shrink-0">
-                <button
-                    onClick={() => setShowWithdraw(true)}
-                    className="flex items-center gap-1.5 h-11 px-4 rounded-xl border-2 border-orange-600 dark:border-orange-500 bg-white dark:bg-slate-800 text-orange-700 dark:text-orange-400 font-bold text-sm active:bg-orange-50 dark:active:bg-orange-900/20"
-                >
-                    <PackageOpen className="h-5 w-5" />
-                    <span>เบิก</span>
-                </button>
-                <button
-                    onClick={() => setShowClaim(true)}
-                    className="flex items-center gap-1.5 h-11 px-4 rounded-xl bg-red-600 text-white font-bold text-sm border-2 border-red-700 active:bg-red-700"
-                >
-                    <FileWarning className="h-5 w-5" />
-                    <span>เคลม</span>
-                </button>
-            </div>
+            {showWithdrawClaimButtons && (
+                <div className="ml-auto flex items-center gap-2 shrink-0">
+                    <button
+                        onClick={() => setShowWithdraw(true)}
+                        className="flex items-center gap-1.5 h-11 px-4 rounded-xl border-2 border-orange-600 dark:border-orange-500 bg-white dark:bg-slate-800 text-orange-700 dark:text-orange-400 font-bold text-sm active:bg-orange-50 dark:active:bg-orange-900/20"
+                    >
+                        <PackageOpen className="h-5 w-5" />
+                        <span>เบิก</span>
+                    </button>
+                    <button
+                        onClick={() => setShowClaim(true)}
+                        className="flex items-center gap-1.5 h-11 px-4 rounded-xl bg-red-600 text-white font-bold text-sm border-2 border-red-700 active:bg-red-700"
+                    >
+                        <FileWarning className="h-5 w-5" />
+                        <span>เคลม</span>
+                    </button>
+                </div>
+            )}
         </div>
     );
 

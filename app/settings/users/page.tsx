@@ -11,6 +11,8 @@ import { withdrawalsApi } from "@/lib/api/withdrawals";
 import { Worker, Order, Claim, Withdrawal, Role } from "@/lib/api/types";
 import { Permission, PERMISSION_LABELS } from "@/lib/auth/permissions";
 import { rolesApi } from "@/lib/api/roles";
+import { getApiErrorMessage } from "@/lib/api/api-error";
+import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -58,6 +60,7 @@ export default function UsersManagementPage() {
     const [selectedWorker, setSelectedWorker] = useState<Worker | null>(null);
     const [editRole, setEditRole] = useState<"admin" | "manager" | "worker">("worker");
     const [isSaving, setIsSaving] = useState(false);
+    const [editRoleError, setEditRoleError] = useState("");
 
     // Delete modal state
     const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -122,6 +125,7 @@ export default function UsersManagementPage() {
     const handleSaveRole = async () => {
         if (!selectedWorker) return;
         setIsSaving(true);
+        setEditRoleError("");
         try {
             const targetRole = roleBySlug(editRole);
             const rolePayload = targetRole ? targetRole._id : editRole;
@@ -132,9 +136,11 @@ export default function UsersManagementPage() {
                     prev.map((w) => (w._id === selectedWorker._id ? { ...w, role: updatedRole as Role | string } : w))
                 );
                 setIsEditModalOpen(false);
+                toast.success(`บันทึกบทบาทของ ${selectedWorker.name} เรียบร้อย`);
             }
         } catch (error) {
             console.error("Failed to update worker role:", error);
+            setEditRoleError(getApiErrorMessage(error, "ไม่สามารถบันทึกบทบาทได้"));
         } finally {
             setIsSaving(false);
         }
@@ -152,9 +158,10 @@ export default function UsersManagementPage() {
                 setWorkers([response.data, ...workers]);
                 setIsCreateModalOpen(false);
                 setCreateForm({ name: "", username: "", password: "", position: "", role: "worker" });
+                toast.success(`สร้างบัญชี "${response.data.name}" เรียบร้อย`);
             }
         } catch (error: unknown) {
-            setCreateError(error instanceof Error ? error.message : "Failed to create user");
+            setCreateError(getApiErrorMessage(error, "ไม่สามารถสร้างบัญชีได้"));
         } finally {
             setIsCreating(false);
         }
@@ -176,13 +183,14 @@ export default function UsersManagementPage() {
         try {
             const response = await workersApi.delete(deletingWorker._id);
             if (response.success) {
+                const removedName = deletingWorker.name;
                 setWorkers(workers.filter(w => w._id !== deletingWorker._id));
                 setIsDeleteOpen(false);
                 setDeletingWorker(null);
+                toast.success(`ลบผู้ใช้ "${removedName}" เรียบร้อย`);
             }
-        } catch (error: any) {
-            const msg = error.message || "Failed to delete user";
-            setDeleteError(msg);
+        } catch (error: unknown) {
+            setDeleteError(getApiErrorMessage(error, "ไม่สามารถลบผู้ใช้ได้"));
         } finally {
             setIsDeleting(false);
         }
@@ -214,13 +222,16 @@ export default function UsersManagementPage() {
         try {
             if (editingRole._id) {
                 await rolesApi.update(editingRole._id, editingRole as any);
+                toast.success(`บันทึกบทบาท "${editingRole.name}" เรียบร้อย`);
             } else {
                 await rolesApi.create(editingRole as any);
+                toast.success(`สร้างบทบาท "${editingRole.name}" เรียบร้อย`);
             }
             fetchWorkers(); // Refresh both workers and roles
             setIsRoleModalOpen(false);
         } catch (error) {
             console.error("Failed to save role:", error);
+            toast.error(getApiErrorMessage(error, "ไม่สามารถบันทึกบทบาทได้"));
         } finally {
             setIsSaving(false);
         }
@@ -386,7 +397,7 @@ export default function UsersManagementPage() {
             </div>
             </TabsContent>
 
-            <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+            <Dialog open={isEditModalOpen} onOpenChange={(open) => { setIsEditModalOpen(open); if (!open) setEditRoleError(""); }}>
                 <DialogContent className="sm:max-w-[425px] rounded-2xl border-slate-200 dark:border-slate-800 p-0 bg-white dark:bg-slate-950">
                     <div className="px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
                         <DialogHeader>
@@ -419,6 +430,12 @@ export default function UsersManagementPage() {
                                 {editRole === "manager" && "ดูข้อมูลและจัดการพนักงานได้ แต่ไม่สามารถจัดการ Admin"}
                                 {editRole === "worker" && "เข้าถึงเครื่องมือปฏิบัติงานมาตรฐาน"}
                             </p>
+                            {editRoleError ? (
+                                <div className="flex items-start gap-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900/40 rounded-xl px-3 py-2 mt-2">
+                                    <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                                    <span>{editRoleError}</span>
+                                </div>
+                            ) : null}
                         </div>
                     </div>
                     <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-end gap-2">
@@ -438,7 +455,7 @@ export default function UsersManagementPage() {
             </Dialog>
 
             <Dialog open={isCreateModalOpen} onOpenChange={(open) => { setIsCreateModalOpen(open); if (!open) setCreateError(""); }}>
-                <DialogContent className="sm:max-w-[520px] rounded-2xl border-slate-200 dark:border-slate-800 p-0 bg-white dark:bg-slate-950 max-h-[90vh] overflow-y-auto">
+                <DialogContent className="gap-0 overflow-x-hidden overflow-y-visible sm:max-w-[520px] rounded-2xl border-slate-200 dark:border-slate-800 p-0 bg-white dark:bg-slate-950">
                     <div className="px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
                         <DialogHeader>
                             <DialogTitle className="text-xl font-semibold text-slate-900 dark:text-white">เพิ่มผู้ใช้ใหม่</DialogTitle>
@@ -519,8 +536,14 @@ export default function UsersManagementPage() {
                                 </Select>
                             </div>
                         </div>
+                        {createError ? (
+                            <div className="flex items-start gap-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900/40 rounded-xl px-3 py-2.5">
+                                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                                <span>{createError}</span>
+                            </div>
+                        ) : null}
                     </div>
-                    <DialogFooter className="px-6 py-4 border-t border-slate-100 dark:border-slate-800">
+                    <DialogFooter className="mx-0 mb-0 gap-2 border-t border-slate-100 bg-transparent px-6 py-4 dark:border-slate-800 sm:flex-row sm:justify-end">
                         <Button variant="ghost" className="rounded-xl" onClick={() => setIsCreateModalOpen(false)}>ยกเลิก</Button>
                         <Button onClick={handleCreateUser} disabled={isCreating} className="rounded-xl bg-blue-600 text-white font-bold px-6">สร้างบัญชี</Button>
                     </DialogFooter>
@@ -614,6 +637,12 @@ export default function UsersManagementPage() {
                             ยืนยันการลบผู้ใช้
                         </DialogTitle>
                         <DialogDescription className="mt-2">ต้องการลบผู้ใช้ <span className="font-bold">{deletingWorker?.name}</span> ใช่หรือไม่?</DialogDescription>
+                        {deleteError ? (
+                            <div className="flex items-start gap-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900/40 rounded-xl px-3 py-2.5 mt-3">
+                                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                                <span>{deleteError}</span>
+                            </div>
+                        ) : null}
                     </div>
                     <DialogFooter className="px-6 py-4 bg-slate-50 dark:bg-slate-900/50 border-t">
                         <Button variant="ghost" className="rounded-xl" onClick={() => setIsDeleteOpen(false)}>ยกเลิก</Button>

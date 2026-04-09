@@ -1,11 +1,22 @@
 import { fetchApi } from "./config";
-import { ApiResponse, Customer } from "./types";
+import { ApiResponse, Customer, PaginatedResponse } from "./types";
 
 export const customersApi = {
-    getAll: async (params?: { limit?: number }): Promise<ApiResponse<Customer[]>> => {
+    /**
+     * List customers. Defaults: page 1, limit 100 (for dropdowns). Pass page + limit for table pagination.
+     */
+    getAll: async (params?: {
+        page?: number;
+        limit?: number;
+        sort?: string;
+    }): Promise<PaginatedResponse<Customer>> => {
         const q = new URLSearchParams();
-        q.set("limit", String(params?.limit ?? 100));
-        return fetchApi<ApiResponse<Customer[]>>(`/customers?${q.toString()}`, {
+        const page = params?.page ?? 1;
+        const limit = params?.limit ?? 100;
+        q.set("page", String(page));
+        q.set("limit", String(limit));
+        if (params?.sort) q.set("sort", params.sort);
+        return fetchApi<PaginatedResponse<Customer>>(`/customers?${q.toString()}`, {
             method: "GET",
         });
     },
