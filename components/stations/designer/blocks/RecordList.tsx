@@ -13,6 +13,11 @@ import { usePreview } from "../PreviewContext";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { useStationContext } from "../StationContext";
 import { getStationId, getStationName, isStationMatch } from "@/lib/utils/station-helpers";
+import { isPaneRetiredByMerge } from "@/lib/utils/pane-laminate";
+
+function floorPanes(list: Pane[] | undefined): Pane[] {
+    return (list ?? []).filter((p) => !isPaneRetiredByMerge(p));
+}
 import { getRoleName } from "@/lib/auth/role-utils";
 import type { Role } from "@/lib/api/types";
 import { STATUS_CONFIG } from "./StatusIndicator";
@@ -308,6 +313,7 @@ export function RecordList({
                     const requestsWithPendingPanes = new Set<string>();
                     if (panesRes?.success && Array.isArray(panesRes.data)) {
                         for (const pane of panesRes.data) {
+                            if (isPaneRetiredByMerge(pane)) continue;
                             if (!isStationMatch(pane.currentStation, stationId, stationName)) continue;
                             if (pane.currentStatus !== "pending") continue;
                             const reqId = pane.request
@@ -350,6 +356,7 @@ export function RecordList({
             }
 
             for (const pane of res.data) {
+                if (isPaneRetiredByMerge(pane)) continue;
                 const atStation = isStationMatch(pane.currentStation, stationId, stationName);
                 if (!atStation || pane.currentStatus !== "pending") continue;
 
@@ -386,7 +393,7 @@ export function RecordList({
         if (isApi) loadData();
     });
 
-    useWebSocket("pane", ["pane:updated"], () => {
+    useWebSocket("pane", ["pane:updated", "pane:laminated"], () => {
         if (isApi) loadData();
         loadPendingPaneCounts();
         setQrPane(null);
@@ -395,7 +402,7 @@ export function RecordList({
             ? panesApi.getAll({ order: expandedRowId, status_ne: "claimed", limit: 100 })
             : panesApi.getAll({ request: expandedRowId, limit: 100 });
         fetchFn
-            .then(res => setRowPanes(res.success ? res.data ?? [] : []))
+            .then((res) => setRowPanes(res.success ? floorPanes(res.data) : []))
             .catch(() => {});
     });
 
@@ -421,7 +428,9 @@ export function RecordList({
             ? panesApi.getAll({ order: expandedRowId, status_ne: "claimed", limit: 100 })
             : panesApi.getAll({ request: expandedRowId, limit: 100 });
         fetchFn
-            .then(res => { if (res.success) setRowPanes(res.data ?? []); })
+            .then((res) => {
+                if (res.success) setRowPanes(floorPanes(res.data));
+            })
             .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [refreshCounter, expandedRowId]);
@@ -522,10 +531,10 @@ export function RecordList({
         try {
             if (dataSource === "/orders") {
                 const res = await panesApi.getAll({ order: rid, status_ne: "claimed", limit: 100 });
-                setRowPanes(res.success ? res.data ?? [] : []);
+                setRowPanes(res.success ? floorPanes(res.data) : []);
             } else {
                 const res = await panesApi.getAll({ request: rid, limit: 100 });
-                setRowPanes(res.success ? res.data ?? [] : []);
+                setRowPanes(res.success ? floorPanes(res.data) : []);
             }
         } catch {
             setRowPanes([]);

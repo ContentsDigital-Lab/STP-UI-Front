@@ -1,3 +1,5 @@
+import { ApiError } from "./api-error";
+
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "https://std.specterint.org/api";
 
 let isRedirectingToLogin = false;
@@ -40,10 +42,19 @@ export async function fetchApi<T>(
         handleUnauthorized();
     }
 
-    const data = await response.json();
+    let data: Record<string, unknown> = {};
+    try {
+        const text = await response.text();
+        if (text) data = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+        data = {};
+    }
 
     if (!response.ok) {
-        let errorMessage = data.message || "An error occurred while fetching data.";
+        let errorMessage =
+            (typeof data.message === "string" && data.message) ||
+            (typeof data.error === "string" && data.error) ||
+            "An error occurred while fetching data.";
 
         if (data.errors) {
             const details = Array.isArray(data.errors)
@@ -61,8 +72,12 @@ export async function fetchApi<T>(
             errorMessage += `: ${details}`;
         }
 
-        throw new Error(errorMessage);
+        if (typeof data.message !== "string" || !data.message) {
+            data = { ...data, message: errorMessage };
+        }
+
+        throw new ApiError(response.status, data);
     }
 
-    return data;
+    return data as T;
 }

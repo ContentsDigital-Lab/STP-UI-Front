@@ -12,6 +12,8 @@ import { panesApi } from "@/lib/api/panes";
 import { Pane } from "@/lib/api/types";
 import { parseQrScan } from "@/lib/utils/parseQrScan";
 import { isStationMatch } from "@/lib/utils/station-helpers";
+import { isPaneRetiredByMerge, resolveActivePane } from "@/lib/utils/pane-laminate";
+import { withMergedIntoScanRetry } from "@/lib/utils/merged-into-scan";
 import { usePreview } from "../PreviewContext";
 import { useStationContext } from "../StationContext";
 import { useWebSocket } from "@/lib/hooks/use-socket";
@@ -101,8 +103,11 @@ export function StationHistory({
         try {
             const res = await panesApi.getAll({ limit: 300 }).catch(() => null);
             if (!res || !res.success || !Array.isArray(res.data)) return;
-            const atStation = res.data.filter(p =>
-                isStationMatch(p.currentStation, stationId, stationName) && p.currentStatus === "awaiting_scan_out",
+            const atStation = res.data.filter(
+                (p) =>
+                    !isPaneRetiredByMerge(p) &&
+                    isStationMatch(p.currentStation, stationId, stationName) &&
+                    p.currentStatus === "awaiting_scan_out",
             );
             setAwaitingPanes(atStation);
 
@@ -182,7 +187,7 @@ export function StationHistory({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isPreview, stationId, stationName, maxRows, refreshCounter]);
 
-    useWebSocket("pane", ["pane:updated"], () => {
+    useWebSocket("pane", ["pane:updated", "pane:laminated"], () => {
         fetchAwaiting();
         loadHistory();
     });
@@ -211,9 +216,22 @@ export function StationHistory({
 
         if (!stationId) { setScanError("ไม่ระบุสถานี"); return; }
 
-        const target = awaitingPanes.find(p => p.paneNumber === pn || p.paneNumber.endsWith(pn));
+        let target = awaitingPanes.find((p) => p.paneNumber === pn || p.paneNumber.endsWith(pn));
         if (!target) {
-            setScanError(`"${pn}" ไม่อยู่ในรายการรอสแกนออก`);
+            try {
+                const lookup = await panesApi.getById(pn);
+                if (lookup.success && lookup.data) {
+                    const active = resolveActivePane(lookup.data);
+                    target = awaitingPanes.find(
+                        (p) => p._id === active._id || p.paneNumber === active.paneNumber,
+                    );
+                }
+            } catch {
+                /* ignore */
+            }
+        }
+        if (!target) {
+            setScanError(`"${pn}" ไม่อยู่ในรายการรอสแกนออก — ถ้าเป็น QR แผ่นเก่าหลังประกบลามิเนต ให้สแกนสติกเกอร์แผ่นที่รวมแล้ว`);
             return;
         }
 
@@ -226,8 +244,11 @@ export function StationHistory({
         setActionLoading(prev => ({ ...prev, [pane._id]: true }));
         setActionResult(prev => { const n = { ...prev }; delete n[pane._id]; return n; });
         try {
-            const res = await panesApi.scan(pane.paneNumber, { station: stationId, action: "scan_out" });
-            if (!res.success) throw new Error(res.message ?? "สแกนออกไม่สำเร็จ");
+            const res = await withMergedIntoScanRetry(pane.paneNumber, async (paneNum) => {
+                const r = await panesApi.scan(paneNum, { station: stationId, action: "scan_out" });
+                if (!r.success) throw new Error(r.message ?? "สแกนออกไม่สำเร็จ");
+                return r;
+            });
             setActionResult(prev => ({ ...prev, [pane._id]: "success" }));
             setTimeout(() => {
                 setAwaitingPanes(prev => prev.filter(p => p._id !== pane._id));

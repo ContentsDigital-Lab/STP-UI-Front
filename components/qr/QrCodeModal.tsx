@@ -1,8 +1,9 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useMemo, useState, useCallback } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { X, Download, QrCode, ExternalLink } from "lucide-react";
+import { X, Download, QrCode, ExternalLink, Copy, Check } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 
 interface QrCodeModalProps {
@@ -22,6 +23,19 @@ interface QrCodeModalProps {
 export function QrCodeModal({ code, label, value, onClose }: QrCodeModalProps) {
     const svgRef   = useRef<HTMLDivElement>(null);
     const qrValue  = value ?? code;
+    const displayCode = useMemo(() => code.replace(/^#+/, ""), [code]);
+    const [copied, setCopied] = useState(false);
+
+    const handleCopyCode = useCallback(async () => {
+        try {
+            await navigator.clipboard.writeText(displayCode);
+            setCopied(true);
+            toast.success("คัดลอกหมายเลขแผ่นแล้ว");
+            window.setTimeout(() => setCopied(false), 2000);
+        } catch {
+            toast.error("คัดลอกไม่สำเร็จ");
+        }
+    }, [displayCode]);
 
     const handleDownloadPng = () => {
         const svgEl = svgRef.current?.querySelector("svg");
@@ -45,7 +59,7 @@ export function QrCodeModal({ code, label, value, onClose }: QrCodeModalProps) {
             ctx.fillStyle = "#111111";
             ctx.font      = "bold 28px monospace";
             ctx.textAlign = "center";
-            ctx.fillText(`#${code}`, SIZE / 2, SIZE + 36);
+            ctx.fillText(displayCode, SIZE / 2, SIZE + 36);
             if (label) {
                 ctx.font      = "18px sans-serif";
                 ctx.fillStyle = "#666666";
@@ -53,7 +67,7 @@ export function QrCodeModal({ code, label, value, onClose }: QrCodeModalProps) {
             }
             URL.revokeObjectURL(url);
             const a       = document.createElement("a");
-            a.download    = `qr-${code}.png`;
+            a.download    = `qr-${displayCode}.png`;
             a.href        = canvas.toDataURL("image/png");
             a.click();
         };
@@ -100,14 +114,30 @@ export function QrCodeModal({ code, label, value, onClose }: QrCodeModalProps) {
                         />
                     </div>
 
-                    <div className="text-center mt-6 space-y-1 w-full px-4">
-                        <p className="text-2xl font-mono font-bold tracking-wider text-slate-900 dark:text-white">
-                            #{code}
-                        </p>
+                    <div className="w-full mt-6 space-y-1 px-2 flex flex-col items-center">
+                        <div className="w-full flex justify-center">
+                            <div className="inline-flex items-center gap-0.5">
+                                <p className="text-2xl font-mono font-bold tracking-wider text-slate-900 dark:text-white leading-none pr-0.5">
+                                    {displayCode}
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={handleCopyCode}
+                                    title="คัดลอกหมายเลขแผ่น"
+                                    className="shrink-0 p-1 rounded-lg text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                >
+                                    {copied ? (
+                                        <Check className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                                    ) : (
+                                        <Copy className="h-5 w-5" />
+                                    )}
+                                </button>
+                            </div>
+                        </div>
                         {label && (
-                            <p className="text-sm font-medium text-slate-500 dark:text-slate-400 truncate w-full" title={label}>{label}</p>
+                            <p className="text-sm font-medium text-slate-500 dark:text-slate-400 truncate w-full text-center max-w-full" title={label}>{label}</p>
                         )}
-                        <p className="text-[10px] text-slate-400/80 font-mono break-all mt-3 px-2">
+                        <p className="text-[10px] text-slate-400/80 font-mono break-all mt-3 px-2 text-center">
                             {qrValue}
                         </p>
                     </div>

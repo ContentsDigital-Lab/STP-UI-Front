@@ -29,6 +29,9 @@ export interface StationContextValue {
     triggerRefresh: () => void;
     isOrderReleaseStation: boolean;
     setIsOrderReleaseStation: (v: boolean) => void;
+    /** Order id to show first in คิวสถานี (set after scan-in). */
+    queueFrontOrderId: string | null;
+    pinQueueOrderToFront: (orderId: string) => void;
 }
 
 const StationContext = createContext<StationContextValue>({
@@ -56,6 +59,8 @@ const StationContext = createContext<StationContextValue>({
     triggerRefresh:    () => {},
     isOrderReleaseStation: false,
     setIsOrderReleaseStation: () => {},
+    queueFrontOrderId: null,
+    pinQueueOrderToFront: () => {},
 });
 
 export const useStationContext = () => useContext(StationContext);
@@ -81,8 +86,14 @@ export function StationProvider({
     const [paneData,        setPaneData]        = useState<Record<string, unknown> | null>(null);
     const [selectedRecord,  setSelectedRecord]  = useState<Record<string, unknown> | null>(initialOrderData ?? null);
     const [refreshCounter,  setRefreshCounter]  = useState(0);
+    const [queueFrontOrderId, setQueueFrontOrderId] = useState<string | null>(null);
     const [isOrderReleaseStation, setIsOrderReleaseStation] = useState(false);
     const [isLaminateStation, setIsLaminateStation] = useState(false);
+
+    const pinQueueOrderToFront = useCallback((orderId: string) => {
+        if (!orderId || orderId === "__unknown__") return;
+        setQueueFrontOrderId(orderId);
+    }, []);
 
     useEffect(() => {
         if (!stationIdProp) return;
@@ -153,6 +164,7 @@ export function StationProvider({
             resolveVar,
             refreshCounter, triggerRefresh,
             isOrderReleaseStation, setIsOrderReleaseStation,
+            queueFrontOrderId, pinQueueOrderToFront,
         }}>
             {children}
         </StationContext.Provider>

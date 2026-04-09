@@ -12,6 +12,8 @@ import { panesApi } from "@/lib/api/panes";
 import { Pane } from "@/lib/api/types";
 import { parseQrScan } from "@/lib/utils/parseQrScan";
 import { getStationId, getStationName, isStationMatch } from "@/lib/utils/station-helpers";
+import { resolveActivePane } from "@/lib/utils/pane-laminate";
+import { withMergedIntoScanRetry } from "@/lib/utils/merged-into-scan";
 import { usePreview } from "../PreviewContext";
 import { useStationContext } from "../StationContext";
 import { CameraScanModal } from "./CameraScanModal";
@@ -59,6 +61,12 @@ interface QrScanBlockProps {
 
 type ScanStatus = "idle" | "loading" | "success" | "error";
 
+function orderIdFromPaneForQueue(pane: Pane): string {
+    if (!pane.order) return "__unknown__";
+    if (typeof pane.order === "string") return pane.order;
+    return (pane.order as { _id?: string })._id ?? "__unknown__";
+}
+
 function resolveField(record: Record<string, unknown>, key: string): string {
     const val = key.split(".").reduce<unknown>(
         (cur, part) => (cur != null && typeof cur === "object" ? (cur as Record<string, unknown>)[part] : undefined),
@@ -83,7 +91,7 @@ export function QrScanBlock({
 }: QrScanBlockProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
-    const { stationId, stationName, setOrderData, setRequestData, setPaneData, triggerRefresh } = useStationContext();
+    const { stationId, stationName, setOrderData, setRequestData, setPaneData, triggerRefresh, pinQueueOrderToFront } = useStationContext();
     const isScanMode    = dataSource === "/panes/scan";
     const isScanOutMode = dataSource === "/panes/scan-out";
     const contextType   = (isScanMode || isScanOutMode) ? "pane" : (CONTEXT_SOURCE[dataSource] ?? "order");
@@ -119,7 +127,8 @@ export function QrScanBlock({
         try {
             const lookupRes = await panesApi.getById(pn);
             if (lookupRes.success && lookupRes.data) {
-                const cs = lookupRes.data.currentStation;
+                const active = resolveActivePane(lookupRes.data);
+                const cs = active.currentStation;
                 const paneStationStr = getStationName(cs);
                 const isHere = !cs || isStationMatch(cs, stationId, stationName);
                 if (!isHere) {
@@ -164,10 +173,15 @@ export function QrScanBlock({
         if (await checkStationMismatch(pn, "scan_in")) return;
 
         try {
-            const res = await panesApi.scan(pn, { station: stationId, action: "scan_in" });
-            if (!res.success) throw new Error(res.message || "สแกนไม่สำเร็จ");
+            const res = await withMergedIntoScanRetry(pn, async (paneNum) => {
+                const r = await panesApi.scan(paneNum, { station: stationId, action: "scan_in" });
+                if (!r.success) throw new Error(r.message || "สแกนไม่สำเร็จ");
+                return r;
+            });
 
             setScanResult(res.data);
+            setPaneNumber(res.data.pane.paneNumber);
+            pinQueueOrderToFront(orderIdFromPaneForQueue(res.data.pane));
             setPaneData(res.data.pane as unknown as Record<string, unknown>);
             triggerRefresh();
             setLastAction("scan_in");
@@ -196,10 +210,14 @@ export function QrScanBlock({
         }
 
         try {
-            const res = await panesApi.scan(paneNumber, { station, action });
-            if (!res.success) throw new Error(res.message || "ดำเนินการไม่สำเร็จ");
+            const res = await withMergedIntoScanRetry(paneNumber, async (paneNum) => {
+                const r = await panesApi.scan(paneNum, { station, action });
+                if (!r.success) throw new Error(r.message || "ดำเนินการไม่สำเร็จ");
+                return r;
+            });
 
             setScanResult(res.data);
+            setPaneNumber(res.data.pane.paneNumber);
             setPaneData(res.data.pane as unknown as Record<string, unknown>);
             triggerRefresh();
             setLastAction(action);
@@ -244,10 +262,14 @@ export function QrScanBlock({
         if (await checkStationMismatch(pn, "scan_out")) return;
 
         try {
-            const res = await panesApi.scan(pn, { station: stationId, action: "scan_out" });
-            if (!res.success) throw new Error(res.message || "สแกนออกไม่สำเร็จ");
+            const res = await withMergedIntoScanRetry(pn, async (paneNum) => {
+                const r = await panesApi.scan(paneNum, { station: stationId, action: "scan_out" });
+                if (!r.success) throw new Error(r.message || "สแกนออกไม่สำเร็จ");
+                return r;
+            });
 
             setScanResult(res.data);
+            setPaneNumber(res.data.pane.paneNumber);
             setPaneData(res.data.pane as unknown as Record<string, unknown>);
             triggerRefresh();
             setLastAction("scan_out");
@@ -276,14 +298,21 @@ export function QrScanBlock({
         setLastAction(null);
 
         try {
-            const res = await panesApi.scan(pn, {
-                station: stationId!,
-                action,
-                force: true,
+            const res = await withMergedIntoScanRetry(pn, async (paneNum) => {
+                const r = await panesApi.scan(paneNum, {
+                    station: stationId!,
+                    action,
+                    force: true,
+                });
+                if (!r.success) throw new Error(r.message || "สแกนไม่สำเร็จ");
+                return r;
             });
-            if (!res.success) throw new Error(res.message || "สแกนไม่สำเร็จ");
 
             setScanResult(res.data);
+            setPaneNumber(res.data.pane.paneNumber);
+            if (action === "scan_in") {
+                pinQueueOrderToFront(orderIdFromPaneForQueue(res.data.pane));
+            }
             setPaneData(res.data.pane as unknown as Record<string, unknown>);
             triggerRefresh();
             setLastAction(action);

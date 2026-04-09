@@ -30,6 +30,7 @@ import {
   getStationId,
   getStationName,
 } from "@/lib/utils/station-helpers";
+import { isPaneRetiredByMerge } from "@/lib/utils/pane-laminate";
 import { PaneDetailModal } from "@/components/production/pane-detail-modal";
 
 // ── status config ─────────────────────────────────────────────────────────────
@@ -513,7 +514,7 @@ function ProductionDetailPageInner() {
           .getAll({ request: resolvedReqId, limit: 200 })
           .catch(() => null);
         if (pRes?.success && (pRes.data ?? []).length > 0) {
-          setPanes(pRes.data ?? []);
+          setPanes((pRes.data ?? []).filter((p) => !isPaneRetiredByMerge(p)));
           return;
         }
       }
@@ -543,7 +544,7 @@ function ProductionDetailPageInner() {
           });
         }
 
-        setPanes(found);
+        setPanes(found.filter((p) => !isPaneRetiredByMerge(p)));
       }
     },
     [id],
@@ -597,7 +598,7 @@ function ProductionDetailPageInner() {
     load();
   }, [load]);
 
-  useWebSocket("pane", ["pane:updated"], () => {
+  useWebSocket("pane", ["pane:updated", "pane:laminated"], () => {
     loadPanes();
   });
 

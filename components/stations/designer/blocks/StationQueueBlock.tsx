@@ -12,6 +12,8 @@ import { panesApi } from "@/lib/api/panes";
 import { Pane } from "@/lib/api/types";
 import { parseQrScan } from "@/lib/utils/parseQrScan";
 import { getStationName, isStationMatch } from "@/lib/utils/station-helpers";
+import { isPaneRetiredByMerge, resolveActivePane } from "@/lib/utils/pane-laminate";
+import { withMergedIntoScanRetry } from "@/lib/utils/merged-into-scan";
 import { usePreview } from "../PreviewContext";
 import { useStationContext } from "../StationContext";
 import { useWebSocket } from "@/lib/hooks/use-socket";
@@ -72,7 +74,7 @@ function getUrgencyClass(level: "critical" | "warn" | "normal"): string {
 export function StationQueueBlock({ title = "คิวสถานีนี้" }: StationQueueBlockProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
-    const { stationId, stationName, isLaminateStation, setPaneData, triggerRefresh, refreshCounter } = useStationContext();
+    const { stationId, stationName, isLaminateStation, setPaneData, triggerRefresh, refreshCounter, queueFrontOrderId, pinQueueOrderToFront } = useStationContext();
 
     const inputRef = useRef<HTMLInputElement>(null);
     const guardedPanesRef = useRef<Map<string, Pane>>(new Map());
@@ -106,6 +108,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
         ready: boolean;
     }
     const [laminateGroups, setLaminateGroups] = useState<LaminateGroup[]>([]);
+    const [laminateSurvivorChoice, setLaminateSurvivorChoice] = useState<Record<string, string>>({});
     const [mergeLoading, setMergeLoading] = useState<Record<string, boolean>>({});
     const [mergeResult, setMergeResult] = useState<Record<string, "success" | "error">>({});
 
@@ -120,6 +123,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
             if (!res || !res.success || !Array.isArray(res.data)) return;
 
             const atStation = res.data.filter(p =>
+                !isPaneRetiredByMerge(p) &&
                 isStationMatch(p.currentStation, stationId, stationName) && p.currentStatus === "in_progress",
             );
 
@@ -150,7 +154,11 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
     }, [stationId, stationName]);
 
     useEffect(() => { fetchPanes(); }, [fetchPanes, refreshCounter]);
-    useWebSocket("pane", ["pane:updated"], () => { setQrPane(null); fetchPanes(); if (isLaminateStation) fetchLaminateGroups(); });
+    useWebSocket("pane", ["pane:updated", "pane:laminated"], () => {
+        setQrPane(null);
+        fetchPanes();
+        if (isLaminateStation) fetchLaminateGroups();
+    });
 
     const fetchLaminateGroups = useCallback(async () => {
         if (!isLaminateStation || !stationId) return;
@@ -158,7 +166,9 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
             const sheetsRes = await panesApi.getAll({ laminateRole: "sheet", limit: 500 });
             if (!sheetsRes?.success) return;
 
-            const allSheetData = (sheetsRes.data as Pane[]).filter(s => s.currentStatus !== "claimed");
+            const allSheetData = (sheetsRes.data as Pane[]).filter(
+                (s) => s.currentStatus !== "claimed" && !isPaneRetiredByMerge(s),
+            );
 
             const sheetsByParent = new Map<string, Pane[]>();
             for (const s of allSheetData) {
@@ -184,9 +194,33 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
             for (let i = 0; i < parentIds.length; i++) {
                 const pid = parentIds[i];
                 const parentRes = parentResults[i];
-                if (!parentRes?.success) continue;
-
                 const allSheets = sheetsByParent.get(pid) ?? [];
+                const firstSheet = allSheets[0];
+                if (!firstSheet) continue;
+
+                const parentPane: Pane =
+                    parentRes?.success && parentRes.data
+                        ? parentRes.data
+                        : ({
+                              _id: pid,
+                              paneNumber: firstSheet.paneNumber,
+                              laminateRole: "parent",
+                              currentStation: firstSheet.currentStation,
+                              currentStatus: firstSheet.currentStatus,
+                              routing: firstSheet.routing,
+                              customRouting: firstSheet.customRouting,
+                              dimensions: firstSheet.dimensions,
+                              glassType: firstSheet.glassType,
+                              glassTypeLabel: firstSheet.glassTypeLabel,
+                              processes: firstSheet.processes,
+                              edgeTasks: firstSheet.edgeTasks,
+                              order: firstSheet.order,
+                              createdAt: firstSheet.createdAt,
+                              updatedAt: firstSheet.updatedAt,
+                          } as Pane);
+
+                if (isPaneRetiredByMerge(parentPane)) continue;
+
                 const sheetsTotal = allSheets.length;
                 const atStation = allSheets.filter(s =>
                     isStationMatch(s.currentStation, stationId, stationName) &&
@@ -198,7 +232,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                 if (sheetsPresent === 0) continue;
 
                 groups.push({
-                    parent: parentRes.data,
+                    parent: parentPane,
                     sheets: allSheets,
                     sheetsPresent,
                     sheetsTotal,
@@ -218,15 +252,40 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
         fetchPanes();
     });
 
-    async function handleMerge(parentPaneNumber: string, parentId: string) {
+    async function handleMerge(parentId: string, group: LaminateGroup) {
         if (!stationId) return;
+        const sheets = group.sheets.filter((s) => !isPaneRetiredByMerge(s));
+        if (sheets.length === 0) return;
+
+        const chosen =
+            laminateSurvivorChoice[parentId] &&
+            sheets.some((s) => s.paneNumber === laminateSurvivorChoice[parentId])
+                ? laminateSurvivorChoice[parentId]
+                : sheets[0].paneNumber;
+
+        const laminateBody =
+            sheets.length > 1 ? { laminateSurvivorPaneNumber: chosen } : {};
+
         setMergeLoading(prev => ({ ...prev, [parentId]: true }));
         setMergeResult(prev => { const n = { ...prev }; delete n[parentId]; return n; });
         try {
-            const res = await panesApi.scan(parentPaneNumber, { station: stationId, action: "laminate" });
-            if (!res.success) throw new Error(res.message ?? "ลามิเนตไม่สำเร็จ");
+            const res = await withMergedIntoScanRetry(chosen, async (pn) => {
+                const r = await panesApi.scan(pn, {
+                    station: stationId,
+                    action: "laminate",
+                    ...laminateBody,
+                });
+                if (!r.success) throw new Error(r.message ?? "ลามิเนตไม่สำเร็จ");
+                return r;
+            });
             setMergeResult(prev => ({ ...prev, [parentId]: "success" }));
-            setPaneData(res.data.pane as unknown as Record<string, unknown>);
+            setLaminateSurvivorChoice((prev) => {
+                const n = { ...prev };
+                delete n[parentId];
+                return n;
+            });
+            const d = res.data as { survivorPane?: Pane; pane: Pane };
+            setPaneData((d.survivorPane ?? d.pane) as unknown as Record<string, unknown>);
             triggerRefresh();
             setTimeout(() => {
                 setMergeResult(prev => { const n = { ...prev }; delete n[parentId]; return n; });
@@ -274,6 +333,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
 
     const materialGroups = (() => {
         const atStation = panes.filter(p =>
+            !isPaneRetiredByMerge(p) &&
             isStationMatch(p.currentStation, stationId, stationName) && 
             p.currentStatus === "in_progress" &&
             p.withdrawal // Show only panes that have been withdrawn
@@ -292,7 +352,10 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
             const matObj = (typeof p.material === "object" ? p.material : null) as any;
             const mid = typeof p.material === "string" ? p.material : (matObj?._id || "unknown");
             const glassType = p.glassType || matObj?.specDetails?.glassType || "ทั่วไป";
-            const thickness = p.dimensions?.thickness || matObj?.specDetails?.thickness || 0;
+            const thickness =
+                p.dimensions?.thickness ||
+                Number(matObj?.specDetails?.thickness ?? 0) ||
+                0;
             const color = matObj?.specDetails?.color || "";
             
             const groupKey = `${glassType}-${thickness}-${color}-${mid}`;
@@ -342,11 +405,12 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
     const orderGroups = (() => {
         const filtered = isLaminateStation
             ? panes.filter(p => {
+                if (isPaneRetiredByMerge(p)) return false;
                 if (p.laminateRole === "sheet") return false;
                 if (p.laminateRole === "parent" && p.currentStatus === "pending") return false;
                 return true;
             })
-            : panes;
+            : panes.filter((p) => !isPaneRetiredByMerge(p));
         const map = new Map<string, { label: string; panes: Pane[]; priority: number; createdAt: string; deadline: string }>();
         for (const p of filtered) {
             const oid   = extractOrderId(p);
@@ -378,6 +442,11 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                 return { orderId, label: v.label, panes: v.panes, priority: v.priority, createdAt: v.createdAt, deadline: v.deadline, maxUrgency: maxLevel };
             })
             .sort((a, b) => {
+                if (queueFrontOrderId) {
+                    const aFront = a.orderId === queueFrontOrderId ? 1 : 0;
+                    const bFront = b.orderId === queueFrontOrderId ? 1 : 0;
+                    if (aFront !== bFront) return bFront - aFront;
+                }
                 const severity = { critical: 3, warn: 2, normal: 1 };
                 if (a.maxUrgency !== b.maxUrgency) return severity[b.maxUrgency] - severity[a.maxUrgency];
                 
@@ -396,12 +465,17 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
         setBatchLoading(true);
         setScanError(null);
         try {
-            const paneNumbers = panesToProcess.map(p => p.paneNumber);
+            const eligible = panesToProcess.filter((p) => !isPaneRetiredByMerge(p));
+            if (eligible.length === 0) {
+                setScanError("ไม่มีแผ่นที่ใช้สแกนแบบกลุ่มได้ (รวมลามิเนตแล้วหรือถูกรวมเข้าแผ่นอื่น)");
+                return;
+            }
+            const paneNumbers = eligible.map((p) => p.paneNumber);
             const res = await panesApi.batchScan({ paneNumbers, station: stationId, action });
             if (!res.success) throw new Error(res.message || "ดำเนินการแบบกลุ่มไม่สำเร็จ");
             setSelectedPanes(prev => {
                 const n = new Set(prev);
-                panesToProcess.forEach(p => n.delete(p._id));
+                eligible.forEach((p) => n.delete(p._id));
                 return n;
             });
             triggerRefresh();
@@ -454,7 +528,8 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
         try {
             const lookupRes = await panesApi.getById(pn);
             if (lookupRes.success && lookupRes.data) {
-                const cs = lookupRes.data.currentStation;
+                const active = resolveActivePane(lookupRes.data);
+                const cs = active.currentStation;
                 const paneStationStr = getStationName(cs);
                 const isHere = !cs || isStationMatch(cs, stationId, stationName);
                 if (!isHere) {
@@ -471,9 +546,17 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
         const tempKey = `scan-${pn}`;
         setActionLoading(prev => ({ ...prev, [tempKey]: true }));
         try {
-            const res = await panesApi.scan(pn, { station: stationId!, action: "scan_in", ...(force ? { force: true } : {}) });
-            if (!res.success) throw new Error(res.message ?? "สแกนไม่สำเร็จ");
+            const res = await withMergedIntoScanRetry(pn, async (paneNum) => {
+                const r = await panesApi.scan(paneNum, {
+                    station: stationId!,
+                    action: "scan_in",
+                    ...(force ? { force: true } : {}),
+                });
+                if (!r.success) throw new Error(r.message ?? "สแกนไม่สำเร็จ");
+                return r;
+            });
             const scannedPane = res.data.pane as Pane;
+            pinQueueOrderToFront(extractOrderId(scannedPane));
             guardedPanesRef.current.set(scannedPane._id, { ...scannedPane, currentStatus: "in_progress" });
             const pid = scannedPane._id;
             setTimeout(() => { guardedPanesRef.current.delete(pid); }, 60_000);
@@ -504,8 +587,11 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
         setActionLoading(prev => ({ ...prev, [pane._id]: true }));
         setActionResult(prev => { const n = { ...prev }; delete n[pane._id]; return n; });
         try {
-            const res = await panesApi.scan(pane.paneNumber, { station: stationId, action });
-            if (!res.success) throw new Error(res.message ?? "ดำเนินการไม่สำเร็จ");
+            const res = await withMergedIntoScanRetry(pane.paneNumber, async (paneNum) => {
+                const r = await panesApi.scan(paneNum, { station: stationId, action });
+                if (!r.success) throw new Error(r.message ?? "ดำเนินการไม่สำเร็จ");
+                return r;
+            });
             setPaneData(res.data.pane as unknown as Record<string, unknown>);
             if (action === "start") {
                 setPhases(prev => ({ ...prev, [pane._id]: "started" }));
@@ -635,6 +721,14 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                 const pid = group.parent._id;
                                 const isMerging = mergeLoading[pid];
                                 const mResult = mergeResult[pid];
+                                const activeSheets = group.sheets.filter((s) => !isPaneRetiredByMerge(s));
+                                const defaultSurvivorPn = activeSheets[0]?.paneNumber ?? "";
+                                const survivorPnForGroup =
+                                    laminateSurvivorChoice[pid] &&
+                                    activeSheets.some((s) => s.paneNumber === laminateSurvivorChoice[pid])
+                                        ? laminateSurvivorChoice[pid]
+                                        : defaultSurvivorPn;
+                                const showSurvivorPick = activeSheets.length > 1;
                                 return (
                                     <div key={pid} className={`rounded-xl border overflow-hidden ${
                                         group.ready
@@ -654,6 +748,11 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                                 {group.sheetsPresent}/{group.sheetsTotal} แผ่น
                                             </span>
                                         </div>
+                                        {showSurvivorPick ? (
+                                            <p className="px-3 py-1.5 text-[10px] text-muted-foreground bg-violet-50/80 dark:bg-violet-950/20 border-b border-border/40">
+                                                เลือกสติกเกอร์ที่จะใช้ต่อหลังประกบ (QR ที่ยังสแกนได้)
+                                            </p>
+                                        ) : null}
                                         <div className="border-t border-border/50 divide-y divide-border/30">
                                             {group.sheets.map(sheet => {
                                                 const isHere = isStationMatch(sheet.currentStation, stationId, stationName) && sheet.currentStatus !== "completed";
@@ -661,7 +760,31 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                                 return (
                                                     <div key={sheet._id} className="flex items-center gap-2 px-3 py-2">
                                                         <span className={`h-2 w-2 rounded-full shrink-0 ${isWorking ? "bg-emerald-500" : isHere ? "bg-amber-400" : "bg-slate-300"}`} />
-                                                        <span className="font-mono text-[11px] text-foreground flex-1">{sheet.paneNumber}</span>
+                                                        <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                                                            <span className="font-mono text-[11px] text-foreground">
+                                                                {sheet.paneNumber}
+                                                                {sheet.sheetLabel ? (
+                                                                    <span className="text-muted-foreground font-normal ml-1">({sheet.sheetLabel})</span>
+                                                                ) : null}
+                                                            </span>
+                                                            {showSurvivorPick && !isPaneRetiredByMerge(sheet) ? (
+                                                                <label className="flex items-center gap-1.5 cursor-pointer shrink-0">
+                                                                    <input
+                                                                        type="radio"
+                                                                        name={`lam-survivor-${pid}`}
+                                                                        className="h-3.5 w-3.5 accent-violet-600"
+                                                                        checked={survivorPnForGroup === sheet.paneNumber}
+                                                                        onChange={() =>
+                                                                            setLaminateSurvivorChoice((prev) => ({
+                                                                                ...prev,
+                                                                                [pid]: sheet.paneNumber,
+                                                                            }))
+                                                                        }
+                                                                    />
+                                                                    <span className="text-[10px] text-muted-foreground">คงสติกเกอร์นี้</span>
+                                                                </label>
+                                                            ) : null}
+                                                        </div>
                                                     </div>
                                                 );
                                             })}
@@ -671,7 +794,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                                 <div className="flex items-center justify-center gap-1.5 text-emerald-600 text-xs font-bold py-1.5"><CheckCircle2 className="h-4 w-4" />สำเร็จ</div>
                                             ) : (
                                                 <button
-                                                    onClick={() => handleMerge(group.parent.paneNumber, pid)}
+                                                    onClick={() => handleMerge(pid, group)}
                                                     disabled={!group.ready || isMerging}
                                                     className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
                                                         group.ready ? "bg-violet-600 hover:bg-violet-500 text-white" : "bg-muted text-muted-foreground grayscale"
@@ -806,8 +929,8 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                             const isAllSelected = groupSelected.length === group.panes.length && group.panes.length > 0;
                             const isAnySelected = groupSelected.length > 0;
                             const totalAreaM2 = groupSelected.reduce((sum, p) => sum + (p.dimensions?.area ?? 0), 0) / 1_000_000;
-                            const msWidth = group.material?.specDetails?.width || 0;
-                            const msLength = group.material?.specDetails?.length || 0;
+                            const msWidth = Number(group.material?.specDetails?.width ?? 0) || 0;
+                            const msLength = Number(group.material?.specDetails?.length ?? 0) || 0;
                             const msAreaM2 = (msWidth * msLength) / 1_000_000;
                             const efficiency = msAreaM2 > 0 ? (totalAreaM2 / msAreaM2) * 100 : 0;
 

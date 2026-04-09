@@ -16,6 +16,8 @@ import { panesApi } from "@/lib/api/panes";
 import { Station, Pane } from "@/lib/api/types";
 import { parseQrScan } from "@/lib/utils/parseQrScan";
 import { getStationId, getStationName, isStationMatch } from "@/lib/utils/station-helpers";
+import { resolveActivePane } from "@/lib/utils/pane-laminate";
+import { withMergedIntoScanRetry } from "@/lib/utils/merged-into-scan";
 import type { Html5Qrcode as Html5QrcodeType } from "html5-qrcode";
 
 type ScanState = "ready" | "scanning" | "processing" | "success" | "error";
@@ -136,7 +138,8 @@ export default function MobilePaneScanPage() {
         try {
             const lookupRes = await panesApi.getById(paneNumber);
             if (lookupRes.success && lookupRes.data) {
-                const cs = lookupRes.data.currentStation;
+                const active = resolveActivePane(lookupRes.data);
+                const cs = active.currentStation;
                 const isHere = !cs || isStationMatch(cs, stationId, station?.name);
                 if (!isHere) {
                     setMismatchInfo({
@@ -161,12 +164,15 @@ export default function MobilePaneScanPage() {
         setMessage("กำลังบันทึก...");
 
         try {
-            const res = await panesApi.scan(paneNumber, {
-                station: stationId,
-                action: "complete",
-                ...(force ? { force: true } : {}),
+            const res = await withMergedIntoScanRetry(paneNumber, async (pn) => {
+                const r = await panesApi.scan(pn, {
+                    station: stationId,
+                    action: "complete",
+                    ...(force ? { force: true } : {}),
+                });
+                if (!r.success) throw new Error(r.message || "สแกนไม่สำเร็จ");
+                return r;
             });
-            if (!res.success) throw new Error(res.message || "สแกนไม่สำเร็จ");
 
             setScannedPane(res.data.pane);
             const ns = res.data.nextStation ?? null;
