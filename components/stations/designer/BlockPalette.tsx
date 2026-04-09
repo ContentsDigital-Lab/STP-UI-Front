@@ -5,7 +5,7 @@ import {
     Columns2, Columns3, Columns4, Type, AlignLeft, Minus, MoveVertical,
     Tag, TextCursorInput, ChevronDown, FileText,
     MousePointerClick, CreditCard, Activity, LayoutPanelLeft, Table2, ClipboardList, Workflow,
-    Boxes, PackageSearch, History, ScanLine, ListChecks, Sticker,
+    Boxes, PackageSearch, History, ScanLine, ListChecks, Sticker, ShieldCheck
 } from "lucide-react";
 import { ReactElement } from "react";
 
@@ -32,6 +32,7 @@ import { OrderReleasePanel }      from "./blocks/OrderReleasePanel";
 import { QrScanBlock }            from "./blocks/QrScanBlock";
 import { StationQueueBlock }      from "./blocks/StationQueueBlock";
 import { StickerPrintBlock }      from "./blocks/StickerPrintBlock";
+import { QCInspectorBlock }       from "./blocks/QCInspectorBlock";
 
 interface PaletteItem {
     label: string;
@@ -88,6 +89,7 @@ const PALETTE: PaletteGroup[] = [
             { label: "ประเมินออเดอร์",  icon: <PackageSearch className="h-4 w-4" />, element: <OrderReleasePanel />,    bg: "bg-violet-600"  },
             { label: "คิวสถานี",       icon: <ListChecks className="h-4 w-4" />,    element: <StationQueueBlock />,     bg: "bg-emerald-600" },
             { label: "พิมพ์สติ๊กเกอร์", icon: <Sticker className="h-4 w-4" />,      element: <StickerPrintBlock />,    bg: "bg-purple-600"  },
+            { label: "QC Inspector",   icon: <ShieldCheck className="h-4 w-4" />,  element: <QCInspectorBlock />,     bg: "bg-blue-600"    },
         ],
     },
 ];

@@ -9,7 +9,7 @@ type Section  = "props" | "data" | "action";
 type FieldDef = {
     label:         string;
     hint?:         string;
-    type:          "text" | "number" | "select" | "textarea" | "toggle" | "column-editor" | "text-format";
+    type:          "text" | "number" | "select" | "textarea" | "toggle" | "column-editor" | "list-editor" | "text-format";
     options?:      string[];
     optionLabels?: string[];
     placeholder?:  string;
@@ -275,6 +275,11 @@ const FIELD_META: Record<string, Record<string, FieldDef>> = {
         displayStyle: { label: "รูปแบบการแสดง",   type: "select", section: "props", options: ["pill","badge","dot","tag"], optionLabels: ["แถบกลม (Pill)","ป้าย (Badge)","จุด + ข้อความ","แท็กขอบซ้าย"] },
         displayMode:  { label: "โหมดแสดง",         type: "select", section: "data",  options: ["single","list"], optionLabels: ["ค่าเดียว","รายการ (หลายรายการ)"], hint: "เลือก 'รายการ' เมื่อต้องการแสดงหลายออเดอร์พร้อมกัน" },
         dataVar:      { label: "เชื่อมกับข้อมูลสถานะ", type: "text", section: "data", hint: "ชื่อตัวแปรที่มีค่าสถานะ เช่น order.status หรือ orders (array)", placeholder: "เช่น order.status", suggestions: DATA_VAR_SUGGESTIONS },
+    },
+    "QC Inspector": {
+        title:           { label: "ชื่อหัวข้อ",       type: "text",     section: "props", placeholder: "เช่น ตรวจสอบคุณภาพ (QC)" },
+        checklistJson:   { label: "รายการตรวจสอบ",   type: "list-editor", section: "props", hint: "เพิ่มหรือแก้ไขรายการตรวจสอบที่ต้องการให้พนักงานติ๊กหน้างาน" },
+        showDescription: { label: "แสดงช่องหมายเหตุ", type: "toggle",   section: "props" },
     },
 };
 
@@ -615,6 +620,55 @@ function ColumnEditor({ value, onChange, dataSource }: { value: unknown; onChang
     );
 }
 
+// ── List editor (for simple string arrays like checklists) ───────────────────
+function ListEditor({ value, onChange }: { value: unknown; onChange: (v: string) => void }) {
+    const items: string[] = (() => {
+        try {
+            const parsed = JSON.parse(String(value ?? "[]"));
+            return Array.isArray(parsed) ? parsed : [];
+        } catch { return []; }
+    })();
+
+    const update = (next: string[]) => onChange(JSON.stringify(next));
+    const setItem = (i: number, val: string) => update(items.map((it, idx) => idx === i ? val : it));
+    const delItem = (i: number) => update(items.filter((_, idx) => idx !== i));
+    const addItem = () => update([...items, "รายการใหม่"]);
+
+    return (
+        <div className="space-y-2">
+            <div className="space-y-1.5">
+                {items.map((item, i) => (
+                    <div key={i} className="flex gap-2 items-center group">
+                        <div className="h-5 w-5 rounded border bg-emerald-500/10 border-emerald-500/30 flex items-center justify-center shrink-0">
+                            <Plus className="h-3 w-3 text-emerald-600 rotate-45" />
+                        </div>
+                        <input
+                            value={item}
+                            onChange={(e) => setItem(i, e.target.value)}
+                            className="flex-1 bg-background border rounded px-2 py-1 text-xs focus:ring-1 focus:ring-primary/40 outline-none"
+                            placeholder="พิมพ์รายการตรวจสอบ..."
+                        />
+                        <button
+                            type="button"
+                            onClick={() => delItem(i)}
+                            className="p-1 rounded hover:bg-red-50 text-muted-foreground/30 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                        >
+                            <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                    </div>
+                ))}
+            </div>
+            <button
+                type="button"
+                onClick={addItem}
+                className="flex items-center gap-1.5 text-[11px] text-primary hover:text-primary/80 font-bold transition-colors w-full py-2 justify-center border border-dashed rounded-lg bg-muted/20 hover:bg-muted/40"
+            >
+                <Plus className="h-3.5 w-3.5" /> เพิ่มหัวข้อตรวจสอบ
+            </button>
+        </div>
+    );
+}
+
 // ── B / I / U buttons (Word-style text format) ────────────────────────────────
 function TextFormatButtons({ value, onChange }: { value: string; onChange: (v: string) => void }) {
     const hasBold      = value.includes("bold");
@@ -662,6 +716,8 @@ function Field({ label, value, fieldDef, onChange, allProps, suggestionOverride 
                 <TextFormatButtons value={String(value ?? "bold")} onChange={(v) => onChange(v)} />
             ) : fieldDef.type === "column-editor" ? (
                 <ColumnEditor value={value} onChange={(v) => onChange(v)} dataSource={String(allProps?.dataSource ?? "")} />
+            ) : fieldDef.type === "list-editor" ? (
+                <ListEditor value={value} onChange={(v) => onChange(v)} />
             ) : fieldDef.type === "toggle" ? (
                 <button type="button" role="switch" aria-checked={Boolean(value)}
                     onClick={() => onChange(!value)}

@@ -58,11 +58,11 @@ export interface Material {
   unit: string;
   reorderPoint: number;
   specDetails: {
-    thickness?: number;
+    thickness?: string;
     color?: string;
     glassType?: string;
-    width?: number;
-    length?: number;
+    width?: string;
+    length?: string;
   };
   createdAt: string;
   updatedAt: string;

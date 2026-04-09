@@ -97,9 +97,9 @@ export function StationProvider({
 
     const triggerRefresh = useCallback(() => setRefreshCounter((n) => n + 1), []);
 
-    const orderId   = orderData   ? (orderData._id   as string ?? null) : null;
-    const requestId = requestData ? (requestData._id as string ?? null) : null;
-    const paneId    = paneData    ? (paneData._id    as string ?? null) : null;
+    const orderId   = orderData   ? ((orderData._id || orderData.id) as string ?? null) : null;
+    const requestId = requestData ? ((requestData._id || requestData.id) as string ?? null) : null;
+    const paneId    = paneData    ? ((paneData._id || paneData.id) as string ?? null) : null;
 
     const setField  = useCallback((key: string, value: unknown) => {
         if (!key) return;

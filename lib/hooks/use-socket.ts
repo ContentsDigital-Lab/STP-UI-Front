@@ -2,96 +2,156 @@ import { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { API_BASE_URL } from '../api/config';
 
+// ── Shared Singleton Socket ──────────────────────────────────────────────────
+let sharedSocket: Socket | null = null;
+const roomRefs = new Map<string, number>();
+
+/**
+ * Ensures a single Socket.io connection exists.
+ */
+function getSharedSocket() {
+    if (typeof window === 'undefined') return null;
+    if (sharedSocket) {
+        if (sharedSocket.disconnected) sharedSocket.connect();
+        return sharedSocket;
+    }
+
+    const token = localStorage.getItem('auth_token') || '';
+    const baseUrl = API_BASE_URL.replace('/api', '');
+
+    sharedSocket = io(baseUrl, {
+        path: '/api/socket-entry',
+        auth: { token },
+        transports: ['websocket'],
+        reconnectionAttempts: 10,
+        reconnectionDelay: 2000,
+        multiplex: true, // socket.io default, but explicit for clarity
+    });
+
+    sharedSocket.on('connect', () => {
+        console.log(`[Socket.io] Global Connected. ID: ${sharedSocket?.id}`);
+    });
+
+    sharedSocket.on('disconnect', (reason) => {
+        console.warn(`[Socket.io] Global Disconnected: ${reason}`);
+    });
+
+    sharedSocket.on('connect_error', (err) => {
+        console.error(`[Socket.io] Global Connection Error:`, err);
+    });
+
+    return sharedSocket;
+}
+
 /**
  * Custom hook for Socket.io integration with Room management and multiple event listeners.
- * @param room The room to join (e.g., 'inventory', 'dashboard')
- * @param events List of events to listen for (e.g., ['inventory:updated', 'order:updated'])
- * @param onEvent Callback triggered when any of the listed events occur
- * @param options.stationRoom Optional station ID — joins station:{id} room for per-station notifications
  */
-export function useWebSocket(room: string, events: string[], onEvent?: (event: string, data: unknown) => void, options?: { stationRoom?: string }) {
+export function useWebSocket(
+    room: string, 
+    events: string[], 
+    onEvent?: (event: string, data: unknown) => void, 
+    options?: { stationRoom?: string; debounceMs?: number }
+) {
     const [status, setStatus] = useState<'connecting' | 'open' | 'closed' | 'error'>('connecting');
-    const socketRef = useRef<Socket | null>(null);
+    const debounceMs = options?.debounceMs ?? 0;
+    const stationRoom = options?.stationRoom;
+    const timeoutRef = useRef<NodeJS.Timeout>(null);
 
     const callbackRef = useRef(onEvent);
     useEffect(() => {
         callbackRef.current = onEvent;
     }, [onEvent]);
 
-    const eventsJson = JSON.stringify(events);
-    const stationRoom = options?.stationRoom;
-
     useEffect(() => {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : '';
-        const baseUrl = API_BASE_URL.replace('/api', '');
+        const socket = getSharedSocket();
+        if (!socket) return;
 
-        const socketInstance = io(baseUrl, {
-            path: '/api/socket-entry',
-            auth: { token },
-            transports: ['websocket'],
-            reconnectionAttempts: 5,
-            reconnectionDelay: 3000,
-        });
+        // Sync status
+        const updateStatus = () => setStatus(socket.connected ? 'open' : 'connecting');
+        socket.on('connect', updateStatus);
+        socket.on('disconnect', updateStatus);
+        updateStatus();
 
-        socketRef.current = socketInstance;
-
-        socketInstance.on('connect', () => {
-            console.log(`[Socket.io] Connected. ID: ${socketInstance.id}. Joining room: ${room}`);
-            setStatus('open');
-
-            socketInstance.emit(`join_${room}`, (ack: unknown) => {
-                console.log(`[Socket.io] Joined room "${room}" ack:`, ack);
+        // Join primary room
+        const roomKey = `join_${room}`;
+        const currentCount = roomRefs.get(room) ?? 0;
+        roomRefs.set(room, currentCount + 1);
+        
+        if (currentCount === 0) {
+            socket.emit(roomKey, (ack: unknown) => {
+                console.log(`[Socket.io] First listener joined "${room}" ack:`, ack);
             });
+        }
 
-            socketInstance.emit('join_me');
+        socket.emit('join_me');
 
-            if (stationRoom) {
-                socketInstance.emit('join_station_room', stationRoom, (ack: unknown) => {
-                    console.log(`[Socket.io] Joined station room "station:${stationRoom}" ack:`, ack);
+        // Join station room if provided
+        if (stationRoom) {
+            const sRoomKey = `station:${stationRoom}`;
+            const sCount = roomRefs.get(sRoomKey) ?? 0;
+            roomRefs.set(sRoomKey, sCount + 1);
+            if (sCount === 0) {
+                socket.emit('join_station_room', stationRoom, (ack: unknown) => {
+                    console.log(`[Socket.io] First listener joined station "${stationRoom}" ack:`, ack);
                 });
             }
+        }
+
+        // Event handler helper
+        const handleEvent = (eventName: string, payload: unknown) => {
+            if (debounceMs > 0) {
+                if (timeoutRef.current) clearTimeout(timeoutRef.current);
+                timeoutRef.current = setTimeout(() => {
+                    callbackRef.current?.(eventName, payload);
+                }, debounceMs);
+            } else {
+                callbackRef.current?.(eventName, payload);
+            }
+        };
+
+        // Listen for specified events
+        events.forEach(eventName => {
+            socket.on(eventName, (payload) => handleEvent(eventName, payload));
         });
 
-        // Register listeners for all specified events
-        const parsedEvents: string[] = JSON.parse(eventsJson);
-        parsedEvents.forEach(eventName => {
-            socketInstance.on(eventName, (payload) => {
-                console.log(`[Socket.io] Event received [${eventName}]:`, payload);
-                if (callbackRef.current) callbackRef.current(eventName, payload);
-            });
-        });
-
-        // Global events
-        socketInstance.on('notification', (notif) => {
-            if (callbackRef.current) callbackRef.current('notification', notif);
-        });
-
-        socketInstance.on('system_alert', (alert) => {
-            if (callbackRef.current) callbackRef.current('system_alert', alert);
-        });
-
-        socketInstance.on('disconnect', (reason) => {
-            console.log('[Socket.io] Disconnected:', reason);
-            setStatus('closed');
-        });
-
-        socketInstance.on('connect_error', (error) => {
-            console.error('[Socket.io] Connection Error:', error);
-            setStatus('error');
-        });
+        // Global listeners
+        socket.on('notification', (payload) => handleEvent('notification', payload));
+        socket.on('system_alert', (payload) => handleEvent('system_alert', payload));
 
         return () => {
-            console.log(`[Socket.io] Cleaning up room: ${room}`);
-            socketInstance.emit(`leave_${room}`);
-            if (stationRoom) {
-                socketInstance.emit('leave_station_room', stationRoom);
-            }
-            socketInstance.disconnect();
-            socketRef.current = null;
-        };
-    }, [room, eventsJson, stationRoom]); // Reconnect if room, events, or station room changes
+            // Clean up event listeners
+            events.forEach(eventName => {
+                socket.off(eventName);
+            });
+            socket.off('notification');
+            socket.off('system_alert');
+            socket.off('connect', updateStatus);
+            socket.off('disconnect', updateStatus);
+            
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
-    // We don't return the socket directly to avoid "Cannot access ref during render" error
-    // If needed in the future, return a stable getter or another ref.
+            // Leave primary room
+            const count = (roomRefs.get(room) ?? 1) - 1;
+            if (count <= 0) {
+                roomRefs.delete(room);
+                socket.emit(`leave_${room}`);
+            } else {
+                roomRefs.set(room, count);
+            }
+
+            // Leave station room
+            if (stationRoom) {
+                const sRoomKey = `station:${stationRoom}`;
+                const scount = (roomRefs.get(sRoomKey) ?? 1) - 1;
+                if (scount <= 0) {
+                    roomRefs.delete(sRoomKey);
+                    socket.emit('leave_station_room', stationRoom);
+                } else {
+                    roomRefs.set(sRoomKey, scount);
+                }
+            }
+        };
+    }, [room, JSON.stringify(events), stationRoom, debounceMs]);
+
     return { status };
 }

@@ -32,7 +32,11 @@ function matId(m: string | Material | undefined | null): string | null {
 function matSpecs(m: string | Material | undefined | null): string {
     if (!m || typeof m !== "object") return "";
     const s = m.specDetails ?? {};
-    return [s.glassType, s.thickness ? `${s.thickness}mm` : null, s.color]
+    let t = s.thickness;
+    if (t && typeof t === 'string' && t.toLowerCase().endsWith('mm')) {
+        t = t.slice(0, -2);
+    }
+    return [s.glassType, t ? `${t}mm` : null, s.color]
         .filter(Boolean).join(" • ");
 }
 
@@ -85,7 +89,8 @@ export function WithdrawModal({ stationId, onClose, initialPane }: WithdrawModal
                     const mat = typeof inv.material === "object" ? inv.material as Material : null;
                     if (!mat?.specDetails) return false;
                     const typeMatch = (mat.specDetails.glassType ?? "").toLowerCase() === rg.glassType.toLowerCase();
-                    const thicknessMatch = !rg.thickness || (mat.specDetails.thickness ?? 0) === rg.thickness;
+                    const matThickness = parseFloat(String(mat.specDetails.thickness ?? 0));
+                    const thicknessMatch = !rg.thickness || matThickness === rg.thickness;
                     const colorMatch = !rg.color ||
                         (mat.specDetails.color ?? "").toLowerCase().includes(rg.color.toLowerCase()) ||
                         rg.color.toLowerCase().includes((mat.specDetails.color ?? "").toLowerCase());

@@ -150,7 +150,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
     }, [stationId, stationName]);
 
     useEffect(() => { fetchPanes(); }, [fetchPanes, refreshCounter]);
-    useWebSocket("pane", ["pane:updated"], () => { setQrPane(null); fetchPanes(); if (isLaminateStation) fetchLaminateGroups(); });
+    useWebSocket("pane", ["pane:updated"], () => { setQrPane(null); fetchPanes(); if (isLaminateStation) fetchLaminateGroups(); }, { debounceMs: 500 });
 
     const fetchLaminateGroups = useCallback(async () => {
         if (!isLaminateStation || !stationId) return;
@@ -216,7 +216,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
     useWebSocket("station", ["laminate:ready", "laminate:waiting", "pane:laminated"], () => {
         if (isLaminateStation) fetchLaminateGroups();
         fetchPanes();
-    });
+    }, { debounceMs: 500 });
 
     async function handleMerge(parentPaneNumber: string, parentId: string) {
         if (!stationId) return;
@@ -292,7 +292,8 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
             const matObj = (typeof p.material === "object" ? p.material : null) as any;
             const mid = typeof p.material === "string" ? p.material : (matObj?._id || "unknown");
             const glassType = p.glassType || matObj?.specDetails?.glassType || "ทั่วไป";
-            const thickness = p.dimensions?.thickness || matObj?.specDetails?.thickness || 0;
+            const thicknessRaw = p.dimensions?.thickness || matObj?.specDetails?.thickness || 0;
+            const thickness = typeof thicknessRaw === 'number' ? thicknessRaw : parseFloat(thicknessRaw) || 0;
             const color = matObj?.specDetails?.color || "";
             
             const groupKey = `${glassType}-${thickness}-${color}-${mid}`;

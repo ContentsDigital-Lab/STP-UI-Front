@@ -252,9 +252,10 @@ export function RecordList({
         return allData;
     };
 
-    const loadData = () => {
+    const loadData = (silent = false) => {
         if (!isApi) { setRows(SAMPLE_ROWS); return; }
-        setFetching(true); setError("");
+        if (!silent) setFetching(true); 
+        setError("");
 
         const shouldHideProcessed = dataSource === "/requests" && !showAllRequests;
         const needPaneCheck = shouldHideProcessed && shouldFilterStation && stationId;
@@ -273,7 +274,7 @@ export function RecordList({
 
         Promise.all([fetchMain, fetchOrders, fetchPanes])
             .then(([mainData, ordersData, panesRes]) => {
-                if (!mainData.length && !fetching) { setError("โหลดข้อมูลไม่สำเร็จ"); }
+                if (!mainData.length && !fetching && !silent) { setError("โหลดข้อมูลไม่สำเร็จ"); }
                 let data = mainData;
                 if (shouldHideProcessed && ordersData.length > 0) {
                     const processedRequestIds = new Set<string>(
@@ -304,8 +305,12 @@ export function RecordList({
                 }
                 setRows(data);
             })
-            .catch(() => setError("ยังไม่มีข้อมูลจาก API — ลองใช้งานจริงเพื่อดูข้อมูล"))
-            .finally(() => setFetching(false));
+            .catch(() => {
+                if (!silent) setError("ยังไม่มีข้อมูลจาก API — ลองใช้งานจริงเพื่อดูข้อมูล");
+            })
+            .finally(() => {
+                if (!silent) setFetching(false);
+            });
     };
 
     /** Fetch panes at this station and count how many are still "pending" (not yet scanned in) per order.
@@ -359,14 +364,14 @@ export function RecordList({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [rows, stationId, stationName, effectivePendingOnly]);
 
-    // Real-time updates via WebSocket
+    // Real-time updates via WebSocket (Silent updates to avoid flicker)
     const wsConfig = DATASOURCE_WS[dataSource] ?? { room: "_noop", events: [] };
     useWebSocket(wsConfig.room, wsConfig.events, () => {
-        if (isApi) loadData();
-    });
+        if (isApi) loadData(true);
+    }, { debounceMs: 500 });
 
     useWebSocket("pane", ["pane:updated"], () => {
-        if (isApi) loadData();
+        if (isApi) loadData(true);
         loadPendingPaneCounts();
         setQrPane(null);
         if (!expandedRowId) return;
@@ -376,7 +381,7 @@ export function RecordList({
         fetchFn
             .then(res => setRowPanes(res.success ? res.data ?? [] : []))
             .catch(() => {});
-    });
+    }, { debounceMs: 500 });
 
     const autoExpandedRef = useRef(false);
     useEffect(() => {

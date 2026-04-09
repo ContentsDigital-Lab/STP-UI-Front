@@ -55,14 +55,18 @@ export const panesApi = {
 
     scan: async (paneNumber: string, data: {
         station: string;
-        action: "scan_in" | "start" | "complete" | "scan_out" | "laminate";
+        action: "scan_in" | "start" | "complete" | "scan_out" | "laminate" | "qc_pass" | "qc_fail";
         operator?: string;
         force?: boolean;
+        reason?: string;
+        description?: string;
+        remakeStationId?: string;
     }): Promise<ApiResponse<{
         pane: Pane;
         log: Record<string, unknown>;
         nextStation?: string;
         mergedSheets?: number;
+        remadePane?: Pane;
     }>> => {
         return fetchApi(`/panes/${encodeURIComponent(paneNumber)}/scan`, {
             method: "POST",
