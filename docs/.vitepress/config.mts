@@ -20,7 +20,7 @@ export default defineConfig({
         ]
       },
       {
-        text: 'การสั่งซื้อและผลิต',
+        text: 'การดำเนินงาน',
         items: [
           { text: 'รับออเดอร์', link: '/guide/order-requests' },
           { text: 'ติดตามการผลิต', link: '/guide/production' },
