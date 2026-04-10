@@ -283,6 +283,9 @@ export function ClaimModal({ stationId, onClose }: ClaimModalProps) {
                                 </Button>
                             )}
                         </div>
+                        <p className="text-[10px] text-muted-foreground leading-snug px-0.5">
+                            พิมพ์รหัสกระจกแล้วกด <kbd className="px-1 py-0.5 rounded border border-border bg-muted font-mono text-[9px]">Enter</kbd> เพื่อโหลดข้อมูล — หรือกดปุ่ม QR ข้างช่อง
+                        </p>
 
                         {/* Lookup error */}
                         {lookupError && (

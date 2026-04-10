@@ -180,14 +180,30 @@ export function QCInspectorBlock({
                 }).catch((err) => console.warn("QC: Auto-scan-in failed", err));
             }
 
-            // 2. Auto-Finish if not already finished at this station
+            // 2. API requires station work to be finished (`complete`) before qc_pass / qc_fail.
+            //    If still pending, run `start` first so `complete` is valid.
             const currentStatus = (paneData as any).currentStatus;
+            if (currentStatus === "pending") {
+                const startRes = await panesApi.scan(paneNum, {
+                    station: stationId,
+                    action: "start",
+                    force: true,
+                });
+                if (!startRes.success) {
+                    toast.error(startRes.message || "ไม่สามารถเริ่มงานที่สถานี QC ได้");
+                    return;
+                }
+            }
             if (currentStatus === "pending" || currentStatus === "in_progress") {
-                await panesApi.scan(paneNum, { 
-                    station: stationId, 
-                    action: "complete", 
-                    force: true 
-                }).catch((err) => console.warn("QC: Auto-complete failed", err));
+                const completeRes = await panesApi.scan(paneNum, {
+                    station: stationId,
+                    action: "complete",
+                    force: true,
+                });
+                if (!completeRes.success) {
+                    toast.error(completeRes.message || "ไม่สามารถกดเสร็จสิ้นที่สถานี QC ได้");
+                    return;
+                }
             }
 
             // 3. Final QC Action

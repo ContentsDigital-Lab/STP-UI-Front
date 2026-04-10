@@ -490,7 +490,11 @@ export function WithdrawModal({ stationId, onClose, initialPane }: WithdrawModal
                                         {selectedInv.location ? ` (${selectedInv.location})` : ""}
                                     </p>
                                 )}
-                                {result && <p className="text-[11px] text-muted-foreground mt-1">#{result._id.slice(-8).toUpperCase()}</p>}
+                                {result && (
+                                    <p className="text-[11px] text-muted-foreground mt-1 font-mono">
+                                        {result.withdrawalNumber ?? `#${result._id.slice(-8).toUpperCase()}`}
+                                    </p>
+                                )}
                             </div>
                             <div className="flex gap-2 w-full">
                                 <Button variant="outline" onClick={reset} className="flex-1 rounded-xl">

@@ -513,7 +513,6 @@ export function StationQueueBlock({
                 }, "normal" as "critical" | "warn" | "normal");
 
                 const withdrawnCount = v.panes.filter(p => !!p.withdrawal).length;
-                const hasStartedPane = v.panes.some(p => phases[p._id] === "started");
                 const panesSorted = [...v.panes].sort((a, b) => {
                     const ta = new Date(a.createdAt).getTime();
                     const tb = new Date(b.createdAt).getTime();
@@ -531,8 +530,8 @@ export function StationQueueBlock({
                     maxUrgency: maxLevel,
                     withdrawnCount,
                     totalCount: panesSorted.length,
-                    // Pin affects sort order only — not "งานในมือ" (otherwise finished-but-pinned orders bounce section on refetch).
-                    isActive: hasStartedPane || maxLevel === "critical",
+                    // Top = critical (P3 / ใกล้กำหนด) เท่านั้น — เริ่มผลิต/ทำเสร็จ อยู่ คิวงานถัดไป
+                    isActive: maxLevel === "critical",
                 };
             })
             .sort((a, b) => {
@@ -1335,7 +1334,9 @@ export function StationQueueBlock({
                                         <div className="space-y-4">
                                             <div className="flex items-center gap-2 px-2">
                                                 <div className="h-5 w-1 bg-primary rounded-full" />
-                                                <h3 className="text-sm font-black uppercase tracking-widest text-foreground">งานในมือและงานด่วน ({activeGroups.length})</h3>
+                                                <h3 className="text-sm font-black uppercase tracking-widest text-foreground">
+                                                    งานด่วน ({activeGroups.length})
+                                                </h3>
                                             </div>
                                             <div className="space-y-4">
                                                 {activeGroups.map(group => renderOrderCard(group, false))}

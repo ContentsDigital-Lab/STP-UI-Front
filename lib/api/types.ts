@@ -259,6 +259,8 @@ export interface LoginData {
 
 export interface Withdrawal {
   _id: string;
+  /** Human-readable id from backend counter, e.g. WDW-0001 */
+  withdrawalNumber?: string;
   order: string | Order;
   withdrawnBy: string | Worker;
   material: string | Material;
