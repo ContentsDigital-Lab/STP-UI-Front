@@ -17,6 +17,7 @@ import {
   Info,
   CheckCheck,
   ChevronRight,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ordersApi } from "@/lib/api/orders";
@@ -32,6 +33,9 @@ import {
 } from "@/lib/utils/station-helpers";
 import { isPaneRetiredByMerge } from "@/lib/utils/pane-laminate";
 import { PaneDetailModal } from "@/components/production/pane-detail-modal";
+import { useProductionStats } from "@/lib/hooks/use-production-stats";
+import { calculateOrderEstimation } from "@/lib/utils/production-estimation";
+import { useMemo } from "react";
 
 // ── status config ─────────────────────────────────────────────────────────────
 const ORDER_STATUS = {
@@ -482,6 +486,12 @@ function ProductionDetailPageInner() {
   const [infoTab, setInfoTab] = useState<"order" | "bill">("order");
   const [selectedPane, setSelectedPane] = useState<Pane | null>(null);
 
+  const { stats: productionStats, loading: statsLoading } = useProductionStats();
+  const estimation = useMemo(() => {
+    if (!order || panes.length === 0 || !productionStats) return null;
+    return calculateOrderEstimation(order, panes, productionStats);
+  }, [order, panes, productionStats]);
+
   const stationMap = new Map(stations.map((s) => [s._id, s]));
   const stationByName = new Map(stations.map((s) => [s.name, s]));
 
@@ -797,6 +807,53 @@ function ProductionDetailPageInner() {
                     label="ความสำคัญ"
                     value={`P${order.priority}`}
                   />
+
+                  {estimation && (
+                    <div className="mt-4 pt-4 border-t border-dashed border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-blue-500 dark:text-[#E8601C]">
+                          Smart Estimation
+                        </span>
+                        {estimation.confidence < 0.5 && (
+                          <span className="text-[9px] text-muted-foreground italic">
+                            ความแม่นยำต่ำ (ขาดข้อมูล)
+                          </span>
+                        )}
+                      </div>
+                      <div className={`p-4 rounded-2xl border transition-all ${
+                        estimation.isDelayed 
+                          ? "bg-red-50/50 dark:bg-red-900/10 border-red-200 dark:border-red-900/30" 
+                          : "bg-blue-50/30 dark:bg-blue-900/10 border-blue-100 dark:border-blue-900/20"
+                      }`}>
+                        <div className="flex items-start gap-3">
+                          <div className={`p-2 rounded-xl shrink-0 ${
+                            estimation.isDelayed 
+                              ? "bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-400" 
+                              : "bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400"
+                          }`}>
+                            <Calendar className="h-4 w-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-tight">
+                              คาดว่าจะเสร็จจริง
+                            </p>
+                            <p className={`text-base font-black mt-0.5 ${
+                              estimation.isDelayed ? "text-red-600 dark:text-red-400" : "text-blue-700 dark:text-blue-400"
+                            }`}>
+                              {estimation.projectedCompletion.toLocaleDateString("th-TH")}{" "}
+                              {estimation.projectedCompletion.toLocaleTimeString("th-TH", { hour: '2-digit', minute: '2-digit' })} น.
+                            </p>
+                            {estimation.isDelayed && (
+                              <p className="text-[11px] font-bold text-red-500 mt-1 flex items-center gap-1">
+                                <AlertTriangle className="h-3 w-3" />
+                                ช้ากว่ากำหนดประมาณ {(estimation.delayMs / (1000 * 60 * 60)).toFixed(1)} ชม.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
 

@@ -16,8 +16,14 @@ export interface MaterialStats {
     averages: Record<string, StationAverage>; // stationId -> stats
 }
 
+export interface ProductionStatsResult {
+    stats: Record<string, MaterialStats>;
+    accuracy: number; // 0-100 percentage
+}
+
 export function useProductionStats() {
     const [stats, setStats] = useState<Record<string, MaterialStats>>({});
+    const [accuracy, setAccuracy] = useState<number>(0);
     const [loading, setLoading] = useState(false);
 
     const refreshStats = useCallback(async () => {
@@ -88,6 +94,27 @@ export function useProductionStats() {
             });
 
             setStats(newStats);
+
+            // Second pass to calculate accuracy (how close each log was to the final average)
+            let totalDeviationScore = 0;
+            let count = 0;
+            
+            Object.values(paneDurations).forEach(stationMap => {
+                Object.entries(stationMap).forEach(([stationId, data]) => {
+                    if (data.start && data.complete && data.materialId) {
+                        const duration = data.complete - data.start;
+                        const avg = newStats[data.materialId]?.averages[stationId]?.averageMs;
+                        
+                        if (avg && avg > 0) {
+                            const error = Math.abs(duration - avg) / avg;
+                            totalDeviationScore += Math.max(0, 1 - error);
+                            count++;
+                        }
+                    }
+                });
+            });
+
+            setAccuracy(count > 0 ? (totalDeviationScore / count) * 100 : 0);
         } catch (error) {
             console.error("Failed to fetch production stats:", error);
         } finally {
@@ -99,5 +126,5 @@ export function useProductionStats() {
         refreshStats();
     }, [refreshStats]);
 
-    return { stats, loading, refreshStats };
+    return { stats, accuracy, loading, refreshStats };
 }

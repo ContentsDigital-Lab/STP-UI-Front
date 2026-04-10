@@ -79,6 +79,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
 
     const inputRef = useRef<HTMLInputElement>(null);
     const guardedPanesRef = useRef<Map<string, Pane>>(new Map());
+    const hiddenPanesRef = useRef<Set<string>>(new Set());
 
     const [panes,         setPanes]         = useState<Pane[]>([]);
     const [loading,       setLoading]       = useState(false);
@@ -87,7 +88,24 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
     const [actionResult,  setActionResult]  = useState<Record<string, "success" | "error">>({});
     const [scanError,     setScanError]     = useState<string | null>(null);
     const [showCamera,    setShowCamera]    = useState(false);
-    const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+    const [expanded, setExpanded] = useState<Set<string>>(new Set());
+    const [showAllOrders, setShowAllOrders] = useState<Set<string>>(new Set());
+
+    // Persistence for expanded state
+    useEffect(() => {
+        if (!stationId) return;
+        const key = `std_queue_expanded_${stationId}`;
+        const saved = localStorage.getItem(key);
+        if (saved) {
+            try { setExpanded(new Set(JSON.parse(saved))); } catch (e) { console.error(e); }
+        }
+    }, [stationId]);
+
+    useEffect(() => {
+        if (!stationId) return;
+        const key = `std_queue_expanded_${stationId}`;
+        localStorage.setItem(key, JSON.stringify(Array.from(expanded)));
+    }, [expanded, stationId]);
     const [qrPane, setQrPane] = useState<Pane | null>(null);
 
     const [viewMode,      setViewMode]      = useState<"order" | "cutting">("order");
@@ -125,6 +143,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
 
             const atStation = res.data.filter(p =>
                 !isPaneRetiredByMerge(p) &&
+                !hiddenPanesRef.current.has(p._id) &&
                 isStationMatch(p.currentStation, stationId, stationName) && 
                 (p.currentStatus === "in_progress" || p.currentStatus === "pending" || p.currentStatus === "awaiting_scan_out"),
             );
@@ -452,7 +471,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
             map.get(oid)!.panes.push(p);
         }
 
-        return [...map.entries()]
+        const allGroups = [...map.entries()]
             .map(([orderId, v]) => {
                 const maxLevel = v.panes.reduce((max, p) => {
                     const level = getUrgencyLevel(p);
@@ -462,6 +481,9 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                 }, "normal" as "critical" | "warn" | "normal");
 
                 const withdrawnCount = v.panes.filter(p => !!p.withdrawal).length;
+                const hasStartedPane = v.panes.some(p => phases[p._id] === "started");
+                const isPinned = orderId === queueFrontOrderId;
+
                 return { 
                     orderId, 
                     label: v.label, 
@@ -471,7 +493,8 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                     deadline: v.deadline, 
                     maxUrgency: maxLevel,
                     withdrawnCount,
-                    totalCount: v.panes.length
+                    totalCount: v.panes.length,
+                    isActive: hasStartedPane || maxLevel === "critical" || isPinned
                 };
             })
             .sort((a, b) => {
@@ -491,6 +514,11 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                 }
                 return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
             });
+
+        return {
+            activeGroups: allGroups.filter(g => g.isActive),
+            pendingGroups: allGroups.filter(g => !g.isActive)
+        };
     })();
 
     async function handleBatchAction(action: "start" | "complete", panesToProcess: Pane[]) {
@@ -511,6 +539,30 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                 eligible.forEach((p) => n.delete(p._id));
                 return n;
             });
+
+            if (action === "complete") {
+                const completedIds = new Set(eligible.map(p => p._id));
+                // Add to hidden guard
+                eligible.forEach(p => hiddenPanesRef.current.add(p._id));
+                setTimeout(() => {
+                    eligible.forEach(p => hiddenPanesRef.current.delete(p._id));
+                }, 10_000);
+
+                // Optimistic UI updates
+                setPanes(prev => prev.filter(p => !completedIds.has(p._id)));
+                setPhases(prev => {
+                    const next = { ...prev };
+                    completedIds.forEach(id => delete next[id]);
+                    return next;
+                });
+            } else if (action === "start") {
+                setPhases(prev => {
+                    const next = { ...prev };
+                    eligible.forEach(p => { next[p._id] = "started"; });
+                    return next;
+                });
+            }
+
             triggerRefresh();
         } catch (err) {
             const msg = err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการทำงานแบบกลุ่ม";
@@ -553,7 +605,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
         const already = panes.find(p => p.paneNumber === pn || p.paneNumber.endsWith(pn));
         if (already) {
             const oid = extractOrderId(already);
-            setCollapsed(prev => { const n = new Set(prev); n.delete(oid); return n; });
+            setExpanded(prev => { const n = new Set(prev); n.add(oid); return n; });
             setScanError(`"${pn}" อยู่ในคิวแล้ว`);
             return;
         }
@@ -632,6 +684,17 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                 setTimeout(() => { setActionResult(prev => { const n = { ...prev }; delete n[pane._id]; return n; }); }, 1500);
             } else {
                 guardedPanesRef.current.delete(pane._id);
+                // Add to hidden guard to prevent flickering during refetch
+                hiddenPanesRef.current.add(pane._id);
+                setTimeout(() => { hiddenPanesRef.current.delete(pane._id); }, 10_000);
+
+                // Optimistic UI update: Remove from local state immediately
+                setPanes(prev => prev.filter(p => p._id !== pane._id));
+                setPhases(prev => {
+                    const next = { ...prev };
+                    delete next[pane._id];
+                    return next;
+                });
                 triggerRefresh();
             }
         } catch (err) {
@@ -964,24 +1027,33 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                         )
                     ) : (
                         /* View: Order (Standard Mode) */
-                        orderGroups.length === 0 ? (
-                            <div className="py-16 flex flex-col items-center justify-center text-muted-foreground space-y-3 border-2 border-dashed rounded-3xl bg-muted/5 transition-all hover:bg-muted/10">
-                                <PackageOpen className="h-10 w-10 opacity-20" />
-                                <div className="text-center">
-                                    <p className="text-sm font-bold">ไม่มีงานค้างที่สถานีนี้</p>
-                                    <p className="text-[11px] opacity-60">สแกนรหัสกระจกด้านบนเพื่อจัดคิวทำงาน</p>
-                                </div>
-                            </div>
-                        ) : (
-                            orderGroups.map(group => {
-                                const isCollapsed = collapsed.has(group.orderId);
-                                const urgCls = getUrgencyClass(group.maxUrgency);
-                                
+                        (() => {
+                            const { activeGroups, pendingGroups } = orderGroups;
+                            if (activeGroups.length === 0 && pendingGroups.length === 0) {
                                 return (
-                                    <div key={group.orderId} className={`rounded-2xl border transition-all overflow-hidden ${urgCls} ${isCollapsed ? "shadow-none" : "shadow-sm shadow-black/5"}`}>
+                                    <div className="py-16 flex flex-col items-center justify-center text-muted-foreground space-y-3 border-2 border-dashed rounded-3xl bg-muted/5 transition-all hover:bg-muted/10">
+                                        <PackageOpen className="h-10 w-10 opacity-20" />
+                                        <div className="text-center">
+                                            <p className="text-sm font-bold">ไม่มีงานค้างที่สถานีนี้</p>
+                                            <p className="text-[11px] opacity-60">สแกนรหัสกระจกด้านบนเพื่อจัดคิวทำงาน</p>
+                                        </div>
+                                    </div>
+                                );
+                            }
+
+                            const renderOrderCard = (group: any, isCompact = false) => {
+                                const isExpanded = expanded.has(group.orderId);
+                                const isShowAll = showAllOrders.has(group.orderId);
+                                const urgCls = getUrgencyClass(group.maxUrgency);
+                                const PANE_LIMIT = 5;
+                                const hasMore = group.panes.length > PANE_LIMIT;
+                                const displayedPanes = isShowAll ? group.panes : group.panes.slice(0, PANE_LIMIT);
+
+                                return (
+                                    <div key={group.orderId} className={`rounded-2xl border transition-all overflow-hidden ${urgCls} ${!isExpanded ? "shadow-none" : "shadow-sm shadow-black/5"} ${isExpanded && isCompact ? "md:col-span-2 lg:col-span-3 xl:col-span-4" : ""}`}>
                                         <div 
-                                            className="px-4 py-3 flex items-center justify-between gap-3 cursor-pointer group"
-                                            onClick={() => setCollapsed(prev => {
+                                            className={`${isCompact ? "px-3 py-2.5" : "px-4 py-3"} flex items-center justify-between gap-3 cursor-pointer group`}
+                                            onClick={() => setExpanded(prev => {
                                                 const n = new Set(prev);
                                                 if (n.has(group.orderId)) n.delete(group.orderId);
                                                 else n.add(group.orderId);
@@ -989,46 +1061,45 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                             })}
                                         >
                                             <div className="flex items-center gap-3 min-w-0">
-                                                <div className={`h-8 w-8 rounded-xl bg-muted/40 flex items-center justify-center transition-colors group-hover:bg-muted/60`}>
-                                                    <Package className={`h-4 w-4 ${group.maxUrgency === "critical" ? "text-red-500 animate-pulse" : "text-muted-foreground"}`} />
+                                                <div className={`${isCompact ? "h-7 w-7" : "h-8 w-8"} rounded-xl bg-muted/40 flex items-center justify-center transition-colors group-hover:bg-muted/60`}>
+                                                    <Package className={`${isCompact ? "h-3.5 w-3.5" : "h-4 w-4"} ${group.maxUrgency === "critical" ? "text-red-500 animate-pulse" : "text-muted-foreground"}`} />
                                                 </div>
                                                 <div className="flex flex-col min-w-0">
                                                     <div className="flex items-center gap-2">
-                                                        <h4 className="font-bold text-sm tracking-tight truncate">ออเดอร์ {group.label}</h4>
+                                                        <h4 className={`font-bold tracking-tight truncate ${isCompact ? "text-[13px]" : "text-sm"}`}>ออเดอร์ {group.label}</h4>
                                                         {group.priority >= 3 && (
                                                             <span className="px-1.5 py-0.5 rounded-lg bg-red-500 text-white text-[9px] font-black uppercase tracking-tighter shadow-sm animate-pulse">URGENT</span>
                                                         )}
                                                     </div>
-                                                    <div className="flex items-center gap-x-2 gap-y-1 flex-wrap text-[10px] text-muted-foreground">
-                                                        <span className="font-bold text-foreground/40">{group.panes.length} ชิ้นในคิว</span>
+                                                    <div className={`flex items-center gap-x-2 gap-y-1 flex-wrap font-medium text-muted-foreground ${isCompact ? "text-[9px]" : "text-[10px]"}`}>
+                                                        <span className="font-bold text-foreground/40">{group.panes.length} ชิ้น</span>
                                                         {group.withdrawnCount === group.totalCount ? (
-                                                            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 font-bold border border-emerald-500/20">
-                                                                <PackageCheck className="h-3 w-3" />
-                                                                เบิกครบแล้ว
+                                                            <span className="flex items-center gap-1 text-emerald-600">
+                                                                <PackageCheck className="h-2.5 w-2.5" />
+                                                                {isCompact ? "ครบ" : "เบิกครบ"}
                                                             </span>
                                                         ) : (
-                                                            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-600 font-bold border border-amber-500/20">
-                                                                <PackageOpen className="h-3 w-3" />
-                                                                เบิกแล้ว {group.withdrawnCount}/{group.totalCount}
+                                                            <span className="flex items-center gap-1 text-amber-600">
+                                                                {group.withdrawnCount}/{group.totalCount}
                                                             </span>
                                                         )}
                                                         {group.deadline && (
                                                             <span className="flex items-center gap-1">
                                                                 <AlertTriangle className={`h-2.5 w-2.5 ${group.maxUrgency === "critical" ? "text-red-500" : "text-amber-500"}`} />
-                                                                {new Date(group.deadline).toLocaleDateString("th-TH")}
+                                                                {new Date(group.deadline).toLocaleDateString("th-TH", { day: 'numeric', month: 'short' })}
                                                             </span>
                                                         )}
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div className={`p-1.5 rounded-full transition-all ${isCollapsed ? "" : "bg-muted shadow-inner rotate-180"}`}>
-                                                <ChevronDown className="h-4 w-4 text-muted-foreground/60" />
+                                            <div className={`p-1.5 rounded-full transition-all ${!isExpanded ? "" : "bg-muted shadow-inner rotate-180"}`}>
+                                                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/60" />
                                             </div>
                                         </div>
 
-                                        {!isCollapsed && (
-                                            <div className="divide-y divide-border/30 border-t border-border/40">
-                                                {group.panes.map(pane => {
+                                        {isExpanded && (
+                                            <div className="divide-y divide-border/30 border-t border-border/40 bg-background">
+                                                {displayedPanes.map((pane: any) => {
                                                     const phase = phases[pane._id] || "confirmed";
                                                     const isLoading = actionLoading[pane._id];
                                                     const res = actionResult[pane._id];
@@ -1114,12 +1185,65 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                                         </div>
                                                     );
                                                 })}
+
+                                                {hasMore && (
+                                                    <div className="p-2 bg-muted/5 flex justify-center border-t border-border/20">
+                                                        <Button
+                                                            variant="ghost" 
+                                                            size="sm"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setShowAllOrders(prev => {
+                                                                    const n = new Set(prev);
+                                                                    if (n.has(group.orderId)) n.delete(group.orderId);
+                                                                    else n.add(group.orderId);
+                                                                    return n;
+                                                                });
+                                                            }}
+                                                            className="text-[10px] font-bold h-7 hover:bg-muted transition-all text-primary/70 hover:text-primary"
+                                                        >
+                                                            {isShowAll ? (
+                                                                <>แสดงน้อยลง</>
+                                                            ) : (
+                                                                <>แสดงอีก {group.panes.length - PANE_LIMIT} รายการ...</>
+                                                            )}
+                                                        </Button>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                     </div>
                                 );
-                            })
-                        )
+                            };
+
+                            return (
+                                <div className="space-y-8 pb-10">
+                                    {activeGroups.length > 0 && (
+                                        <div className="space-y-4">
+                                            <div className="flex items-center gap-2 px-2">
+                                                <div className="h-5 w-1 bg-primary rounded-full" />
+                                                <h3 className="text-sm font-black uppercase tracking-widest text-foreground">งานในมือและงานด่วน ({activeGroups.length})</h3>
+                                            </div>
+                                            <div className="space-y-4">
+                                                {activeGroups.map(group => renderOrderCard(group, false))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {pendingGroups.length > 0 && (
+                                        <div className="space-y-4">
+                                            <div className="flex items-center gap-2 px-2">
+                                                <div className="h-5 w-1 bg-muted-foreground/30 rounded-full" />
+                                                <h3 className="text-sm font-black uppercase tracking-widest text-muted-foreground">คิวงานถัดไป ({pendingGroups.length})</h3>
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                                                {pendingGroups.map(group => renderOrderCard(group, true))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })()
                     )}
                 </div>
 
