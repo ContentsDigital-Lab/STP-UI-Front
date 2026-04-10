@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Bell, Volume2, VolumeX, Play, RotateCcw, Save, Check, ArrowLeft } from "lucide-react";
+import { Bell, Volume2, VolumeX, Play, RotateCcw, Save, Check, ArrowLeft, ShieldAlert } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { useLanguage } from "@/lib/i18n/language-context";
@@ -87,21 +88,24 @@ export default function NotificationSoundSettingsPage() {
                     </p>
                 </div>
                 <div className="flex items-center gap-3 w-full sm:w-auto">
+                    <div className="hidden sm:flex items-center gap-2 text-xs font-bold text-amber-600 animate-pulse bg-amber-50 px-3 py-2 rounded-xl border border-amber-200">
+                        <ShieldAlert className="h-4 w-4" />
+                        พร้อมใช้งานในเวอร์ชั่นถัดไป
+                    </div>
                     <Button
                         variant="ghost"
-                        onClick={handleReset}
-                        className="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 font-bold px-4 h-12 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 gap-2 shrink-0 transition-all flex-1 sm:flex-none"
+                        disabled
+                        className="text-slate-400 font-bold px-4 h-12 rounded-xl border border-slate-200 cursor-not-allowed gap-2 shrink-0 transition-all flex-1 sm:flex-none"
                     >
                         <RotateCcw className="h-4 w-4" />
                         <span className="hidden sm:inline">{lang === 'th' ? "รีเซ็ตเริ่มต้น" : "Reset Default"}</span>
                     </Button>
                     <Button
-                        onClick={handleSave}
-                        disabled={saved}
-                        className="bg-blue-600 hover:bg-blue-700 dark:bg-[#FF8A00] dark:hover:bg-[#E67A00] text-white font-bold px-6 h-12 rounded-xl shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 gap-2 shrink-0 transition-all flex-1 sm:flex-none"
+                        disabled
+                        className="bg-slate-200 text-slate-500 font-bold px-6 h-12 rounded-xl gap-2 shrink-0 transition-all flex-1 sm:flex-none cursor-not-allowed"
                     >
                         <Save className="h-4 w-4" />
-                        {saved ? (lang === 'th' ? "บันทึกแล้ว ✓" : "Saved ✓") : (lang === 'th' ? "บันทึกการตั้งค่า" : "Save Settings")}
+                        {lang === 'th' ? "บันทึกการตั้งค่า" : "Save Settings"}
                     </Button>
                 </div>
             </div>
@@ -214,8 +218,8 @@ export default function NotificationSoundSettingsPage() {
                                 </div>
                             </div>
                             <div className="mt-auto">
-                                <Select value={settings.sounds.low} onValueChange={(v) => setSettings((s) => ({ ...s, sounds: { ...s.sounds, low: v || s.sounds.low } }))}>
-                                    <SelectTrigger className="mb-4 h-11 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-medium text-slate-700 dark:text-slate-300">
+                                <Select disabled value={settings.sounds.low} onValueChange={(v) => {}}>
+                                    <SelectTrigger className="mb-4 h-11 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 font-medium text-slate-400 cursor-not-allowed">
                                         <span className="truncate">{getSoundLabel(settings.sounds.low)}</span>
                                     </SelectTrigger>
                                     <SelectContent className="rounded-xl">
@@ -253,8 +257,8 @@ export default function NotificationSoundSettingsPage() {
                                 </div>
                             </div>
                             <div className="mt-auto">
-                                <Select value={settings.sounds.medium} onValueChange={(v) => setSettings((s) => ({ ...s, sounds: { ...s.sounds, medium: v || s.sounds.medium } }))}>
-                                    <SelectTrigger className="mb-4 h-11 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-medium text-slate-700 dark:text-slate-300">
+                                <Select disabled value={settings.sounds.medium} onValueChange={(v) => {}}>
+                                    <SelectTrigger className="mb-4 h-11 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 font-medium text-slate-400 cursor-not-allowed">
                                         <span className="truncate">{getSoundLabel(settings.sounds.medium)}</span>
                                     </SelectTrigger>
                                     <SelectContent className="rounded-xl">
@@ -292,8 +296,8 @@ export default function NotificationSoundSettingsPage() {
                                 </div>
                             </div>
                             <div className="mt-auto">
-                                <Select value={settings.sounds.high} onValueChange={(v) => setSettings((s) => ({ ...s, sounds: { ...s.sounds, high: v || s.sounds.high } }))}>
-                                    <SelectTrigger className="mb-4 h-11 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 font-medium text-slate-700 dark:text-slate-300">
+                                <Select disabled value={settings.sounds.high} onValueChange={(v) => {}}>
+                                    <SelectTrigger className="mb-4 h-11 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 font-medium text-slate-400 cursor-not-allowed">
                                         <span className="truncate">{getSoundLabel(settings.sounds.high)}</span>
                                     </SelectTrigger>
                                     <SelectContent className="rounded-xl">

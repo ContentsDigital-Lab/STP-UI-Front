@@ -290,8 +290,8 @@ export default function UsersManagementPage() {
                         <Plus className="h-4 w-4" /> เพิ่มผู้ใช้ใหม่
                     </Button>
                 ) : (
-                    <Button onClick={handleCreateRole} className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl h-10 px-5 text-sm shadow-lg border-0">
-                        <Plus className="h-4 w-4" /> สร้างบทบาทใหม่
+                    <Button disabled className="gap-2 bg-slate-300 dark:bg-slate-800 text-slate-500 font-bold rounded-xl h-10 px-5 text-sm border-0 cursor-not-allowed">
+                        <ShieldAlert className="h-4 w-4" /> พร้อมใช้งานในเวอร์ชั่นถัดไป
                     </Button>
                 )}
             </div>
@@ -550,30 +550,41 @@ export default function UsersManagementPage() {
                 </DialogContent>
             </Dialog>
 
-                <TabsContent value="roles" className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {roles.map((role) => (
-                        <div key={role._id} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm hover:border-blue-200 transition-all group">
-                            <div className="flex items-start justify-between mb-3">
-                                <div className="flex-1 min-w-0">
-                                    <h3 className="font-bold text-slate-900 dark:text-white group-hover:text-blue-600 transition-colors uppercase tracking-tight truncate">{role.name}</h3>
-                                    <p className="text-xs text-slate-500 line-clamp-2 mt-1">{role.description || "ไม่มีคำอธิบาย"}</p>
-                                </div>
-                                <Button variant="ghost" size="sm" onClick={() => handleEditRole(role)} className="h-8 w-8 p-0 shrink-0 ml-2">
-                                    <Edit className="h-4 w-4 text-slate-400 group-hover:text-blue-500" />
-                                </Button>
-                            </div>
-                            <div className="flex flex-wrap gap-1 mt-2">
-                                {role.permissions.slice(0, 3).map(p => (
-                                    <Badge key={p} variant="secondary" className="text-[9px] font-normal px-1.5 py-0 whitespace-nowrap">
-                                        {(PERMISSION_LABELS as any)[p]?.label || p}
-                                    </Badge>
-                                ))}
-                                {role.permissions.length > 3 && (
-                                    <Badge variant="secondary" className="text-[9px] font-normal px-1.5 py-0">+{role.permissions.length - 3}</Badge>
-                                )}
-                            </div>
+                <TabsContent value="roles" className="space-y-6">
+                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 flex items-center gap-3">
+                        <ShieldAlert className="h-5 w-5 text-amber-600" />
+                        <div className="flex-1">
+                            <h4 className="text-sm font-bold text-amber-700">ฟังก์ชั่นนี้ถูกจำกัดชั่วคราว</h4>
+                            <p className="text-xs text-amber-600 font-medium">การจัดการบทบาทและสิทธิ์การใช้งานจะพร้อมใช้งานในเวอร์ชั่นถัดไป</p>
                         </div>
-                    ))}
+                        <Badge variant="outline" className="bg-amber-500/20 text-amber-700 border-amber-500/30 font-black">DEMO LOCK</Badge>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                        {roles.map((role) => (
+                            <div key={role._id} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm hover:border-blue-200 transition-all group opacity-80">
+                                <div className="flex items-start justify-between mb-3">
+                                    <div className="flex-1 min-w-0">
+                                        <h3 className="font-bold text-slate-900 dark:text-white group-hover:text-blue-600 transition-colors uppercase tracking-tight truncate">{role.name}</h3>
+                                        <p className="text-xs text-slate-500 line-clamp-2 mt-1">{role.description || "ไม่มีคำอธิบาย"}</p>
+                                    </div>
+                                    <Button variant="ghost" size="sm" disabled className="h-8 w-8 p-0 shrink-0 ml-2 cursor-not-allowed">
+                                        <Edit className="h-4 w-4 text-slate-300" />
+                                    </Button>
+                                </div>
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                    {role.permissions.slice(0, 3).map(p => (
+                                        <Badge key={p} variant="secondary" className="text-[9px] font-normal px-1.5 py-0 whitespace-nowrap">
+                                            {(PERMISSION_LABELS as any)[p]?.label || p}
+                                        </Badge>
+                                    ))}
+                                    {role.permissions.length > 3 && (
+                                        <Badge variant="secondary" className="text-[9px] font-normal px-1.5 py-0">+{role.permissions.length - 3}</Badge>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 </TabsContent>
             </Tabs>
 
@@ -621,9 +632,15 @@ export default function UsersManagementPage() {
                             ))}
                         </div>
                     </div>
-                    <DialogFooter className="px-6 py-4 border-t bg-slate-50 dark:bg-slate-900/50">
-                        <Button variant="ghost" className="rounded-xl" onClick={() => setIsRoleModalOpen(false)}>ยกเลิก</Button>
-                        <Button onClick={handleSaveRoleData} disabled={isSaving || !editingRole?.name} className="bg-blue-600 text-white rounded-xl px-6 font-bold">บันทึกบทบาท</Button>
+                    <DialogFooter className="px-6 py-4 border-t bg-slate-50 dark:bg-slate-900/50 flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 text-[11px] font-bold text-amber-600 animate-pulse">
+                            <ShieldAlert className="h-3 w-3" />
+                            พร้อมใช้งานในเวอร์ชั่นถัดไป
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Button variant="ghost" className="rounded-xl" onClick={() => setIsRoleModalOpen(false)}>ปิด</Button>
+                            <Button disabled className="bg-slate-300 dark:bg-slate-800 text-slate-500 rounded-xl px-6 font-bold border-0 cursor-not-allowed">บันทึกบทบาท</Button>
+                        </div>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
