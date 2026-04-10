@@ -1,7 +1,7 @@
 "use client";
 
 import { useNode } from "@craftjs/core";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { 
     ShieldCheck, 
     CheckCircle2, 
@@ -66,7 +66,7 @@ export function QCInspectorBlock({
 }: QCInspectorProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
-    const { paneData, paneId, orderId, stationId, triggerRefresh, setPaneData } = useStationContext();
+    const { paneData, paneId, orderId, stationId, stationName, refreshCounter, triggerRefresh, setPaneData } = useStationContext();
 
     const [checklist, setChecklist] = useState<Record<string, boolean>>({});
     const [status, setStatus] = useState<"idle" | "passing" | "failing">("idle");
@@ -79,6 +79,7 @@ export function QCInspectorBlock({
     // Panes from order (if scanned order instead of pane)
     const [panes, setPanes] = useState<any[]>([]);
     const [loadingPanes, setLoadingPanes] = useState(false);
+    const [errorFetch, setErrorFetch] = useState<string | null>(null);
 
     const baseChecklist: string[] = (() => {
         try { return JSON.parse(checklistJson); } catch { return DEFAULT_CHECKLIST; }
@@ -99,14 +100,19 @@ export function QCInspectorBlock({
 
     // Fetch panes if order is scanned but no pane is selected
     useEffect(() => {
-        const targetOrderId = (paneData as any)?.orderId || (paneData as any)?.order || orderId;
+        const targetOrderId = 
+            (paneData as any)?.order?._id || 
+            (paneData as any)?.order || 
+            (paneData as any)?.orderId || 
+            orderId;
         
         // If we have an order but no active pane, or if we want the grid to be ready
         if (targetOrderId && !paneData) {
             setLoadingPanes(true);
+            setErrorFetch(null);
             // Fetch panes that are NOT claimed (still in production)
             panesApi.getAll({ 
-                order: targetOrderId, 
+                order: String(targetOrderId), 
                 status_ne: "claimed", 
                 limit: 100,
                 sort: "paneNumber" 
@@ -117,18 +123,31 @@ export function QCInspectorBlock({
                 })
                 .catch((err) => {
                     console.error("QC: Failed to fetch panes", err);
+                    setErrorFetch("ไม่สามารถโหลดข้อมูลได้");
                     setPanes([]);
                 })
                 .finally(() => setLoadingPanes(false));
         } else if (!targetOrderId && !paneData) {
             // Only clear panes if we have no order and no selected pane
             setPanes([]);
+            setErrorFetch(null);
         }
-    }, [paneData, orderId]);
+    }, [paneData, orderId, refreshCounter]);
 
     const toggleCheck = (item: string) => {
         setChecklist(prev => ({ ...prev, [item]: !prev[item] }));
     };
+
+    const filteredPanes = useMemo(() => {
+        return panes.filter(p => {
+            // Filter out panes that have reached terminal states for QC station
+            // "ready": QC Pass
+            // "cancelled": QC Fail (Remade)
+            // "completed": Already completed in production
+            const currentStatus = p.currentStatus;
+            return currentStatus !== "ready" && currentStatus !== "cancelled" && currentStatus !== "completed";
+        });
+    }, [panes]);
 
     const addCustomItem = () => {
         const text = newItemText.trim();
@@ -150,9 +169,32 @@ export function QCInspectorBlock({
 
         setStatus(action === "qc_pass" ? "passing" : "failing");
         try {
+            // 1. Auto-Arrival (Scan-In) if pane is at a different station
+            const currentPaneStation = (paneData as any).currentStation?._id || (paneData as any).currentStation;
+            if (currentPaneStation && currentPaneStation !== stationId) {
+                console.log(`QC: Auto-moving pane from ${currentPaneStation} to ${stationId}`);
+                await panesApi.scan(paneNum, { 
+                    station: stationId, 
+                    action: "scan_in", 
+                    force: true 
+                }).catch((err) => console.warn("QC: Auto-scan-in failed", err));
+            }
+
+            // 2. Auto-Finish if not already finished at this station
+            const currentStatus = (paneData as any).currentStatus;
+            if (currentStatus === "pending" || currentStatus === "in_progress") {
+                await panesApi.scan(paneNum, { 
+                    station: stationId, 
+                    action: "complete", 
+                    force: true 
+                }).catch((err) => console.warn("QC: Auto-complete failed", err));
+            }
+
+            // 3. Final QC Action
             const res = await panesApi.scan(paneNum, {
                 station: stationId,
                 action,
+                force: true,
                 reason: action === "qc_fail" ? reason : undefined,
                 description: action === "qc_fail" ? description : undefined,
             });
@@ -167,8 +209,30 @@ export function QCInspectorBlock({
             } else {
                 toast.error(res.message || "เกิดข้อผิดพลาด");
             }
-        } catch (err) {
-            toast.error("การเชื่อมต่อล้มเหลว");
+        } catch (err: any) {
+            console.error("QC Scan Error:", err);
+            
+            // Clean up technical error messages (Remove ObjectIDs and provide friendly Thai)
+            let rawMsg = err?.data?.message || err?.message || "การเชื่อมต่อล้มเหลว";
+            
+            // Replace MongoDB ObjectIDs (24 hex chars) with friendly terms
+            let friendlyMsg = rawMsg.replace(/[0-9a-f]{24}/g, (id: string) => {
+                if (id === stationId) return `"${stationName || 'สถานีนี้'}"`;
+                return "สถานีอื่น";
+            });
+
+            // Translate common backend errors
+            if (friendlyMsg.includes("กระจกอยู่ที่สถานี")) {
+                friendlyMsg = `กระจกแผ่นนี้ยังไม่ได้สแกนเข้าสู่สถานี ${stationName ? `"${stationName}"` : "นี้"} กรุณาลองกดใหม่อีกครั้ง`;
+            }
+
+            if (rawMsg.includes("already completed") || rawMsg.includes("already defected")) {
+                friendlyMsg = "กระจกแผ่นนี้ถูกตรวจสอบหรือดำเนินการไปเรียบร้อยแล้วครับ";
+                setPaneData(null);
+                triggerRefresh();
+            }
+
+            toast.error(friendlyMsg);
         } finally {
             setStatus("idle");
         }
@@ -194,7 +258,7 @@ export function QCInspectorBlock({
                             <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest leading-none">เลือกกระจกที่ต้องตรวจสอบ</p>
                         </div>
                         <div className="p-4 grid gap-2 max-h-[300px] overflow-y-auto">
-                            {panes.map(p => (
+                            {filteredPanes.map(p => (
                                 <button
                                     key={p._id || p.id}
                                     onClick={() => setPaneData(p)}
@@ -221,11 +285,22 @@ export function QCInspectorBlock({
                 return (
                     <div className="w-full rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 bg-muted/5 p-8 flex flex-col items-center justify-center text-center">
                         <div className="h-14 w-14 rounded-2xl bg-amber-500/10 flex items-center justify-center mb-4 ring-1 ring-inset ring-amber-500/20 text-amber-500">
-                            <PackagePlus className="h-7 w-7" />
+                            {errorFetch ? <AlertTriangle className="h-7 w-7" /> : <PackagePlus className="h-7 w-7" />}
                         </div>
                         <div>
-                            <p className="text-sm font-bold text-foreground/80">ออเดอร์ไม่มีกระจกที่รอตรวจ</p>
-                            <p className="text-xs text-muted-foreground mt-1 max-w-[200px]">ไม่พบกระจกที่พร้อมเข้า QC ในออเดอร์นี้ (อาจจะยังผลิตไม่เสร็จ หรือแสกนออกไปแล้ว)</p>
+                            <p className="text-sm font-bold text-foreground/80">{errorFetch || "ออเดอร์ไม่มีกระจกที่รอตรวจ"}</p>
+                            <p className="text-xs text-muted-foreground mt-1 max-w-[200px]">
+                                {errorFetch ? "เกิดข้อผิดพลาดในการดึงข้อมูลรายการกระจก" : "ไม่พบกระจกที่พร้อมเข้า QC ในออเดอร์นี้ (อาจจะยังผลิตไม่เสร็จ หรือสแกนออกไปแล้ว)"}
+                            </p>
+                            <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="mt-4 h-8 gap-1.5"
+                                onClick={() => triggerRefresh()}
+                            >
+                                <RefreshCcw className="h-3.5 w-3.5" />
+                                รีเฟรชข้อมูล
+                            </Button>
                         </div>
                     </div>
                 );

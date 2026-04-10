@@ -1,7 +1,8 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from "react";
 import { stationsApi } from "@/lib/api/stations";
+import { useWebSocket } from "@/lib/hooks/use-socket";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface StationContextValue {
@@ -111,6 +112,34 @@ export function StationProvider({
     const orderId   = orderData   ? ((orderData._id || orderData.id) as string ?? null) : null;
     const requestId = requestData ? ((requestData._id || requestData.id) as string ?? null) : null;
     const paneId    = paneData    ? ((paneData._id || paneData.id) as string ?? null) : null;
+
+    // ── Global Sockets ──────────────────────────────────────────────────────────
+    // Listen for updates to the active pane/order and refresh them in real-time
+    useWebSocket("pane", ["pane:updated"], (event, data: any) => {
+        if (!paneId || !data) return;
+        const updatedId = data._id || data.id;
+        if (updatedId === paneId) {
+            console.log(`[Socket] Syncing active pane: ${paneId}`);
+            setPaneData(data);
+            
+            // If the pane reached a terminal status for this inspection, clear it
+            if (["ready", "completed", "cancelled", "claimed"].includes(data.currentStatus)) {
+                // Wait a tiny bit then clear to ensure other components see the final state
+                setTimeout(() => setPaneData(null), 1500);
+            }
+        }
+        triggerRefresh();
+    }, { stationRoom: stationIdProp ?? undefined });
+
+    useWebSocket("order", ["order:updated"], (event, data: any) => {
+        if (!orderId || !data) return;
+        const updatedId = data._id || data.id;
+        if (updatedId === orderId) {
+            console.log(`[Socket] Syncing active order: ${orderId}`);
+            setOrderData(data);
+        }
+        triggerRefresh();
+    });
 
     const setField  = useCallback((key: string, value: unknown) => {
         if (!key) return;

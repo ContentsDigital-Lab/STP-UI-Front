@@ -5,8 +5,9 @@ import { useRef, useState, KeyboardEvent } from "react";
 import {
     ScanLine, Camera, CheckCircle2, XCircle, Loader2, Hash,
     RotateCcw, User, Package, ClipboardList, AlertCircle,
-    ArrowRight, Play, ScanBarcode, AlertTriangle,
+    ArrowRight, Play, ScanBarcode, AlertTriangle, ShieldCheck
 } from "lucide-react";
+import { toast } from "sonner";
 import { fetchApi } from "@/lib/api/config";
 import { panesApi } from "@/lib/api/panes";
 import { Pane } from "@/lib/api/types";
@@ -370,9 +371,47 @@ export function QrScanBlock({
             const record = Array.isArray(res.data) ? res.data[0] : res.data;
             if (!record) throw new Error("ไม่พบรายการที่ตรงกัน");
 
-            if (contextType === "order")   setOrderData(record);
-            if (contextType === "request") setRequestData(record);
-            if (contextType === "pane")    setPaneData(record);
+            // Smart Mapping: Determine record type and update context properly
+            const isPane    = !!record.paneNumber;
+            const isOrder   = !!record.orderNumber || (!!record.code && !isPane);
+            const isRequest = !!record.requestNumber;
+
+            if (isPane) {
+                // Early Validation (Gatekeeper): Don't load panes that are already finished
+                const terminalStatuses = ["ready", "completed", "cancelled", "claimed"];
+                if (terminalStatuses.includes(String(record.currentStatus))) {
+                    setScanStatus("error");
+                    setMessage("กระจกแผ่นนี้ถูกตรวจสอบเสร็จสิ้นแล้ว");
+                    toast.error(`กระจก ${record.paneNumber} ถูกตรวจสอบเสร็จสิ้นแล้ว`, {
+                        description: `สถานะปัจจุบัน: ${String(record.currentStatus).toUpperCase()}`,
+                        duration: 5000
+                    });
+                    return;
+                }
+
+                setPaneData(record);
+                toast.success(`เปลี่ยนเป็นกระจก: ${record.paneNumber || record.pane_number || record.code || '—'}`, {
+                    icon: <ShieldCheck className="h-4 w-4 text-emerald-500" />,
+                    duration: 2000
+                });
+                // Also set order/request if populated in the pane object
+                if (record.order && typeof record.order === "object") setOrderData(record.order as Record<string, unknown>);
+                if (record.request && typeof record.request === "object") setRequestData(record.request as Record<string, unknown>);
+            } else if (isOrder) {
+                setOrderData(record);
+                setPaneData(null); // Clear selected pane to show order overview
+                toast.info(`โหลดข้อมูลออเดอร์: ${record.code || record.orderNumber || '—'}`, { duration: 2000 });
+            } else if (isRequest) {
+                setRequestData(record);
+                setPaneData(null);
+                toast.info(`โหลดข้อมูลบิล: ${record.requestNumber || record.code || '—'}`, { duration: 2000 });
+            } else {
+                // Fallback to dataSource configuration if type is ambiguous
+                if (contextType === "order")   setOrderData(record);
+                if (contextType === "request") setRequestData(record);
+                if (contextType === "pane")    setPaneData(record);
+            }
+
             triggerRefresh();
             setScannedRecord(record);
 

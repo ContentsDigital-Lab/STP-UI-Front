@@ -5,7 +5,8 @@ import { useCallback, useEffect, useRef, useState, KeyboardEvent } from "react";
 import { 
     RotateCcw, Camera, ScanBarcode, QrCode, XCircle, CheckCircle2, AlertTriangle, 
     ChevronDown, ChevronRight, Package, Grid3X3, PackageOpen, Loader2, MapPin, 
-    Layers, Merge, Bell, CheckCheck, Play, Maximize, Box, ListChecks, Database
+    Layers, Merge, Bell, CheckCheck, Play, Maximize, Box, ListChecks, Database,
+    PackageCheck, Package2, AlertCircle
 } from "lucide-react";
 import { toast } from "sonner";
 import { panesApi } from "@/lib/api/panes";
@@ -124,14 +125,37 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
 
             const atStation = res.data.filter(p =>
                 !isPaneRetiredByMerge(p) &&
-                isStationMatch(p.currentStation, stationId, stationName) && p.currentStatus === "in_progress",
+                isStationMatch(p.currentStation, stationId, stationName) && 
+                (p.currentStatus === "in_progress" || p.currentStatus === "pending" || p.currentStatus === "awaiting_scan_out"),
             );
+
+            // Reconcile guarded panes with actual data
+            for (const [id, guardedPane] of guardedPanesRef.current.entries()) {
+                // Find if this pane exists in the FRESH server response (even if filtered out above)
+                const freshData = res.data.find(p => p._id === id);
+                
+                if (freshData) {
+                    const isStillHere = isStationMatch(freshData.currentStation, stationId, stationName) && 
+                                      (freshData.currentStatus === "in_progress" || freshData.currentStatus === "pending" || freshData.currentStatus === "awaiting_scan_out");
+                    
+                    if (!isStillHere) {
+                        // Server explicitly says it's gone or finished (e.g. ready/completed/claimed) -> delete from guard
+                        guardedPanesRef.current.delete(id);
+                    } else {
+                        // Update guard with fresh data
+                        guardedPanesRef.current.set(id, freshData);
+                    }
+                } else {
+                    // IF THE FETCH WAS SUCCESSFUL but the pane IS NOT FOUND in the result set,
+                    // we assume it has moved to another station or reached a terminal state (ready/completed).
+                    // This allows the sidebar to clear instantly after a successful PASS/FAIL.
+                    guardedPanesRef.current.delete(id);
+                }
+            }
 
             const merged = [...atStation];
             for (const [id, guardedPane] of guardedPanesRef.current.entries()) {
-                if (atStation.some(p => p._id === id)) {
-                    guardedPanesRef.current.delete(id);
-                } else {
+                if (!atStation.some(p => p._id === id)) {
                     merged.push(guardedPane);
                 }
             }
@@ -335,8 +359,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
         const atStation = panes.filter(p =>
             !isPaneRetiredByMerge(p) &&
             isStationMatch(p.currentStation, stationId, stationName) && 
-            p.currentStatus === "in_progress" &&
-            p.withdrawal // Show only panes that have been withdrawn
+            p.currentStatus === "in_progress"
         );
         const map = new Map<string, {
             label: string;
@@ -438,7 +461,18 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                     return max;
                 }, "normal" as "critical" | "warn" | "normal");
 
-                return { orderId, label: v.label, panes: v.panes, priority: v.priority, createdAt: v.createdAt, deadline: v.deadline, maxUrgency: maxLevel };
+                const withdrawnCount = v.panes.filter(p => !!p.withdrawal).length;
+                return { 
+                    orderId, 
+                    label: v.label, 
+                    panes: v.panes, 
+                    priority: v.priority, 
+                    createdAt: v.createdAt, 
+                    deadline: v.deadline, 
+                    maxUrgency: maxLevel,
+                    withdrawnCount,
+                    totalCount: v.panes.length
+                };
             })
             .sort((a, b) => {
                 if (queueFrontOrderId) {
@@ -891,6 +925,18 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                                             </div>
                                                         </div>
                                                         <div className="flex items-center gap-3 shrink-0">
+                                                            {!pane.withdrawal && (
+                                                                <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-600 font-bold text-[9px] border border-amber-500/20">
+                                                                    <AlertCircle className="h-3 w-3" />
+                                                                    ยังไม่เบิก
+                                                                </span>
+                                                            )}
+                                                            {pane.withdrawal && (
+                                                                <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 font-bold text-[9px] border border-emerald-500/20">
+                                                                    <PackageCheck className="h-3 w-3" />
+                                                                    เบิกแล้ว
+                                                                </span>
+                                                            )}
                                                              <div className="text-right flex flex-col items-end">
                                                                 <span className="text-[10px] font-bold text-foreground">
                                                                     ออเดอร์: {extractOrderLabel(pane)}
@@ -955,6 +1001,17 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                                     </div>
                                                     <div className="flex items-center gap-x-2 gap-y-1 flex-wrap text-[10px] text-muted-foreground">
                                                         <span className="font-bold text-foreground/40">{group.panes.length} ชิ้นในคิว</span>
+                                                        {group.withdrawnCount === group.totalCount ? (
+                                                            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 font-bold border border-emerald-500/20">
+                                                                <PackageCheck className="h-3 w-3" />
+                                                                เบิกครบแล้ว
+                                                            </span>
+                                                        ) : (
+                                                            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-600 font-bold border border-amber-500/20">
+                                                                <PackageOpen className="h-3 w-3" />
+                                                                เบิกแล้ว {group.withdrawnCount}/{group.totalCount}
+                                                            </span>
+                                                        )}
                                                         {group.deadline && (
                                                             <span className="flex items-center gap-1">
                                                                 <AlertTriangle className={`h-2.5 w-2.5 ${group.maxUrgency === "critical" ? "text-red-500" : "text-amber-500"}`} />
@@ -983,6 +1040,13 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                                                 <div className="relative">
                                                                     <div className={`h-10 w-10 flex items-center justify-center rounded-xl bg-background border transition-all ${phase === 'started' ? 'border-primary ring-4 ring-primary/5 bg-primary/5' : 'border-border/60 group-hover/item:border-border'}`}>
                                                                         {phase === 'started' ? <Play className="h-4 w-4 text-primary fill-primary/10" /> : <ListChecks className="h-4 w-4 text-muted-foreground/40" />}
+                                                                    </div>
+                                                                    <div className={`absolute -bottom-1 -left-1 h-4 w-4 flex items-center justify-center rounded-full border-2 border-white dark:border-slate-800 shadow-sm ${pane.withdrawal ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-700'}`} title={pane.withdrawal ? "เบิกวัสดุแล้ว" : "ยังไม่ได้เบิกวัสดุ"}>
+                                                                        {pane.withdrawal ? (
+                                                                            <PackageCheck className="h-2 w-2 text-white" />
+                                                                        ) : (
+                                                                            <PackageOpen className="h-2 w-2 text-slate-400 dark:text-slate-500" />
+                                                                        )}
                                                                     </div>
                                                                     {urg === "critical" && (
                                                                         <div className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 border-2 border-white dark:border-slate-800" />
