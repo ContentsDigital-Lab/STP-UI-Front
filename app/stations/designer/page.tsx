@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
-    Plus, Pencil, Trash2, LayoutTemplate, Clock,
+    Plus, Pencil, Trash2, Copy, Type, LayoutTemplate, Clock,
     LayoutGrid, List, Search, ChevronLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,8 @@ import {
     getStationTemplates,
     createStationTemplate,
     deleteStationTemplate,
+    duplicateStationTemplate,
+    updateStationTemplate,
 } from "@/lib/api/station-templates";
 import { StationTemplate } from "@/lib/types/station-designer";
 
@@ -52,12 +54,16 @@ function SkeletonRow() {
 
 // ── Template card ──────────────────────────────────────────────────────────────
 function TemplateCard({
-    tmpl, deleting, onEdit, onDelete,
+    tmpl, deleting, duplicating, renaming, onEdit, onRename, onDelete, onDuplicate,
 }: {
     tmpl: StationTemplate;
     deleting: string | null;
+    duplicating: string | null;
+    renaming: string | null;
     onEdit: (id: string) => void;
+    onRename: (tmpl: StationTemplate) => void;
     onDelete: (id: string) => void;
+    onDuplicate: (id: string) => void;
 }) {
     const nodeCount =
         tmpl.uiSchema && typeof tmpl.uiSchema === "object"
@@ -84,8 +90,29 @@ function TemplateCard({
                 <Button
                     size="sm"
                     variant="outline"
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/80"
+                    disabled={renaming === tmpl._id || duplicating === tmpl._id || deleting === tmpl._id}
+                    title="เปลี่ยนชื่อ"
+                    onClick={() => onRename(tmpl)}
+                >
+                    <Type className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/80"
+                    disabled={duplicating === tmpl._id || deleting === tmpl._id || renaming === tmpl._id}
+                    title="คัดลอก template"
+                    onClick={() => onDuplicate(tmpl._id)}
+                >
+                    <Copy className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                    size="sm"
+                    variant="outline"
                     className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50"
-                    disabled={deleting === tmpl._id}
+                    disabled={deleting === tmpl._id || duplicating === tmpl._id || renaming === tmpl._id}
+                    title="ลบ template"
                     onClick={() => onDelete(tmpl._id)}
                 >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -97,12 +124,16 @@ function TemplateCard({
 
 // ── Template row ───────────────────────────────────────────────────────────────
 function TemplateRow({
-    tmpl, deleting, onEdit, onDelete,
+    tmpl, deleting, duplicating, renaming, onEdit, onRename, onDelete, onDuplicate,
 }: {
     tmpl: StationTemplate;
     deleting: string | null;
+    duplicating: string | null;
+    renaming: string | null;
     onEdit: (id: string) => void;
+    onRename: (tmpl: StationTemplate) => void;
     onDelete: (id: string) => void;
+    onDuplicate: (id: string) => void;
 }) {
     const nodeCount =
         tmpl.uiSchema && typeof tmpl.uiSchema === "object"
@@ -128,8 +159,29 @@ function TemplateRow({
             <Button
                 size="sm"
                 variant="outline"
+                className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/80 shrink-0"
+                disabled={renaming === tmpl._id || duplicating === tmpl._id || deleting === tmpl._id}
+                title="เปลี่ยนชื่อ"
+                onClick={() => onRename(tmpl)}
+            >
+                <Type className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+                size="sm"
+                variant="outline"
+                className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/80 shrink-0"
+                disabled={duplicating === tmpl._id || deleting === tmpl._id || renaming === tmpl._id}
+                title="คัดลอก template"
+                onClick={() => onDuplicate(tmpl._id)}
+            >
+                <Copy className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+                size="sm"
+                variant="outline"
                 className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 shrink-0"
-                disabled={deleting === tmpl._id}
+                disabled={deleting === tmpl._id || duplicating === tmpl._id || renaming === tmpl._id}
+                title="ลบ template"
                 onClick={() => onDelete(tmpl._id)}
             >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -146,7 +198,11 @@ export default function StationDesignerGalleryPage() {
     const [creating,  setCreating]  = useState(false);
     const [showCreate, setShowCreate] = useState(false);
     const [newName,   setNewName]   = useState("");
-    const [deleting,  setDeleting]  = useState<string | null>(null);
+    const [deleting,    setDeleting]    = useState<string | null>(null);
+    const [duplicating, setDuplicating] = useState<string | null>(null);
+    const [renaming,    setRenaming]    = useState<string | null>(null);
+    const [renameFor,   setRenameFor]   = useState<StationTemplate | null>(null);
+    const [renameName,  setRenameName]  = useState("");
 
     // UI state
     const [view,    setView]    = useState<"card" | "row">("card");
@@ -211,6 +267,39 @@ export default function StationDesignerGalleryPage() {
     };
 
     const handleEdit = (id: string) => router.push(`/stations/designer/${id}`);
+
+    const handleDuplicate = async (id: string) => {
+        setDuplicating(id);
+        try {
+            const copy = await duplicateStationTemplate(id);
+            setTemplates((prev) => [copy, ...prev]);
+            toast.success("คัดลอก template แล้ว", { description: copy.name });
+        } catch {
+            toast.error("คัดลอกไม่สำเร็จ");
+        } finally {
+            setDuplicating(null);
+        }
+    };
+
+    const openRename = (tmpl: StationTemplate) => {
+        setRenameFor(tmpl);
+        setRenameName(tmpl.name);
+    };
+
+    const handleRenameSave = async () => {
+        if (!renameFor || !renameName.trim()) return;
+        setRenaming(renameFor._id);
+        try {
+            const updated = await updateStationTemplate(renameFor._id, { name: renameName.trim() });
+            setTemplates((prev) => prev.map((t) => (t._id === updated._id ? updated : t)));
+            toast.success("เปลี่ยนชื่อแล้ว");
+            setRenameFor(null);
+        } catch {
+            toast.error("เปลี่ยนชื่อไม่สำเร็จ");
+        } finally {
+            setRenaming(null);
+        }
+    };
 
     return (
         <div className="space-y-6 p-6">
@@ -322,8 +411,12 @@ export default function StationDesignerGalleryPage() {
                             key={tmpl._id}
                             tmpl={tmpl}
                             deleting={deleting}
+                            duplicating={duplicating}
+                            renaming={renaming}
                             onEdit={handleEdit}
+                            onRename={openRename}
                             onDelete={handleDelete}
+                            onDuplicate={handleDuplicate}
                         />
                     ))}
                 </div>
@@ -335,8 +428,12 @@ export default function StationDesignerGalleryPage() {
                             key={tmpl._id}
                             tmpl={tmpl}
                             deleting={deleting}
+                            duplicating={duplicating}
+                            renaming={renaming}
                             onEdit={handleEdit}
+                            onRename={openRename}
                             onDelete={handleDelete}
+                            onDuplicate={handleDuplicate}
                         />
                     ))}
                 </div>
@@ -387,6 +484,50 @@ export default function StationDesignerGalleryPage() {
                             </PaginationItem>
                         </PaginationContent>
                     </Pagination>
+                </div>
+            )}
+
+            {/* Rename dialog */}
+            {renameFor && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+                    onClick={() => !renaming && setRenameFor(null)}
+                >
+                    <div
+                        className="bg-card rounded-xl border shadow-xl w-full max-w-md mx-4 p-6 space-y-4"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <h2 className="text-lg font-semibold">เปลี่ยนชื่อ Template</h2>
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                                ชื่อ Template *
+                            </label>
+                            <input
+                                autoFocus
+                                value={renameName}
+                                onChange={(e) => setRenameName(e.target.value)}
+                                placeholder="ชื่อที่แสดงในรายการ"
+                                className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/40"
+                                onKeyDown={(e) => e.key === "Enter" && !renaming && handleRenameSave()}
+                                disabled={!!renaming}
+                            />
+                        </div>
+                        <div className="flex gap-2 justify-end">
+                            <Button
+                                variant="outline"
+                                disabled={!!renaming}
+                                onClick={() => setRenameFor(null)}
+                            >
+                                ยกเลิก
+                            </Button>
+                            <Button
+                                disabled={!renameName.trim() || !!renaming}
+                                onClick={handleRenameSave}
+                            >
+                                {renaming ? "กำลังบันทึก..." : "บันทึก"}
+                            </Button>
+                        </div>
+                    </div>
                 </div>
             )}
 

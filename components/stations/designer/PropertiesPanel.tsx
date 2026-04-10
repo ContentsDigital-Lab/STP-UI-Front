@@ -234,11 +234,27 @@ const FIELD_META: Record<string, Record<string, FieldDef>> = {
         title:   { label: "ชื่อหัวข้อ",        type: "text",   section: "props", placeholder: "เช่น ประวัติการผลิต" },
         maxRows: { label: "จำนวนรายการสูงสุด", type: "number", section: "props", placeholder: "20" },
     },
+    "Station Queue": {
+        title:                       { label: "ชื่อหัวข้อ", type: "text", section: "props", placeholder: "เช่น คิวสถานีนี้" },
+        requireWithdrawalBeforeWork: {
+            label: "บังคับเบิกก่อนเริ่ม/ทำเสร็จ",
+            type:  "toggle",
+            section: "props",
+            hint: "เมื่อเปิด ปุ่มเริ่มผลิตและทำเสร็จจะใช้ได้เฉพาะแผ่นที่มีการเบิกวัสดุแล้ว",
+        },
+    },
     "QR Scan": {
         label:          { label: "ข้อความกำกับ",           type: "text",   section: "props", placeholder: "เช่น สแกน QR ออเดอร์" },
         placeholder:    { label: "ข้อความในช่องกรอก",      type: "text",   section: "props", placeholder: "วาง QR หรือพิมพ์รหัส แล้วกด Enter..." },
         dataSource:     { label: "แหล่งข้อมูล",             type: "select", section: "data",  options: ["/orders", "/requests", "/panes", "/panes/scan", "/panes/scan-out"], optionLabels: ["รายการออเดอร์", "รายการคำขอ (บิล)", "รายการกระจก (Pane)", "สแกน Pane เข้าสถานี", "สแกน Pane ออกจากสถานี"], hint: "บล็อกจะค้นหาข้อมูลจากแหล่งนี้เมื่อสแกน QR สำเร็จ — ใช้ '/panes/scan' สำหรับสแกนเข้า (scan_in → start → complete) หรือ '/panes/scan-out' สำหรับสแกนออก (scan_out → ส่งต่อสถานีถัดไป)" },
         enableCamera:   { label: "เปิดกล้อง",               type: "toggle", section: "props", hint: "เมื่อเปิด จะมีปุ่มกล้องให้กดสแกน QR ด้วยกล้องโทรศัพท์หรือเว็บแคม" },
+        requireWithdrawalBeforeWork: {
+            label: "บังคับเบิกก่อนเริ่ม/ทำเสร็จ",
+            type:  "toggle",
+            section: "props",
+            hint: "ใช้เมื่อแหล่งข้อมูลเป็น 'สแกน Pane เข้าสถานี' — ปุ่มเริ่มผลิตและทำเสร็จจะใช้ได้เฉพาะแผ่นที่เบิกวัสดุแล้ว",
+            showWhen: { field: "dataSource", value: "/panes/scan" },
+        },
         autoAction:     { label: "การกระทำอัตโนมัติ",       type: "select", section: "data",  options: ["none", "patch"], optionLabels: ["ไม่มี", "ส่ง PATCH อัตโนมัติ"], hint: "เมื่อสแกนสำเร็จ — 'ส่ง PATCH' จะส่งข้อมูลใน 'ข้อมูล JSON' ไปยัง PATCH /orders/{id} โดยอัตโนมัติ" },
         autoActionBody: { label: "ข้อมูล JSON (PATCH body)", type: "text",   section: "data",  placeholder: '{"status":"in_progress"}', hint: "ข้อมูลที่จะส่งไปใน PATCH — ใช้เมื่อเลือก 'ส่ง PATCH อัตโนมัติ' เช่น {\"status\":\"in_progress\"}" },
         successMessage: { label: "ข้อความเมื่อสำเร็จ",      type: "text",   section: "props", placeholder: "โหลดข้อมูลสำเร็จ!" },

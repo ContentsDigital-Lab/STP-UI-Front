@@ -44,6 +44,9 @@ import { QCInspectorBlock }       from "./blocks/QCInspectorBlock";
 
 interface DesignerCanvasProps {
     templateName:        string;
+    /** When set, toolbar title becomes editable (PATCH name via parent). */
+    onRenameTemplate?:   (name: string) => Promise<void>;
+    renamingTemplate?:   boolean;
     initialNodes?:       Record<string, unknown>;
     onSave:              (craftNodes: Record<string, unknown>) => Promise<void>;
     saving?:             boolean;
@@ -190,7 +193,20 @@ function sanitizeCraftNodes(raw: Record<string, unknown>, validTypes: Set<string
     return JSON.stringify(clean);
 }
 
-export function DesignerCanvas({ templateName, initialNodes, onSave, saving, onSaveStatusChange, previewOnly = false, stationId, stationName, initialData, initialRequestData }: DesignerCanvasProps) {
+export function DesignerCanvas({
+    templateName,
+    onRenameTemplate,
+    renamingTemplate = false,
+    initialNodes,
+    onSave,
+    saving,
+    onSaveStatusChange,
+    previewOnly = false,
+    stationId,
+    stationName,
+    initialData,
+    initialRequestData,
+}: DesignerCanvasProps) {
     // Keep RESOLVER inside component so Turbopack hot-reload always picks up fresh module references
     // eslint-disable-next-line react-hooks/exhaustive-deps
     const RESOLVER = useMemo(() => ({
@@ -261,6 +277,8 @@ export function DesignerCanvas({ templateName, initialNodes, onSave, saving, onS
                     {!previewOnly && (
                         <Toolbar
                             templateName={templateName}
+                            onRenameTemplate={onRenameTemplate}
+                            renamingTemplate={renamingTemplate}
                             onSave={handleManualSave}
                             saving={saving}
                             isPreview={isPreview}

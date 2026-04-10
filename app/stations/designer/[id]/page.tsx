@@ -35,6 +35,7 @@ export default function StationDesignerEditorPage() {
     const [template,  setTemplate]  = useState<StationTemplate | null>(null);
     const [loading,   setLoading]   = useState(true);
     const [saving,    setSaving]    = useState(false);
+    const [renamingTemplate, setRenamingTemplate] = useState(false);
     const [stationId, setStationId] = useState<string | null>(null);
 
     useEffect(() => {
@@ -73,6 +74,23 @@ export default function StationDesignerEditorPage() {
         }
     };
 
+    const handleRenameTemplate = async (name: string) => {
+        if (!template) return;
+        const trimmed = name.trim();
+        if (!trimmed || trimmed === template.name) return;
+        setRenamingTemplate(true);
+        try {
+            const updated = await updateStationTemplate(id, { name: trimmed });
+            setTemplate(updated);
+            toast.success("เปลี่ยนชื่อแล้ว");
+        } catch {
+            toast.error("เปลี่ยนชื่อไม่สำเร็จ");
+            throw new Error("rename failed");
+        } finally {
+            setRenamingTemplate(false);
+        }
+    };
+
     if (loading) {
         return (
             <div className="flex h-full items-center justify-center">
@@ -108,6 +126,8 @@ export default function StationDesignerEditorPage() {
             <div className="flex-1 overflow-hidden">
                 <DesignerCanvas
                     templateName={template.name}
+                    onRenameTemplate={handleRenameTemplate}
+                    renamingTemplate={renamingTemplate}
                     initialNodes={template.uiSchema && typeof template.uiSchema === "object" && !Array.isArray(template.uiSchema) && Object.keys(template.uiSchema).length > 0 ? template.uiSchema as Record<string, unknown> : undefined}
                     onSave={handleSave}
                     saving={saving}

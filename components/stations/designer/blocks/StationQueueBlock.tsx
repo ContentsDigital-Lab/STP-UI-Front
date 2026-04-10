@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { panesApi } from "@/lib/api/panes";
 import { Pane } from "@/lib/api/types";
 import { parseQrScan } from "@/lib/utils/parseQrScan";
-import { getStationName, isStationMatch } from "@/lib/utils/station-helpers";
+import { getStationName, isPaneWithdrawn, isStationMatch } from "@/lib/utils/station-helpers";
 import { isPaneRetiredByMerge, resolveActivePane } from "@/lib/utils/pane-laminate";
 import { withMergedIntoScanRetry } from "@/lib/utils/merged-into-scan";
 import { usePreview } from "../PreviewContext";
@@ -29,6 +29,8 @@ import { Button } from "@/components/ui/button";
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface StationQueueBlockProps {
     title?: string;
+    /** When true, เริ่มผลิต / ทำเสร็จ / batch complete require pane.withdrawal (set in station designer). */
+    requireWithdrawalBeforeWork?: boolean;
 }
 
 type PanePhase = "confirmed" | "started";
@@ -71,11 +73,24 @@ function getUrgencyClass(level: "critical" | "warn" | "normal"): string {
     return "bg-card hover:bg-muted/5 border-border";
 }
 
+/** Same criteria as `atStation` in fetchPanes — used to know when we can stop suppressing a completed pane. */
+function isPaneOnStationProgressQueue(
+    p: Pane,
+    stationId: string | null | undefined,
+    stationName: string | null | undefined,
+): boolean {
+    if (!isStationMatch(p.currentStation, stationId, stationName)) return false;
+    return p.currentStatus === "in_progress" || p.currentStatus === "awaiting_scan_out";
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
-export function StationQueueBlock({ title = "คิวสถานีนี้" }: StationQueueBlockProps) {
+export function StationQueueBlock({
+    title = "คิวสถานีนี้",
+    requireWithdrawalBeforeWork = false,
+}: StationQueueBlockProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
-    const { stationId, stationName, isLaminateStation, setPaneData, triggerRefresh, refreshCounter, queueFrontOrderId, pinQueueOrderToFront } = useStationContext();
+    const { stationId, stationName, isLaminateStation, setPaneData, triggerRefresh, refreshCounter, queueFrontOrderId, pinQueueOrderToFront, clearQueueFrontOrderId } = useStationContext();
 
     const inputRef = useRef<HTMLInputElement>(null);
     const guardedPanesRef = useRef<Map<string, Pane>>(new Map());
@@ -141,6 +156,15 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
             }).catch(() => null);
             if (!res || !res.success || !Array.isArray(res.data)) return;
 
+            // Completed panes stay hidden until the server no longer reports them on this station's
+            // in_progress / awaiting_scan_out queue (10s timeout used to drop the mask and let stale API rows pop back).
+            for (const id of [...hiddenPanesRef.current]) {
+                const fresh = res.data.find((p) => p._id === id);
+                if (fresh && !isPaneOnStationProgressQueue(fresh, stationId, stationName)) {
+                    hiddenPanesRef.current.delete(id);
+                }
+            }
+
             const atStation = res.data.filter(p =>
                 !isPaneRetiredByMerge(p) &&
                 !hiddenPanesRef.current.has(p._id) &&
@@ -174,6 +198,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
 
             const merged = [...atStation];
             for (const [id, guardedPane] of guardedPanesRef.current.entries()) {
+                if (hiddenPanesRef.current.has(id)) continue;
                 if (!atStation.some(p => p._id === id)) {
                     merged.push(guardedPane);
                 }
@@ -197,6 +222,13 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
     }, [stationId, stationName]);
 
     useEffect(() => { fetchPanes(); }, [fetchPanes, refreshCounter]);
+
+    // Drop scan-in pin when no panes for that order remain at this station (avoids stale sort / wrong "active" bucket).
+    useEffect(() => {
+        if (!queueFrontOrderId || queueFrontOrderId === "__unknown__") return;
+        const stillHere = panes.some((p) => extractOrderId(p) === queueFrontOrderId);
+        if (!stillHere) clearQueueFrontOrderId();
+    }, [panes, queueFrontOrderId, clearQueueFrontOrderId]);
     useWebSocket("pane", ["pane:updated", "pane:laminated"], () => { 
         setQrPane(null); 
         fetchPanes(); 
@@ -482,19 +514,25 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
 
                 const withdrawnCount = v.panes.filter(p => !!p.withdrawal).length;
                 const hasStartedPane = v.panes.some(p => phases[p._id] === "started");
-                const isPinned = orderId === queueFrontOrderId;
+                const panesSorted = [...v.panes].sort((a, b) => {
+                    const ta = new Date(a.createdAt).getTime();
+                    const tb = new Date(b.createdAt).getTime();
+                    if (ta !== tb) return ta - tb;
+                    return a.paneNumber.localeCompare(b.paneNumber, undefined, { numeric: true });
+                });
 
                 return { 
                     orderId, 
                     label: v.label, 
-                    panes: v.panes, 
+                    panes: panesSorted, 
                     priority: v.priority, 
                     createdAt: v.createdAt, 
                     deadline: v.deadline, 
                     maxUrgency: maxLevel,
                     withdrawnCount,
-                    totalCount: v.panes.length,
-                    isActive: hasStartedPane || maxLevel === "critical" || isPinned
+                    totalCount: panesSorted.length,
+                    // Pin affects sort order only — not "งานในมือ" (otherwise finished-but-pinned orders bounce section on refetch).
+                    isActive: hasStartedPane || maxLevel === "critical",
                 };
             })
             .sort((a, b) => {
@@ -512,7 +550,9 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                     const dtB = new Date(b.deadline).getTime();
                     if (dtA !== dtB) return dtA - dtB;
                 }
-                return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+                const c0 = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+                if (c0 !== 0) return c0;
+                return a.orderId.localeCompare(b.orderId);
             });
 
         return {
@@ -531,6 +571,19 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                 setScanError("ไม่มีแผ่นที่ใช้สแกนแบบกลุ่มได้ (รวมลามิเนตแล้วหรือถูกรวมเข้าแผ่นอื่น)");
                 return;
             }
+            if (requireWithdrawalBeforeWork && (action === "start" || action === "complete")) {
+                const missingWd = eligible.filter((p) => !isPaneWithdrawn(p));
+                if (missingWd.length > 0) {
+                    toast.error("ยังไม่ได้เบิกวัสดุ", {
+                        description:
+                            missingWd.length === 1
+                                ? `แผ่น ${missingWd[0].paneNumber} ต้องเบิกวัสดุก่อน`
+                                : `${missingWd.length} แผ่นที่เลือกยังไม่ได้เบิก — เบิกที่เมนูเบิกก่อน`,
+                    });
+                    setScanError("เบิกวัสดุก่อนเริ่มผลิตหรือทำเสร็จ");
+                    return;
+                }
+            }
             const paneNumbers = eligible.map((p) => p.paneNumber);
             const res = await panesApi.batchScan({ paneNumbers, station: stationId, action });
             if (!res.success) throw new Error(res.message || "ดำเนินการแบบกลุ่มไม่สำเร็จ");
@@ -544,9 +597,6 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                 const completedIds = new Set(eligible.map(p => p._id));
                 // Add to hidden guard
                 eligible.forEach(p => hiddenPanesRef.current.add(p._id));
-                setTimeout(() => {
-                    eligible.forEach(p => hiddenPanesRef.current.delete(p._id));
-                }, 10_000);
 
                 // Optimistic UI updates
                 setPanes(prev => prev.filter(p => !completedIds.has(p._id)));
@@ -641,6 +691,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                 return r;
             });
             const scannedPane = res.data.pane as Pane;
+            hiddenPanesRef.current.delete(scannedPane._id);
             pinQueueOrderToFront(extractOrderId(scannedPane));
             guardedPanesRef.current.set(scannedPane._id, { ...scannedPane, currentStatus: "in_progress" });
             const pid = scannedPane._id;
@@ -669,6 +720,13 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
 
     async function doAction(pane: Pane, action: "start" | "complete") {
         if (!stationId) { setScanError("ไม่ระบุสถานี"); return; }
+        if (requireWithdrawalBeforeWork && !isPaneWithdrawn(pane)) {
+            toast.error("ยังไม่ได้เบิกวัสดุ", {
+                description: `แผ่น ${pane.paneNumber} ต้องเบิกวัสดุที่เมนูเบิกก่อนเริ่มผลิตหรือทำเสร็จ`,
+            });
+            setScanError("เบิกวัสดุก่อนเริ่มผลิตหรือทำเสร็จ");
+            return;
+        }
         setActionLoading(prev => ({ ...prev, [pane._id]: true }));
         setActionResult(prev => { const n = { ...prev }; delete n[pane._id]; return n; });
         try {
@@ -686,7 +744,6 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                 guardedPanesRef.current.delete(pane._id);
                 // Add to hidden guard to prevent flickering during refetch
                 hiddenPanesRef.current.add(pane._id);
-                setTimeout(() => { hiddenPanesRef.current.delete(pane._id); }, 10_000);
 
                 // Optimistic UI update: Remove from local state immediately
                 setPanes(prev => prev.filter(p => p._id !== pane._id));
@@ -834,7 +891,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                         <div className="px-3 py-2.5 flex items-center justify-between gap-2">
                                             <div className="flex items-center gap-2 min-w-0">
                                                 <Layers className={`h-3.5 w-3.5 shrink-0 ${group.ready ? "text-emerald-500" : "text-muted-foreground"}`} />
-                                                <span className="font-mono text-xs font-bold text-foreground truncate">{group.parent.paneNumber}</span>
+                                                <span className="font-mono text-xs font-bold text-foreground tracking-tight truncate">{group.parent.paneNumber}</span>
                                             </div>
                                             <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
                                                 group.ready
@@ -857,7 +914,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                                     <div key={sheet._id} className="flex items-center gap-2 px-3 py-2">
                                                         <span className={`h-2 w-2 rounded-full shrink-0 ${isWorking ? "bg-emerald-500" : isHere ? "bg-amber-400" : "bg-slate-300"}`} />
                                                         <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                                                            <span className="font-mono text-[11px] text-foreground">
+                                                            <span className="font-mono text-[11px] font-bold text-foreground tracking-tight">
                                                                 {sheet.paneNumber}
                                                                 {sheet.sheetLabel ? (
                                                                     <span className="text-muted-foreground font-normal ml-1">({sheet.sheetLabel})</span>
@@ -943,16 +1000,25 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                                     {gSelected && <CheckCheck className="h-3.5 w-3.5 text-primary-foreground font-bold" />}
                                                     {!gSelected && someSelected && <div className="h-1.5 w-1.5 bg-primary rounded-sm" />}
                                                 </button>
-                                                <div className="flex flex-col min-w-0">
-                                                    <span className="font-bold text-sm truncate">{group.label}</span>
-                                                    <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">{group.panes.length} ชิ้น</span>
+                                                <div className="flex flex-col min-w-0 flex-1 gap-0.5">
+                                                    <span className="font-bold text-sm text-foreground break-words whitespace-normal leading-snug">
+                                                        {group.label}
+                                                    </span>
+                                                    <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">
+                                                        {group.panes.length} ชิ้น
+                                                    </span>
                                                 </div>
                                             </div>
                                             <Button
                                                 size="sm"
                                                 variant="secondary"
                                                 onClick={() => handleBatchAction("complete", group.panes.filter(p => selectedPanes.has(p._id)))}
-                                                disabled={!someSelected || batchLoading}
+                                                disabled={
+                                                    !someSelected ||
+                                                    batchLoading ||
+                                                    (requireWithdrawalBeforeWork &&
+                                                        group.panes.some((p) => selectedPanes.has(p._id) && !isPaneWithdrawn(p)))
+                                                }
                                                 className="h-8 px-3 rounded-lg font-bold"
                                             >
                                                 {batchLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <CheckCheck className="h-3.5 w-3.5 mr-1.5" />}
@@ -977,7 +1043,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                                             </div>
                                                             <div className="flex flex-col min-w-0">
                                                                 <div className="flex items-center gap-2">
-                                                                    <span className="font-mono text-[13px] font-bold text-foreground">{pane.paneNumber}</span>
+                                                                    <span className="font-mono text-[13px] font-bold text-foreground tracking-tight">{pane.paneNumber}</span>
                                                                     {urg === "critical" && (
                                                                         <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse shrink-0" title="งานด่วน P3" />
                                                                     )}
@@ -1049,51 +1115,91 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                 const hasMore = group.panes.length > PANE_LIMIT;
                                 const displayedPanes = isShowAll ? group.panes : group.panes.slice(0, PANE_LIMIT);
 
+                                const orderWithdrawTitle =
+                                    group.withdrawnCount === group.totalCount
+                                        ? "เบิกแล้ว"
+                                        : group.withdrawnCount === 0
+                                          ? "ยังไม่เบิก"
+                                          : `เบิกแล้ว ${group.withdrawnCount}/${group.totalCount}`;
+
                                 return (
-                                    <div key={group.orderId} className={`rounded-2xl border transition-all overflow-hidden ${urgCls} ${!isExpanded ? "shadow-none" : "shadow-sm shadow-black/5"} ${isExpanded && isCompact ? "md:col-span-2 lg:col-span-3 xl:col-span-4" : ""}`}>
-                                        <div 
-                                            className={`${isCompact ? "px-3 py-2.5" : "px-4 py-3"} flex items-center justify-between gap-3 cursor-pointer group`}
-                                            onClick={() => setExpanded(prev => {
+                                    <div
+                                        key={group.orderId}
+                                        className={`rounded-2xl border transition-all overflow-hidden min-w-0 ${urgCls} ${!isExpanded ? "shadow-none" : "shadow-sm shadow-black/5"} ${isExpanded && isCompact ? "sm:col-span-2 lg:col-span-2 2xl:col-span-3" : ""}`}
+                                    >
+                                        <div
+                                            className={`${isCompact ? "px-4 py-3.5" : "px-4 py-3.5"} flex ${isCompact ? "items-start" : "items-center"} justify-between gap-2 sm:gap-3 cursor-pointer group`}
+                                            onClick={() => setExpanded((prev) => {
                                                 const n = new Set(prev);
                                                 if (n.has(group.orderId)) n.delete(group.orderId);
                                                 else n.add(group.orderId);
                                                 return n;
                                             })}
                                         >
-                                            <div className="flex items-center gap-3 min-w-0">
-                                                <div className={`${isCompact ? "h-7 w-7" : "h-8 w-8"} rounded-xl bg-muted/40 flex items-center justify-center transition-colors group-hover:bg-muted/60`}>
-                                                    <Package className={`${isCompact ? "h-3.5 w-3.5" : "h-4 w-4"} ${group.maxUrgency === "critical" ? "text-red-500 animate-pulse" : "text-muted-foreground"}`} />
+                                            <div className={`flex gap-3 min-w-0 flex-1 ${isCompact ? "items-start" : "items-center"}`}>
+                                                <div
+                                                    className={`${isCompact ? "h-9 w-9" : "h-10 w-10"} shrink-0 rounded-xl bg-muted/50 flex items-center justify-center transition-colors group-hover:bg-muted/70 cursor-help`}
+                                                    title={orderWithdrawTitle}
+                                                >
+                                                    <Package
+                                                        className={`${isCompact ? "h-4 w-4" : "h-[18px] w-[18px]"} ${group.maxUrgency === "critical" ? "text-red-500 animate-pulse" : "text-muted-foreground"}`}
+                                                    />
                                                 </div>
-                                                <div className="flex flex-col min-w-0">
-                                                    <div className="flex items-center gap-2">
-                                                        <h4 className={`font-bold tracking-tight truncate ${isCompact ? "text-[13px]" : "text-sm"}`}>ออเดอร์ {group.label}</h4>
+                                                <div className="min-w-0 flex-1 flex flex-col gap-1.5">
+                                                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                                                        <span className="text-[11px] font-medium text-muted-foreground/75 shrink-0">
+                                                            ออเดอร์
+                                                        </span>
+                                                        <span
+                                                            className={`tabular-nums font-bold text-foreground tracking-tight break-words whitespace-normal ${isCompact ? "text-sm leading-snug" : "text-[15px] leading-snug"}`}
+                                                        >
+                                                            {group.label}
+                                                        </span>
                                                         {group.priority >= 3 && (
-                                                            <span className="px-1.5 py-0.5 rounded-lg bg-red-500 text-white text-[9px] font-black uppercase tracking-tighter shadow-sm animate-pulse">URGENT</span>
+                                                            <span className="shrink-0 px-1.5 py-0.5 rounded-md bg-red-500 text-white text-[9px] font-bold uppercase tracking-wide shadow-sm animate-pulse">
+                                                                URGENT
+                                                            </span>
                                                         )}
                                                     </div>
-                                                    <div className={`flex items-center gap-x-2 gap-y-1 flex-wrap font-medium text-muted-foreground ${isCompact ? "text-[9px]" : "text-[10px]"}`}>
-                                                        <span className="font-bold text-foreground/40">{group.panes.length} ชิ้น</span>
+                                                    <div
+                                                        className={`flex flex-wrap items-center gap-x-2.5 gap-y-1 font-medium text-muted-foreground ${isCompact ? "text-[11px]" : "text-xs"}`}
+                                                    >
+                                                        <span className="font-medium text-foreground/55 shrink-0 tabular-nums">{group.panes.length} ชิ้น</span>
                                                         {group.withdrawnCount === group.totalCount ? (
-                                                            <span className="flex items-center gap-1 text-emerald-600">
-                                                                <PackageCheck className="h-2.5 w-2.5" />
-                                                                {isCompact ? "ครบ" : "เบิกครบ"}
+                                                            <span className="inline-flex items-center gap-1 text-emerald-600 shrink-0">
+                                                                <PackageCheck className="h-3.5 w-3.5 shrink-0" />
+                                                                <span>เบิกครบทุกชิ้น</span>
                                                             </span>
                                                         ) : (
-                                                            <span className="flex items-center gap-1 text-amber-600">
-                                                                {group.withdrawnCount}/{group.totalCount}
+                                                            <span className="inline-flex items-center gap-1 text-amber-600 shrink-0">
+                                                                <PackageOpen className="h-3.5 w-3.5 shrink-0" />
+                                                                <span>
+                                                                    เบิกแล้ว {group.withdrawnCount}/{group.totalCount}
+                                                                </span>
                                                             </span>
                                                         )}
                                                         {group.deadline && (
-                                                            <span className="flex items-center gap-1">
-                                                                <AlertTriangle className={`h-2.5 w-2.5 ${group.maxUrgency === "critical" ? "text-red-500" : "text-amber-500"}`} />
-                                                                {new Date(group.deadline).toLocaleDateString("th-TH", { day: 'numeric', month: 'short' })}
+                                                            <span className="inline-flex items-center gap-1 shrink-0">
+                                                                <AlertTriangle
+                                                                    className={`h-3.5 w-3.5 shrink-0 ${group.maxUrgency === "critical" ? "text-red-500" : "text-amber-500"}`}
+                                                                />
+                                                                <span>
+                                                                    กำหนดส่ง{" "}
+                                                                    {new Date(group.deadline).toLocaleDateString("th-TH", {
+                                                                        day: "numeric",
+                                                                        month: "short",
+                                                                        year: "numeric",
+                                                                    })}
+                                                                </span>
                                                             </span>
                                                         )}
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div className={`p-1.5 rounded-full transition-all ${!isExpanded ? "" : "bg-muted shadow-inner rotate-180"}`}>
-                                                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/60" />
+                                            <div
+                                                className={`shrink-0 p-1.5 rounded-full transition-all ${isCompact ? "mt-0.5" : ""} ${!isExpanded ? "" : "bg-muted shadow-inner rotate-180"}`}
+                                            >
+                                                <ChevronDown className="h-4 w-4 text-muted-foreground/60" />
                                             </div>
                                         </div>
 
@@ -1104,15 +1210,20 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                                     const isLoading = actionLoading[pane._id];
                                                     const res = actionResult[pane._id];
                                                     const urg = getUrgencyLevel(pane);
+                                                    const withdrawn = isPaneWithdrawn(pane);
+                                                    const blockStartComplete = requireWithdrawalBeforeWork && !withdrawn;
 
                                                     return (
                                                         <div key={pane._id} className="group/item flex items-center justify-between gap-4 px-4 py-3.5 hover:bg-muted/[0.03] transition-colors">
                                                             <div className="flex items-center gap-4 min-w-0">
-                                                                <div className="relative">
+                                                                <div
+                                                                    className="relative shrink-0 cursor-help"
+                                                                    title={withdrawn ? "เบิกแล้ว" : "ยังไม่เบิก"}
+                                                                >
                                                                     <div className={`h-10 w-10 flex items-center justify-center rounded-xl bg-background border transition-all ${phase === 'started' ? 'border-primary ring-4 ring-primary/5 bg-primary/5' : 'border-border/60 group-hover/item:border-border'}`}>
                                                                         {phase === 'started' ? <Play className="h-4 w-4 text-primary fill-primary/10" /> : <ListChecks className="h-4 w-4 text-muted-foreground/40" />}
                                                                     </div>
-                                                                    <div className={`absolute -bottom-1 -left-1 h-4 w-4 flex items-center justify-center rounded-full border-2 border-white dark:border-slate-800 shadow-sm ${pane.withdrawal ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-700'}`} title={pane.withdrawal ? "เบิกวัสดุแล้ว" : "ยังไม่ได้เบิกวัสดุ"}>
+                                                                    <div className={`absolute -bottom-1 -left-1 h-4 w-4 flex items-center justify-center rounded-full border-2 border-white dark:border-slate-800 shadow-sm pointer-events-none ${pane.withdrawal ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-700'}`} aria-hidden>
                                                                         {pane.withdrawal ? (
                                                                             <PackageCheck className="h-2 w-2 text-white" />
                                                                         ) : (
@@ -1125,7 +1236,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                                                 </div>
                                                                 <div className="flex flex-col min-w-0">
                                                                     <div className="flex items-center gap-2">
-                                                                        <span className="font-mono text-sm font-black text-foreground">{pane.paneNumber}</span>
+                                                                        <span className="font-mono text-sm font-bold text-foreground tracking-tight">{pane.paneNumber}</span>
                                                                         {pane.laminateRole === "parent" && (
                                                                             <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-violet-600/10 text-violet-600 border border-violet-600/20 uppercase tracking-tighter">LAM</span>
                                                                         )}
@@ -1152,8 +1263,9 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                                                     <Button
                                                                         size="sm"
                                                                         onClick={() => doAction(pane, "start")}
-                                                                        disabled={isLoading}
-                                                                        className="h-9 px-4 rounded-xl font-bold bg-secondary hover:bg-secondary/80 text-foreground shadow-sm"
+                                                                        disabled={isLoading || blockStartComplete}
+                                                                        title={blockStartComplete ? "ต้องเบิกวัสดุก่อน" : undefined}
+                                                                        className="h-9 px-4 rounded-xl font-bold bg-secondary hover:bg-secondary/80 text-foreground shadow-sm disabled:opacity-50"
                                                                     >
                                                                         {isLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <span>เริ่มผลิต</span>}
                                                                     </Button>
@@ -1162,8 +1274,9 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                                                         <Button
                                                                             size="sm"
                                                                             onClick={() => doAction(pane, "complete")}
-                                                                            disabled={isLoading}
-                                                                            className={`h-7 px-3 rounded-lg font-black text-[10px] uppercase tracking-wider transition-all shadow-sm ${
+                                                                            disabled={isLoading || blockStartComplete}
+                                                                            title={blockStartComplete ? "ต้องเบิกวัสดุก่อน" : undefined}
+                                                                            className={`h-7 px-3 rounded-lg font-black text-[10px] uppercase tracking-wider transition-all shadow-sm disabled:opacity-50 ${
                                                                                 res === "success" 
                                                                                     ? "bg-emerald-500 hover:bg-emerald-500 text-white" 
                                                                                     : "bg-primary hover:bg-primary/90 text-primary-foreground"
@@ -1236,8 +1349,8 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                                                 <div className="h-5 w-1 bg-muted-foreground/30 rounded-full" />
                                                 <h3 className="text-sm font-black uppercase tracking-widest text-muted-foreground">คิวงานถัดไป ({pendingGroups.length})</h3>
                                             </div>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                                                {pendingGroups.map(group => renderOrderCard(group, true))}
+                                            <div className="grid w-full grid-cols-1 sm:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4 min-w-0">
+                                                {pendingGroups.map((group) => renderOrderCard(group, true))}
                                             </div>
                                         </div>
                                     )}
@@ -1272,7 +1385,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                             <div className="space-y-4 pt-4">
                                 <div className="p-4 rounded-2xl bg-muted/40 border border-muted flex flex-col items-center gap-1">
                                     <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">กระจกหมายเลข</span>
-                                    <span className="font-mono text-lg font-black">{mismatchInfo?.paneNumber}</span>
+                                    <span className="font-mono text-lg font-bold tracking-tight text-foreground">{mismatchInfo?.paneNumber}</span>
                                 </div>
                                 <div className="grid grid-cols-2 gap-3 pb-2">
                                     <div className="flex flex-col gap-1">
@@ -1332,5 +1445,6 @@ StationQueueBlock.craft = {
     displayName: "Station Queue",
     props: {
         title: "คิวสถานีนี้",
+        requireWithdrawalBeforeWork: false,
     },
 };

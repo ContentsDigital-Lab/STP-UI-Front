@@ -47,10 +47,10 @@ export function StationPerformanceDetail({
                             <Zap className="h-5 w-5 text-primary" />
                         </div>
                         <div>
-                            <SheetTitle className="text-2xl font-black tracking-tight uppercase italic">
+                            <SheetTitle className="text-2xl font-black tracking-tight uppercase not-italic">
                                 {stationName || "STATION"}
                             </SheetTitle>
-                            <SheetDescription className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+                            <SheetDescription className="text-xs font-medium uppercase tracking-widest text-muted-foreground not-italic">
                                 {lang === 'th' ? "วิเคราะห์ประสิทธิภาพเชิงลึก" : "In-depth Performance Analysis"}
                             </SheetDescription>
                         </div>
@@ -96,7 +96,7 @@ export function StationPerformanceDetail({
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
                                         <TrendingUp className="h-4 w-4 text-primary" />
-                                        <h3 className="font-bold text-sm">{lang === 'th' ? "แนวโน้มความเร็ว" : "Speed Trend"}</h3>
+                                        <h3 className="font-bold text-sm not-italic">{lang === 'th' ? "แนวโน้มความเร็ว" : "Speed Trend"}</h3>
                                     </div>
                                     <Badge variant="secondary" className="text-[10px] font-bold px-2 py-0">LIVE</Badge>
                                 </div>
@@ -153,15 +153,15 @@ export function StationPerformanceDetail({
                             <div className="space-y-4">
                                 <div className="flex items-center gap-2">
                                     <History className="h-4 w-4 text-primary" />
-                                    <h3 className="font-bold text-sm">{lang === 'th' ? "ประวัติการผลิตล่าสุด" : "Recent Production Record"}</h3>
+                                    <h3 className="font-bold text-sm not-italic">{lang === 'th' ? "ประวัติการผลิตล่าสุด" : "Recent Production Record"}</h3>
                                 </div>
                                 <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm shadow-black/5">
                                     <table className="w-full text-left text-xs border-collapse">
                                         <thead>
                                             <tr className="bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800">
-                                                <th className="px-4 py-3 font-bold text-muted-foreground uppercase tracking-widest">{lang === 'th' ? "รหัสกระจก" : "PANE"}</th>
-                                                <th className="px-4 py-3 font-bold text-muted-foreground uppercase tracking-widest">{lang === 'th' ? "เวลา" : "TIME"}</th>
-                                                <th className="px-4 py-3 font-bold text-muted-foreground uppercase tracking-widest text-right">{lang === 'th' ? "ระยะเวลา" : "DUR."}</th>
+                                                <th className="px-4 py-3 font-bold text-muted-foreground uppercase tracking-widest not-italic">{lang === 'th' ? "รหัสกระจก" : "PANE"}</th>
+                                                <th className="px-4 py-3 font-bold text-muted-foreground uppercase tracking-widest not-italic">{lang === 'th' ? "เวลา" : "TIME"}</th>
+                                                <th className="px-4 py-3 font-bold text-muted-foreground uppercase tracking-widest text-right not-italic">{lang === 'th' ? "ระยะเวลา" : "DUR."}</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -200,7 +200,7 @@ export function StationPerformanceDetail({
                     <div className="h-8 w-8 rounded-full bg-amber-500/10 flex items-center justify-center">
                         <Clock className="h-4 w-4 text-amber-600" />
                     </div>
-                    <p className="text-[10px] text-muted-foreground font-medium leading-tight">
+                    <p className="text-[10px] text-muted-foreground font-medium leading-tight not-italic">
                         {lang === 'th' 
                             ? "สถิติคำนวณจากงาน 100 ชิ้นล่าสุดเพื่อความแม่นยำในการคาดการณ์เวลาผลิตจริง" 
                             : "Stats calculated from last 100 units to ensure accuracy in real-world production forecasting."}

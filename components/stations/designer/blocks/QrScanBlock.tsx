@@ -12,7 +12,7 @@ import { fetchApi } from "@/lib/api/config";
 import { panesApi } from "@/lib/api/panes";
 import { Pane } from "@/lib/api/types";
 import { parseQrScan } from "@/lib/utils/parseQrScan";
-import { getStationId, getStationName, isStationMatch } from "@/lib/utils/station-helpers";
+import { getStationId, getStationName, isPaneWithdrawn, isStationMatch } from "@/lib/utils/station-helpers";
 import { resolveActivePane } from "@/lib/utils/pane-laminate";
 import { withMergedIntoScanRetry } from "@/lib/utils/merged-into-scan";
 import { usePreview } from "../PreviewContext";
@@ -58,6 +58,8 @@ interface QrScanBlockProps {
     successMessage?:  string;
     /** Show camera button */
     enableCamera?:    boolean;
+    /** When true (station scan mode only), start/complete require pane.withdrawal */
+    requireWithdrawalBeforeWork?: boolean;
 }
 
 type ScanStatus = "idle" | "loading" | "success" | "error";
@@ -89,6 +91,7 @@ export function QrScanBlock({
     autoActionBody  = "",
     successMessage  = "โหลดข้อมูลสำเร็จ!",
     enableCamera    = true,
+    requireWithdrawalBeforeWork = false,
 }: QrScanBlockProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
@@ -208,6 +211,19 @@ export function QrScanBlock({
             setActionResult("error");
             setActionLoading(false);
             return;
+        }
+
+        if (requireWithdrawalBeforeWork && (action === "start" || action === "complete")) {
+            const p = scanResult?.pane;
+            if (!isPaneWithdrawn(p)) {
+                toast.error("ยังไม่ได้เบิกวัสดุ", {
+                    description: "กรุณาเบิกวัสดุสำหรับแผ่นนี้ที่เมนูเบิกก่อน",
+                });
+                setMessage("กรุณาเบิกวัสดุก่อนเริ่มผลิตหรือทำเสร็จ");
+                setActionResult("error");
+                setActionLoading(false);
+                return;
+            }
         }
 
         try {
@@ -657,6 +673,9 @@ export function QrScanBlock({
         if (isScanMode) {
             const pane = scanResult?.pane;
             const statusCfg = pane?.currentStatus ? (STATUS_MAP[pane.currentStatus] ?? null) : null;
+            const needWithdrawForActions = Boolean(
+                requireWithdrawalBeforeWork && pane && !isPaneWithdrawn(pane),
+            );
 
             return (
                 <div className="w-full space-y-3">
@@ -787,24 +806,33 @@ export function QrScanBlock({
                             {/* Action buttons */}
                             {pane.currentStatus !== "completed" && lastAction !== "complete" && (
                                 <div className="px-4 pb-4 pt-1 space-y-2">
+                                    {needWithdrawForActions && (
+                                        <div className="rounded-lg border border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-[11px] text-amber-800 dark:text-amber-200 font-medium flex items-start gap-2">
+                                            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                                            <span>ต้องเบิกวัสดุที่เมนูเบิกก่อนเริ่มผลิตหรือทำเสร็จ</span>
+                                        </div>
+                                    )}
                                     <button
                                         onClick={() => handleScanAction("complete")}
-                                        disabled={actionLoading}
+                                        disabled={actionLoading || needWithdrawForActions}
+                                        title={needWithdrawForActions ? "ต้องเบิกวัสดุก่อน" : undefined}
                                         className="w-full flex items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-bold transition-all disabled:opacity-60 bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm"
                                     >
                                         {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                                         เสร็จสิ้น → ส่งต่อสถานีถัดไป
                                     </button>
                                     <div className="flex gap-2">
-                                        {(["scan_in", "start"] as const).map(action => {
+                                        {(["scan_in", "start"] as const).map((action) => {
                                             const cfg = SCAN_ACTION_LABELS[action];
                                             const Icon = cfg.icon;
                                             const isActive = lastAction === action;
+                                            const blockStart = action === "start" && needWithdrawForActions;
                                             return (
                                                 <button
                                                     key={action}
                                                     onClick={() => handleScanAction(action)}
-                                                    disabled={actionLoading}
+                                                    disabled={actionLoading || blockStart}
+                                                    title={blockStart ? "ต้องเบิกวัสดุก่อน" : undefined}
                                                     className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-[11px] font-semibold transition-all disabled:opacity-60 ${
                                                         isActive ? "ring-2 ring-offset-1 ring-primary" : ""
                                                     } ${cfg.cls}`}
@@ -1170,5 +1198,6 @@ QrScanBlock.craft = {
         autoActionBody: "",
         successMessage: "โหลดข้อมูลสำเร็จ!",
         enableCamera:   true,
+        requireWithdrawalBeforeWork: false,
     } as QrScanBlockProps,
 };

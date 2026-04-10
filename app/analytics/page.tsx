@@ -34,7 +34,7 @@ export default function AnalyticsPage() {
 
                 {/* Header Section */}
                 <div className="flex flex-col gap-2">
-                    <h1 className="text-3xl font-black tracking-tight text-slate-900 dark:text-slate-100 uppercase italic">
+                    <h1 className="text-3xl font-black tracking-tight text-slate-900 dark:text-slate-100 uppercase not-italic">
                         {lang === 'th' ? "วิเคราะห์การผลิต" : "PROD. ANALYTICS"}
                     </h1>
                     <p className="text-muted-foreground text-sm max-w-2xl leading-relaxed font-medium">
@@ -55,7 +55,7 @@ export default function AnalyticsPage() {
                         </CardHeader>
                         <CardContent>
                             <p className="text-2xl font-black text-slate-900 dark:text-slate-100 tabular-nums">12</p>
-                            <p className="text-[10px] text-muted-foreground mt-1 font-medium italic opacity-60">Connected stations logging data</p>
+                            <p className="text-[10px] text-muted-foreground mt-1 font-medium not-italic opacity-60">Connected stations logging data</p>
                         </CardContent>
                     </Card>
 
@@ -68,7 +68,7 @@ export default function AnalyticsPage() {
                         </CardHeader>
                         <CardContent>
                             <p className="text-2xl font-black text-slate-900 dark:text-slate-100 tabular-nums">94%</p>
-                            <p className="text-[10px] text-muted-foreground mt-1 font-medium italic opacity-60">Based on last 30d production</p>
+                            <p className="text-[10px] text-muted-foreground mt-1 font-medium not-italic opacity-60">Based on last 30d production</p>
                         </CardContent>
                     </Card>
 
@@ -81,7 +81,7 @@ export default function AnalyticsPage() {
                         </CardHeader>
                         <CardContent>
                             <p className="text-2xl font-black text-slate-900 dark:text-slate-100 tabular-nums">1,248</p>
-                            <p className="text-[10px] text-muted-foreground mt-1 font-medium italic opacity-60">Pane cycles logged since launch</p>
+                            <p className="text-[10px] text-muted-foreground mt-1 font-medium not-italic opacity-60">Pane cycles logged since launch</p>
                         </CardContent>
                     </Card>
                 </div>

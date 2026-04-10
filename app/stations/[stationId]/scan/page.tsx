@@ -15,7 +15,12 @@ import { stationsApi } from "@/lib/api/stations";
 import { panesApi } from "@/lib/api/panes";
 import { Station, Pane } from "@/lib/api/types";
 import { parseQrScan } from "@/lib/utils/parseQrScan";
-import { getStationId, getStationName, isStationMatch } from "@/lib/utils/station-helpers";
+import {
+    getStationName,
+    isPaneWithdrawn,
+    isStationMatch,
+    stationNameRequiresWithdrawalBeforeComplete,
+} from "@/lib/utils/station-helpers";
 import { resolveActivePane } from "@/lib/utils/pane-laminate";
 import { withMergedIntoScanRetry } from "@/lib/utils/merged-into-scan";
 import type { Html5Qrcode as Html5QrcodeType } from "html5-qrcode";
@@ -164,6 +169,19 @@ export default function MobilePaneScanPage() {
         setMessage("กำลังบันทึก...");
 
         try {
+            const preLookup = await panesApi.getById(paneNumber);
+            if (preLookup.success && preLookup.data) {
+                const active = resolveActivePane(preLookup.data);
+                if (
+                    stationNameRequiresWithdrawalBeforeComplete(station?.name) &&
+                    !isPaneWithdrawn(active)
+                ) {
+                    setScanState("error");
+                    setMessage("กรุณาเบิกวัสดุก่อนทำเสร็จ");
+                    return;
+                }
+            }
+
             const res = await withMergedIntoScanRetry(paneNumber, async (pn) => {
                 const r = await panesApi.scan(pn, {
                     station: stationId,

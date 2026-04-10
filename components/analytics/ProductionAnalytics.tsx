@@ -115,13 +115,13 @@ export function ProductionAnalytics({ materialId }: ProductionAnalyticsProps) {
                 <CardHeader className="px-8 pt-8 pb-4">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
                         <div className="space-y-1.5">
-                            <CardTitle className="text-2xl font-black tracking-tight flex items-center gap-3 italic italic uppercase">
+                            <CardTitle className="text-2xl font-black tracking-tight flex items-center gap-3 uppercase not-italic">
                                 <div className="p-2 rounded-2xl bg-primary/10">
                                     <TrendingUp className="h-6 w-6 text-primary" />
                                 </div>
                                 {lang === 'th' ? "วิเคราะห์ผลผลิตความเร็วสูง" : "High-Speed Prod. Analytics"}
                             </CardTitle>
-                            <CardDescription className="text-sm font-medium text-muted-foreground pl-12">
+                            <CardDescription className="text-sm font-medium text-muted-foreground pl-12 not-italic">
                                 {metric === "duration" 
                                     ? (lang === 'th' ? "เจาะลึกเวลาเฉลี่ย (นาที) เพื่อระบุจุดคอขวดในสายการผลิต" : "Deep dive into average durations to identify production bottlenecks")
                                     : (lang === 'th' ? "วิเคราะห์ปริมาณงานรายสถานี (Sqm) เพื่อดูลำดับความสำคัญ" : "Visualize volumetric throughput per station to prioritize workflow")
@@ -293,7 +293,7 @@ export function ProductionAnalytics({ materialId }: ProductionAnalyticsProps) {
                             </div>
                         </CardHeader>
                         <CardContent className="p-6 pt-0">
-                            <p className="text-xs text-emerald-700/80 dark:text-emerald-400/80 leading-relaxed font-medium">
+                            <p className="text-xs text-emerald-700/80 dark:text-emerald-400/80 leading-relaxed font-medium not-italic">
                                 {lang === 'th' 
                                     ? "จากการวิเคราะห์ข้อมูล 30 วันลาสุด สถานีที่ทำงานเร็วที่สุดได้รับการติดดาวด้วยสีทอง คุณสามารถคลิกที่แต่ละรายการเพื่อดูประวัติความเร็วรายวันและระบุปัญหาที่เกิดขึ้นได้ทันที" 
                                     : "Based on the last 30 days of data, the fastest station is starred in gold. Click on any station to view its daily speed trend and identify production anomalies instantly."}
@@ -313,10 +313,10 @@ export function ProductionAnalytics({ materialId }: ProductionAnalyticsProps) {
                             <TrendingUp className="h-6 w-6 text-primary absolute -top-1 -right-1" />
                         </div>
                         <div className="space-y-1">
-                            <h4 className="text-base font-black italic uppercase italic leading-none">{lang === 'th' ? "ความแม่นยำในการพยากรณ์" : "PREDICTION ACCURACY"}</h4>
-                            <p className="text-3xl font-black text-primary tracking-tighter italic italic">{Math.round(accuracy)}%</p>
+                            <h4 className="text-base font-black uppercase leading-none not-italic">{lang === 'th' ? "ความแม่นยำในการพยากรณ์" : "PREDICTION ACCURACY"}</h4>
+                            <p className="text-3xl font-black text-primary tracking-tighter not-italic">{Math.round(accuracy)}%</p>
                         </div>
-                        <p className="text-[11px] font-bold text-muted-foreground max-w-[220px] leading-relaxed">
+                        <p className="text-[11px] font-bold text-muted-foreground max-w-[220px] leading-relaxed not-italic">
                             {lang === 'th' 
                                 ? "ข้อมูลพยากรณ์ในหน้าใบสั่งผลิตมีความคลาดเคลื่อนต่ำมาก อ้างอิงจากประวัติการทำงานจริง 1,000 รายการล่าสุด" 
                                 : "Prediction engine is highly stable based on the last 1,000 production cycles recorded."}

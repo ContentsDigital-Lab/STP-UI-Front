@@ -33,6 +33,8 @@ export interface StationContextValue {
     /** Order id to show first in คิวสถานี (set after scan-in). */
     queueFrontOrderId: string | null;
     pinQueueOrderToFront: (orderId: string) => void;
+    /** Clear queue pin when that order no longer has panes at this station. */
+    clearQueueFrontOrderId: () => void;
 }
 
 const StationContext = createContext<StationContextValue>({
@@ -62,6 +64,7 @@ const StationContext = createContext<StationContextValue>({
     setIsOrderReleaseStation: () => {},
     queueFrontOrderId: null,
     pinQueueOrderToFront: () => {},
+    clearQueueFrontOrderId: () => {},
 });
 
 export const useStationContext = () => useContext(StationContext);
@@ -94,6 +97,10 @@ export function StationProvider({
     const pinQueueOrderToFront = useCallback((orderId: string) => {
         if (!orderId || orderId === "__unknown__") return;
         setQueueFrontOrderId(orderId);
+    }, []);
+
+    const clearQueueFrontOrderId = useCallback(() => {
+        setQueueFrontOrderId(null);
     }, []);
 
     useEffect(() => {
@@ -193,7 +200,7 @@ export function StationProvider({
             resolveVar,
             refreshCounter, triggerRefresh,
             isOrderReleaseStation, setIsOrderReleaseStation,
-            queueFrontOrderId, pinQueueOrderToFront,
+            queueFrontOrderId, pinQueueOrderToFront, clearQueueFrontOrderId,
         }}>
             {children}
         </StationContext.Provider>

@@ -1,8 +1,8 @@
 "use client";
 
 import { useEditor } from "@craftjs/core";
-import { useState } from "react";
-import { Save, Undo2, Redo2, Code2, Trash2, Keyboard, Eye, EyeOff, Smartphone, Tablet, Monitor, Maximize2, Settings2, Cloud, Loader2, AlignLeft, AlignCenter, AlignRight, ZoomIn, ZoomOut, Shrink, PanelRight, PanelRightClose } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Save, Undo2, Redo2, Code2, Trash2, Keyboard, Eye, EyeOff, Smartphone, Tablet, Monitor, Maximize2, Settings2, Cloud, Loader2, AlignLeft, AlignCenter, AlignRight, ZoomIn, ZoomOut, Shrink, PanelRight, PanelRightClose, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export type CanvasAlignment = "left" | "center" | "right";
@@ -32,6 +32,8 @@ export type CanvasWidthValue = number | "100%";
 
 interface ToolbarProps {
     templateName:    string;
+    onRenameTemplate?: (name: string) => Promise<void>;
+    renamingTemplate?: boolean;
     onSave:          (craftNodes: Record<string, unknown>) => Promise<void>;
     saving?:         boolean;
     isPreview?:      boolean;
@@ -48,7 +50,25 @@ interface ToolbarProps {
     onToggleProperties?: () => void;
 }
 
-export function Toolbar({ templateName, onSave, saving, isPreview = false, onTogglePreview, canvasSize, onCanvasSize, alignment, onAlignment, zoom, onZoom, onFitZoom, autoSaveStatus = "idle", showProperties = true, onToggleProperties }: ToolbarProps) {
+export function Toolbar({
+    templateName,
+    onRenameTemplate,
+    renamingTemplate = false,
+    onSave,
+    saving,
+    isPreview = false,
+    onTogglePreview,
+    canvasSize,
+    onCanvasSize,
+    alignment,
+    onAlignment,
+    zoom,
+    onZoom,
+    onFitZoom,
+    autoSaveStatus = "idle",
+    showProperties = true,
+    onToggleProperties,
+}: ToolbarProps) {
     const { actions, query, canUndo, canRedo, selected } = useEditor((state, q) => ({
         canUndo: q.history.canUndo(),
         canRedo: q.history.canRedo(),
@@ -57,6 +77,30 @@ export function Toolbar({ templateName, onSave, saving, isPreview = false, onTog
 
     const [showJson,   setShowJson]   = useState(false);
     const [showKeys,   setShowKeys]   = useState(false);
+    const [nameEditing, setNameEditing] = useState(false);
+    const [nameDraft,   setNameDraft]   = useState(templateName);
+    const skipNameBlurRef = useRef(false);
+
+    useEffect(() => {
+        if (!nameEditing) setNameDraft(templateName);
+    }, [templateName, nameEditing]);
+
+    const commitTemplateRename = async () => {
+        if (!onRenameTemplate) return;
+        const next = nameDraft.trim();
+        if (!next || next === templateName) {
+            setNameEditing(false);
+            setNameDraft(templateName);
+            return;
+        }
+        try {
+            await onRenameTemplate(next);
+            setNameEditing(false);
+        } catch {
+            setNameDraft(templateName);
+        }
+    };
+
     const [customMode, setCustomMode] = useState(false);
     const [customW,    setCustomW]    = useState(
         typeof canvasSize.width  === "number" ? String(canvasSize.width)  : ""
@@ -101,10 +145,59 @@ export function Toolbar({ templateName, onSave, saving, isPreview = false, onTog
     return (
         <>
             <header className="flex items-center gap-2 border-b bg-card px-4 py-2.5 shrink-0">
-                {/* Template name */}
-                <span className="text-sm font-semibold text-foreground mr-2 truncate max-w-[200px]">
-                    {templateName}
-                </span>
+                {/* Template name — inline rename when editing from /stations/designer/[id] */}
+                {onRenameTemplate ? (
+                    nameEditing ? (
+                        <input
+                            value={nameDraft}
+                            onChange={(e) => setNameDraft(e.target.value)}
+                            disabled={renamingTemplate}
+                            autoFocus
+                            className="text-sm font-semibold text-foreground mr-2 min-w-[8rem] max-w-[min(320px,40vw)] rounded-md border bg-background px-2 py-1 outline-none focus:ring-2 focus:ring-primary/40"
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    void commitTemplateRename();
+                                }
+                                if (e.key === "Escape") {
+                                    e.preventDefault();
+                                    skipNameBlurRef.current = true;
+                                    setNameDraft(templateName);
+                                    setNameEditing(false);
+                                }
+                            }}
+                            onBlur={() => {
+                                if (skipNameBlurRef.current) {
+                                    skipNameBlurRef.current = false;
+                                    return;
+                                }
+                                void commitTemplateRename();
+                            }}
+                        />
+                    ) : (
+                        <button
+                            type="button"
+                            title="คลิกเพื่อเปลี่ยนชื่อ"
+                            disabled={renamingTemplate}
+                            onClick={() => {
+                                setNameDraft(templateName);
+                                setNameEditing(true);
+                            }}
+                            className="text-sm font-semibold text-foreground mr-2 flex items-center gap-1.5 min-w-0 max-w-[min(320px,40vw)] rounded-md px-1.5 py-0.5 -ml-1.5 hover:bg-muted/80 text-left"
+                        >
+                            <span className="truncate">{templateName}</span>
+                            {renamingTemplate ? (
+                                <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
+                            ) : (
+                                <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            )}
+                        </button>
+                    )
+                ) : (
+                    <span className="text-sm font-semibold text-foreground mr-2 truncate max-w-[200px]">
+                        {templateName}
+                    </span>
+                )}
 
                 <div className="flex items-center gap-1">
                     <Button variant="outline" size="sm" disabled={!canUndo} onClick={() => actions.history.undo()} className="h-8 w-8 p-0">
