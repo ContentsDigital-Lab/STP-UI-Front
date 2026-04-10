@@ -47,11 +47,11 @@ export function StationPerformanceDetail({
                             <Zap className="h-5 w-5 text-primary" />
                         </div>
                         <div>
-                            <SheetTitle className="text-2xl font-black tracking-tight uppercase italic italic">
+                            <SheetTitle className="text-2xl font-black tracking-tight uppercase italic">
                                 {stationName || "STATION"}
                             </SheetTitle>
                             <SheetDescription className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-                                {lang === 'th' ? "วิเคราะห์ประสิทธิภาพเชืงลึก" : "In-depth Performance Analysis"}
+                                {lang === 'th' ? "วิเคราะห์ประสิทธิภาพเชิงลึก" : "In-depth Performance Analysis"}
                             </SheetDescription>
                         </div>
                     </div>
@@ -117,7 +117,7 @@ export function StationPerformanceDetail({
                                             <YAxis 
                                                 axisLine={false} 
                                                 tickLine={false} 
-                                                tick={{ fontSize: 10, fill: '#94a3b8' }}
+                                                tick={{ fontSize: 10, fill: '#94a3b8', fontFamily: 'var(--font-noto-sans-thai), system-ui, sans-serif' }}
                                                 unit="m"
                                                 tickFormatter={(v) => String(Math.round(v / 1000 / 60))}
                                             />

@@ -48,7 +48,7 @@ function makeTextSprite(text: string, color = '#555555', vertical = false): THRE
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d')!;
     const fontSize = 48;
-    ctx.font = `bold ${fontSize}px system-ui, sans-serif`;
+    ctx.font = `bold ${fontSize}px var(--font-noto-sans-thai), system-ui, sans-serif`;
     const metrics = ctx.measureText(text);
 
     if (vertical) {
@@ -56,7 +56,7 @@ function makeTextSprite(text: string, color = '#555555', vertical = false): THRE
         canvas.height = Math.ceil(metrics.width) + 20;
         ctx.translate(canvas.width / 2, canvas.height / 2);
         ctx.rotate(-Math.PI / 2);
-        ctx.font = `bold ${fontSize}px system-ui, sans-serif`;
+        ctx.font = `bold ${fontSize}px var(--font-noto-sans-thai), system-ui, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = color;
@@ -64,7 +64,7 @@ function makeTextSprite(text: string, color = '#555555', vertical = false): THRE
     } else {
         canvas.width = Math.ceil(metrics.width) + 20;
         canvas.height = fontSize + 20;
-        ctx.font = `bold ${fontSize}px system-ui, sans-serif`;
+        ctx.font = `bold ${fontSize}px var(--font-noto-sans-thai), system-ui, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = color;

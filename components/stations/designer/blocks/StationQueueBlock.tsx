@@ -145,7 +145,7 @@ export function StationQueueBlock({ title = "คิวสถานีนี้" 
                 !isPaneRetiredByMerge(p) &&
                 !hiddenPanesRef.current.has(p._id) &&
                 isStationMatch(p.currentStation, stationId, stationName) && 
-                (p.currentStatus === "in_progress" || p.currentStatus === "pending" || p.currentStatus === "awaiting_scan_out"),
+                (p.currentStatus === "in_progress" || p.currentStatus === "awaiting_scan_out"),
             );
 
             // Reconcile guarded panes with actual data

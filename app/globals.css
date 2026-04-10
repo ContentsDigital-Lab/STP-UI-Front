@@ -141,3 +141,12 @@
     grid-template-columns: 1fr !important;
   }
 }
+
+/* Ensure Recharts uses the correct font */
+.recharts-text, 
+.recharts-legend-item-text,
+.recharts-default-tooltip,
+.recharts-tooltip-label,
+.recharts-tooltip-item-list {
+  font-family: var(--font-sans) !important;
+}
