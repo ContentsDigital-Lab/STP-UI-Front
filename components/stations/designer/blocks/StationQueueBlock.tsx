@@ -80,7 +80,7 @@ function isPaneOnStationProgressQueue(
     stationName: string | null | undefined,
 ): boolean {
     if (!isStationMatch(p.currentStation, stationId, stationName)) return false;
-    return p.currentStatus === "in_progress" || p.currentStatus === "awaiting_scan_out";
+    return p.currentStatus === "in_progress";
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -169,7 +169,7 @@ export function StationQueueBlock({
                 !isPaneRetiredByMerge(p) &&
                 !hiddenPanesRef.current.has(p._id) &&
                 isStationMatch(p.currentStation, stationId, stationName) && 
-                (p.currentStatus === "in_progress" || p.currentStatus === "awaiting_scan_out"),
+                p.currentStatus === "in_progress",
             );
 
             // Reconcile guarded panes with actual data
@@ -179,7 +179,7 @@ export function StationQueueBlock({
                 
                 if (freshData) {
                     const isStillHere = isStationMatch(freshData.currentStation, stationId, stationName) && 
-                                      (freshData.currentStatus === "in_progress" || freshData.currentStatus === "pending" || freshData.currentStatus === "awaiting_scan_out");
+                                      (freshData.currentStatus === "in_progress" || freshData.currentStatus === "pending");
                     
                     if (!isStillHere) {
                         // Server explicitly says it's gone or finished (e.g. ready/completed/claimed) -> delete from guard

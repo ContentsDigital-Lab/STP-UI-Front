@@ -1653,7 +1653,7 @@ export default function CreateBillPage() {
                                                 vertices: [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: ap.glassHeight }, { x: 0, y: ap.glassHeight }],
                                             });
                                         }}
-                                        className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm px-4 focus:ring-[#E8601C]"
+                                        className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-xl px-4 focus:ring-[#E8601C]"
                                     />
                                 </div>
                                 <div className="space-y-1.5">
@@ -1671,7 +1671,7 @@ export default function CreateBillPage() {
                                                 vertices: [{ x: 0, y: 0 }, { x: ap.glassWidth, y: 0 }, { x: ap.glassWidth, y: h }, { x: 0, y: h }],
                                             });
                                         }}
-                                        className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm px-4 focus:ring-[#E8601C]"
+                                        className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-xl px-4 focus:ring-[#E8601C]"
                                     />
                                 </div>
                             </div>

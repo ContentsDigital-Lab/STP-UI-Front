@@ -47,7 +47,7 @@ let holeCounter = 0;
 function makeTextSprite(text: string, color = '#555555', vertical = false): THREE.Sprite {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d')!;
-    const fontSize = 48;
+    const fontSize = 80;
     ctx.font = `bold ${fontSize}px var(--font-noto-sans-thai), system-ui, sans-serif`;
     const metrics = ctx.measureText(text);
 
@@ -76,7 +76,7 @@ function makeTextSprite(text: string, color = '#555555', vertical = false): THRE
     const sprite = new THREE.Sprite(mat);
     sprite.userData.screenWidth = canvas.width;
     sprite.userData.screenHeight = canvas.height;
-    sprite.scale.set(canvas.width / 3, canvas.height / 3, 1);
+    sprite.scale.set(canvas.width / 1.5, canvas.height / 1.5, 1);
     return sprite;
 }
 
