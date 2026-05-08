@@ -82,7 +82,10 @@ export function QCInspectorBlock({
     const [errorFetch, setErrorFetch] = useState<string | null>(null);
 
     const baseChecklist: string[] = (() => {
-        try { return JSON.parse(checklistJson); } catch { return DEFAULT_CHECKLIST; }
+        try {
+            const parsed = JSON.parse(checklistJson);
+            return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_CHECKLIST;
+        } catch { return DEFAULT_CHECKLIST; }
     })();
 
     const checklistItems = [...baseChecklist, ...customChecklist];
@@ -140,14 +143,18 @@ export function QCInspectorBlock({
 
     const filteredPanes = useMemo(() => {
         return panes.filter(p => {
-            // Filter out panes that have reached terminal states for QC station
-            // "ready": QC Pass
-            // "cancelled": QC Fail (Remade)
-            // "completed": Already completed in production
+            // Only show panes that are AT this QC station
+            if (stationId) {
+                const paneCurrentStation = typeof p.currentStation === "object" && p.currentStation !== null
+                    ? (p.currentStation as { _id: string })._id
+                    : String(p.currentStation ?? "");
+                if (paneCurrentStation && paneCurrentStation !== stationId) return false;
+            }
+            // Filter out terminal states
             const currentStatus = p.currentStatus;
             return currentStatus !== "ready" && currentStatus !== "cancelled" && currentStatus !== "completed";
         });
-    }, [panes]);
+    }, [panes, stationId]);
 
     const addCustomItem = () => {
         const text = newItemText.trim();
@@ -169,15 +176,16 @@ export function QCInspectorBlock({
 
         setStatus(action === "qc_pass" ? "passing" : "failing");
         try {
-            // 1. Auto-Arrival (Scan-In) if pane is at a different station
+            // Station guard: pane must have arrived at THIS QC station
             const currentPaneStation = (paneData as any).currentStation?._id || (paneData as any).currentStation;
             if (currentPaneStation && currentPaneStation !== stationId) {
-                console.log(`QC: Auto-moving pane from ${currentPaneStation} to ${stationId}`);
-                await panesApi.scan(paneNum, { 
-                    station: stationId, 
-                    action: "scan_in", 
-                    force: true 
-                }).catch((err) => console.warn("QC: Auto-scan-in failed", err));
+                const stationLabel = (paneData as any).currentStation?.name || "สถานีอื่น";
+                toast.error(`กระจกยังไม่เสร็จกระบวนการ`, {
+                    description: `ยังอยู่ที่สถานี: ${stationLabel} — ต้องผ่านทุกสถานีก่อน`,
+                    duration: 6000
+                });
+                setStatus("idle");
+                return;
             }
 
             // 2. API requires station work to be finished (`complete`) before qc_pass / qc_fail.
@@ -467,7 +475,7 @@ export function QCInspectorBlock({
                             <>
                                 <Button
                                     onClick={() => handleAction("qc_pass")}
-                                    disabled={!isAllChecked || status !== "idle"}
+                                    disabled={checklistItems.length === 0 || !isAllChecked || status !== "idle"}
                                     className="flex-1 h-12 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold gap-2 shadow-lg shadow-emerald-500/20"
                                 >
                                     {status === "passing" ? (

@@ -415,6 +415,27 @@ export function QrScanBlock({
                     });
                     return;
                 }
+
+                // Station guard: only allow scanning if the pane has arrived at THIS station
+                // Note: we are already inside if (isPane) so no need to check contextType
+                if (stationId) {
+                    const paneStation = record.currentStation as Parameters<typeof isStationMatch>[0];
+                    const isAtThisStation = isStationMatch(paneStation, stationId, stationName);
+                    if (!isAtThisStation) {
+                        const stationLabel = getStationName(paneStation) || "ยังไม่ได้เข้าสถานีนี้";
+                        const locationMsg = getStationName(paneStation)
+                            ? `ยังอยู่ที่: ${stationLabel}`
+                            : "ยังไม่ได้เข้าสถานีนี้";
+                        setScanStatus("error");
+                        setMessage(`กระจกยังไม่เสร็จกระบวนการ — ${locationMsg}`);
+                        toast.error(`กระจก ${record.paneNumber} ยังไม่เสร็จกระบวนการ`, {
+                            description: `${locationMsg} — ต้องผ่านทุกสถานีก่อน`,
+                            duration: 6000
+                        });
+                        setTimeout(() => { setScanStatus("idle"); setMessage(""); }, 4000);
+                        return;
+                    }
+                }
                 setPaneData(record);
                 toast.success(`เปลี่ยนเป็นกระจก: ${record.paneNumber || '—'}`, {
                     icon: <ShieldCheck className="h-4 w-4 text-emerald-500" />,
