@@ -14,7 +14,7 @@ export function AppLayout({ children, title }: { children: React.ReactNode; titl
     const [mounted, setMounted] = useState(false);
     const pathname = usePathname();
     const router = useRouter();
-    const { isAuthenticated, isLoading } = useAuth();
+    const { isAuthenticated, isLoading, user } = useAuth();
 
     useEffect(() => {
         setMobileMenuOpen(false);
@@ -34,10 +34,16 @@ export function AppLayout({ children, title }: { children: React.ReactNode; titl
             if (!isAuthenticated && pathname !== "/login") {
                 router.push("/login");
             } else if (isAuthenticated && pathname === "/login") {
-                router.push("/");
+                const roleSlug = !user?.role ? "" : typeof user.role === "string" ? user.role : (user.role as any).slug ?? "";
+                router.push(roleSlug === "worker" ? "/stations" : "/");
+            } else if (isAuthenticated && pathname === "/") {
+                const roleSlug = !user?.role ? "" : typeof user.role === "string" ? user.role : (user.role as any).slug ?? "";
+                if (roleSlug === "worker") {
+                    router.push("/stations");
+                }
             }
         }
-    }, [isAuthenticated, isLoading, pathname, router]);
+    }, [isAuthenticated, isLoading, pathname, router, user]);
 
     if (!mounted || isLoading) {
         return (
