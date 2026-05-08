@@ -355,7 +355,7 @@ export function QrScanBlock({
         setTimeout(() => inputRef.current?.focus(), 50);
     }
 
-    // ── Standard lookup handler (unchanged) ────────────────────────────────────
+    // ── Standard lookup handler ─────────────────────────────────────────────
     async function handleScan(raw: string) {
         if (isScanOutMode) { handleStationScanOut(raw); return; }
         if (isScanMode) { handleStationScan(raw); return; }
@@ -370,30 +370,41 @@ export function QrScanBlock({
         setActionResult(null);
 
         try {
-            let endpoint: string;
+            let record: Record<string, unknown>;
 
-            if (parsed.type === "id") {
-                endpoint = `${dataSource}/${parsed.value}`;
-            } else if (parsed.type === "pane" || dataSource === "/panes") {
-                endpoint = `/panes?paneNumber=${encodeURIComponent(parsed.type === "pane" ? parsed.value : parsed.value)}&limit=1`;
+            // ── Pane lookup: use panesApi.getById for reliable data ──────────
+            if (parsed.type === "pane" || (parsed.type === "id" && dataSource === "/panes") || (parsed.type === "code" && dataSource === "/panes")) {
+                const paneRes = await panesApi.getById(parsed.value);
+                if (!paneRes.success || !paneRes.data) throw new Error("ไม่พบข้อมูลกระจกแผ่นนี้");
+                record = paneRes.data as unknown as Record<string, unknown>;
             } else {
-                endpoint = `${dataSource}?code=${encodeURIComponent(parsed.value)}&limit=1`;
+                // ── Non-pane lookup (orders, requests) ─────────────────────
+                let endpoint: string;
+                if (parsed.type === "id") {
+                    endpoint = `${dataSource}/${parsed.value}`;
+                } else {
+                    endpoint = `${dataSource}?code=${encodeURIComponent(parsed.value)}&limit=1`;
+                }
+
+                const res = await fetchApi<{ success: boolean; data: Record<string, unknown> | Record<string, unknown>[] }>(endpoint);
+                if (!res.success) throw new Error("ไม่พบข้อมูล");
+
+                let rawData = res.data;
+                if (!Array.isArray(rawData) && rawData && typeof rawData === "object") {
+                    const paginated = rawData as Record<string, unknown>;
+                    const inner = paginated.docs ?? paginated.items ?? paginated.results ?? paginated.data;
+                    if (Array.isArray(inner)) rawData = inner as Record<string, unknown>[];
+                }
+                const extracted = Array.isArray(rawData) ? rawData[0] : rawData;
+                if (!extracted) throw new Error("ไม่พบรายการที่ตรงกัน");
+                record = extracted;
             }
 
-            const res = await fetchApi<{ success: boolean; data: Record<string, unknown> | Record<string, unknown>[] }>(endpoint);
-
-            if (!res.success) throw new Error("ไม่พบข้อมูล");
-
-            const record = Array.isArray(res.data) ? res.data[0] : res.data;
-            if (!record) throw new Error("ไม่พบรายการที่ตรงกัน");
-
-            // Smart Mapping: Determine record type and update context properly
             const isPane    = !!record.paneNumber;
             const isOrder   = !!record.orderNumber || (!!record.code && !isPane);
             const isRequest = !!record.requestNumber;
 
             if (isPane) {
-                // Early Validation (Gatekeeper): Don't load panes that are already finished
                 const terminalStatuses = ["ready", "completed", "cancelled", "claimed"];
                 if (terminalStatuses.includes(String(record.currentStatus))) {
                     setScanStatus("error");
@@ -404,25 +415,22 @@ export function QrScanBlock({
                     });
                     return;
                 }
-
                 setPaneData(record);
-                toast.success(`เปลี่ยนเป็นกระจก: ${record.paneNumber || record.pane_number || record.code || '—'}`, {
+                toast.success(`เปลี่ยนเป็นกระจก: ${record.paneNumber || '—'}`, {
                     icon: <ShieldCheck className="h-4 w-4 text-emerald-500" />,
                     duration: 2000
                 });
-                // Also set order/request if populated in the pane object
                 if (record.order && typeof record.order === "object") setOrderData(record.order as Record<string, unknown>);
                 if (record.request && typeof record.request === "object") setRequestData(record.request as Record<string, unknown>);
             } else if (isOrder) {
                 setOrderData(record);
-                setPaneData(null); // Clear selected pane to show order overview
+                setPaneData(null);
                 toast.info(`โหลดข้อมูลออเดอร์: ${record.code || record.orderNumber || '—'}`, { duration: 2000 });
             } else if (isRequest) {
                 setRequestData(record);
                 setPaneData(null);
                 toast.info(`โหลดข้อมูลบิล: ${record.requestNumber || record.code || '—'}`, { duration: 2000 });
             } else {
-                // Fallback to dataSource configuration if type is ambiguous
                 if (contextType === "order")   setOrderData(record);
                 if (contextType === "request") setRequestData(record);
                 if (contextType === "pane")    setPaneData(record);
@@ -442,7 +450,7 @@ export function QrScanBlock({
             }
 
             setScanStatus("success");
-            setMessage(successMessage);
+            setMessage(isPane ? `สแกนสำเร็จ — ${record.paneNumber}` : successMessage);
             if (inputRef.current) inputRef.current.value = "";
             setTimeout(() => { setScanStatus("idle"); setMessage(""); }, 3000);
         } catch (err: unknown) {
@@ -946,50 +954,48 @@ export function QrScanBlock({
                     <label className="block text-xs font-semibold text-foreground/70">{label}</label>
                 )}
 
-                {!scannedRecord && (
-                    <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                            <div className="relative flex-1">
-                                <ScanLine className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50 pointer-events-none" />
-                                <input
-                                    ref={inputRef}
-                                    type="text"
-                                    placeholder={placeholder}
-                                    onKeyDown={handleKeyDown}
-                                    disabled={scanStatus === "loading"}
-                                    autoComplete="off"
-                                    className="w-full rounded-lg border bg-background pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60"
-                                />
-                                {scanStatus === "loading" && (
-                                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />
-                                )}
-                            </div>
-                            {enableCamera && (
-                                <button
-                                    onClick={() => setShowCamera(true)}
-                                    disabled={scanStatus === "loading"}
-                                    title="สแกนด้วยกล้อง"
-                                    className="shrink-0 rounded-lg border border-input bg-background px-3 py-2.5 hover:bg-muted transition-colors disabled:opacity-60"
-                                >
-                                    <Camera className="h-4 w-4 text-muted-foreground" />
-                                </button>
+                <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                        <div className="relative flex-1">
+                            <ScanLine className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/50 pointer-events-none" />
+                            <input
+                                ref={inputRef}
+                                type="text"
+                                placeholder={scannedRecord ? "สแกนแผ่นใหม่เพื่อเปลี่ยน..." : placeholder}
+                                onKeyDown={handleKeyDown}
+                                disabled={scanStatus === "loading"}
+                                autoComplete="off"
+                                className="w-full rounded-lg border bg-background pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60"
+                            />
+                            {scanStatus === "loading" && (
+                                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground animate-spin" />
                             )}
                         </div>
-
-                        {scanStatus === "success" && (
-                            <div className="flex items-center gap-1.5 text-emerald-600 text-xs">
-                                <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                                <span>{message}</span>
-                            </div>
-                        )}
-                        {scanStatus === "error" && (
-                            <div className="flex items-center gap-1.5 text-red-500 text-xs">
-                                <XCircle className="h-3.5 w-3.5 shrink-0" />
-                                <span>{message}</span>
-                            </div>
+                        {enableCamera && (
+                            <button
+                                onClick={() => setShowCamera(true)}
+                                disabled={scanStatus === "loading"}
+                                title="สแกนด้วยกล้อง"
+                                className="shrink-0 rounded-lg border border-input bg-background px-3 py-2.5 hover:bg-muted transition-colors disabled:opacity-60"
+                            >
+                                <Camera className="h-4 w-4 text-muted-foreground" />
+                            </button>
                         )}
                     </div>
-                )}
+
+                    {scanStatus === "success" && (
+                        <div className="flex items-center gap-1.5 text-emerald-600 text-xs">
+                            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                            <span>{message}</span>
+                        </div>
+                    )}
+                    {scanStatus === "error" && (
+                        <div className="flex items-center gap-1.5 text-red-500 text-xs">
+                            <XCircle className="h-3.5 w-3.5 shrink-0" />
+                            <span>{message}</span>
+                        </div>
+                    )}
+                </div>
 
                 {scannedRecord && (
                     <div className="rounded-xl border bg-card overflow-hidden shadow-sm">
@@ -997,6 +1003,11 @@ export function QrScanBlock({
                             <div className="flex items-center gap-2">
                                 <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                                 <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">สแกนสำเร็จ</span>
+                                {scannedRecord.paneNumber != null && (
+                                    <span className="text-sm font-bold font-mono text-emerald-800 dark:text-emerald-200">
+                                        — {String(scannedRecord.paneNumber)}
+                                    </span>
+                                )}
                                 {statusCfg && (
                                     <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium ${statusCfg.bg} ${statusCfg.text}`}>
                                         <span className={`h-1.5 w-1.5 rounded-full ${statusCfg.dot} animate-pulse`} />
