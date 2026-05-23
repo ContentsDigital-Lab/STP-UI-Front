@@ -378,7 +378,7 @@ export default function OrderRequestsPage() {
                     <TableCell><Skeleton className="h-5 w-[140px]" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-[100px]" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-[50px]" /></TableCell>
-                    <TableCell><Skeleton className="h-4 w-[80px]" /></TableCell>
+                    {false && <TableCell><Skeleton className="h-4 w-[80px]" /></TableCell>}
                     <TableCell><Skeleton className="h-6 w-[90px] rounded-full" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-[100px]" /></TableCell>
                     <TableCell className="text-right"><Skeleton className="h-6 w-[40px]" /></TableCell>
@@ -481,7 +481,7 @@ export default function OrderRequestsPage() {
                                 <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">{it.table.customer}</TableHead>
                                 <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">{it.table.productType}</TableHead>
                                 <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 text-center h-10">{it.table.quantity}</TableHead>
-                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">{it.table.price}</TableHead>
+                                {false && <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">{it.table.price}</TableHead>}
                                 <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">{it.table.deadline}</TableHead>
                                 <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">{it.table.assignedTo}</TableHead>
                                 <TableHead className="py-3 pr-4 h-10 w-10"></TableHead>
@@ -523,11 +523,13 @@ export default function OrderRequestsPage() {
                                                     {req.details?.quantity?.toLocaleString() || 0}
                                                 </span>
                                             </TableCell>
+                                            {false && (
                                             <TableCell className="py-3.5">
                                                 <span className="text-sm text-slate-600 dark:text-slate-300 tabular-nums">
                                                     {req.details?.estimatedPrice ? formatPrice(req.details.estimatedPrice) : "—"}
                                                 </span>
                                             </TableCell>
+                                            )}
                                             <TableCell className="py-3.5">
                                                 <span className={`text-sm ${deadlinePast ? "text-red-600 dark:text-red-400 font-medium" : deadlineWarning ? "text-amber-600 dark:text-amber-400 font-medium" : "text-slate-600 dark:text-slate-300"}`}>
                                                     {formatDate(req.deadline)}
@@ -677,12 +679,14 @@ export default function OrderRequestsPage() {
                                     <div className="space-y-3">
                                         <h3 className="text-xs font-medium text-slate-400 uppercase tracking-wider">{it.detail.orderInfo}</h3>
                                         <div className="grid grid-cols-2 gap-2.5">
+                                            {false && (
                                             <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-900">
                                                 <p className="text-[11px] text-slate-400 mb-0.5">{it.table.price}</p>
                                                 <p className="text-sm font-medium text-slate-900 dark:text-white">
-                                                    {selectedRequest.details?.estimatedPrice ? formatPrice(selectedRequest.details.estimatedPrice) : "—"}
+                                                    {selectedRequest?.details?.estimatedPrice ? formatPrice(selectedRequest!.details!.estimatedPrice) : "—"}
                                                 </p>
                                             </div>
+                                            )}
                                             <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-900">
                                                 <p className="text-[11px] text-slate-400 mb-0.5">{it.table.assignedTo}</p>
                                                 <p className="text-sm font-medium text-slate-900 dark:text-white">
@@ -896,6 +900,7 @@ export default function OrderRequestsPage() {
                                     className="h-10 rounded-xl"
                                 />
                             </div>
+                            {false && (
                             <div className="space-y-1.5">
                                 <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">{it.form.estimatedPrice}</Label>
                                 <Input
@@ -906,6 +911,7 @@ export default function OrderRequestsPage() {
                                     className="h-10 rounded-xl"
                                 />
                             </div>
+                            )}
                         </div>
 
                         {/* Delivery Location */}

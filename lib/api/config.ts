@@ -10,9 +10,13 @@ function handleUnauthorized() {
     if (isRedirectingToLogin) return;
 
     isRedirectingToLogin = true;
-    localStorage.removeItem("auth_token");
-    localStorage.removeItem("auth_user");
-    sessionStorage.setItem("session_expired", "true");
+    try {
+        localStorage.removeItem("auth_token");
+        localStorage.removeItem("auth_user");
+        sessionStorage.setItem("session_expired", "true");
+    } catch {
+        // Ignore storage errors caused by strict privacy settings (e.g. anti-detect browsers)
+    }
     window.location.href = "/login";
 }
 
@@ -59,6 +63,13 @@ export async function fetchApi<T>(
 
         if (response.status === 401) {
             handleUnauthorized();
+            // If we are redirecting to the login page due to session expiry,
+            // return a promise that never resolves. This "freezes" the fetch
+            // and prevents throwing an ApiError that crashes the app before
+            // the browser has time to complete the redirect.
+            if (isRedirectingToLogin) {
+                return new Promise(() => {}) as Promise<T>;
+            }
         }
 
         let data: Record<string, unknown> = {};

@@ -21,7 +21,7 @@ export function useCheckinSocket(stationName: string | null) {
         if (!stationName) return;
 
         const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : "";
-        const baseUrl = API_BASE_URL.replace("/api", "");
+        const baseUrl = new URL(API_BASE_URL).origin;
 
         const socket = io(baseUrl, {
             path: "/api/socket-entry",

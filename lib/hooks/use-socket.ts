@@ -17,7 +17,7 @@ function getSharedSocket() {
     }
 
     const token = localStorage.getItem('auth_token') || '';
-    const baseUrl = API_BASE_URL.replace('/api', '');
+    const baseUrl = new URL(API_BASE_URL).origin;
 
     sharedSocket = io(baseUrl, {
         path: '/api/socket-entry',

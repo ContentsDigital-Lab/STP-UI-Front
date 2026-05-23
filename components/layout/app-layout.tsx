@@ -59,6 +59,16 @@ export function AppLayout({ children, title }: { children: React.ReactNode; titl
         return <div className="min-h-screen bg-background">{children}</div>;
     }
 
+    if (!isAuthenticated) {
+        // Prevent protected components from mounting while the router redirects to /login.
+        // This stops the dashboard from flashing and making 401 API calls.
+        return (
+            <div className="flex h-screen w-full items-center justify-center bg-background">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        );
+    }
+
     return (
         <div
             className="flex h-screen overflow-hidden bg-background"

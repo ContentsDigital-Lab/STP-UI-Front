@@ -1928,6 +1928,7 @@ export default function CreateBillPage() {
                             </div>
 
                             {/* ── Price Calculator (per-pane) ──────────────── */}
+                            {false && (
                             <div className="space-y-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 p-3">
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em]">
                                     {lang === 'th' ? 'คำนวณราคา' : 'Price Calculator'}
@@ -1976,7 +1977,7 @@ export default function CreateBillPage() {
                                         </Label>
                                         <Input
                                             type="number" min={0}
-                                            value={typeof ap.grindingRate === 'object' ? '' : ap.grindingRate}
+                                            value={typeof ap.grindingRate === 'object' ? '' : (ap.grindingRate as string | number)}
                                             placeholder={typeof ap.grindingRate === 'object' ? 'Mixed' : '0'}
                                             onChange={e => updatePane({ grindingRate: parseFloat(e.target.value) || 0, priceAutoFilled: false })}
                                             className="h-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold px-3 focus:ring-[#E8601C]"
@@ -2068,6 +2069,7 @@ export default function CreateBillPage() {
                                     />
                                 </div>
                             </div>
+                            )}
 
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1.5">
@@ -2204,11 +2206,12 @@ export default function CreateBillPage() {
                                                     <span className="text-slate-400 shrink-0">×{p.quantity}</span>
                                                 </div>
                                                 <span className="font-bold shrink-0 ml-2">
-                                                    ฿{calc.total.toFixed(0)}
+                                                    {false && `฿${calc.total.toFixed(0)}`}
                                                 </span>
                                             </button>
                                         );
                                     })}
+                                    {false && (
                                     <div className="border-t border-slate-200 dark:border-slate-700 pt-2 mt-1 flex justify-between items-center px-2">
                                         <span className="text-[12px] font-bold text-slate-700 dark:text-slate-200">
                                             {lang === 'th'
@@ -2220,6 +2223,7 @@ export default function CreateBillPage() {
                                             ฿{grandTotal.toFixed(2)}
                                         </span>
                                     </div>
+                                    )}
                                 </div>
 
                             </div>
