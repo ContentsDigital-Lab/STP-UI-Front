@@ -56,6 +56,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { GlassDesigner, HoleData, VertexData } from "@/components/glass-designer";
+import { GlassSpecsTable } from "@/components/glass-specs-table";
 import { panesApi } from "@/lib/api/panes";
 import { requestsApi } from "@/lib/api/requests";
 import { stationsApi } from "@/lib/api/stations";
@@ -75,7 +76,7 @@ import { useWebSocket } from "@/lib/hooks/use-socket";
 
 // ─── Multi-pane spec type ────────────────────────────────────────────────────
 
-interface PaneSpec {
+export interface PaneSpec {
     id: string;
     glassWidth: number;
     glassHeight: number;
@@ -106,7 +107,7 @@ interface PaneSpec {
 }
 
 let _paneIdSeq = 0;
-const createDefaultPane = (ps: PricingSettings): PaneSpec => ({
+const createDefaultPane = (ps: PricingSettings, initialTolerances: string[] = []): PaneSpec => ({
     id: `pane_${++_paneIdSeq}_${Date.now()}`,
     glassWidth: 800,
     glassHeight: 600,
@@ -132,7 +133,7 @@ const createDefaultPane = (ps: PricingSettings): PaneSpec => ({
     cornerSpec: "",
     cornerNone: true,
     cornerSize: "",
-    dimensionTolerances: [],
+    dimensionTolerances: initialTolerances,
 });
 // ── Phone Number Format Helper ──────────────────────────────────────────────
 const formatPhoneNumber = (val: string) => {
@@ -227,7 +228,7 @@ const calculateGrindingCost = (p: PaneSpec, ps: PricingSettings): number => {
     return topCost + bottomCost + leftCost + rightCost;
 };
 
-const calcPanePrice = (p: PaneSpec, ps: PricingSettings) => {
+export const calcPanePrice = (p: PaneSpec, ps: PricingSettings) => {
     const wM = p.glassWidth / 1000;
     const hM = p.glassHeight / 1000;
     const sqFt = wM * hM * 10.764;
@@ -253,8 +254,9 @@ export default function CreateBillPage() {
     // ── Pricing settings (shared) ────────────────────────────────────────────
     const [pricingSettings, setPricingSettings] = useState<PricingSettings>(() => getCachedPricingSettings());
 
-    // ── Multi-pane state ─────────────────────────────────────────────────────
-    const [panes, setPanes] = useState<PaneSpec[]>(() => [createDefaultPane(getCachedPricingSettings())]);
+    // ── Multi-pane state (Dimension Tolerances & Shared Specs) ───────────────
+    const [sharedTolerances, setSharedTolerances] = useState<string[]>([]);
+    const [panes, setPanes] = useState<PaneSpec[]>(() => [createDefaultPane(getCachedPricingSettings(), [])]);
     const { stats: productionStats } = useProductionStats();
     const [allStations, setAllStations] = useState<Station[]>([]);
 
@@ -348,13 +350,57 @@ export default function CreateBillPage() {
         }));
     }, []);
 
+    const updatePaneAt = useCallback((idx: number, updates: Partial<PaneSpec>) => {
+        setPanes(prev => prev.map((p, i) => {
+            if (i !== idx) return p;
+            const merged = { ...p, ...updates };
+            if ('holes' in updates || 'glassWidth' in updates || 'glassHeight' in updates) {
+                const { notches } = countEdgeAndInterior(merged.holes, merged.glassWidth, merged.glassHeight);
+                merged.notchQty = notches;
+            }
+            return merged;
+        }));
+    }, []);
+
+    const handleGlassTypeChange = (idx: number, type: string) => {
+        const priceTable = Object.keys(pricingSettings.glassPrices[type] ?? {}).length > 0
+            ? pricingSettings.glassPrices
+            : DEFAULT_PRICING.glassPrices;
+        const typeEntry = priceTable[type];
+        const typeThicknesses = typeEntry && Object.keys(typeEntry).length > 0 ? Object.keys(typeEntry) : null;
+        const currentThicknessValid = !typeThicknesses || typeThicknesses.includes(panes[idx]?.thickness || "");
+        const newThickness = currentThicknessValid ? (panes[idx]?.thickness || "") : "";
+        const suggested = newThickness
+            ? (pricingSettings.glassPrices[type]?.[newThickness] ?? DEFAULT_PRICING.glassPrices[type]?.[newThickness])
+            : null;
+        const jt = jobTypeOptions.find(j => j.code === type);
+        const rawSuggest = jt?.defaultRawGlassTypes?.[0];
+        
+        setPanes(prev => prev.map((p, i) => {
+            if (i !== idx) return p;
+            return {
+                ...p,
+                glassType: type,
+                thickness: newThickness,
+                sheetsPerPane: jt?.sheetsPerPane ?? (/laminated/i.test(type) ? 2 : 1),
+                ...(rawSuggest && !p.rawGlassType ? { rawGlassType: rawSuggest } : {}),
+                ...(suggested ? { pricePerSqFt: suggested.pricePerSqFt, grindingRate: suggested.grindingRate, priceAutoFilled: true } : { pricePerSqFt: 0, grindingRate: 50, priceAutoFilled: false }),
+            };
+        }));
+    };
+
+    const updateSharedTolerances = useCallback((newTols: string[]) => {
+        setSharedTolerances(newTols);
+        setPanes(prev => prev.map(p => ({ ...p, dimensionTolerances: newTols })));
+    }, []);
+
     const addPane = useCallback(() => {
         setPanes(prev => {
-            const newPanes = [...prev, createDefaultPane(pricingSettings)];
+            const newPanes = [...prev, createDefaultPane(pricingSettings, sharedTolerances)];
             setActiveTab(newPanes.length - 1);
             return newPanes;
         });
-    }, [pricingSettings]);
+    }, [pricingSettings, sharedTolerances]);
 
     const removePane = useCallback((idx: number) => {
         setPanes(prev => {
@@ -1235,1004 +1281,461 @@ export default function CreateBillPage() {
             </div>
 
             {/* Main Content - Split Layout */}
-            <div className="flex flex-col lg:flex-row lg:flex-1 lg:overflow-hidden">
-                {/* Left: Glass Designer Canvas */}
-                <div className={`flex flex-col min-w-0 h-[50vh] sm:h-[60vh] lg:h-auto lg:flex-1 ${isRightPanelOpen ? "lg:border-r border-slate-200 dark:border-slate-800" : ""}`}>
-                    <GlassDesigner
-                        key={ap.id}
-                        width={ap.glassWidth}
-                        height={ap.glassHeight}
-                        holes={ap.holes}
-                        onHolesChange={handleHolesChange}
-                        onVerticesChange={handleVerticesChange}
-                        thickness={parseInt(ap.thickness) || 6}
-                        edges={{
-                            top: ap.edgeTop,
-                            bottom: ap.edgeBottom,
-                            left: ap.edgeLeft,
-                            right: ap.edgeRight
-                        }}
-                    />
-                </div>
-
-                {/* Right: Form Panel */}
-                <div className={`w-full shrink-0 bg-white dark:bg-slate-900 border-t lg:border-t-0 border-slate-200 dark:border-slate-800 ${isRightPanelOpen ? "lg:w-[380px] lg:overflow-y-auto lg:block" : "lg:hidden"}`}>
-                    {/* ── Pane Tabs (inside right panel) ───────────────── */}
-                    <div className="flex items-center gap-1 px-4 sm:px-6 pt-4 sm:pt-5 pb-0 overflow-x-auto">
-                        {panes.map((pane, idx) => {
-                            const isActive = idx === activeTab;
-                            return (
-                                <div
-                                    key={pane.id}
-                                    role="tab"
-                                    tabIndex={0}
-                                    onClick={() => setActiveTab(idx)}
-                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setActiveTab(idx); }}
-                                    className={`group relative flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all shrink-0 cursor-pointer select-none ${
-                                        isActive
-                                            ? 'bg-[#E8601C]/10 text-[#E8601C]'
-                                            : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                                    }`}
-                                >
-                                    <span className="truncate max-w-[100px]">
-                                        {pane.glassType ? `${pane.glassType} ${idx + 1}` : (lang === 'th' ? `แผ่น ${idx + 1}` : `Pane ${idx + 1}`)}
-                                    </span>
-                                    {panes.length > 1 && (
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger
-                                                className={`p-0.5 rounded text-slate-300 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all cursor-pointer focus:outline-none ${
-                                                    isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                                                }`}
-                                                onClick={(e) => e.stopPropagation()}
-                                            >
-                                                <X className="h-2.5 w-2.5" />
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="start" className="rounded-xl min-w-[130px]">
-                                                <DropdownMenuItem onClick={() => duplicatePane(idx)} className="rounded-lg text-xs font-semibold gap-2">
-                                                    <Copy className="h-3.5 w-3.5" />
-                                                    {lang === 'th' ? 'ทำซ้ำ' : 'Duplicate'}
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem onClick={() => removePane(idx)} className="rounded-lg text-xs font-semibold gap-2 text-red-600 focus:text-red-600">
-                                                    <Trash2 className="h-3.5 w-3.5" />
-                                                    {lang === 'th' ? 'ลบ' : 'Remove'}
-                                                </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
-                                    )}
-                                </div>
-                            );
-                        })}
-                        <button
-                            onClick={addPane}
-                            className="flex items-center gap-0.5 px-2 py-1.5 rounded-lg text-[11px] font-bold text-slate-400 hover:text-[#E8601C] hover:bg-[#E8601C]/5 transition-colors whitespace-nowrap shrink-0"
-                        >
-                            <Plus className="h-3 w-3" />
-                        </button>
+            <div className="flex flex-col lg:flex-1 lg:overflow-hidden">
+                {/* Top Section: Glass Designer Canvas & Sidebar */}
+                <div className="flex flex-col lg:flex-row lg:flex-1 lg:overflow-hidden">
+                    {/* Left: Glass Designer Canvas */}
+                    <div className={`flex-1 relative min-h-[300px] h-[35vh] lg:h-auto ${isRightPanelOpen ? "lg:border-r border-slate-200 dark:border-slate-800" : ""}`}>
+                        <GlassDesigner
+                            key={ap.id}
+                            width={ap.glassWidth}
+                            height={ap.glassHeight}
+                            holes={ap.holes}
+                            onHolesChange={handleHolesChange}
+                            onVerticesChange={handleVerticesChange}
+                            thickness={parseInt(ap.thickness) || 6}
+                            edges={{
+                                top: ap.edgeTop,
+                                bottom: ap.edgeBottom,
+                                left: ap.edgeLeft,
+                                right: ap.edgeRight
+                            }}
+                        />
                     </div>
 
-                    <div className="p-4 sm:p-6 space-y-6 sm:space-y-8">
-                        <h3 className="text-sm font-bold text-slate-900 dark:text-white lg:hidden">
-                            {lang === 'th' ? 'รายละเอียดคำสั่งซื้อ' : 'Order Details'}
-                        </h3>
-                        {/* Customer Section */}
-                        <div className="space-y-3">
-                            <div className="flex items-center gap-2">
-                                <Users className="h-4 w-4 text-primary dark:text-[#E8601C]" />
-                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">
-                                    {lang === 'th' ? 'ลูกค้า' : 'Customer'}
-                                </h3>
-                            </div>
-                            <div ref={customerRef} className="relative">
-                                <input
-                                    placeholder={lang === 'th' ? 'ค้นหาหรือเพิ่มลูกค้า...' : 'Search or add customer...'}
-                                    value={customerSearch}
-                                    onChange={(e) => {
-                                        setCustomerSearch(e.target.value);
-                                        setCustomerOpen(true);
-                                    }}
-                                    onFocus={() => {
-                                        setCustomerSearch("");
-                                        setCustomerOpen(true);
-                                        setGlassTypeOpen(false);
-                                        setThicknessOpen(false);
-                                    }}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter' && customerSearch.trim() && filteredCustomers.length === 0) {
-                                            openNewCustomerDialog(customerSearch.trim());
-                                        }
-                                    }}
-                                    className="w-full h-12 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm pl-4 pr-10 hover:border-[#E8601C]/50 transition-colors outline-none focus:ring-1 focus:ring-[#E8601C] focus:border-[#E8601C]"
-                                />
-                                <ChevronsUpDown className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-                                {customerOpen && (
-                                    <div className="absolute z-50 w-full mt-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl overflow-hidden">
-                                        <div className="max-h-[220px] overflow-y-auto p-1.5">
-                                            {filteredCustomers.length > 0 ? (
-                                                filteredCustomers.map(c => (
-                                                    <button
-                                                        key={c._id}
-                                                        type="button"
-                                                        onClick={() => {
-                                                            setOrderData(prev => ({ ...prev, customer: c._id }));
-                                                            setCustomerSearch(c.name);
-                                                            setCustomerOpen(false);
-                                                        }}
-                                                        className={`flex items-center justify-between w-full px-3 py-2.5 rounded-xl text-left text-sm font-bold transition-colors ${
-                                                            orderData.customer === c._id
-                                                                ? 'bg-[#E8601C]/10 text-[#E8601C]'
-                                                                : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
-                                                        }`}
-                                                    >
-                                                        <div className="flex flex-col">
-                                                            <span>{c.name}</span>
-                                                            {c.phone && <span className="text-[10px] opacity-60 font-medium">{c.phone}</span>}
-                                                        </div>
-                                                        {orderData.customer === c._id && <Check className="h-4 w-4 shrink-0" />}
-                                                    </button>
-                                                ))
-                                            ) : customerSearch.trim() ? (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => openNewCustomerDialog(customerSearch.trim())}
-                                                    className="flex items-center gap-2 w-full px-3 py-3 rounded-xl text-sm font-bold text-blue-600 dark:text-[#E8601C] hover:bg-blue-50 dark:hover:bg-[#E8601C]/10 transition-colors"
-                                                >
-                                                    <Plus className="h-4 w-4" />
-                                                    {lang === 'th' ? `เพิ่ม "${customerSearch.trim()}"` : `Add "${customerSearch.trim()}"`}
-                                                </button>
-                                            ) : (
-                                                <p className="text-center text-sm text-slate-400 py-4">{lang === 'th' ? 'ไม่พบลูกค้า' : 'No customers found'}</p>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                            {selectedCustomer && (
-                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-3 text-xs space-y-1">
-                                    {selectedCustomer.phone && (
-                                        <p className="text-slate-500"><span className="font-bold text-slate-700 dark:text-slate-300">Tel:</span> {selectedCustomer.phone}</p>
-                                    )}
-                                    {selectedCustomer.address && (
-                                        <p className="text-slate-500"><span className="font-bold text-slate-700 dark:text-slate-300">Addr:</span> {selectedCustomer.address}</p>
-                                    )}
-                                    {selectedCustomer.discount > 0 && (
-                                        <Badge className="bg-emerald-50 text-emerald-600 border-none text-[10px] font-semibold mt-1">
-                                            Discount: {selectedCustomer.discount}%
-                                        </Badge>
-                                    )}
-                                </div>
-                            )}
-                        </div>
+                    {/* Right: Form Panel (Shared Values & Order Summary) */}
+                    <div className={`w-full shrink-0 bg-white dark:bg-slate-900 border-t lg:border-t-0 border-slate-200 dark:border-slate-800 ${isRightPanelOpen ? "lg:w-[380px] lg:overflow-y-auto lg:block" : "lg:hidden"}`}>
+                        <div className="p-4 sm:p-6 space-y-6 sm:space-y-8">
+                            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                                {lang === 'th' ? 'ข้อมูลคำสั่งซื้อทั่วไป' : 'General Order Info'}
+                            </h3>
 
-                        {/* ลักษณะงาน (per-pane) */}
-                        <div className="space-y-3">
-                            <div className="flex items-center gap-2">
-                                <Package className="h-4 w-4 text-primary dark:text-[#E8601C]" />
-                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">
-                                    {lang === 'th' ? 'ลักษณะงาน' : 'Job Type'}
-                                </h3>
-                            </div>
-
+                            {/* Customer Section (Shared) */}
                             <div className="space-y-3">
-                                <div ref={glassTypeRef} className="relative">
+                                <div className="flex items-center gap-2">
+                                    <Users className="h-4 w-4 text-primary dark:text-[#E8601C]" />
+                                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">
+                                        {lang === 'th' ? 'ลูกค้า' : 'Customer'}
+                                    </h3>
+                                </div>
+                                <div ref={customerRef} className="relative">
                                     <input
-                                        placeholder={lang === 'th' ? 'ค้นหาหรือเพิ่มประเภท...' : 'Search or add type...'}
-                                        value={glassTypeSearch}
+                                        placeholder={lang === 'th' ? 'ค้นหาหรือเพิ่มลูกค้า...' : 'Search or add customer...'}
+                                        value={customerSearch}
                                         onChange={(e) => {
-                                            setGlassTypeSearch(e.target.value);
-                                            setGlassTypeOpen(true);
+                                            setCustomerSearch(e.target.value);
+                                            setCustomerOpen(true);
                                         }}
                                         onFocus={() => {
-                                            setGlassTypeSearch("");
-                                            setGlassTypeOpen(true);
-                                            setCustomerOpen(false);
-                                            setThicknessOpen(false);
+                                            setCustomerSearch("");
+                                            setCustomerOpen(true);
                                         }}
                                         onKeyDown={(e) => {
-                                            if (e.key === 'Enter' && glassTypeSearch.trim() && filteredGlassTypes.length === 0) {
-                                                handleAddGlassType(glassTypeSearch.trim());
+                                            if (e.key === 'Enter' && customerSearch.trim() && filteredCustomers.length === 0) {
+                                                openNewCustomerDialog(customerSearch.trim());
                                             }
                                         }}
-                                        className="w-full h-11 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm pl-4 pr-10 hover:border-[#E8601C]/50 transition-colors outline-none focus:ring-1 focus:ring-[#E8601C] focus:border-[#E8601C]"
+                                        className="w-full h-12 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm pl-4 pr-10 hover:border-[#E8601C]/50 transition-colors outline-none focus:ring-1 focus:ring-[#E8601C] focus:border-[#E8601C]"
                                     />
                                     <ChevronsUpDown className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-                                    {glassTypeOpen && (
+                                    {customerOpen && (
                                         <div className="absolute z-50 w-full mt-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl overflow-hidden">
                                             <div className="max-h-[220px] overflow-y-auto p-1.5">
-                                                {filteredGlassTypes.length > 0 ? (
-                                                    filteredGlassTypes.map(type => (
+                                                {filteredCustomers.length > 0 ? (
+                                                    filteredCustomers.map(c => (
                                                         <button
-                                                            key={type}
+                                                            key={c._id}
                                                             type="button"
                                                             onClick={() => {
-                                                                const priceTable = Object.keys(pricingSettings.glassPrices[type] ?? {}).length > 0
-                                                                    ? pricingSettings.glassPrices
-                                                                    : DEFAULT_PRICING.glassPrices;
-                                                                const typeEntry = priceTable[type];
-                                                                const typeThicknesses = typeEntry && Object.keys(typeEntry).length > 0 ? Object.keys(typeEntry) : null;
-                                                                const currentThicknessValid = !typeThicknesses || typeThicknesses.includes(ap.thickness);
-                                                                const newThickness = currentThicknessValid ? ap.thickness : "";
-                                                                const suggested = newThickness
-                                                                    ? (pricingSettings.glassPrices[type]?.[newThickness] ?? DEFAULT_PRICING.glassPrices[type]?.[newThickness])
-                                                                    : null;
-                                                                const jt = jobTypeOptions.find(j => j.code === type);
-                                                                const rawSuggest = jt?.defaultRawGlassTypes?.[0];
-                                                                updatePane({
-                                                                    glassType: type,
-                                                                    thickness: newThickness,
-                                                                    sheetsPerPane: jt?.sheetsPerPane ?? (/laminated/i.test(type) ? 2 : 1),
-                                                                    ...(rawSuggest && !ap.rawGlassType ? { rawGlassType: rawSuggest } : {}),
-                                                                    ...(suggested ? { pricePerSqFt: suggested.pricePerSqFt, grindingRate: suggested.grindingRate, priceAutoFilled: true } : { pricePerSqFt: 0, grindingRate: 50, priceAutoFilled: false }),
-                                                                });
-                                                                setGlassTypeSearch(type);
-                                                                setThicknessSearch(newThickness);
-                                                                setGlassTypeOpen(false);
+                                                                setOrderData(prev => ({ ...prev, customer: c._id }));
+                                                                setCustomerSearch(c.name);
+                                                                setCustomerOpen(false);
                                                             }}
                                                             className={`flex items-center justify-between w-full px-3 py-2.5 rounded-xl text-left text-sm font-bold transition-colors ${
-                                                                ap.glassType === type
+                                                                orderData.customer === c._id
                                                                     ? 'bg-[#E8601C]/10 text-[#E8601C]'
                                                                     : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
                                                             }`}
                                                         >
-                                                            <span>{type}</span>
-                                                            {ap.glassType === type && <Check className="h-4 w-4 shrink-0" />}
+                                                            <div className="flex flex-col">
+                                                                <span>{c.name}</span>
+                                                                {c.phone && <span className="text-[10px] opacity-60 font-medium">{c.phone}</span>}
+                                                            </div>
+                                                            {orderData.customer === c._id && <Check className="h-4 w-4 shrink-0" />}
                                                         </button>
                                                     ))
-                                                ) : glassTypeSearch.trim() ? (
+                                                ) : customerSearch.trim() ? (
                                                     <button
                                                         type="button"
-                                                        onClick={() => handleAddGlassType(glassTypeSearch.trim())}
+                                                        onClick={() => openNewCustomerDialog(customerSearch.trim())}
                                                         className="flex items-center gap-2 w-full px-3 py-3 rounded-xl text-sm font-bold text-blue-600 dark:text-[#E8601C] hover:bg-blue-50 dark:hover:bg-[#E8601C]/10 transition-colors"
                                                     >
                                                         <Plus className="h-4 w-4" />
-                                                        {lang === 'th' ? `เพิ่ม "${glassTypeSearch.trim()}"` : `Add "${glassTypeSearch.trim()}"`}
+                                                        {lang === 'th' ? `เพิ่ม "${customerSearch.trim()}"` : `Add "${customerSearch.trim()}"`}
                                                     </button>
                                                 ) : (
-                                                    <p className="text-center text-sm text-slate-400 py-4">{lang === 'th' ? 'ไม่พบประเภท' : 'No types found'}</p>
+                                                    <p className="text-center text-sm text-slate-400 py-4">{lang === 'th' ? 'ไม่พบลูกค้า' : 'No customers found'}</p>
                                                 )}
                                             </div>
                                         </div>
                                     )}
                                 </div>
-
-                                <div>
-                                    <Label className="text-[10px] font-semibold text-slate-400 uppercase mb-1.5 block">
-                                        {lang === 'th' ? 'ความหนา' : 'Thickness'}
-                                    </Label>
-                                    <div ref={thicknessRef} className="relative">
-                                        <input
-                                            placeholder={lang === 'th' ? 'ค้นหาหรือเพิ่ม (mm)...' : 'Search or add (mm)...'}
-                                            value={thicknessSearch}
-                                            onChange={(e) => {
-                                                const val = e.target.value.replace(/[^0-9]/g, '');
-                                                setThicknessSearch(val);
-                                                setThicknessOpen(true);
-                                            }}
-                                            onFocus={() => {
-                                                setThicknessSearch("");
-                                                setThicknessOpen(true);
-                                                setCustomerOpen(false);
-                                                setGlassTypeOpen(false);
-                                            }}
-                                            onKeyDown={(e) => {
-                                                if (e.key === 'Enter' && thicknessSearch.trim()) {
-                                                    const match = `${thicknessSearch}mm`;
-                                                    if (thicknesses.includes(match)) {
-                                                        const suggested = pricingSettings.glassPrices[ap.glassType]?.[match];
-                                                        updatePane({
-                                                            thickness: match,
-                                                            ...(suggested ? { pricePerSqFt: suggested.pricePerSqFt, grindingRate: suggested.grindingRate, priceAutoFilled: true } : { pricePerSqFt: 0, grindingRate: 50, priceAutoFilled: false }),
-                                                        });
-                                                        setThicknessSearch(match);
-                                                        setThicknessOpen(false);
-                                                    } else {
-                                                        handleAddThickness(thicknessSearch.trim());
-                                                    }
-                                                }
-                                            }}
-                                            className="w-full h-11 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm pl-4 pr-10 hover:border-[#E8601C]/50 transition-colors outline-none focus:ring-1 focus:ring-[#E8601C] focus:border-[#E8601C]"
-                                        />
-                                        <ChevronsUpDown className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-                                        {thicknessOpen && (
-                                            <div className="absolute z-50 w-full mt-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl overflow-hidden">
-                                                <div className="max-h-[220px] overflow-y-auto p-1.5">
-                                                    {filteredThicknesses.length > 0 ? (
-                                                        filteredThicknesses.map(t => (
-                                                            <button
-                                                                key={t}
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    const suggested = pricingSettings.glassPrices[ap.glassType]?.[t]
-                                                                        ?? DEFAULT_PRICING.glassPrices[ap.glassType]?.[t];
-                                                                    updatePane({
-                                                                        thickness: t,
-                                                                        ...(suggested ? { pricePerSqFt: suggested.pricePerSqFt, grindingRate: suggested.grindingRate, priceAutoFilled: true } : { pricePerSqFt: 0, grindingRate: 50, priceAutoFilled: false }),
-                                                                    });
-                                                                    setThicknessSearch(t);
-                                                                    setThicknessOpen(false);
-                                                                }}
-                                                                className={`flex items-center justify-between w-full px-3 py-2.5 rounded-xl text-left text-sm font-bold transition-colors ${
-                                                                    ap.thickness === t
-                                                                        ? 'bg-[#E8601C]/10 text-[#E8601C]'
-                                                                        : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
-                                                                }`}
-                                                            >
-                                                                <span>{t}</span>
-                                                                {ap.thickness === t && <Check className="h-4 w-4 shrink-0" />}
-                                                            </button>
-                                                        ))
-                                                    ) : thicknessSearch.trim() ? (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleAddThickness(thicknessSearch.trim())}
-                                                            className="flex items-center gap-2 w-full px-3 py-3 rounded-xl text-sm font-bold text-blue-600 dark:text-[#E8601C] hover:bg-blue-50 dark:hover:bg-[#E8601C]/10 transition-colors"
-                                                        >
-                                                            <Plus className="h-4 w-4" />
-                                                            {lang === 'th' ? `เพิ่ม "${thicknessSearch.trim()}mm"` : `Add "${thicknessSearch.trim()}mm"`}
-                                                        </button>
-                                                    ) : (
-                                                        <p className="text-center text-sm text-slate-400 py-4">{lang === 'th' ? 'ไม่พบ' : 'No match'}</p>
-                                                    )}
-                                                </div>
-                                            </div>
+                                {selectedCustomer && (
+                                    <div className="bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-3 text-xs space-y-1">
+                                        {selectedCustomer.phone && (
+                                            <p className="text-slate-500"><span className="font-bold text-slate-700 dark:text-slate-300">Tel:</span> {selectedCustomer.phone}</p>
+                                        )}
+                                        {selectedCustomer.address && (
+                                            <p className="text-slate-500"><span className="font-bold text-slate-700 dark:text-slate-300">Addr:</span> {selectedCustomer.address}</p>
+                                        )}
+                                        {selectedCustomer.discount > 0 && (
+                                            <Badge className="bg-emerald-50 text-emerald-600 border-none text-[10px] font-semibold mt-1">
+                                                Discount: {selectedCustomer.discount}%
+                                            </Badge>
                                         )}
                                     </div>
-                                </div>
+                                )}
                             </div>
 
-                            {/* กระจกดิบสำหรับเบิก */}
-                            <div className="pt-3 border-t border-slate-200 dark:border-slate-700 space-y-3">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                                    <Layers className="h-3 w-3" />
-                                    {lang === 'th' ? 'กระจกดิบที่ใช้ (สำหรับเบิกจากคลัง)' : 'Raw Glass for Withdrawal'}
-                                </p>
-
-                                {/* rawGlassType */}
-                                <Select
-                                    value={ap.rawGlassType}
-                                    onValueChange={(v) => updatePane({ rawGlassType: v ?? "" })}
-                                >
-                                    <SelectTrigger className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm focus:ring-[#E8601C]">
-                                        <SelectValue placeholder={lang === 'th' ? 'ชนิดกระจกดิบ...' : 'Raw glass type...'} />
-                                    </SelectTrigger>
-                                    <SelectContent className="rounded-2xl">
-                                        {(rawGlassTypeOptions.length > 0
-                                            ? rawGlassTypeOptions
-                                            : ['Clear', 'Tinted', 'Reflective', 'Frosted', 'Patterned']
-                                        ).map(t => (
-                                            <SelectItem key={t} value={t} className="font-semibold">{t}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-
-                                {/* rawGlassColor quick-select */}
-                                <div className="space-y-1.5">
-                                    <Label className="text-[10px] font-semibold text-slate-400 uppercase">
-                                        {lang === 'th' ? 'สีกระจก' : 'Glass Color'}
-                                    </Label>
-                                    <div className="flex flex-wrap gap-1.5">
-                                        {['ใส', 'เขียว', 'ชา', 'เทา', 'บรอนซ์'].map(color => (
-                                            <button
-                                                key={color}
-                                                type="button"
-                                                onClick={() => updatePane({ rawGlassColor: ap.rawGlassColor === color ? '' : color })}
-                                                className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition-colors ${
-                                                    ap.rawGlassColor === color
-                                                        ? 'bg-[#E8601C] text-white border-[#E8601C]'
-                                                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-[#E8601C]/50'
-                                                }`}
-                                            >
-                                                {color}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Dimensions (per-pane) */}
-                        <div className="space-y-3">
-                            <div className="flex items-center gap-2">
-                                <Ruler className="h-4 w-4 text-primary dark:text-[#E8601C]" />
-                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">
-                                    {lang === 'th' ? 'ขนาดกระจก' : 'Dimensions'}
-                                </h3>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="space-y-1.5">
-                                    <Label className="text-[10px] font-semibold text-slate-400 uppercase">
-                                        {lang === 'th' ? 'กว้าง' : 'Width'} (mm)
-                                    </Label>
-                                    <Input
-                                        type="number"
-                                        min={50}
-                                        value={ap.glassWidth}
-                                        onChange={(e) => {
-                                            const w = Math.max(1, parseInt(e.target.value) || 1);
-                                            updatePane({
-                                                glassWidth: w,
-                                                vertices: [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: ap.glassHeight }, { x: 0, y: ap.glassHeight }],
-                                            });
-                                        }}
-                                        className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-xl px-4 focus:ring-[#E8601C]"
-                                    />
-                                </div>
-                                <div className="space-y-1.5">
-                                    <Label className="text-[10px] font-semibold text-slate-400 uppercase">
-                                        {lang === 'th' ? 'สูง' : 'Height'} (mm)
-                                    </Label>
-                                    <Input
-                                        type="number"
-                                        min={50}
-                                        value={ap.glassHeight}
-                                        onChange={(e) => {
-                                            const h = Math.max(1, parseInt(e.target.value) || 1);
-                                            updatePane({
-                                                glassHeight: h,
-                                                vertices: [{ x: 0, y: 0 }, { x: ap.glassWidth, y: 0 }, { x: ap.glassWidth, y: h }, { x: 0, y: h }],
-                                            });
-                                        }}
-                                        className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-xl px-4 focus:ring-[#E8601C]"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Edge Processing & Corners (Refined) */}
-                        <div className="space-y-4 pt-3 border-t border-slate-200 dark:border-slate-800">
-                            <div className="flex items-center gap-2">
-                                <Maximize2 className="h-4 w-4 text-primary dark:text-[#E8601C]" />
-                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">
-                                    {lang === 'th' ? 'การเจียรขอบและมุม' : 'Edges & Corners'}
-                                </h3>
-                            </div>
-
-                            {/* Edge Profiles Per Side */}
-                            <div className="grid grid-cols-2 gap-4">
-                                {(['top', 'bottom', 'left', 'right'] as const).map((side) => (
-                                    <div key={side} className="space-y-1.5">
-                                        <Label className="text-[10px] font-semibold text-slate-400 uppercase">
-                                            {lang === 'th' ? `ขอบ ${side === 'top' ? 'บน' : side === 'bottom' ? 'ล่าง' : side === 'left' ? 'ซ้าย' : 'ขวา'}` : `${side.charAt(0).toUpperCase() + side.slice(1)} Edge`}
-                                        </Label>
-                                        <Select
-                                            value={ap[`edge${side.charAt(0).toUpperCase() + side.slice(1)}` as keyof PaneSpec] as string}
-                                            onValueChange={(v) => updatePane({ [`edge${side.charAt(0).toUpperCase() + side.slice(1)}`]: v })}
-                                        >
-                                            <SelectTrigger className="h-9 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-xl font-bold text-xs">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent className="rounded-xl">
-                                                <SelectItem value="N" className="text-xs font-semibold">ตัดธรรมดา (Plain)</SelectItem>
-                                                <SelectItem value="D" className="text-xs font-semibold">D (เจียรริมขัดมัน)</SelectItem>
-                                                <SelectItem value="B" className="text-xs font-semibold">B (เจียรหยาบ)</SelectItem>
-                                                <SelectItem value="BE" className="text-xs font-semibold">BE (เจียรปลี)</SelectItem>
-                                                <SelectItem value="AA" className="text-xs font-semibold">AA (เจียรลูกหนู)</SelectItem>
-                                                <SelectItem value="A" className="text-xs font-semibold">A (ลบคม)</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                ))}
-                            </div>
-
-                            {/* Corner Spec (Checkbox based) */}
-                            <div className="space-y-2 border-t border-slate-100 dark:border-slate-800 pt-3">
+                            {/* Shared Spec: Dimension Tolerances & Usage */}
+                            <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-800">
                                 <Label className="text-[10px] font-semibold text-slate-400 uppercase block mb-1">
-                                    {lang === 'th' ? 'คิ้ว / มุม' : 'Corners'}
+                                    {lang === 'th' ? 'การยอมรับขนาด / การใช้งาน (ใช้ร่วมกัน)' : 'Tolerance / Usage (Shared)'}
                                 </Label>
-                                <div className="flex flex-wrap gap-4">
-                                    <div className="flex items-center space-x-2">
-                                        <Checkbox 
-                                            id="corner-none" 
-                                            checked={ap.cornerNone} 
-                                            onCheckedChange={(checked) => updatePane({ cornerNone: !!checked, cornerSize: checked ? "" : ap.cornerSize })} 
-                                        />
-                                        <label htmlFor="corner-none" className="text-xs font-medium cursor-pointer">
-                                            {lang === 'th' ? 'ไม่มี' : 'None'}
-                                        </label>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                        <Checkbox 
-                                            id="corner-has" 
-                                            checked={!ap.cornerNone} 
-                                            onCheckedChange={(checked) => updatePane({ cornerNone: !checked })} 
-                                        />
-                                        <label htmlFor="corner-has" className="text-xs font-medium cursor-pointer">
-                                            {lang === 'th' ? 'มี ขนาด' : 'With Size'}
-                                        </label>
-                                        {!ap.cornerNone && (
-                                            <Input
-                                                placeholder="..."
-                                                value={ap.cornerSize}
-                                                onChange={(e) => updatePane({ cornerSize: e.target.value })}
-                                                className="h-7 w-20 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-lg text-xs px-2"
+                                <div className="space-y-2.5">
+                                    {[
+                                        { id: 'strict', th: 'ตาม Dimension ที่ระบุเท่านั้น (+0/-1 มม.)', en: 'Strict Dimension (+0/-1 mm)' },
+                                        { id: 'flexible', th: 'ขนาดกระจกสามารถคลาดเคลื่อนได้ตามมาตรฐาน มอก.(+/-2มม.)', en: 'Flexible (+/-2 mm)' },
+                                        { id: 'furniture', th: 'งานเฟอร์นิเจอร์ งานบิวท์อิน', en: 'Furniture / Built-in' },
+                                        { id: 'center', th: 'ตามเซ็นเตอร์ที่ระบุเท่านั้น (+0/-1 มม.)', en: 'Center Only (+0/-1 mm)' },
+                                    ].map((item) => (
+                                        <div key={item.id} className="flex items-center space-x-2 py-0.5">
+                                            <Checkbox 
+                                                id={`tol-${item.id}`} 
+                                                checked={sharedTolerances.includes(item.id)} 
+                                                onCheckedChange={(checked) => {
+                                                    const newTols = checked 
+                                                        ? [...sharedTolerances, item.id]
+                                                        : sharedTolerances.filter(t => t !== item.id);
+                                                    updateSharedTolerances(newTols);
+                                                }} 
                                             />
-                                        )}
-                                    </div>
+                                            <label htmlFor={`tol-${item.id}`} className="text-[11px] leading-tight font-medium cursor-pointer text-slate-600 dark:text-slate-300 select-none">
+                                                {lang === 'th' ? item.th : item.en}
+                                            </label>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
 
-                            {/* Dimension Tolerance (Checkbox based) */}
-                            <div className="space-y-3 border-t border-slate-100 dark:border-slate-800 pt-3">
-                                <Label className="text-[10px] font-semibold text-slate-400 uppercase block mb-2">
-                                    {lang === 'th' ? 'การยอมรับขนาด / การใช้งาน' : 'Tolerance / Usage'}
-                                </Label>
-                                {[
-                                    { id: 'strict', th: 'ตาม Dimension ที่ระบุเท่านั้น (+0/-1 มม.)', en: 'Strict Dimension (+0/-1 mm)' },
-                                    { id: 'flexible', th: 'ขนาดกระจกสามารถคลาดเคลื่อนได้ตามมาตรฐาน มอก.(+/-2มม.)', en: 'Flexible (+/-2 mm)' },
-                                    { id: 'furniture', th: 'งานเฟอร์นิเจอร์ งานบิวท์อิน', en: 'Furniture / Built-in' },
-                                    { id: 'center', th: 'ตามเซ็นเตอร์ที่ระบุเท่านั้น (+0/-1 มม.)', en: 'Center Only (+0/-1 mm)' },
-                                ].map((item) => (
-                                    <div key={item.id} className="flex items-center space-x-2 py-0.5">
-                                        <Checkbox 
-                                            id={`tol-${item.id}`} 
-                                            checked={ap.dimensionTolerances.includes(item.id)} 
-                                            onCheckedChange={(checked) => {
-                                                const newTols = checked 
-                                                    ? [...ap.dimensionTolerances, item.id]
-                                                    : ap.dimensionTolerances.filter(t => t !== item.id);
-                                                updatePane({ dimensionTolerances: newTols });
-                                            }} 
-                                        />
-                                        <label htmlFor={`tol-${item.id}`} className="text-[11px] leading-tight font-medium cursor-pointer text-slate-600 dark:text-slate-300">
-                                            {lang === 'th' ? item.th : item.en}
-                                        </label>
+                            {/* Cutouts List (for current active pane) */}
+                            {ap.holes.length > 0 && (
+                                <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">
+                                            {lang === 'th' ? `รูเจาะ / คัทเอาท์ (แผ่น ${activeTab + 1})` : `Cutouts (Pane ${activeTab + 1})`} ({ap.holes.length})
+                                        </h3>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => updatePaneAt(activeTab, { holes: [] })}
+                                            className="text-[10px] text-red-400 hover:text-red-600 h-6 px-2 rounded-lg"
+                                        >
+                                            {lang === 'th' ? 'ลบทั้งหมด' : 'Clear All'}
+                                        </Button>
                                     </div>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Cutouts List (per-pane) */}
-                        {ap.holes.length > 0 && (
-                            <div className="space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">
-                                        {lang === 'th' ? 'รูเจาะ / คัทเอาท์' : 'Cutouts'} ({ap.holes.length})
-                                    </h3>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => updatePane({ holes: [] })}
-                                        className="text-[10px] text-red-400 hover:text-red-600 h-6 px-2 rounded-lg"
-                                    >
-                                        {lang === 'th' ? 'ลบทั้งหมด' : 'Clear All'}
-                                    </Button>
-                                </div>
-                                <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                                    {ap.holes.map((hole, i) => {
-                                        const type = hole.type || 'circle';
-                                        const shapeIcons: Record<string, string> = { circle: '●', rectangle: '■', slot: '⬭', custom: '⬡' };
-                                        return (
-                                            <div
-                                                key={hole.id}
-                                                className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 rounded-xl px-3 py-2 group"
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    <GripVertical className="h-3 w-3 text-slate-300" />
-                                                    <Badge variant="outline" className="text-[9px] font-bold rounded-md border-slate-200 dark:border-slate-700 text-[#E8601C] px-1.5 py-0">
-                                                        <span className="mr-0.5">{shapeIcons[type]}</span>
-                                                        C{i + 1}
-                                                    </Badge>
-                                                </div>
-                                                <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-500">
-                                                    <span>X:{hole.x}</span>
-                                                    <span>Y:{hole.y}</span>
-                                                    {type === 'circle' && (
-                                                        <span className="flex items-center gap-0.5">
-                                                            ⌀
-                                                            <input
-                                                                type="number" min={5} max={500} value={hole.diameter}
-                                                                onChange={(e) => {
-                                                                    const val = parseInt(e.target.value);
-                                                                    if (!val || val < 5) return;
-                                                                    updatePane({ holes: ap.holes.map(h => h.id === hole.id ? { ...h, diameter: val } : h) });
-                                                                }}
-                                                                className="w-10 bg-transparent border-b border-slate-300 dark:border-slate-600 text-center text-[11px] font-semibold outline-none focus:border-[#E8601C] transition-colors"
-                                                            />
-                                                        </span>
-                                                    )}
-                                                    {type === 'rectangle' && (
-                                                        <>
+                                    <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                                        {ap.holes.map((hole, i) => {
+                                            const type = hole.type || 'circle';
+                                            const shapeIcons = { circle: '●', rectangle: '■', slot: '⬭', custom: '⬡' };
+                                            return (
+                                                <div
+                                                    key={hole.id}
+                                                    className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 rounded-xl px-3 py-2 group"
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        <GripVertical className="h-3 w-3 text-slate-300" />
+                                                        <Badge variant="outline" className="text-[9px] font-bold rounded-md border-slate-200 dark:border-slate-700 text-[#E8601C] px-1.5 py-0">
+                                                            <span className="mr-0.5">{shapeIcons[type] || '●'}</span>
+                                                            C{i + 1}
+                                                        </Badge>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-500">
+                                                        <span>X:{hole.x}</span>
+                                                        <span>Y:{hole.y}</span>
+                                                        {type === 'circle' && (
                                                             <span className="flex items-center gap-0.5">
-                                                                W:
+                                                                ⌀
                                                                 <input
-                                                                    type="number" min={10} max={500} value={hole.width || 100}
-                                                                    onChange={(e) => {
-                                                                        const val = parseInt(e.target.value);
-                                                                        if (!val || val < 10) return;
-                                                                        updatePane({ holes: ap.holes.map(h => h.id === hole.id ? { ...h, width: val } : h) });
-                                                                    }}
-                                                                    className="w-10 bg-transparent border-b border-slate-300 dark:border-slate-600 text-center text-[11px] font-semibold outline-none focus:border-[#E8601C] transition-colors"
-                                                                />
-                                                            </span>
-                                                            <span className="flex items-center gap-0.5">
-                                                                H:
-                                                                <input
-                                                                    type="number" min={10} max={500} value={hole.height || 60}
-                                                                    onChange={(e) => {
-                                                                        const val = parseInt(e.target.value);
-                                                                        if (!val || val < 10) return;
-                                                                        updatePane({ holes: ap.holes.map(h => h.id === hole.id ? { ...h, height: val } : h) });
-                                                                    }}
-                                                                    className="w-10 bg-transparent border-b border-slate-300 dark:border-slate-600 text-center text-[11px] font-semibold outline-none focus:border-[#E8601C] transition-colors"
-                                                                />
-                                                            </span>
-                                                        </>
-                                                    )}
-                                                    {type === 'slot' && (
-                                                        <>
-                                                            <span className="flex items-center gap-0.5">
-                                                                W:
-                                                                <input
-                                                                    type="number" min={5} max={200} value={hole.width || 20}
+                                                                    type="number" min={5} max={500} value={hole.diameter}
                                                                     onChange={(e) => {
                                                                         const val = parseInt(e.target.value);
                                                                         if (!val || val < 5) return;
-                                                                        updatePane({ holes: ap.holes.map(h => h.id === hole.id ? { ...h, width: val } : h) });
+                                                                        updatePaneAt(activeTab, { holes: ap.holes.map(h => h.id === hole.id ? { ...h, diameter: val } : h) });
                                                                     }}
                                                                     className="w-10 bg-transparent border-b border-slate-300 dark:border-slate-600 text-center text-[11px] font-semibold outline-none focus:border-[#E8601C] transition-colors"
                                                                 />
                                                             </span>
-                                                            <span className="flex items-center gap-0.5">
-                                                                L:
-                                                                <input
-                                                                    type="number" min={10} max={500} value={hole.length || 80}
-                                                                    onChange={(e) => {
-                                                                        const val = parseInt(e.target.value);
-                                                                        if (!val || val < 10) return;
-                                                                        updatePane({ holes: ap.holes.map(h => h.id === hole.id ? { ...h, length: val } : h) });
-                                                                    }}
-                                                                    className="w-10 bg-transparent border-b border-slate-300 dark:border-slate-600 text-center text-[11px] font-semibold outline-none focus:border-[#E8601C] transition-colors"
-                                                                />
-                                                            </span>
-                                                        </>
-                                                    )}
-                                                    {type === 'custom' && (
-                                                        <span>{hole.points?.length || 0} pts</span>
-                                                    )}
+                                                        )}
+                                                        {type === 'rectangle' && (
+                                                            <>
+                                                                <span className="flex items-center gap-0.5">
+                                                                    W:
+                                                                    <input
+                                                                        type="number" min={10} max={500} value={hole.width || 100}
+                                                                        onChange={(e) => {
+                                                                            const val = parseInt(e.target.value);
+                                                                            if (!val || val < 10) return;
+                                                                            updatePaneAt(activeTab, { holes: ap.holes.map(h => h.id === hole.id ? { ...h, width: val } : h) });
+                                                                        }}
+                                                                        className="w-10 bg-transparent border-b border-slate-300 dark:border-slate-600 text-center text-[11px] font-semibold outline-none focus:border-[#E8601C] transition-colors"
+                                                                    />
+                                                                </span>
+                                                                <span className="flex items-center gap-0.5">
+                                                                    H:
+                                                                    <input
+                                                                        type="number" min={10} max={500} value={hole.height || 60}
+                                                                        onChange={(e) => {
+                                                                            const val = parseInt(e.target.value);
+                                                                            if (!val || val < 10) return;
+                                                                            updatePaneAt(activeTab, { holes: ap.holes.map(h => h.id === hole.id ? { ...h, height: val } : h) });
+                                                                        }}
+                                                                        className="w-10 bg-transparent border-b border-slate-300 dark:border-slate-600 text-center text-[11px] font-semibold outline-none focus:border-[#E8601C] transition-colors"
+                                                                    />
+                                                                </span>
+                                                            </>
+                                                        )}
+                                                        {type === 'slot' && (
+                                                            <>
+                                                                <span className="flex items-center gap-0.5">
+                                                                    W:
+                                                                    <input
+                                                                        type="number" min={5} max={200} value={hole.width || 20}
+                                                                        onChange={(e) => {
+                                                                            const val = parseInt(e.target.value);
+                                                                            if (!val || val < 5) return;
+                                                                            updatePaneAt(activeTab, { holes: ap.holes.map(h => h.id === hole.id ? { ...h, width: val } : h) });
+                                                                        }}
+                                                                        className="w-10 bg-transparent border-b border-slate-300 dark:border-slate-600 text-center text-[11px] font-semibold outline-none focus:border-[#E8601C] transition-colors"
+                                                                    />
+                                                                </span>
+                                                                <span className="flex items-center gap-0.5">
+                                                                    L:
+                                                                    <input
+                                                                        type="number" min={10} max={500} value={hole.length || 80}
+                                                                        onChange={(e) => {
+                                                                            const val = parseInt(e.target.value);
+                                                                            if (!val || val < 10) return;
+                                                                            updatePane({ holes: ap.holes.map(h => h.id === hole.id ? { ...h, length: val } : h) });
+                                                                        }}
+                                                                        className="w-10 bg-transparent border-b border-slate-300 dark:border-slate-600 text-center text-[11px] font-semibold outline-none focus:border-[#E8601C] transition-colors"
+                                                                    />
+                                                                </span>
+                                                            </>
+                                                        )}
+                                                        {type === 'custom' && (
+                                                            <span>{hole.points?.length || 0} pts</span>
+                                                        )}
+                                                    </div>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-6 w-6 rounded-md text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                        onClick={() => updatePane({ holes: ap.holes.filter(h => h.id !== hole.id) })}
+                                                    >
+                                                        <Trash2 className="h-3 w-3" />
+                                                    </Button>
                                                 </div>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-6 w-6 rounded-md text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                                    onClick={() => updatePane({ holes: ap.holes.filter(h => h.id !== hole.id) })}
-                                                >
-                                                    <Trash2 className="h-3 w-3" />
-                                                </Button>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Order Details */}
-                        <div className="space-y-3">
-                            <div className="flex items-center gap-2">
-                                <CalendarDays className="h-4 w-4 text-primary dark:text-[#E8601C]" />
-                                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">
-                                    {lang === 'th' ? 'รายละเอียดคำสั่งซื้อ' : 'Order Details'}
-                                </h3>
-                            </div>
-
-                            {/* Quantity (per-pane) */}
-                            <div className="space-y-1.5">
-                                <Label className="text-[10px] font-semibold text-slate-400 uppercase">
-                                    {lang === 'th' ? 'จำนวน' : 'Quantity'}
-                                </Label>
-                                <Input
-                                    type="number"
-                                    min={1}
-                                    value={ap.quantity}
-                                    onChange={(e) => updatePane({ quantity: Math.max(1, parseInt(e.target.value) || 1) })}
-                                    className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm px-4 focus:ring-[#E8601C]"
-                                />
-                            </div>
-
-                            {/* ── Price Calculator (per-pane) ──────────────── */}
-                            {false && (
-                            <div className="space-y-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 p-3">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em]">
-                                    {lang === 'th' ? 'คำนวณราคา' : 'Price Calculator'}
-                                </p>
-
-                                <div className="grid grid-cols-4 gap-1.5">
-                                    <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1.5 text-center">
-                                        <p className="text-[8px] font-semibold text-slate-400 uppercase mb-0.5">{lang === 'th' ? 'พื้นที่' : 'Area'}</p>
-                                        <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200">{pricingCalc.sqFt.toFixed(2)}</p>
-                                        <p className="text-[8px] text-slate-400">ตร.ฟ.</p>
-                                    </div>
-                                    <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1.5 text-center">
-                                        <p className="text-[8px] font-semibold text-slate-400 uppercase mb-0.5">{lang === 'th' ? 'รูเจาะ' : 'Holes'}</p>
-                                        <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200">{pricingCalc.autoHoleQty}</p>
-                                        <p className="text-[8px] text-slate-400">{lang === 'th' ? 'รู' : 'pcs'}</p>
-                                    </div>
-                                    <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1.5 text-center">
-                                        <p className="text-[8px] font-semibold text-slate-400 uppercase mb-0.5">{lang === 'th' ? 'บาก' : 'Notch'}</p>
-                                        <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200">{pricingCalc.autoNotchQty}</p>
-                                        <p className="text-[8px] text-slate-400">{lang === 'th' ? 'ชิ้น' : 'pcs'}</p>
-                                    </div>
-                                    <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2 py-1.5 text-center">
-                                        <p className="text-[8px] font-semibold text-slate-400 uppercase mb-0.5">{lang === 'th' ? 'จำนวน' : 'Qty'}</p>
-                                        <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200">{ap.quantity}</p>
-                                        <p className="text-[8px] text-slate-400">{lang === 'th' ? 'แผ่น' : 'panes'}</p>
+                                            );
+                                        })}
                                     </div>
                                 </div>
+                            )}
 
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div className="space-y-1">
-                                        <Label className="text-[9px] font-semibold text-slate-400 uppercase flex items-center gap-1">
-                                            {lang === 'th' ? 'ราคา/ตร.ฟ. (฿)' : 'Price/sq.ft (฿)'}
-                                            {ap.priceAutoFilled && <span className="text-[8px] font-bold text-emerald-500 bg-emerald-50 dark:bg-emerald-900/30 px-1 py-0.5 rounded-md">แนะนำ</span>}
+                            {/* Order Details */}
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-2">
+                                    <CalendarDays className="h-4 w-4 text-primary dark:text-[#E8601C]" />
+                                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">
+                                        {lang === 'th' ? 'รายละเอียดคำสั่งซื้อ' : 'Order Details'}
+                                    </h3>
+                                </div>
+
+                                {/* Quantity (per-pane) */}
+                                <div className="space-y-1.5">
+                                    <Label className="text-[10px] font-semibold text-slate-400 uppercase">
+                                        {lang === 'th' ? 'จำนวน' : 'Quantity'}
+                                    </Label>
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        value={ap.quantity}
+                                        onChange={(e) => updatePane({ quantity: Math.max(1, parseInt(e.target.value) || 1) })}
+                                        className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm px-4 focus:ring-[#E8601C]"
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1.5">
+                                        <Label className="text-[10px] font-semibold text-slate-400 uppercase">
+                                            {lang === 'th' ? 'กำหนดส่ง' : 'Deadline'}
                                         </Label>
                                         <Input
-                                            type="number" min={0} placeholder="0"
-                                            value={ap.pricePerSqFt || ""}
-                                            onChange={e => updatePane({ pricePerSqFt: parseFloat(e.target.value) || 0, priceAutoFilled: false })}
-                                            className="h-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold px-3 focus:ring-[#E8601C]"
+                                            type="date"
+                                            value={orderData.deadline}
+                                            onChange={(e) => setOrderData(prev => ({ ...prev, deadline: e.target.value }))}
+                                            className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm px-4 focus:ring-[#E8601C]"
                                         />
                                     </div>
-                                    <div className="space-y-1">
-                                        <Label className="text-[9px] font-semibold text-slate-400 uppercase flex items-center gap-1">
-                                            {lang === 'th' ? 'เจียร/ม (฿)' : 'Grind/m (฿)'}
-                                            {ap.priceAutoFilled && <span className="text-[8px] font-bold text-emerald-500 bg-emerald-50 dark:bg-emerald-900/30 px-1 py-0.5 rounded-md">แนะนำ</span>}
+                                    <div className="space-y-1.5">
+                                        <Label className="text-[10px] font-semibold text-slate-400 uppercase">
+                                            {lang === 'th' ? 'วันส่งที่คาดหวัง' : 'Expected Delivery'}
                                         </Label>
                                         <Input
-                                            type="number" min={0}
-                                            value={typeof ap.grindingRate === 'object' ? '' : (ap.grindingRate as string | number)}
-                                            placeholder={typeof ap.grindingRate === 'object' ? 'Mixed' : '0'}
-                                            onChange={e => updatePane({ grindingRate: parseFloat(e.target.value) || 0, priceAutoFilled: false })}
-                                            className="h-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold px-3 focus:ring-[#E8601C]"
-                                        />
-                                    </div>
-
-                                    {pricingCalc.autoHoleQty > 0 && (
-                                        <div className="col-span-2 space-y-1">
-                                            <Label className="text-[9px] font-semibold text-slate-400 uppercase">
-                                                {lang === 'th' ? `ราคา/รู (฿) — ${pricingCalc.autoHoleQty} รู` : `Price/hole (฿) — ${pricingCalc.autoHoleQty} holes`}
-                                            </Label>
-                                            <Input
-                                                type="number" min={0}
-                                                value={ap.holePriceEach}
-                                                onChange={e => updatePane({ holePriceEach: parseFloat(e.target.value) || 0 })}
-                                                className="h-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold px-3 focus:ring-[#E8601C]"
-                                            />
-                                        </div>
-                                    )}
-
-                                    <div className="space-y-1">
-                                        <Label className="text-[9px] font-semibold text-slate-400 uppercase">
-                                            {lang === 'th' ? 'บาก (ชิ้น)' : 'Notches'}
-                                        </Label>
-                                        <Input
-                                            type="number" min={0}
-                                            value={ap.notchQty}
-                                            onChange={e => updatePane({ notchQty: parseInt(e.target.value) || 0 })}
-                                            className="h-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold px-3 focus:ring-[#E8601C]"
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <Label className="text-[9px] font-semibold text-slate-400 uppercase">
-                                            {lang === 'th' ? 'ราคา/บาก (฿)' : 'Price/notch (฿)'}
-                                        </Label>
-                                        <Input
-                                            type="number" min={0}
-                                            value={ap.notchPrice}
-                                            onChange={e => updatePane({ notchPrice: parseFloat(e.target.value) || 0 })}
-                                            className="h-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold px-3 focus:ring-[#E8601C]"
+                                            type="date"
+                                            value={orderData.expectedDeliveryDate}
+                                            onChange={handleDateChange}
+                                            className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm px-4 focus:ring-[#E8601C]"
                                         />
                                     </div>
                                 </div>
 
-                                {ap.pricePerSqFt > 0 && (
-                                    <div className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-2.5 space-y-1.5">
-                                        <div className="flex justify-between text-[11px] text-slate-500">
-                                            <span>{lang === 'th' ? 'เนื้อกระจก' : 'Glass'}</span>
-                                            <span className="font-semibold">฿{pricingCalc.glassPrice.toFixed(2)}</span>
+                                {/* ── Production Estimation ── */}
+                                {estimatedCompletion && (
+                                    <div className="rounded-2xl bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 p-4 space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <Timer className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                                <span className="text-xs font-bold text-blue-900 dark:text-blue-100">
+                                                    {lang === 'th' ? 'การคาดการณ์การผลิต' : 'Production Forecast'}
+                                                </span>
+                                            </div>
+                                            <Badge variant="outline" className="text-[10px] bg-white dark:bg-slate-900 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400">
+                                                {estimatedCompletion.stationsCount} {lang === 'th' ? 'สถานี' : 'stations'}
+                                            </Badge>
                                         </div>
-                                        <div className="flex justify-between text-[11px] text-slate-500">
-                                            <span>{lang === 'th' ? 'ค่าเจียร' : 'Grinding'}</span>
-                                            <span className="font-semibold">฿{pricingCalc.grindingCost.toFixed(2)}</span>
+                                        
+                                        <div className="space-y-1">
+                                            <div className="flex flex-wrap gap-1 mb-2">
+                                                {estimatedCompletion.path?.map((step, idx) => (
+                                                    <div key={idx} className="flex items-center gap-1">
+                                                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-100/50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
+                                                            {step}
+                                                        </span>
+                                                        {idx < (estimatedCompletion.path?.length || 0) - 1 && <ChevronRight className="h-2 w-2 text-blue-300" />}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <p className="text-[11px] text-blue-700/70 dark:text-blue-300/70">
+                                                {lang === 'th' ? 'เวลาผลิตโดยประมาณ (ต่อชิ้น):' : 'Est. time per pane:'}
+                                                <span className="ml-1 font-bold text-blue-900 dark:text-blue-100">
+                                                    {Math.floor(estimatedCompletion.ms / 3600000)}h {Math.floor((estimatedCompletion.ms % 3600000) / 60000)}m
+                                                </span>
+                                            </p>
+                                            <div className="flex items-baseline gap-1">
+                                                <span className="text-[11px] text-blue-700/70 dark:text-blue-300/70">{lang === 'th' ? 'คาดว่าจะเสร็จ:' : 'Expected at:'}</span>
+                                                <span className="text-sm font-black text-blue-600 dark:text-blue-400">
+                                                    {estimatedCompletion.date.toLocaleString(lang === 'th' ? 'th-TH' : 'en-US', {
+                                                        day: 'numeric',
+                                                        month: 'short',
+                                                        hour: '2-digit',
+                                                        minute: '2-digit',
+                                                        hour12: false
+                                                    })}
+                                                </span>
+                                            </div>
                                         </div>
-                                        {pricingCalc.drillCost > 0 && (
-                                            <div className="flex justify-between text-[11px] text-slate-500">
-                                                <span>{lang === 'th' ? `ค่าเจาะ (×${pricingCalc.autoHoleQty})` : `Drilling (×${pricingCalc.autoHoleQty})`}</span>
-                                                <span className="font-semibold">฿{pricingCalc.drillCost.toFixed(2)}</span>
-                                            </div>
-                                        )}
-                                        {pricingCalc.notchCost > 0 && (
-                                            <div className="flex justify-between text-[11px] text-slate-500">
-                                                <span>{lang === 'th' ? `ค่าบาก (×${ap.notchQty})` : `Notching (×${ap.notchQty})`}</span>
-                                                <span className="font-semibold">฿{pricingCalc.notchCost.toFixed(2)}</span>
-                                            </div>
-                                        )}
-                                        <div className="border-t border-slate-200 dark:border-slate-700 pt-1.5 mt-0.5 space-y-0.5">
-                                            <div className="flex justify-between text-[12px] font-bold text-slate-700 dark:text-slate-200">
-                                                <span>{lang === 'th' ? 'ราคา/แผ่น' : 'Per pane'}</span>
-                                                <span className="text-[#E8601C]">฿{pricingCalc.perPane.toFixed(2)}</span>
-                                            </div>
-                                            <div className="flex justify-between text-[13px] font-bold text-slate-800 dark:text-white">
-                                                <span>{lang === 'th' ? `รวม ×${ap.quantity} แผ่น` : `Total ×${ap.quantity}`}</span>
-                                                <span className="text-[#E8601C]">฿{pricingCalc.total.toFixed(2)}</span>
-                                            </div>
+                                        
+                                        <div className="flex items-start gap-1.5 pt-1 border-t border-blue-100 dark:border-blue-900/40">
+                                            <Info className="h-3 w-3 text-blue-400 mt-0.5 shrink-0" />
+                                            <p className="text-[9px] text-blue-500 italic">
+                                                {lang === 'th' 
+                                                    ? '* คำนวณจากค่าเฉลี่ยประวัติการผลิตจริงของเส้นทางผลิต ' + estimatedCompletion.stationsCount + ' สถานี'
+                                                    : '* Calculated from average historical speed for this routing (' + estimatedCompletion.stationsCount + ' stations)'}
+                                            </p>
                                         </div>
                                     </div>
                                 )}
 
-                                <div className="space-y-1">
-                                    <Label className="text-[9px] font-semibold text-slate-400 uppercase">
-                                        {lang === 'th' ? 'ราคาประมาณ (฿) — แก้ไขได้' : 'Est. Price (฿) — editable'}
-                                    </Label>
-                                    <Input
-                                        type="number" min={0}
-                                        value={ap.estimatedPrice}
-                                        onChange={(e) => updatePane({ estimatedPrice: Math.max(0, parseFloat(e.target.value) || 0) })}
-                                        className="h-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold px-3 focus:ring-[#E8601C]"
-                                    />
-                                </div>
-                            </div>
-                            )}
-
-                            <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1.5">
-                                    <Label className="text-[10px] font-semibold text-slate-400 uppercase">
-                                        {lang === 'th' ? 'กำหนดส่ง' : 'Deadline'}
+                                    <Label className="text-[10px] font-semibold text-slate-400 uppercase flex items-center gap-1">
+                                        <MapPin className="h-3 w-3" />
+                                        {lang === 'th' ? 'สถานที่จัดส่ง' : 'Delivery Location'}
                                     </Label>
                                     <Input
-                                        type="date"
-                                        value={orderData.deadline}
-                                        onChange={(e) => setOrderData(prev => ({ ...prev, deadline: e.target.value }))}
+                                        placeholder={lang === 'th' ? 'เช่น บางนา, กรุงเทพฯ' : 'e.g. Bangna, Bangkok'}
+                                        value={orderData.deliveryLocation}
+                                        onChange={(e) => setOrderData(prev => ({ ...prev, deliveryLocation: e.target.value }))}
                                         className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm px-4 focus:ring-[#E8601C]"
                                     />
                                 </div>
-                                <div className="space-y-1.5">
-                                    <Label className="text-[10px] font-semibold text-slate-400 uppercase">
-                                        {lang === 'th' ? 'วันส่งที่คาดหวัง' : 'Expected Delivery'}
-                                    </Label>
-                                    <Input
-                                        type="date"
-                                        value={orderData.expectedDeliveryDate}
-                                        onChange={handleDateChange}
-                                        className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm px-4 focus:ring-[#E8601C]"
-                                    />
-                                </div>
+
                             </div>
 
-                            {/* ── Production Estimation ── */}
-                            {estimatedCompletion && (
-                                <div className="rounded-2xl bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 p-4 space-y-2">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <Timer className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                                            <span className="text-xs font-bold text-blue-900 dark:text-blue-100">
-                                                {lang === 'th' ? 'การคาดการณ์การผลิต' : 'Production Forecast'}
-                                            </span>
-                                        </div>
-                                        <Badge variant="outline" className="text-[10px] bg-white dark:bg-slate-900 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400">
-                                            {estimatedCompletion.stationsCount} {lang === 'th' ? 'สถานี' : 'stations'}
-                                        </Badge>
+                            {/* ── Order Summary (visible when 2+ panes) ───────── */}
+                            {panes.length > 1 && (
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2">
+                                        <Layers className="h-4 w-4 text-primary dark:text-[#E8601C]" />
+                                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">
+                                            {lang === 'th' ? 'สรุปคำสั่งซื้อ' : 'Order Summary'}
+                                        </h3>
                                     </div>
-                                    
-                                    <div className="space-y-1">
-                                        <div className="flex flex-wrap gap-1 mb-2">
-                                            {estimatedCompletion.path?.map((step: string, idx: number) => (
-                                                <div key={idx} className="flex items-center gap-1">
-                                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-100/50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
-                                                        {step}
-                                                    </span>
-                                                    {idx < (estimatedCompletion.path?.length || 0) - 1 && <ChevronRight className="h-2 w-2 text-blue-300" />}
-                                                </div>
-                                            ))}
-                                        </div>
-                                        <p className="text-[11px] text-blue-700/70 dark:text-blue-300/70">
-                                            {lang === 'th' ? 'เวลาผลิตโดยประมาณ (ต่อชิ้น):' : 'Est. time per pane:'}
-                                            <span className="ml-1 font-bold text-blue-900 dark:text-blue-100">
-                                                {Math.floor(estimatedCompletion.ms / 3600000)}h {Math.floor((estimatedCompletion.ms % 3600000) / 60000)}m
-                                            </span>
-                                        </p>
-                                        <div className="flex items-baseline gap-1">
-                                            <span className="text-[11px] text-blue-700/70 dark:text-blue-300/70">{lang === 'th' ? 'คาดว่าจะเสร็จ:' : 'Expected at:'}</span>
-                                            <span className="text-sm font-black text-blue-600 dark:text-blue-400">
-                                                {estimatedCompletion.date.toLocaleString(lang === 'th' ? 'th-TH' : 'en-US', {
-                                                    day: 'numeric',
-                                                    month: 'short',
-                                                    hour: '2-digit',
-                                                    minute: '2-digit',
-                                                    hour12: false
-                                                })}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="flex items-start gap-1.5 pt-1 border-t border-blue-100 dark:border-blue-900/40">
-                                        <Info className="h-3 w-3 text-blue-400 mt-0.5 shrink-0" />
-                                        <p className="text-[9px] text-blue-500 italic">
-                                            {lang === 'th' 
-                                                ? '* คำนวณจากค่าเฉลี่ยประวัติการผลิตจริงของเส้นทางผลิต ' + estimatedCompletion.stationsCount + ' สถานี'
-                                                : '* Calculated from average historical speed for this routing (' + estimatedCompletion.stationsCount + ' stations)'}
-                                        </p>
-                                    </div>
-                                </div>
-                            )}
-
-                            <div className="space-y-1.5">
-                                <Label className="text-[10px] font-semibold text-slate-400 uppercase flex items-center gap-1">
-                                    <MapPin className="h-3 w-3" />
-                                    {lang === 'th' ? 'สถานที่จัดส่ง' : 'Delivery Location'}
-                                </Label>
-                                <Input
-                                    placeholder={lang === 'th' ? 'เช่น บางนา, กรุงเทพฯ' : 'e.g. Bangna, Bangkok'}
-                                    value={orderData.deliveryLocation}
-                                    onChange={(e) => setOrderData(prev => ({ ...prev, deliveryLocation: e.target.value }))}
-                                    className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm px-4 focus:ring-[#E8601C]"
-                                />
-                            </div>
-
-                        </div>
-
-                        {/* ── Order Summary (visible when 2+ panes) ───────── */}
-                        {panes.length > 1 && (
-                            <div className="space-y-3">
-                                <div className="flex items-center gap-2">
-                                    <Layers className="h-4 w-4 text-primary dark:text-[#E8601C]" />
-                                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.15em]">
-                                        {lang === 'th' ? 'สรุปคำสั่งซื้อ' : 'Order Summary'}
-                                    </h3>
-                                </div>
-                                <div className="rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 p-3 space-y-1.5">
-                                    {panes.map((p, idx) => {
-                                        const calc = calcPanePrice(p, pricingSettings);
-                                        const label = p.glassType
-                                            ? `${p.glassType} ${p.thickness} (${p.glassWidth}×${p.glassHeight})`
-                                            : (lang === 'th' ? 'ยังไม่ระบุ' : 'Not specified');
-                                        return (
-                                            <button
-                                                key={p.id}
-                                                type="button"
-                                                onClick={() => setActiveTab(idx)}
-                                                className={`flex items-center justify-between w-full text-[11px] p-2 rounded-xl cursor-pointer transition-colors ${
-                                                    idx === activeTab
-                                                        ? 'bg-[#E8601C]/10 text-[#E8601C]'
-                                                        : 'hover:bg-white dark:hover:bg-slate-900 text-slate-600 dark:text-slate-400'
-                                                }`}
-                                            >
-                                                <div className="flex items-center gap-2 font-bold truncate min-w-0">
-                                                    <span className={`w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-bold shrink-0 ${
+                                    <div className="rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 p-3 space-y-1.5">
+                                        {panes.map((p, idx) => {
+                                            const label = p.glassType
+                                                ? `${p.glassType} ${p.thickness} (${p.glassWidth}×${p.glassHeight})`
+                                                : (lang === 'th' ? 'ยังไม่ระบุ' : 'Not specified');
+                                            return (
+                                                <button
+                                                    key={p.id}
+                                                    type="button"
+                                                    onClick={() => setActiveTab(idx)}
+                                                    className={`flex items-center justify-between w-full text-[11px] p-2 rounded-xl cursor-pointer transition-colors ${
                                                         idx === activeTab
-                                                            ? 'bg-[#E8601C]/20 text-[#E8601C]'
-                                                            : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
-                                                    }`}>
-                                                        {idx + 1}
-                                                    </span>
-                                                    <span className="truncate">{label}</span>
-                                                    <span className="text-slate-400 shrink-0">×{p.quantity}</span>
-                                                </div>
-                                                <span className="font-bold shrink-0 ml-2">
-                                                    {false && `฿${calc.total.toFixed(0)}`}
-                                                </span>
-                                            </button>
-                                        );
-                                    })}
-                                    {false && (
-                                    <div className="border-t border-slate-200 dark:border-slate-700 pt-2 mt-1 flex justify-between items-center px-2">
-                                        <span className="text-[12px] font-bold text-slate-700 dark:text-slate-200">
-                                            {lang === 'th'
-                                                ? `รวม ${panes.reduce((s, p) => s + p.quantity, 0)} แผ่น`
-                                                : `Total ${panes.reduce((s, p) => s + p.quantity, 0)} panes`
-                                            }
-                                        </span>
-                                        <span className="text-[14px] font-bold text-[#E8601C]">
-                                            ฿{grandTotal.toFixed(2)}
-                                        </span>
+                                                            ? 'bg-[#E8601C]/10 text-[#E8601C]'
+                                                            : 'hover:bg-white dark:hover:bg-slate-900 text-slate-600 dark:text-slate-400'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center gap-2 font-bold truncate min-w-0">
+                                                        <span className={`w-5 h-5 rounded-md flex items-center justify-center text-[9px] font-bold shrink-0 ${
+                                                            idx === activeTab
+                                                                ? 'bg-[#E8601C]/20 text-[#E8601C]'
+                                                                : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+                                                        }`}>
+                                                            {idx + 1}
+                                                        </span>
+                                                        <span className="truncate">{label}</span>
+                                                        <span className="text-slate-400 shrink-0">×{p.quantity}</span>
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
                                     </div>
-                                    )}
                                 </div>
-
-                            </div>
-                        )}
+                            )}
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            {/* New Customer Dialog */}
+                {/* Bottom Section: Horizontal Specs Spreadsheet Table */}
+                <GlassSpecsTable
+                    panes={panes}
+                    activeTab={activeTab}
+                    setActiveTab={setActiveTab}
+                    pricingSettings={pricingSettings}
+                    addPane={addPane}
+                    removePane={removePane}
+                    duplicatePane={duplicatePane}
+                    updatePaneAt={updatePaneAt}
+                    handleGlassTypeChange={handleGlassTypeChange}
+                    lang={lang}
+                    glassTypes={glassTypes}
+                    thicknesses={thicknesses}
+                    rawGlassTypeOptions={rawGlassTypeOptions}
+                    calcPanePrice={calcPanePrice}
+                />
+            </div>            {/* New Customer Dialog */}
             <Dialog open={isNewCustomerOpen} onOpenChange={setIsNewCustomerOpen}>
                 <DialogContent className="sm:max-w-[440px] rounded-2xl">
                     <DialogHeader>
