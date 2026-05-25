@@ -50,6 +50,8 @@ export const claimsApi = {
         source?: "customer" | "worker";
         reportedBy?: string;
         photos?: string[];
+        defectCode?: string;
+        defectStation?: string;
     }): Promise<ApiResponse<Claim>> => {
         return fetchApi<ApiResponse<Claim>>("/claims/from-pane", {
             method: "POST",
