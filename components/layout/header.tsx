@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Menu, Moon, Sun, Globe, Minus, Plus, ShieldAlert } from "lucide-react";
+import { Menu, Moon, Sun, Globe, Minus, Plus } from "lucide-react";
 import { useFontSize } from "@/lib/hooks/use-font-size";
 import { useTheme } from "next-themes";
 import { usePathname, useRouter } from "next/navigation";
@@ -65,12 +65,6 @@ export function Header({ onMenuClick }: HeaderProps) {
             </Button>
 
             <div className="flex flex-1 items-center gap-x-2 sm:gap-x-4 self-stretch lg:gap-x-6">
-                <div className="flex items-center gap-2">
-                    <Badge className="bg-amber-500 text-white border-0 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-tighter animate-pulse shadow-md shadow-amber-500/20 flex items-center gap-1.5 ml-2">
-                        <ShieldAlert className="h-4 w-4" />
-                        <span>Ver.Demo</span>
-                    </Badge>
-                </div>
                 <div className="flex-1" />
                 <div className="flex items-center gap-x-2 sm:gap-x-4 lg:gap-x-6">
                     <Button
