@@ -14,7 +14,10 @@ export type Permission =
   | 'orders:create'
   | 'orders:manage'
   | 'settings:view'
-  | 'settings:manage';
+  | 'settings:manage'
+  | 'dashboard:view'
+  | 'stations:manage'
+  | 'stickers:manage';
 
 export interface Role {
   _id: string;
@@ -50,7 +53,7 @@ function resolvePermissions(role: unknown): string[] {
  * 1. Legacy string roles ("admin", "manager", "worker")
  * 2. Populated Role objects ({ _id, slug, permissions[] })
  */
-export const hasPermission = (user: any, permission: Permission): boolean => {
+export const hasPermission = (user: any, permission: string): boolean => {
   if (!user) return false;
 
   const role = user.role;
@@ -65,7 +68,10 @@ export const hasPermission = (user: any, permission: Permission): boolean => {
 
   // Manager fallback (legacy hardcoded permissions)
   if (slug === "manager") {
-    const managerPermissions: Permission[] = [
+    // Managers have access to all stations by default
+    if (permission.startsWith("station:enter:")) return true;
+
+    const managerPermissions: string[] = [
       'users:view',
       'inventory:view',
       'inventory:manage',
@@ -75,6 +81,9 @@ export const hasPermission = (user: any, permission: Permission): boolean => {
       'orders:create',
       'orders:manage',
       'settings:view',
+      'dashboard:view',
+      'stations:manage',
+      'stickers:manage',
     ];
     return managerPermissions.includes(permission);
   }
@@ -103,4 +112,7 @@ export const PERMISSION_LABELS: Record<Permission, { label: string, group: strin
   'orders:manage': { label: 'จัดการคำสั่งซื้อ (แก้ไข/ยกเลิก)', group: 'คำสั่งซื้อ' },
   'settings:view': { label: 'ดูการตั้งค่า', group: 'ตั้งค่า' },
   'settings:manage': { label: 'แก้ไขการตั้งค่าระบบ', group: 'ตั้งค่า' },
+  'dashboard:view': { label: 'ดูหน้าแดชบอร์ด', group: 'ภาพรวม' },
+  'stations:manage': { label: 'จัดการและออกแบบสถานี', group: 'ตั้งค่า' },
+  'stickers:manage': { label: 'จัดการและออกแบบสติ๊กเกอร์', group: 'ตั้งค่า' },
 };

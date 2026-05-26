@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { useAuth } from "@/lib/auth/auth-context";
 import { isManagerOrAbove } from "@/lib/auth/role-utils";
+import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import { getStationName as _getStationName } from "@/lib/utils/station-helpers";
 import { claimsApi } from "@/lib/api/claims";
 import { materialsApi } from "@/lib/api/materials";
@@ -306,7 +307,8 @@ export default function ClaimsPage() {
     );
 
     return (
-        <div className="space-y-6 max-w-[1440px] mx-auto w-full">
+        <PermissionGuard permission="inventory:view">
+            <div className="space-y-6 max-w-[1440px] mx-auto w-full">
             {/* Header */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div className="space-y-1 min-w-0">
@@ -1072,6 +1074,7 @@ export default function ClaimsPage() {
                     )}
                 </div>
             )}
-        </div>
+            </div>
+        </PermissionGuard>
     );
 }

@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import { toast } from "sonner";
 import { getStationTemplate, updateStationTemplate } from "@/lib/api/station-templates";
 import { StationTemplate } from "@/lib/types/station-designer";
@@ -111,7 +112,8 @@ export default function StationDesignerEditorPage() {
     }
 
     return (
-        <div className="flex h-full flex-col">
+        <PermissionGuard permission="stations:manage">
+            <div className="flex h-full flex-col">
             {/* Back nav */}
             <div className="flex items-center gap-2 border-b bg-card px-4 py-2 shrink-0">
                 <Button variant="ghost" size="sm" className="h-8 gap-1.5" onClick={() => router.push("/stations/designer")}>
@@ -135,5 +137,6 @@ export default function StationDesignerEditorPage() {
                 />
             </div>
         </div>
+        </PermissionGuard>
     );
 }

@@ -25,6 +25,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Edit, Trash2, Loader2, Search, Plus, Users, ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
+import { PermissionGuard } from "@/components/auth/PermissionGuard";
 
 const ITEMS_PER_PAGE = 20;
 
@@ -285,7 +286,8 @@ export default function CustomersManagementPage() {
     }
 
     return (
-        <div className="space-y-6 max-w-[1440px] mx-auto w-full">
+        <PermissionGuard permission="settings:view">
+            <div className="space-y-6 max-w-[1440px] mx-auto w-full">
             {/* Header */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
@@ -598,5 +600,6 @@ export default function CustomersManagementPage() {
                 </DialogContent>
             </Dialog>
         </div>
+        </PermissionGuard>
     );
 }

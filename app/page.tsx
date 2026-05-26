@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n/language-context";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   CartesianGrid,
   Tooltip,
@@ -39,6 +40,7 @@ import { materialsApi } from "@/lib/api/materials";
 import { materialLogsApi } from "@/lib/api/material-logs";
 import { OrderRequest, Order, Inventory, Material, MaterialLog } from "@/lib/api/types";
 import { useAuth } from "@/lib/auth/auth-context";
+import { hasPermission } from "@/lib/auth/permissions";
 import { ProductionAnalytics } from "@/components/analytics/ProductionAnalytics";
 
 function getDayLabel(date: Date) {
@@ -54,7 +56,28 @@ function isSameDay(a: Date, b: Date) {
 
 export default function DashboardPage() {
   const { t, lang } = useLanguage();
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isLoading && user) {
+      if (!hasPermission(user, "dashboard:view")) {
+        // Redirect to first available page
+        if (hasPermission(user, "production:view")) {
+          router.replace("/production");
+        } else if (hasPermission(user, "inventory:view")) {
+          router.replace("/inventory");
+        } else if (hasPermission(user, "orders:create")) {
+          router.replace("/request");
+        } else {
+          router.replace("/stations");
+        }
+      }
+    }
+  }, [user, isLoading, router]);
+
+  const slug = user?.role && typeof user.role === 'object' ? user.role.slug : user?.role;
+  const isAuthorized = slug === "admin" || slug === "manager" || (user && hasPermission(user, "dashboard:view"));
 
   const [allRequests, setAllRequests] = useState<OrderRequest[]>([]);
   const [allOrders, setAllOrders] = useState<Order[]>([]);
@@ -64,6 +87,15 @@ export default function DashboardPage() {
   const [dataLoaded, setDataLoaded] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [chartRange, setChartRange] = useState<"1d" | "7d" | "30d">("7d");
+
+  // If loading or unauthorized, show spinner and prevent loading data or layout
+  if (isLoading || !isAuthorized) {
+    return (
+      <div className="flex h-[60vh] w-full items-center justify-center">
+        <div className="h-8 w-8 border-2 border-[#2563eb] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   useEffect(() => {
     // Slight delay ensures the CSS transition triggers smoothly

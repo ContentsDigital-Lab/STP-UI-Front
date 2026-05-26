@@ -63,6 +63,7 @@ import { workersApi } from "@/lib/api/workers";
 import { Inventory, Material, MaterialLog, Worker } from "@/lib/api/types";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { useAuth } from "@/lib/auth/auth-context";
+import { PermissionGuard } from "@/components/auth/PermissionGuard";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -646,6 +647,7 @@ export default function InventoryPage() {
     ];
 
     return (
+        <PermissionGuard permission="inventory:view">
         <div className="space-y-6 max-w-[1440px] mx-auto w-full">
             {/* Page Header */}
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -1649,5 +1651,6 @@ export default function InventoryPage() {
                 </DialogContent>
             </Dialog>
         </div>
+        </PermissionGuard>
     );
 }

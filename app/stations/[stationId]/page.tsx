@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { ArrowLeft, LayoutTemplate, Settings2, Bell, Package, X, PackageOpen, FileWarning, UserCheck } from "lucide-react";
+import { ArrowLeft, LayoutTemplate, Settings2, Bell, Package, X, PackageOpen, FileWarning, UserCheck, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { getStationTemplate } from "@/lib/api/station-templates";
@@ -12,6 +12,8 @@ import { StationTemplate } from "@/lib/types/station-designer";
 /** Backend populates templateId — can be a plain string ID or the full template object */
 type PopulatedStation = Omit<Station, "templateId"> & { templateId?: string | StationTemplate };
 import { stationsApi } from "@/lib/api/stations";
+import { useAuth } from "@/lib/auth/auth-context";
+import { hasPermission } from "@/lib/auth/permissions";
 import { ordersApi } from "@/lib/api/orders";
 import { requestsApi } from "@/lib/api/requests";
 import { Station, Order, Customer, Material } from "@/lib/api/types";
@@ -85,6 +87,7 @@ function NewJobToast({ order, stationName, toastId }: {
 export default function LiveStationPage() {
     const params        = useParams();
     const router        = useRouter();
+    const { user }      = useAuth();
     const searchParams  = useSearchParams();
     const stationId     = params.stationId as string;
     const orderId       = searchParams.get("orderId");
@@ -354,6 +357,30 @@ export default function LiveStationPage() {
     );
 
     if (loading) return <div className="flex h-full flex-col">{header}<LoadingSpinner /></div>;
+
+    const slug = user?.role && typeof user.role === 'object' ? user.role.slug : user?.role;
+    const isAuthorized = slug === "admin" || slug === "manager" || hasPermission(user, `station:enter:${stationId}`);
+
+    if (!isAuthorized) {
+        return (
+            <div className="flex h-full flex-col bg-slate-50 dark:bg-slate-950">
+                {header}
+                <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8">
+                    <div className="p-4 rounded-3xl bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/30">
+                        <ShieldAlert className="h-12 w-12 text-red-500" />
+                    </div>
+                    <div className="text-center space-y-2 max-w-md">
+                        <h2 className="font-bold text-xl text-slate-900 dark:text-white">ไม่มีสิทธิ์เข้าถึงสถานีนี้</h2>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">บทบาทของคุณไม่ได้รับอนุญาตให้เข้าปฏิบัติงานที่สถานีนี้ กรุณาติดต่อผู้ดูแลระบบเพื่อขออนุมัติสิทธิ์การเข้าใช้งาน</p>
+                    </div>
+                    <Button variant="outline" className="rounded-xl px-5 h-11 font-bold border-slate-200 dark:border-slate-800" onClick={() => router.push("/stations")}>
+                        <ArrowLeft className="h-4 w-4 mr-2" />
+                        กลับหน้าหลักสถานี
+                    </Button>
+                </div>
+            </div>
+        );
+    }
 
     if (noTemplate || !template) {
         return (

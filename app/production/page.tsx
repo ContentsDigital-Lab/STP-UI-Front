@@ -19,6 +19,7 @@ import { useWebSocket } from "@/lib/hooks/use-socket";
 import { Order, OrderRequest, Station, Pane } from "@/lib/api/types";
 import { getStationId, getStationName } from "@/lib/utils/station-helpers";
 import { isPaneRetiredByMerge } from "@/lib/utils/pane-laminate";
+import { PermissionGuard } from "@/components/auth/PermissionGuard";
 
 // ── status config ─────────────────────────────────────────────────────────────
 const ORDER_STATUS = {
@@ -346,7 +347,7 @@ export default function ProductionPage() {
     const completedBills = bills.filter(b => b.orders.length > 0 && b.orders.every(o => o.status === "completed" || o.status === "cancelled")).length;
 
     return (
-        <>
+        <PermissionGuard permission="production:view">
         <div className="space-y-6 max-w-[1440px] mx-auto w-full">
             {/* Header */}
             <div className="flex items-center justify-between">
@@ -876,6 +877,6 @@ export default function ProductionPage() {
                 </DialogFooter>
             </DialogContent>
         </Dialog>
-        </>
+        </PermissionGuard>
     );
 }

@@ -18,6 +18,7 @@ import StickerPreviewModal from "../StickerPreviewModal";
 import CropModal from "../CropModal";
 import type { CropArea } from "../CropModal";
 import { Button } from "@/components/ui/button";
+import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -1204,7 +1205,7 @@ export default function StickerDesignerPage() {
     );
 
     return (
-        <>
+        <PermissionGuard permission="stickers:manage">
         {/* fill the remaining page height (layout already has padding) */}
         <div className="flex flex-col gap-3" style={{ height: "calc(100vh - 7rem)" }}>
             {/* Header */}
@@ -1473,6 +1474,6 @@ export default function StickerDesignerPage() {
             />
         )}
 
-        </>
+        </PermissionGuard>
     );
 }

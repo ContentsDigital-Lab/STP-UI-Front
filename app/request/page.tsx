@@ -60,8 +60,9 @@ import { workersApi } from "@/lib/api/workers";
 import { OrderRequest, Customer, Worker, Pane } from "@/lib/api/types";
 import { getStationName } from "@/lib/utils/station-helpers";
 import { getRoleName } from "@/lib/auth/role-utils";
-import { useWebSocket } from "@/lib/hooks/use-socket";
 import { toast } from "sonner";
+import { PermissionGuard } from "@/components/auth/PermissionGuard";
+import { useWebSocket } from "@/lib/hooks/use-socket";
 
 const ITEMS_PER_PAGE = 20;
 
@@ -388,7 +389,8 @@ export default function OrderRequestsPage() {
     );
 
     return (
-        <div className="space-y-6 max-w-[1440px] mx-auto w-full">
+        <PermissionGuard permission="orders:create">
+            <div className="space-y-6 max-w-[1440px] mx-auto w-full">
             {/* Page Header */}
             <div className="flex items-center justify-between">
                 <div>
@@ -1031,5 +1033,6 @@ export default function OrderRequestsPage() {
                 </DialogContent>
             </Dialog>
         </div>
+        </PermissionGuard>
     );
 }

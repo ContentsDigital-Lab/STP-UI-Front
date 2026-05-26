@@ -19,6 +19,8 @@ import { Station } from "@/lib/api/types";
 import { COLOR_OPTIONS, getColorOption } from "@/lib/stations/stations-store";
 import { getStationTemplates } from "@/lib/api/station-templates";
 import { StationTemplate } from "@/lib/types/station-designer";
+import { useAuth } from "@/lib/auth/auth-context";
+import { hasPermission } from "@/lib/auth/permissions";
 
 /** Backend populates templateId — extract string ID from either a plain string or a populated object */
 function resolveTemplateId(templateId: unknown): string {
@@ -223,6 +225,8 @@ function DeleteConfirm({ name, onConfirm, onCancel }: { name: string; onConfirm:
 
 export default function StationsPage() {
     const router = useRouter();
+    const { user } = useAuth();
+    const canManage = hasPermission(user, "stations:manage");
 
     const [stations,    setStations]    = useState<Station[]>([]);
     const [templates,   setTemplates]   = useState<StationTemplate[]>([]);
@@ -301,6 +305,12 @@ export default function StationsPage() {
         }
     };
 
+    const filteredStations = stations.filter((station) => {
+        const slug = user?.role && typeof user.role === 'object' ? user.role.slug : user?.role;
+        if (slug === "admin" || slug === "manager") return true;
+        return hasPermission(user, `station:enter:${station._id}`);
+    });
+
     if (loading) {
         return (
             <div className="flex h-full items-center justify-center">
@@ -316,39 +326,49 @@ export default function StationsPage() {
                     <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">สถานี</h1>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">สถานีการทำงานในกระบวนการผลิต</p>
                 </div>
-                <div className="grid grid-cols-2 sm:flex sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto shrink-0">
-                    <Button variant="outline" className="w-full sm:w-auto gap-2 text-xs sm:text-sm rounded-xl h-10 sm:h-11 px-0 sm:px-4 font-bold border-slate-200 dark:border-slate-700" onClick={() => router.push("/stations/designer")}>
-                        <Settings2 className="h-4 w-4 shrink-0" />
-                        <span className="truncate"><span className="hidden sm:inline">จัดการ </span>Template</span>
-                    </Button>
-                    <Button className="w-full sm:w-auto gap-2 text-xs sm:text-sm rounded-xl h-10 sm:h-11 px-0 sm:px-5 font-bold bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0" onClick={() => setShowCreate(true)}>
-                        <Plus className="h-4 w-4 shrink-0" />
-                        <span className="truncate">สร้างสถานี</span>
-                    </Button>
-                </div>
+                {canManage && (
+                    <div className="grid grid-cols-2 sm:flex sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto shrink-0">
+                        <Button variant="outline" className="w-full sm:w-auto gap-2 text-xs sm:text-sm rounded-xl h-10 sm:h-11 px-0 sm:px-4 font-bold border-slate-200 dark:border-slate-700" onClick={() => router.push("/stations/designer")}>
+                            <Settings2 className="h-4 w-4 shrink-0" />
+                            <span className="truncate"><span className="hidden sm:inline">จัดการ </span>Template</span>
+                        </Button>
+                        <Button className="w-full sm:w-auto gap-2 text-xs sm:text-sm rounded-xl h-10 sm:h-11 px-0 sm:px-5 font-bold bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0" onClick={() => setShowCreate(true)}>
+                            <Plus className="h-4 w-4 shrink-0" />
+                            <span className="truncate">สร้างสถานี</span>
+                        </Button>
+                    </div>
+                )}
             </div>
 
             {/* Empty state */}
-            {stations.length === 0 && (
+            {filteredStations.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-20 space-y-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800">
                     <div className="h-12 w-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
                         <Factory className="h-6 w-6 text-slate-400 dark:text-slate-500" />
                     </div>
-                    <div className="text-center">
-                        <p className="text-sm font-medium text-slate-500 dark:text-slate-400">ยังไม่มีสถานี</p>
-                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">กด "สร้างสถานี" เพื่อเพิ่มสถานีการทำงาน</p>
+                    <div className="text-center px-4">
+                        <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                            {stations.length === 0 ? "ยังไม่มีสถานี" : "ไม่มีสิทธิ์เข้าถึงสถานี"}
+                        </p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                            {stations.length === 0 
+                                ? (canManage ? 'กด "สร้างสถานี" เพื่อเพิ่มสถานีการทำงาน' : "ยังไม่มีสถานีในขณะนี้")
+                                : "คุณไม่มีสิทธิ์เข้าใช้งานสถานีใดๆ ในขณะนี้ กรุณาติดต่อผู้ดูแลระบบเพื่อขอสิทธิ์"}
+                        </p>
                     </div>
-                    <Button onClick={() => setShowCreate(true)} className="gap-2 rounded-xl h-9 bg-blue-600 hover:bg-blue-700 text-white text-sm">
-                        <Plus className="h-4 w-4" />
-                        สร้างสถานีแรก
-                    </Button>
+                    {stations.length === 0 && canManage && (
+                        <Button onClick={() => setShowCreate(true)} className="gap-2 rounded-xl h-9 bg-blue-600 hover:bg-blue-700 text-white text-sm">
+                            <Plus className="h-4 w-4" />
+                            สร้างสถานีแรก
+                        </Button>
+                    )}
                 </div>
             )}
 
             {/* Station grid */}
-            {stations.length > 0 && (
+            {filteredStations.length > 0 && (
                 <div className="grid grid-cols-1 gap-4 sm:gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                    {stations.map((station) => {
+                    {filteredStations.map((station) => {
                         const color        = getColorOption(station.colorId);
                         const tmplId       = resolveTemplateId(station.templateId);
                         const templateName = tmplId ? tmplNames[tmplId] : undefined;
@@ -365,24 +385,26 @@ export default function StationsPage() {
                                             <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300">LAM</span>
                                         )}
                                     </div>
-                                    <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button
-                                            type="button"
-                                            onClick={() => setEditing({ ...station, colorId: station.colorId ?? "sky" })}
-                                            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                                            title="แก้ไข"
-                                        >
-                                            <Pencil className="h-3.5 w-3.5" />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setDeleting(station)}
-                                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                                            title="ลบ"
-                                        >
-                                            <Trash2 className="h-3.5 w-3.5" />
-                                        </button>
-                                    </div>
+                                    {canManage && (
+                                        <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button
+                                                type="button"
+                                                onClick={() => setEditing({ ...station, colorId: station.colorId ?? "sky" })}
+                                                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                                title="แก้ไข"
+                                            >
+                                                <Pencil className="h-3.5 w-3.5" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeleting(station)}
+                                                className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                                title="ลบ"
+                                            >
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Template assignment */}
@@ -422,16 +444,18 @@ export default function StationsPage() {
                     })}
 
                     {/* Quick add card */}
-                    <button
-                        type="button"
-                        onClick={() => setShowCreate(true)}
-                        className="rounded-3xl border-2 border-dashed border-slate-300 dark:border-slate-700 p-5 sm:p-6 flex flex-col items-center justify-center gap-3 hover:border-blue-400 dark:hover:border-[#E8601C] hover:bg-blue-50/30 dark:hover:bg-[#E8601C]/5 transition-all min-h-[200px]"
-                    >
-                        <div className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800">
-                            <Plus className="h-5 w-5 text-slate-400" />
-                        </div>
-                        <span className="text-sm text-slate-400 font-bold">สร้างสถานีใหม่</span>
-                    </button>
+                    {canManage && (
+                        <button
+                            type="button"
+                            onClick={() => setShowCreate(true)}
+                            className="rounded-3xl border-2 border-dashed border-slate-300 dark:border-slate-700 p-5 sm:p-6 flex flex-col items-center justify-center gap-3 hover:border-blue-400 dark:hover:border-[#E8601C] hover:bg-blue-50/30 dark:hover:bg-[#E8601C]/5 transition-all min-h-[200px]"
+                        >
+                            <div className="p-3 rounded-2xl bg-slate-100 dark:bg-slate-800">
+                                <Plus className="h-5 w-5 text-slate-400" />
+                            </div>
+                            <span className="text-sm text-slate-400 font-bold">สร้างสถานีใหม่</span>
+                        </button>
+                    )}
                 </div>
             )}
 

@@ -48,7 +48,7 @@ export function Sidebar({ collapsed, setCollapsed, onNavigate }: SidebarProps) {
         {
             label: lang === "th" ? "ภาพรวม" : "Overview",
             items: [
-                { name: t.dashboard.label, href: "/", icon: LayoutDashboard, permission: "production:view" },
+                { name: t.dashboard.label, href: "/", icon: LayoutDashboard, permission: "dashboard:view" },
             ],
         },
         {
@@ -81,9 +81,16 @@ export function Sidebar({ collapsed, setCollapsed, onNavigate }: SidebarProps) {
     const sections = allSections
         .map((section) => ({
             ...section,
-            items: section.items.filter((item) =>
-                !item.permission || hasPermission(user, item.permission)
-            ),
+            items: section.items.filter((item) => {
+                if (item.href === "/stations") {
+                    const slug = user?.role && typeof user.role === 'object' ? user.role.slug : user?.role;
+                    if (slug === "admin" || slug === "manager") return true;
+                    const rolePerms = user?.role && typeof user.role === 'object' ? user.role.permissions : [];
+                    const hasAnyStationPerm = Array.isArray(rolePerms) && rolePerms.some((p: string) => p.startsWith("station:enter:"));
+                    return hasAnyStationPerm;
+                }
+                return !item.permission || hasPermission(user, item.permission);
+            }),
         }))
         .filter((section) => section.items.length > 0);
 

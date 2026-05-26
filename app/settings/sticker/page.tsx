@@ -12,6 +12,7 @@ const StickerThumbnail = dynamic(() => import("./StickerThumbnail"), {
 });
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import {
     Pagination, PaginationContent, PaginationEllipsis,
     PaginationItem, PaginationLink, PaginationNext, PaginationPrevious,
@@ -208,7 +209,8 @@ export default function StickerGalleryPage() {
     const handleEdit = (id: string) => router.push(`/settings/sticker/${id}`);
 
     return (
-        <div className="space-y-6 max-w-[1440px] mx-auto w-full">
+        <PermissionGuard permission="stickers:manage">
+            <div className="space-y-6 max-w-[1440px] mx-auto w-full">
             {/* Header */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
@@ -374,5 +376,6 @@ export default function StickerGalleryPage() {
                 </div>
             )}
         </div>
+        </PermissionGuard>
     );
 }

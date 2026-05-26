@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Edit, Trash2, Loader2, Plus, Layers, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
+import { PermissionGuard } from "@/components/auth/PermissionGuard";
 
 export default function JobTypesManagementPage() {
     const router = useRouter();
@@ -155,7 +156,8 @@ export default function JobTypesManagementPage() {
     };
 
     return (
-        <div className="space-y-6 max-w-[1440px] mx-auto w-full">
+        <PermissionGuard permission="settings:manage">
+            <div className="space-y-6 max-w-[1440px] mx-auto w-full">
             {/* Header */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
@@ -397,5 +399,6 @@ export default function JobTypesManagementPage() {
                 </DialogContent>
             </Dialog>
         </div>
+        </PermissionGuard>
     );
 }

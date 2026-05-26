@@ -7,6 +7,7 @@ import {
     LayoutGrid, List, Search, ChevronLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
     Pagination, PaginationContent, PaginationEllipsis,
@@ -302,7 +303,8 @@ export default function StationDesignerGalleryPage() {
     };
 
     return (
-        <div className="space-y-6 p-6">
+        <PermissionGuard permission="stations:manage">
+            <div className="space-y-6 p-6">
             {/* Header */}
             <div className="flex flex-col sm:flex-row flex-wrap gap-4 sm:items-center sm:justify-between mb-2">
                 <div className="flex items-start gap-3">
@@ -575,5 +577,6 @@ export default function StationDesignerGalleryPage() {
                 </div>
             )}
         </div>
+        </PermissionGuard>
     );
 }

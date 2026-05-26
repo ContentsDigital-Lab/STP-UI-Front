@@ -9,6 +9,7 @@ import { inventoriesApi } from "@/lib/api/inventories";
 import { workersApi } from "@/lib/api/workers";
 import { stationsApi } from "@/lib/api/stations";
 import { useLanguage } from "@/lib/i18n/language-context";
+import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import {
     Table,
@@ -565,8 +566,8 @@ export default function MaterialLogsPage() {
     // ─── JSX ───────────────────────────────────────────────────────────────────
 
     return (
-        <>
-        <div className="space-y-6 max-w-[1440px] mx-auto w-full">
+        <PermissionGuard permission="settings:view">
+            <div className="space-y-6 max-w-[1440px] mx-auto w-full">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
@@ -1362,6 +1363,6 @@ export default function MaterialLogsPage() {
                 </div>
             </div>
         )}
-        </>
+        </PermissionGuard>
     );
 }
