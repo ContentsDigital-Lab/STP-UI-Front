@@ -316,8 +316,9 @@ export function RecordDetail({
         const id = new URLSearchParams(window.location.search).get(idParam)
             ?? window.location.pathname.split("/").filter(Boolean).pop();
         if (!id) { setFetched(SAMPLE_DATA); return; }
+        if (endpoint === "context") { setFetched(null); return; }
         setFetching(true);
-        fetchApi<{ success: boolean; data: Record<string, unknown> }>(`${endpoint}/${id}`)
+        fetchApi<{ success: boolean; data: Record<string, unknown> }>(`${endpoint.startsWith("/") ? endpoint : "/" + endpoint}/${id}`)
             .then((res) => { if (res.success) setFetched(res.data); else setError("โหลดข้อมูลไม่สำเร็จ"); })
             .catch(() => setFetched(SAMPLE_DATA))
             .finally(() => setFetching(false));

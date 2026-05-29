@@ -344,7 +344,7 @@ export function RecordList({
      *  Orders with 0 pending panes are hidden — all their panes have moved to the station queue. */
     const loadPendingPaneCounts = () => {
         if (!effectivePendingOnly || dataSource !== "/orders" || (!stationId && !stationName)) return;
-        panesApi.getAll({ station: stationId, limit: 500 }).catch(() => null).then(res => {
+        panesApi.getAll({ station: stationId ?? undefined, limit: 500 }).catch(() => null).then(res => {
             if (!res) return;
             if (!res.success || !Array.isArray(res.data)) return;
             const counts: Record<string, number> = {};
@@ -396,6 +396,10 @@ export function RecordList({
     const wsConfig = DATASOURCE_WS[dataSource] ?? { room: "_noop", events: [] };
     useWebSocket(wsConfig.room, wsConfig.events, () => {
         if (isApi) loadData(true);
+    }, { debounceMs: 500 });
+
+    useWebSocket("order", ["order:updated"], () => {
+        if (isApi && dataSource === "/requests") loadData(true);
     }, { debounceMs: 500 });
 
     useWebSocket("pane", ["pane:updated", "pane:laminated"], () => {

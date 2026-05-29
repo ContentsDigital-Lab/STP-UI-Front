@@ -101,7 +101,10 @@ export function StationHistory({
         if (!stationId && !stationName) return;
         setAwaitingLoading(true);
         try {
-            const res = await panesApi.getAll({ limit: 300 }).catch(() => null);
+            const query: Record<string, any> = { status: "awaiting_scan_out", limit: 300 };
+            if (stationId) query.station = stationId;
+            
+            const res = await panesApi.getAll(query).catch(() => null);
             if (!res || !res.success || !Array.isArray(res.data)) return;
             const atStation = res.data.filter(
                 (p) =>
