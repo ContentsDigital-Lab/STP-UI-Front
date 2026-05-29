@@ -21,12 +21,17 @@ export interface ProductionStatsResult {
     accuracy: number; // 0-100 percentage
 }
 
+import { useAuth } from "@/lib/auth/auth-context";
+import { hasPermission } from "@/lib/auth/permissions";
+
 export function useProductionStats() {
+    const { user, isAuthenticated } = useAuth();
     const [stats, setStats] = useState<Record<string, MaterialStats>>({});
     const [accuracy, setAccuracy] = useState<number>(0);
     const [loading, setLoading] = useState(false);
 
     const refreshStats = useCallback(async () => {
+        if (!isAuthenticated || (!hasPermission(user, 'production:view') && !hasPermission(user, 'orders:view'))) return;
         setLoading(true);
         try {
             // Fetch a large number of logs to calculate averages
@@ -120,7 +125,7 @@ export function useProductionStats() {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [isAuthenticated, user]);
 
     useEffect(() => {
         refreshStats();

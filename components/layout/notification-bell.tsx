@@ -16,20 +16,21 @@ import { Notification } from "@/lib/api/types";
 import { notificationsApi } from "@/lib/api/notifications";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { playNotificationSound } from "@/lib/notification-sounds";
+import { hasPermission } from "@/lib/auth/permissions";
 import { useAuth } from "@/lib/auth/auth-context";
 
 export function NotificationBell() {
-    const { isAuthenticated } = useAuth();
+    const { user, isAuthenticated } = useAuth();
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
         setMounted(true);
-        if (!isAuthenticated) return;
+        if (!isAuthenticated || !hasPermission(user, 'notifications:view')) return;
         notificationsApi.getAll().then((res) => {
             if (res.success) setNotifications(res.data);
         }).catch(() => {});
-    }, []);
+    }, [isAuthenticated, user]);
 
     const refetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -78,7 +79,7 @@ export function NotificationBell() {
         return date.toLocaleDateString();
     };
 
-    if (!mounted || !isAuthenticated) return null;
+    if (!mounted || !isAuthenticated || !hasPermission(user, 'notifications:view')) return null;
 
     return (
         <DropdownMenu>

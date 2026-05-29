@@ -27,7 +27,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { useAuth } from "@/lib/auth/auth-context";
-import { isManagerOrAbove } from "@/lib/auth/role-utils";
+import { isAdmin } from "@/lib/auth/role-utils";
+import { hasPermission } from "@/lib/auth/permissions";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import { getStationName as _getStationName } from "@/lib/utils/station-helpers";
 import { claimsApi } from "@/lib/api/claims";
@@ -42,7 +43,8 @@ const ITEMS_PER_PAGE = 10;
 
 export default function ClaimsPage() {
     const { user } = useAuth();
-    const isManager = isManagerOrAbove(user?.role);
+    const canManage = isAdmin(user?.role) || hasPermission(user, 'claims:manage');
+    const canCreate = isAdmin(user?.role) || hasPermission(user, 'claims:create');
 
     const [isLoading, setIsLoading] = useState(true);
     const [claims, setClaims] = useState<Claim[]>([]);
@@ -117,11 +119,11 @@ export default function ClaimsPage() {
     // Initial data load (once)
     useEffect(() => {
         Promise.all([
-            claimsApi.getAll(),
-            materialsApi.getAll(),
-            ordersApi.getAll(),
-            workersApi.getAll(),
-            stationsApi.getAll(),
+            claimsApi.getAll().catch(() => ({ success: true, data: [] })),
+            materialsApi.getAll().catch(() => ({ success: true, data: [] })),
+            ordersApi.getAll().catch(() => ({ success: true, data: [] })),
+            workersApi.getAll().catch(() => ({ success: true, data: [] })),
+            stationsApi.getAll().catch(() => ({ success: true, data: [] })),
         ]).then(([cRes, mRes, oRes, workerRes, stRes]) => {
             if (cRes.success) setClaims(cRes.data);
             if (mRes.success) setMaterials(mRes.data);
@@ -315,10 +317,12 @@ export default function ClaimsPage() {
                     <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white truncate">รายการเคลม</h1>
                     <p className="text-sm text-slate-500 dark:text-slate-400">บันทึกและติดตามการเคลมวัสดุแบบเรียลไทม์</p>
                 </div>
-                <Button onClick={() => setIsCreateOpen(true)} className="gap-2 bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white font-bold rounded-xl h-10 px-5 text-sm shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0 w-full sm:w-auto shrink-0">
-                    <Plus className="h-4 w-4" />
-                    เพิ่มรายการเคลม
-                </Button>
+                {canCreate && (
+                    <Button onClick={() => setIsCreateOpen(true)} className="gap-2 bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white font-bold rounded-xl h-10 px-5 text-sm shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0 w-full sm:w-auto shrink-0">
+                        <Plus className="h-4 w-4" />
+                        เพิ่มรายการเคลม
+                    </Button>
+                )}
             </div>
 
             {/* Stats */}
@@ -474,8 +478,8 @@ export default function ClaimsPage() {
                                                     <Eye className="mr-2 h-4 w-4" />
                                                     ดูรายละเอียด
                                                 </DropdownMenuItem>
-                                                {isManager && <DropdownMenuSeparator />}
-                                                {isManager && (
+                                                {canManage && <DropdownMenuSeparator />}
+                                                {canManage && (
                                                     <DropdownMenuItem onClick={() => {
                                                         setDecisionTarget(c);
                                                         setDecisionForm({ decision: c.decision ?? "" });
@@ -484,8 +488,8 @@ export default function ClaimsPage() {
                                                         ตัดสินผล
                                                     </DropdownMenuItem>
                                                 )}
-                                                {isManager && <DropdownMenuSeparator />}
-                                                {isManager && (
+                                                {canManage && <DropdownMenuSeparator />}
+                                                {canManage && (
                                                     <DropdownMenuItem
                                                         className="text-red-500 focus:text-red-500"
                                                         onClick={() => setDeleteTarget(c)}
@@ -494,7 +498,7 @@ export default function ClaimsPage() {
                                                         ลบรายการ
                                                     </DropdownMenuItem>
                                                 )}
-                                                {!isManager && (
+                                                {!canManage && (
                                                     <DropdownMenuItem disabled className="text-slate-400 text-xs">
                                                         ไม่มีสิทธิ์จัดการ
                                                     </DropdownMenuItem>
@@ -953,7 +957,7 @@ export default function ClaimsPage() {
 
                                 {/* Footer */}
                                 <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
-                                    {isManager && (
+                                    {canManage && (
                                         <Button
                                             variant="outline"
                                             className="rounded-xl h-9 px-4 text-sm gap-2"

@@ -295,7 +295,7 @@ export function RecordList({
             ? fetchAllPages("/orders")
             : Promise.resolve([] as Record<string, unknown>[]);
         const fetchPanes = needPaneCheck
-            ? panesApi.getAll({ limit: 500 }).catch(() => null)
+            ? panesApi.getAll({ station: stationId, limit: 500 }).catch(() => null)
             : Promise.resolve(null);
 
         Promise.all([fetchMain, fetchOrders, fetchPanes])
@@ -344,7 +344,7 @@ export function RecordList({
      *  Orders with 0 pending panes are hidden — all their panes have moved to the station queue. */
     const loadPendingPaneCounts = () => {
         if (!effectivePendingOnly || dataSource !== "/orders" || (!stationId && !stationName)) return;
-        panesApi.getAll({ limit: 500 }).catch(() => null).then(res => {
+        panesApi.getAll({ station: stationId, limit: 500 }).catch(() => null).then(res => {
             if (!res) return;
             if (!res.success || !Array.isArray(res.data)) return;
             const counts: Record<string, number> = {};
@@ -404,8 +404,8 @@ export function RecordList({
         setQrPane(null);
         if (!expandedRowId) return;
         const fetchFn = dataSource === "/orders"
-            ? panesApi.getAll({ order: expandedRowId, status_ne: "claimed", limit: 100 })
-            : panesApi.getAll({ request: expandedRowId, limit: 100 });
+            ? panesApi.getAll({ order: expandedRowId, status_ne: "claimed", limit: 100, ...(stationId ? { station: stationId } : {}) })
+            : panesApi.getAll({ request: expandedRowId, limit: 100, ...(stationId ? { station: stationId } : {}) });
         fetchFn
             .then((res) => setRowPanes(res.success ? floorPanes(res.data) : []))
             .catch(() => {});
@@ -430,8 +430,8 @@ export function RecordList({
         if (!expandedRowId || !isApi) return;
         if (dataSource !== "/orders" && dataSource !== "/requests") return;
         const fetchFn = dataSource === "/orders"
-            ? panesApi.getAll({ order: expandedRowId, status_ne: "claimed", limit: 100 })
-            : panesApi.getAll({ request: expandedRowId, limit: 100 });
+            ? panesApi.getAll({ order: expandedRowId, status_ne: "claimed", limit: 100, ...(stationId ? { station: stationId } : {}) })
+            : panesApi.getAll({ request: expandedRowId, limit: 100, ...(stationId ? { station: stationId } : {}) });
         fetchFn
             .then((res) => {
                 if (res.success) setRowPanes(floorPanes(res.data));
@@ -535,10 +535,10 @@ export function RecordList({
         setShowAllPanes(false);
         try {
             if (dataSource === "/orders") {
-                const res = await panesApi.getAll({ order: rid, status_ne: "claimed", limit: 100 });
+                const res = await panesApi.getAll({ order: rid, status_ne: "claimed", limit: 100, ...(stationId ? { station: stationId } : {}) });
                 setRowPanes(res.success ? floorPanes(res.data) : []);
             } else {
-                const res = await panesApi.getAll({ request: rid, limit: 100 });
+                const res = await panesApi.getAll({ request: rid, limit: 100, ...(stationId ? { station: stationId } : {}) });
                 setRowPanes(res.success ? floorPanes(res.data) : []);
             }
         } catch {

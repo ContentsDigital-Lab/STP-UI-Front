@@ -11,12 +11,16 @@ const roomRefs = new Map<string, number>();
  */
 function getSharedSocket() {
     if (typeof window === 'undefined') return null;
+    const token = localStorage.getItem('auth_token') || '';
+
     if (sharedSocket) {
-        if (sharedSocket.disconnected) sharedSocket.connect();
+        if (sharedSocket.disconnected && token) {
+            (sharedSocket.auth as Record<string, any>).token = token;
+            sharedSocket.connect();
+        }
         return sharedSocket;
     }
 
-    const token = localStorage.getItem('auth_token') || '';
     const baseUrl = new URL(API_BASE_URL).origin;
 
     sharedSocket = io(baseUrl, {
@@ -26,6 +30,7 @@ function getSharedSocket() {
         reconnectionAttempts: 10,
         reconnectionDelay: 2000,
         multiplex: true, // socket.io default, but explicit for clarity
+        autoConnect: !!token,
     });
 
     sharedSocket.on('connect', () => {
@@ -41,6 +46,25 @@ function getSharedSocket() {
     });
 
     return sharedSocket;
+}
+
+export function connectGlobalSocket(token: string) {
+    if (typeof window === 'undefined') return;
+    if (!sharedSocket) {
+        getSharedSocket();
+    }
+    if (sharedSocket) {
+        (sharedSocket.auth as Record<string, any>).token = token;
+        if (sharedSocket.disconnected) {
+            sharedSocket.connect();
+        }
+    }
+}
+
+export function disconnectGlobalSocket() {
+    if (sharedSocket && !sharedSocket.disconnected) {
+        sharedSocket.disconnect();
+    }
 }
 
 /**

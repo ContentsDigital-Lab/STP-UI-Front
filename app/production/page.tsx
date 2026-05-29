@@ -20,6 +20,8 @@ import { Order, OrderRequest, Station, Pane } from "@/lib/api/types";
 import { getStationId, getStationName } from "@/lib/utils/station-helpers";
 import { isPaneRetiredByMerge } from "@/lib/utils/pane-laminate";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
+import { useAuth } from "@/lib/auth/auth-context";
+import { hasPermission } from "@/lib/auth/permissions";
 
 // ── status config ─────────────────────────────────────────────────────────────
 const ORDER_STATUS = {
@@ -155,6 +157,9 @@ interface BillGroup {
 // ── page ──────────────────────────────────────────────────────────────────────
 export default function ProductionPage() {
     const router = useRouter();
+    const { user } = useAuth();
+    const canManage = hasPermission(user, "production:manage") || hasPermission(user, "orders:manage");
+
     const [orders,    setOrders]    = useState<Order[]>([]);
     const [requests,  setRequests]  = useState<OrderRequest[]>([]);
     const [stations,  setStations]  = useState<Station[]>([]);
@@ -688,14 +693,16 @@ export default function ProductionPage() {
                                                         >
                                                             <Printer className="h-3.5 w-3.5" />
                                                         </button>
-                                                        <button
-                                                            type="button"
-                                                            title="ลบออเดอร์"
-                                                            onClick={(e) => { e.stopPropagation(); setDeleteTarget({ id: order._id, label: order.orderNumber ?? order.code ?? order._id.slice(-6).toUpperCase() }); }}
-                                                            className="flex-1 sm:flex-none flex items-center justify-center p-2.5 sm:p-1.5 rounded-xl sm:rounded-lg text-slate-500 hover:text-red-600 dark:hover:text-red-400 bg-slate-50 hover:bg-red-50 dark:bg-slate-800/50 dark:hover:bg-red-500/10 transition-colors border border-slate-200/50 dark:border-slate-700/50 sm:border-transparent sm:bg-transparent"
-                                                        >
-                                                            <Trash2 className="h-3.5 w-3.5" />
-                                                        </button>
+                                                        {canManage && (
+                                                            <button
+                                                                type="button"
+                                                                title="ลบออเดอร์"
+                                                                onClick={(e) => { e.stopPropagation(); setDeleteTarget({ id: order._id, label: order.orderNumber ?? order.code ?? order._id.slice(-6).toUpperCase() }); }}
+                                                                className="flex-1 sm:flex-none flex items-center justify-center p-2.5 sm:p-1.5 rounded-xl sm:rounded-lg text-slate-500 hover:text-red-600 dark:hover:text-red-400 bg-slate-50 hover:bg-red-50 dark:bg-slate-800/50 dark:hover:bg-red-500/10 transition-colors border border-slate-200/50 dark:border-slate-700/50 sm:border-transparent sm:bg-transparent"
+                                                            >
+                                                                <Trash2 className="h-3.5 w-3.5" />
+                                                            </button>
+                                                        )}
                                                         <button
                                                             type="button"
                                                             title="ดูรายละเอียด"

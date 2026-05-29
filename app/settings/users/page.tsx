@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/auth-context";
-import { getRoleName, getRoleSlug, isAdmin, isManagerOrAbove } from "@/lib/auth/role-utils";
+import { getRoleName, getRoleSlug, isAdmin } from "@/lib/auth/role-utils";
 import { workersApi } from "@/lib/api/workers";
 import { ordersApi } from "@/lib/api/orders";
 import { claimsApi } from "@/lib/api/claims";
@@ -89,10 +89,13 @@ export default function UsersManagementPage() {
     const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
     const [editingRole, setEditingRole] = useState<Partial<Role> | null>(null);
 
+    const canManageUsers = isAdmin(user?.role) || hasPermission(user, "users:manage");
+    const canManageRoles = isAdmin(user?.role) || hasPermission(user, "roles:manage");
+
     useEffect(() => {
         if (!isAuthLoading) {
             const slug = user?.role && typeof user.role === 'object' ? user.role.slug : user?.role;
-            const authorized = slug === "admin" || slug === "manager" || hasPermission(user, "users:view");
+            const authorized = slug === "admin" || hasPermission(user, "users:view") || hasPermission(user, "users:manage");
             if (authorized) {
                 fetchWorkers();
             }
@@ -212,11 +215,39 @@ export default function UsersManagementPage() {
 
     const handleTogglePermission = (permission: string) => {
         if (!editingRole) return;
-        const currentPerms = editingRole.permissions || [];
-        const newPerms = currentPerms.includes(permission as any)
-            ? currentPerms.filter(p => p !== permission)
-            : [...currentPerms, permission];
-        setEditingRole({ ...editingRole, permissions: newPerms as any[] });
+        let currentPerms = [...(editingRole.permissions || [])];
+        
+        // Group hidden permissions so they toggle alongside the UI checkboxes
+        const linkedGroups: Record<string, string[]> = {
+            'inventory:view': ['withdrawals:view', 'claims:view', 'materials:view', 'inventory:move'],
+            'inventory:manage': ['withdrawals:create', 'withdrawals:manage', 'claims:create', 'claims:manage', 'materials:manage'],
+            'production:view': ['panes:view', 'panes:scan', 'pane_logs:view', 'production_logs:view', 'production_logs:create', 'stations:view'],
+            'orders:view': ['requests:view'],
+            'users:view': ['roles:view'],
+        };
+        
+        const isChecked = currentPerms.includes(permission as any);
+        
+        if (isChecked) {
+            // Remove main permission and any linked hidden permissions
+            currentPerms = currentPerms.filter(p => p !== permission);
+            if (linkedGroups[permission]) {
+                const toRemove = linkedGroups[permission];
+                currentPerms = currentPerms.filter(p => !toRemove.includes(p));
+            }
+        } else {
+            // Add main permission and any linked hidden permissions
+            currentPerms.push(permission as any);
+            if (linkedGroups[permission]) {
+                linkedGroups[permission].forEach(p => {
+                    if (!currentPerms.includes(p as any)) {
+                        currentPerms.push(p as any);
+                    }
+                });
+            }
+        }
+        
+        setEditingRole({ ...editingRole, permissions: currentPerms as any[] });
     };
 
     const handleSaveRoleData = async () => {
@@ -290,20 +321,26 @@ export default function UsersManagementPage() {
                     </div>
                 </div>
                 {activeTab === "users" ? (
-                    <Button onClick={() => setIsCreateModalOpen(true)} className="gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl h-10 px-5 text-sm shadow-lg border-0">
-                        <Plus className="h-4 w-4" /> เพิ่มผู้ใช้ใหม่
-                    </Button>
+                    canManageUsers && (
+                        <Button onClick={() => setIsCreateModalOpen(true)} className="gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl h-10 px-5 text-sm shadow-lg border-0">
+                            <Plus className="h-4 w-4" /> เพิ่มผู้ใช้ใหม่
+                        </Button>
+                    )
                 ) : (
-                    <Button onClick={handleCreateRole} className="gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl h-10 px-5 text-sm shadow-lg border-0">
-                        <Plus className="h-4 w-4" /> เพิ่มบทบาทใหม่
-                    </Button>
+                    canManageRoles && (
+                        <Button onClick={handleCreateRole} className="gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl h-10 px-5 text-sm shadow-lg border-0">
+                            <Plus className="h-4 w-4" /> เพิ่มบทบาทใหม่
+                        </Button>
+                    )
                 )}
             </div>
             
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                 <TabsList className="bg-slate-100/50 dark:bg-slate-800/10 p-1 rounded-xl mb-4">
                     <TabsTrigger value="users" className="rounded-lg px-6 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 shadow-sm">พนักงาน</TabsTrigger>
-                    <TabsTrigger value="roles" className="rounded-lg px-6 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 shadow-sm">บทบาทและสิทธิ์</TabsTrigger>
+                    {canManageRoles && (
+                        <TabsTrigger value="roles" className="rounded-lg px-6 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 shadow-sm">บทบาทและสิทธิ์</TabsTrigger>
+                    )}
                 </TabsList>
 
                 <TabsContent value="users" className="space-y-6">
@@ -370,26 +407,30 @@ export default function UsersManagementPage() {
                                     </TableCell>
                                     <TableCell className="text-right py-3.5 pr-4">
                                         <div className="flex justify-end gap-1">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="rounded-lg h-8 w-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-800"
-                                                    onClick={() => handleEditClick(worker)}
-                                                    disabled={isSelf(worker._id) || (!isAdmin(user?.role) && getRoleSlug(worker.role) === "admin")}
-                                                    title={isSelf(worker._id) ? "ไม่สามารถแก้ไขตัวเองได้" : !isAdmin(user?.role) && getRoleSlug(worker.role) === "admin" ? "ไม่สามารถแก้ไข Admin ได้" : "แก้ไขบทบาท"}
-                                                >
-                                                <Edit className="h-4 w-4 text-slate-500" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="rounded-lg h-8 w-8 p-0 hover:bg-red-50 dark:hover:bg-red-950"
-                                                onClick={() => handleDeleteClick(worker)}
-                                                disabled={isSelf(worker._id) || (!isAdmin(user?.role) && getRoleSlug(worker.role) === "admin")}
-                                                title={isSelf(worker._id) ? "ไม่สามารถลบตัวเองได้" : "ลบผู้ใช้"}
-                                            >
-                                                <Trash2 className="h-4 w-4 text-red-500" />
-                                            </Button>
+                                            {canManageUsers && (
+                                                <>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="rounded-lg h-8 w-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                                        onClick={() => handleEditClick(worker)}
+                                                        disabled={isSelf(worker._id) || (!isAdmin(user?.role) && getRoleSlug(worker.role) === "admin")}
+                                                        title={isSelf(worker._id) ? "ไม่สามารถแก้ไขตัวเองได้" : !isAdmin(user?.role) && getRoleSlug(worker.role) === "admin" ? "ไม่สามารถแก้ไข Admin ได้" : "แก้ไขบทบาท"}
+                                                    >
+                                                        <Edit className="h-4 w-4 text-slate-500" />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="rounded-lg h-8 w-8 p-0 hover:bg-red-50 dark:hover:bg-red-950"
+                                                        onClick={() => handleDeleteClick(worker)}
+                                                        disabled={isSelf(worker._id) || (!isAdmin(user?.role) && getRoleSlug(worker.role) === "admin")}
+                                                        title={isSelf(worker._id) ? "ไม่สามารถลบตัวเองได้" : "ลบผู้ใช้"}
+                                                    >
+                                                        <Trash2 className="h-4 w-4 text-red-500" />
+                                                    </Button>
+                                                </>
+                                            )}
                                         </div>
                                     </TableCell>
                                 </TableRow>
@@ -581,14 +622,16 @@ export default function UsersManagementPage() {
                                             <h3 className="font-bold text-slate-900 dark:text-white group-hover:text-blue-600 transition-colors uppercase tracking-tight truncate">{role.name}</h3>
                                             <p className="text-xs text-slate-500 line-clamp-2 mt-1">{role.description || "ไม่มีคำอธิบาย"}</p>
                                         </div>
-                                        <Button 
-                                            variant="ghost" 
-                                            size="sm" 
-                                            onClick={() => handleEditRole(role)}
-                                            className="h-8 w-8 p-0 shrink-0 ml-2 hover:bg-slate-100 dark:hover:bg-slate-800"
-                                        >
-                                            <Edit className="h-4 w-4 text-slate-500" />
-                                        </Button>
+                                        {canManageRoles && (
+                                            <Button 
+                                                variant="ghost" 
+                                                size="sm" 
+                                                onClick={() => handleEditRole(role)}
+                                                className="h-8 w-8 p-0 shrink-0 ml-2 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                            >
+                                                <Edit className="h-4 w-4 text-slate-500" />
+                                            </Button>
+                                        )}
                                     </div>
                                     <div className="flex flex-wrap gap-1 mt-2">
                                         {role.permissions.slice(0, 3).map(p => {

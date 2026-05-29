@@ -70,7 +70,7 @@ export default function SettingsPage() {
             description: "จัดการเทมเพลตสติ๊กเกอร์บาร์โค้ด สินค้าและบรรจุภัณฑ์ สำหรับการผลิต",
             icon: Tag,
             color: "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10",
-            permission: "settings:manage",
+            permission: "stickers:manage",
             hideIfLocked: true,
         }
     ];

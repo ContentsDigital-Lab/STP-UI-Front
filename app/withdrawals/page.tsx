@@ -24,7 +24,8 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { useAuth } from "@/lib/auth/auth-context";
-import { isManagerOrAbove } from "@/lib/auth/role-utils";
+import { isAdmin } from "@/lib/auth/role-utils";
+import { hasPermission } from "@/lib/auth/permissions";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import { withdrawalsApi } from "@/lib/api/withdrawals";
 import { materialsApi } from "@/lib/api/materials";
@@ -37,7 +38,8 @@ const ITEMS_PER_PAGE = 10;
 
 export default function WithdrawalsPage() {
     const { user } = useAuth();
-    const isManager = isManagerOrAbove(user?.role);
+    const canManage = isAdmin(user?.role) || hasPermission(user, 'withdrawals:manage');
+    const canCreate = isAdmin(user?.role) || hasPermission(user, 'withdrawals:create');
 
     const [isLoading, setIsLoading] = useState(true);
     const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
@@ -69,11 +71,11 @@ export default function WithdrawalsPage() {
     // Initial data load (once)
     useEffect(() => {
         Promise.all([
-            withdrawalsApi.getAll(),
-            materialsApi.getAll(),
-            inventoriesApi.getAll(),
-            ordersApi.getAll(),
-            workersApi.getAll(),
+            withdrawalsApi.getAll().catch(() => ({ success: true, data: [] })),
+            materialsApi.getAll().catch(() => ({ success: true, data: [] })),
+            inventoriesApi.getAll().catch(() => ({ success: true, data: [] })),
+            ordersApi.getAll().catch(() => ({ success: true, data: [] })),
+            workersApi.getAll().catch(() => ({ success: true, data: [] })),
         ]).then(([wRes, mRes, iRes, oRes, workerRes]) => {
             if (wRes.success) setWithdrawals(wRes.data);
             if (mRes.success) setMaterials(mRes.data);
@@ -196,10 +198,12 @@ export default function WithdrawalsPage() {
                         <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white truncate">เบิกวัสดุ</h1>
                         <p className="text-sm text-slate-500 dark:text-slate-400">บันทึกและติดตามการเบิกวัสดุแบบเรียลไทม์</p>
                     </div>
-                    <Button onClick={() => setIsCreateOpen(true)} className="gap-2 bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white font-bold rounded-xl h-10 px-5 text-sm shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0 w-full sm:w-auto shrink-0">
-                        <Plus className="h-4 w-4" />
-                        เบิกวัสดุใหม่
-                    </Button>
+                    {canCreate && (
+                        <Button onClick={() => setIsCreateOpen(true)} className="gap-2 bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white font-bold rounded-xl h-10 px-5 text-sm shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0 w-full sm:w-auto shrink-0">
+                            <Plus className="h-4 w-4" />
+                            เบิกวัสดุใหม่
+                        </Button>
+                    )}
                 </div>
 
                 {/* Stats */}
@@ -266,21 +270,21 @@ export default function WithdrawalsPage() {
                                 <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">ประเภท</TableHead>
                                 <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">Order</TableHead>
                                 <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">เบิกโดย</TableHead>
-                                {isManager && <TableHead className="w-10 py-3 h-10" />}
+                                {canManage && <TableHead className="w-10 py-3 h-10" />}
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {isLoading ? (
                                 Array.from({ length: 5 }).map((_, i) => (
                                     <TableRow key={i}>
-                                        {Array.from({ length: isManager ? 7 : 6 }).map((_, j) => (
+                                        {Array.from({ length: canManage ? 7 : 6 }).map((_, j) => (
                                             <TableCell key={j}><Skeleton className="h-4 w-24" /></TableCell>
                                         ))}
                                     </TableRow>
                                 ))
                             ) : paginated.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={isManager ? 7 : 6} className="py-16 text-center border-none">
+                                    <TableCell colSpan={canManage ? 7 : 6} className="py-16 text-center border-none">
                                         <div className="flex flex-col items-center gap-2">
                                             <div className="h-12 w-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
                                                 <Package className="h-6 w-6 text-slate-400 dark:text-slate-500" />
@@ -306,7 +310,7 @@ export default function WithdrawalsPage() {
                                             {getOrderLabel(w.order)}
                                         </TableCell>
                                         <TableCell className="text-sm py-3.5 text-slate-600 dark:text-slate-300">{getWorkerName(w.withdrawnBy)}</TableCell>
-                                        {isManager && (
+                                        {canManage && (
                                             <TableCell className="py-3.5 pr-4">
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger className="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">

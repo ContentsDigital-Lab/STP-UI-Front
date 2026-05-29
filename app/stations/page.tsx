@@ -307,8 +307,8 @@ export default function StationsPage() {
 
     const filteredStations = stations.filter((station) => {
         const slug = user?.role && typeof user.role === 'object' ? user.role.slug : user?.role;
-        if (slug === "admin" || slug === "manager") return true;
-        return hasPermission(user, `station:enter:${station._id}`);
+        if (slug === "admin") return true;
+        return hasPermission(user, "stations:manage") || hasPermission(user, `station:enter:${station._id}`);
     });
 
     if (loading) {

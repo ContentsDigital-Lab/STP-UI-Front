@@ -8,7 +8,7 @@ import { Loader2, ShieldAlert, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface PermissionGuardProps {
-    permission: string;
+    permission: string | string[];
     children: React.ReactNode;
     redirectTo?: string;
     showErrorScreen?: boolean;
@@ -27,7 +27,10 @@ export function PermissionGuard({
     useEffect(() => {
         if (!isLoading) {
             const slug = user?.role && typeof user.role === 'object' ? user.role.slug : user?.role;
-            const authorized = slug === "admin" || slug === "manager" || (user && hasPermission(user, permission));
+            const authorized = slug === "admin" || 
+                (user && (Array.isArray(permission) 
+                    ? permission.some(p => hasPermission(user, p)) 
+                    : hasPermission(user, permission)));
             setIsAuthorized(!!authorized);
 
             if (!authorized && redirectTo) {

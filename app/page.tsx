@@ -77,7 +77,7 @@ export default function DashboardPage() {
   }, [user, isLoading, router]);
 
   const slug = user?.role && typeof user.role === 'object' ? user.role.slug : user?.role;
-  const isAuthorized = slug === "admin" || slug === "manager" || (user && hasPermission(user, "dashboard:view"));
+  const isAuthorized = slug === "admin" || (user && hasPermission(user, "dashboard:view"));
 
   const [allRequests, setAllRequests] = useState<OrderRequest[]>([]);
   const [allOrders, setAllOrders] = useState<Order[]>([]);
@@ -88,14 +88,6 @@ export default function DashboardPage() {
   const [mounted, setMounted] = useState(false);
   const [chartRange, setChartRange] = useState<"1d" | "7d" | "30d">("7d");
 
-  // If loading or unauthorized, show spinner and prevent loading data or layout
-  if (isLoading || !isAuthorized) {
-    return (
-      <div className="flex h-[60vh] w-full items-center justify-center">
-        <div className="h-8 w-8 border-2 border-[#2563eb] border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
 
   useEffect(() => {
     // Slight delay ensures the CSS transition triggers smoothly
@@ -124,8 +116,10 @@ export default function DashboardPage() {
     }
   }, []);
   useEffect(() => {
-    fetchLiveData();
-  }, [fetchLiveData]);
+    if (isAuthorized) {
+      fetchLiveData();
+    }
+  }, [fetchLiveData, isAuthorized]);
 
   useWebSocket(
     "dashboard",
@@ -304,6 +298,15 @@ export default function DashboardPage() {
   }, [allRequests, allOrders, allInventories, allMaterials, allLogs, lang, chartRange]);
 
   // The chart data and recent activities are now computed dynamically inside `analytics`
+
+  // If loading or unauthorized, show spinner and prevent loading data or layout
+  if (isLoading || !isAuthorized) {
+    return (
+      <div className="flex h-[60vh] w-full items-center justify-center">
+        <div className="h-8 w-8 border-2 border-[#2563eb] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className={`space-y-6 max-w-[1440px] mx-auto transition-all duration-700 ease-out ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>

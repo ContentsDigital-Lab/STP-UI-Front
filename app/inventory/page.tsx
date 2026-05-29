@@ -64,6 +64,8 @@ import { Inventory, Material, MaterialLog, Worker } from "@/lib/api/types";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { useAuth } from "@/lib/auth/auth-context";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
+import { isAdmin } from "@/lib/auth/role-utils";
+import { hasPermission } from "@/lib/auth/permissions";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -76,6 +78,7 @@ export default function InventoryPage() {
     const { t, lang } = useLanguage();
     const it = t.inventory_dashboard;
     const { user: currentWorker } = useAuth();
+    const canManage = isAdmin(currentWorker?.role) || hasPermission(currentWorker, 'inventory:manage');
 
     const [isLoading, setIsLoading] = useState(true);
     const [inventories, setInventories] = useState<Inventory[]>([]);
@@ -283,14 +286,6 @@ export default function InventoryPage() {
                 const response = await inventoriesApi.update(existing._id, updatePayload);
                 if (response.success && response.data) {
                     setInventories(prev => prev.map(inv => inv._id === existing._id ? response.data! : inv));
-                    await materialLogsApi.create({
-                        material: importData.material,
-                        actionType: "import",
-                        quantityChanged: importData.quantity,
-                        stockType: importData.stockType,
-                        referenceId: existing._id,
-                        ...(currentWorker ? { worker: currentWorker._id } : {}),
-                    }).catch(err => console.error("Failed to create material log:", err));
                     setIsImportOpen(false);
                     resetImportForm();
                 }
@@ -299,14 +294,6 @@ export default function InventoryPage() {
                 const response = await inventoriesApi.create({ ...importData, storageColor: color });
                 if (response.success && response.data) {
                     setInventories([response.data, ...inventories]);
-                    await materialLogsApi.create({
-                        material: importData.material,
-                        actionType: "import",
-                        quantityChanged: importData.quantity,
-                        stockType: importData.stockType,
-                        referenceId: response.data._id,
-                        ...(currentWorker ? { worker: currentWorker._id } : {}),
-                    }).catch(err => console.error("Failed to create material log:", err));
                     setIsImportOpen(false);
                     resetImportForm();
                 }
@@ -467,31 +454,10 @@ export default function InventoryPage() {
                 }
             }
 
-            // 3. Create withdraw log for source
-            const withdrawLogRes = await materialLogsApi.create({
-                material: matId,
-                actionType: "withdraw",
-                quantityChanged: -moveQty,
-                stockType: moveSource.stockType,
-                referenceId: moveSource._id,
-                ...(currentWorker ? { worker: currentWorker._id } : {}),
-            });
-
-            // 4. Create import log for destination (linked via parentLog)
-            await materialLogsApi.create({
-                material: matId,
-                actionType: "import",
-                quantityChanged: moveQty,
-                stockType: moveSource.stockType,
-                referenceId: destInventoryId,
-                parentLog: withdrawLogRes.data?._id,
-                ...(currentWorker ? { worker: currentWorker._id } : {}),
-            });
-
-            // 5. Refresh inventory data
+            // 3. Refresh inventory data
             await fetchData(false);
 
-            // 6. If side panel is open for source, update its quantity and logs
+            // 4. If side panel is open for source, update its quantity and logs
             if (selectedInventory?._id === moveSource._id) {
                 setSelectedInventory(prev => prev ? { ...prev, quantity: newSourceQty } : null);
                 fetchLogs(matId, moveSource._id);
@@ -655,20 +621,22 @@ export default function InventoryPage() {
                     <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{it.title}</h1>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{it.subtitle}</p>
                 </div>
-                <div className="grid grid-cols-2 sm:flex sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto shrink-0">
-                    <Link href="/inventory/materials" className="w-full sm:w-auto">
-                        <Button variant="outline" className="w-full gap-2 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-xl h-10 px-0 sm:px-4">
+                <div className="flex flex-row gap-2 sm:gap-3 w-full sm:w-auto shrink-0 justify-end">
+                    <Link href="/inventory/materials" className="flex-1 sm:flex-none">
+                        <Button variant="outline" className="w-full gap-2 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-xl h-10 px-2 sm:px-4">
                             <Settings2 className="h-4 w-4 shrink-0" />
                             <span className="truncate">{it.manageMaterials}</span>
                         </Button>
                     </Link>
-                    <Button
-                        onClick={() => setIsImportOpen(true)}
-                        className="w-full sm:w-auto gap-2 bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white rounded-xl h-10 px-0 sm:px-4 shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0"
-                    >
-                        <Plus className="h-4 w-4 shrink-0" />
-                        <span className="truncate">{it.importStock}</span>
-                    </Button>
+                    {canManage && (
+                        <Button
+                            onClick={() => setIsImportOpen(true)}
+                            className="flex-1 sm:flex-none gap-2 bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white rounded-xl h-10 px-2 sm:px-4 shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0"
+                        >
+                            <Plus className="h-4 w-4 shrink-0" />
+                            <span className="truncate">{it.importStock}</span>
+                        </Button>
+                    )}
                 </div>
             </div>
 
@@ -1208,23 +1176,25 @@ export default function InventoryPage() {
                                 </div>
 
                                 {/* ── Footer ── */}
-                                <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-950 grid grid-cols-2 gap-2">
-                                    <Button
-                                        onClick={() => handleDelete(selectedInventory._id)}
-                                        variant="outline"
-                                        className="rounded-xl h-10 border-red-200 dark:border-red-900 text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
-                                    >
-                                        <Trash2 className="h-4 w-4 mr-1.5" />
-                                        {it.detail.delete}
-                                    </Button>
-                                    <Button
-                                        onClick={() => openMoveDialog(selectedInventory)}
-                                        className="rounded-xl h-10 font-bold bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white gap-2 shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0"
-                                    >
-                                        <ArrowRightLeft className="h-4 w-4" />
-                                        {it.detail.moveStock}
-                                    </Button>
-                                </div>
+                                {canManage && (
+                                    <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-950 grid grid-cols-2 gap-2">
+                                        <Button
+                                            onClick={() => handleDelete(selectedInventory._id)}
+                                            variant="outline"
+                                            className="rounded-xl h-10 border-red-200 dark:border-red-900 text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                                        >
+                                            <Trash2 className="h-4 w-4 mr-1.5" />
+                                            {it.detail.delete}
+                                        </Button>
+                                        <Button
+                                            onClick={() => openMoveDialog(selectedInventory)}
+                                            className="rounded-xl h-10 font-bold bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white gap-2 shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0"
+                                        >
+                                            <ArrowRightLeft className="h-4 w-4" />
+                                            {it.detail.moveStock}
+                                        </Button>
+                                    </div>
+                                )}
 
                             </div>
                         );
@@ -1240,7 +1210,7 @@ export default function InventoryPage() {
                     setLocationDropdownOpen(false);
                 }
             }}>
-                <DialogContent className="sm:max-w-[520px] border-slate-200 dark:border-slate-800 rounded-xl p-0 bg-white dark:bg-slate-950 max-h-[90vh] overflow-y-auto shadow-none">
+                <DialogContent className="sm:max-w-[520px] border-slate-200 dark:border-slate-800 rounded-xl p-0 bg-white dark:bg-slate-950 overflow-visible shadow-none">
                     {/* Header */}
                     <div className="px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
                         <DialogHeader>
@@ -1310,13 +1280,29 @@ export default function InventoryPage() {
                                     className="h-10 w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white pl-3 pr-10 text-sm focus-visible:ring-2 focus-visible:ring-blue-600/20 focus-visible:border-blue-600"
                                     autoComplete="off"
                                 />
-                                <button
-                                    type="button"
-                                    onClick={() => setLocationDropdownOpen(!locationDropdownOpen)}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                                >
-                                    <ChevronDown className={`h-4 w-4 transition-transform ${locationDropdownOpen ? 'rotate-180' : ''}`} />
-                                </button>
+                                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                                    {importData.location && (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setImportData({ ...importData, location: '' });
+                                                setLocationDropdownOpen(true);
+                                                locationInputRef.current?.focus();
+                                            }}
+                                            className="text-slate-400 hover:text-slate-600 transition-colors p-1"
+                                        >
+                                            <X className="h-3.5 w-3.5" />
+                                        </button>
+                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={() => setLocationDropdownOpen(!locationDropdownOpen)}
+                                        className="text-slate-400 hover:text-slate-600 transition-colors p-1"
+                                    >
+                                        <ChevronDown className={`h-4 w-4 transition-transform ${locationDropdownOpen ? 'rotate-180' : ''}`} />
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Dropdown */}
@@ -1413,7 +1399,7 @@ export default function InventoryPage() {
                 setIsMoveOpen(open);
                 if (!open) resetMoveForm();
             }}>
-                <DialogContent className="sm:max-w-[480px] border-slate-200 dark:border-slate-800 rounded-xl p-0 bg-white dark:bg-slate-950 max-h-[90vh] overflow-y-auto shadow-none">
+                <DialogContent className="sm:max-w-[420px] border-slate-200 dark:border-slate-800 rounded-2xl p-0 bg-white dark:bg-slate-950 overflow-visible shadow-none">
                     {/* Header */}
                     <div className="px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
                         <DialogHeader>
@@ -1581,13 +1567,29 @@ export default function InventoryPage() {
                                                     className="h-10 w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white pl-3 pr-10 text-sm focus-visible:ring-2 focus-visible:ring-blue-600/20 focus-visible:border-blue-600"
                                                     autoComplete="off"
                                                 />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setMoveLocationDropdownOpen(!moveLocationDropdownOpen)}
-                                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                                                >
-                                                    <ChevronDown className={`h-4 w-4 transition-transform ${moveLocationDropdownOpen ? 'rotate-180' : ''}`} />
-                                                </button>
+                                                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                                                    {moveDestLocation && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setMoveDestLocation('');
+                                                                setMoveLocationDropdownOpen(true);
+                                                                moveLocationInputRef.current?.focus();
+                                                            }}
+                                                            className="text-slate-400 hover:text-slate-600 transition-colors p-1"
+                                                        >
+                                                            <X className="h-3.5 w-3.5" />
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setMoveLocationDropdownOpen(!moveLocationDropdownOpen)}
+                                                        className="text-slate-400 hover:text-slate-600 transition-colors p-1"
+                                                    >
+                                                        <ChevronDown className={`h-4 w-4 transition-transform ${moveLocationDropdownOpen ? 'rotate-180' : ''}`} />
+                                                    </button>
+                                                </div>
                                             </div>
                                             {moveLocationDropdownOpen && moveFilteredLocationSuggestions.length > 0 && (
                                                 <div

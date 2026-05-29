@@ -31,7 +31,7 @@ interface NavItem {
     href: string;
     icon: React.ElementType;
     /** If set, the item is only shown when the user has this permission */
-    permission?: Permission;
+    permission?: Permission | Permission[];
 }
 
 interface NavSection {
@@ -54,7 +54,7 @@ export function Sidebar({ collapsed, setCollapsed, onNavigate }: SidebarProps) {
         {
             label: lang === "th" ? "การดำเนินงาน" : "Operations",
             items: [
-                { name: t.orderRequests, href: "/request", icon: ClipboardList, permission: "orders:create" },
+                { name: t.orderRequests, href: "/request", icon: ClipboardList, permission: ["orders:view", "orders:create", "orders:manage"] },
                 { name: lang === "th" ? "ติดตามการผลิต" : "Production", href: "/production", icon: ClipboardCheck, permission: "production:view" },
                 { name: lang === "th" ? "สถานี" : "Stations", href: "/stations", icon: Factory },
             ],
@@ -84,12 +84,19 @@ export function Sidebar({ collapsed, setCollapsed, onNavigate }: SidebarProps) {
             items: section.items.filter((item) => {
                 if (item.href === "/stations") {
                     const slug = user?.role && typeof user.role === 'object' ? user.role.slug : user?.role;
-                    if (slug === "admin" || slug === "manager") return true;
+                    if (slug === "admin") return true;
                     const rolePerms = user?.role && typeof user.role === 'object' ? user.role.permissions : [];
                     const hasAnyStationPerm = Array.isArray(rolePerms) && rolePerms.some((p: string) => p.startsWith("station:enter:"));
-                    return hasAnyStationPerm;
+                    return hasAnyStationPerm || hasPermission(user, "stations:manage");
                 }
-                return !item.permission || hasPermission(user, item.permission);
+
+                if (item.permission) {
+                    if (Array.isArray(item.permission)) {
+                        return item.permission.some(p => hasPermission(user, p));
+                    }
+                    return hasPermission(user, item.permission);
+                }
+                return true;
             }),
         }))
         .filter((section) => section.items.length > 0);

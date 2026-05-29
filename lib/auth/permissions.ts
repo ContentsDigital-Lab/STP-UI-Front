@@ -66,28 +66,6 @@ export const hasPermission = (user: any, permission: string): boolean => {
   const rolePerms = resolvePermissions(role);
   if (rolePerms.includes("*") || rolePerms.includes(permission)) return true;
 
-  // Manager fallback (legacy hardcoded permissions)
-  if (slug === "manager") {
-    // Managers have access to all stations by default
-    if (permission.startsWith("station:enter:")) return true;
-
-    const managerPermissions: string[] = [
-      'users:view',
-      'inventory:view',
-      'inventory:manage',
-      'production:view',
-      'production:manage',
-      'orders:view',
-      'orders:create',
-      'orders:manage',
-      'settings:view',
-      'dashboard:view',
-      'stations:manage',
-      'stickers:manage',
-    ];
-    return managerPermissions.includes(permission);
-  }
-
   // Check user-level permissions (if any)
   if (user.permissions && Array.isArray(user.permissions)) {
     return user.permissions.includes(permission);
@@ -106,7 +84,7 @@ export const PERMISSION_LABELS: Record<Permission, { label: string, group: strin
   'inventory:view': { label: 'ดูคลังสินค้า', group: 'คลังสินค้า' },
   'inventory:manage': { label: 'จัดการคลังสินค้า (เพิ่ม/ลด/แก้ไข)', group: 'คลังสินค้า' },
   'production:view': { label: 'ดูสถานะการผลิต', group: 'การผลิต' },
-  'production:manage': { label: 'จัดการการผลิต (อัปเดตสถานี)', group: 'การผลิต' },
+  'production:manage': { label: 'จัดการข้อมูลการผลิต (ลบออเดอร์)', group: 'การผลิต' },
   'orders:view': { label: 'ดูคำสั่งซื้อ', group: 'คำสั่งซื้อ' },
   'orders:create': { label: 'สร้างคำสั่งซื้อใหม่', group: 'คำสั่งซื้อ' },
   'orders:manage': { label: 'จัดการคำสั่งซื้อ (แก้ไข/ยกเลิก)', group: 'คำสั่งซื้อ' },

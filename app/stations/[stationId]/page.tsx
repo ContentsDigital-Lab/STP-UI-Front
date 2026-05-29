@@ -359,7 +359,7 @@ export default function LiveStationPage() {
     if (loading) return <div className="flex h-full flex-col">{header}<LoadingSpinner /></div>;
 
     const slug = user?.role && typeof user.role === 'object' ? user.role.slug : user?.role;
-    const isAuthorized = slug === "admin" || slug === "manager" || hasPermission(user, `station:enter:${stationId}`);
+    const isAuthorized = slug === "admin" || hasPermission(user, `station:enter:${stationId}`);
 
     if (!isAuthorized) {
         return (

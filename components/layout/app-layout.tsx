@@ -36,11 +36,6 @@ export function AppLayout({ children, title }: { children: React.ReactNode; titl
             } else if (isAuthenticated && pathname === "/login") {
                 const roleSlug = !user?.role ? "" : typeof user.role === "string" ? user.role : (user.role as any).slug ?? "";
                 router.push(roleSlug === "worker" ? "/stations" : "/");
-            } else if (isAuthenticated && pathname === "/") {
-                const roleSlug = !user?.role ? "" : typeof user.role === "string" ? user.role : (user.role as any).slug ?? "";
-                if (roleSlug === "worker") {
-                    router.push("/stations");
-                }
             }
         }
     }, [isAuthenticated, isLoading, pathname, router, user]);

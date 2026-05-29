@@ -25,10 +25,6 @@ export function hasPermission(role: RoleValue, perm: string): boolean {
     return role.permissions?.includes("*") || role.permissions?.includes(perm);
 }
 
-export function isManagerOrAbove(role: RoleValue): boolean {
-    const slug = getRoleSlug(role);
-    return slug === "admin" || slug === "manager";
-}
 
 export function isAdmin(role: RoleValue): boolean {
     return getRoleSlug(role) === "admin";

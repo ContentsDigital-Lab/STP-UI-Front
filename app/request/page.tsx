@@ -62,6 +62,8 @@ import { getStationName } from "@/lib/utils/station-helpers";
 import { getRoleName } from "@/lib/auth/role-utils";
 import { toast } from "sonner";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
+import { useAuth } from "@/lib/auth/auth-context";
+import { hasPermission } from "@/lib/auth/permissions";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 
 const ITEMS_PER_PAGE = 20;
@@ -69,6 +71,10 @@ const ITEMS_PER_PAGE = 20;
 export default function OrderRequestsPage() {
     const { t, lang } = useLanguage();
     const it = t.order_requests;
+    
+    const { user } = useAuth();
+    const canCreate = hasPermission(user, "orders:create");
+    const canManage = hasPermission(user, "orders:manage");
 
     const [isLoading, setIsLoading] = useState(true);
     const [requests, setRequests] = useState<OrderRequest[]>([]);
@@ -389,7 +395,7 @@ export default function OrderRequestsPage() {
     );
 
     return (
-        <PermissionGuard permission="orders:create">
+        <PermissionGuard permission={["orders:view", "orders:create", "orders:manage"]}>
             <div className="space-y-6 max-w-[1440px] mx-auto w-full">
             {/* Page Header */}
             <div className="flex items-center justify-between">
@@ -401,12 +407,14 @@ export default function OrderRequestsPage() {
                         {it.subtitle}
                     </p>
                 </div>
-                <Link href="/request/create">
-                    <Button className="gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl h-10 px-5 text-sm">
-                        <Plus className="h-4 w-4" />
-                        {it.newRequest}
-                    </Button>
-                </Link>
+                {canCreate && (
+                    <Link href="/request/create">
+                        <Button className="gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl h-10 px-5 text-sm">
+                            <Plus className="h-4 w-4" />
+                            {it.newRequest}
+                        </Button>
+                    </Link>
+                )}
             </div>
 
             {/* Stat Cards */}
@@ -810,22 +818,24 @@ export default function OrderRequestsPage() {
                                 </div>
 
                                 {/* Panel Footer */}
-                                <div className="p-6 pt-0 grid grid-cols-2 gap-2.5 mt-auto">
-                                    <Button
-                                        onClick={() => handleDelete(selectedRequest._id)}
-                                        variant="outline"
-                                        className="rounded-xl h-11 border-red-200 dark:border-red-900 text-red-600 hover:bg-red-50 dark:hover:bg-red-950 font-medium"
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                        onClick={() => openEditDialog(selectedRequest)}
-                                        className="rounded-xl h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium"
-                                    >
-                                        <Edit3 className="mr-2 h-4 w-4" />
-                                        {it.detail.edit}
-                                    </Button>
-                                </div>
+                                {canManage && (
+                                    <div className="p-6 pt-0 grid grid-cols-2 gap-2.5 mt-auto">
+                                        <Button
+                                            onClick={() => handleDelete(selectedRequest._id)}
+                                            variant="outline"
+                                            className="rounded-xl h-11 border-red-200 dark:border-red-900 text-red-600 hover:bg-red-50 dark:hover:bg-red-950 font-medium"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                            onClick={() => openEditDialog(selectedRequest)}
+                                            className="rounded-xl h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium"
+                                        >
+                                            <Edit3 className="mr-2 h-4 w-4" />
+                                            {it.detail.edit}
+                                        </Button>
+                                    </div>
+                                )}
                             </div>
                         );
                     })()}

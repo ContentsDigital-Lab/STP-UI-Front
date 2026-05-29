@@ -3,6 +3,8 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { Worker } from "@/lib/api/types";
 import { authApi } from "@/lib/api/auth";
+import { useRouter } from "next/navigation";
+import { connectGlobalSocket, disconnectGlobalSocket, useWebSocket } from "@/lib/hooks/use-socket";
 
 interface AuthContextType {
     user: Worker | null;
@@ -56,11 +58,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         initAuth();
     }, []);
 
+    // Listen for real-time permission/role changes
+    useWebSocket('me', ['role:updated', 'worker:updated'], async (event, data: any) => {
+        if (!user) return;
+        
+        let shouldRefresh = false;
+        
+        // If the specific worker was updated
+        if (event === 'worker:updated' && data?._id === user._id) {
+            shouldRefresh = true;
+        }
+        
+        // If the worker's role definition was updated
+        const roleId = typeof user.role === 'object' ? user.role?._id : null;
+        if (event === 'role:updated' && data?._id === roleId) {
+            shouldRefresh = true;
+        }
+
+        if (shouldRefresh) {
+            try {
+                const profileRes = await authApi.getProfile();
+                if (profileRes.success && profileRes.data) {
+                    const fresh = profileRes.data as Worker;
+                    setUser(fresh);
+                    localStorage.setItem("auth_user", JSON.stringify(fresh));
+                }
+            } catch (err) {
+                console.error("Failed to auto-refresh profile", err);
+            }
+        }
+    });
+
     const login = (newToken: string, newUser: Worker) => {
         setToken(newToken);
         setUser(newUser);
         localStorage.setItem("auth_token", newToken);
         localStorage.setItem("auth_user", JSON.stringify(newUser));
+        connectGlobalSocket(newToken);
     };
 
     const logout = () => {
@@ -68,6 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
         localStorage.removeItem("auth_token");
         localStorage.removeItem("auth_user");
+        disconnectGlobalSocket();
     };
 
     const isAuthenticated = !!token && !!user;

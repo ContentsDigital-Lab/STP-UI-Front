@@ -6,7 +6,8 @@ import { useWebSocket } from "@/lib/hooks/use-socket";
 import { toast } from "sonner";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { AlertTriangle } from "lucide-react";
-import { isManagerOrAbove } from "@/lib/auth/role-utils";
+import { isAdmin } from "@/lib/auth/role-utils";
+import { hasPermission } from "@/lib/auth/permissions";
 import React from "react";
 
 function ActiveListener() {
@@ -24,7 +25,7 @@ function ActiveListener() {
     }, []);
 
     const handleLowStock = useCallback((data: any) => {
-        const isAuthorized = isManagerOrAbove(user?.role);
+        const isAuthorized = isAdmin(user?.role) || hasPermission(user, "inventory:manage");
         if (!isAuthorized) return;
 
         const itemName = data?.name || (lang === "th" ? "สินค้า" : "Item");

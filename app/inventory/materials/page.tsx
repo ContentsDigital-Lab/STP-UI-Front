@@ -4,6 +4,9 @@ import { useState, useEffect, useMemo } from "react";
 import { materialsApi } from "@/lib/api/materials";
 import { materialLogsApi } from "@/lib/api/material-logs";
 import { Material } from "@/lib/api/types";
+import { useAuth } from "@/lib/auth/auth-context";
+import { isAdmin } from "@/lib/auth/role-utils";
+import { hasPermission } from "@/lib/auth/permissions";
 import {
     Table,
     TableBody,
@@ -55,6 +58,9 @@ const ITEMS_PER_PAGE = 10;
 export default function MaterialsManagementPage() {
     const [materials, setMaterials] = useState<Material[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+
+    const { user: currentWorker } = useAuth();
+    const canManage = isAdmin(currentWorker?.role) || hasPermission(currentWorker, 'materials:manage');
 
     // Filters
     const [searchQuery, setSearchQuery] = useState("");
@@ -264,7 +270,7 @@ export default function MaterialsManagementPage() {
                     <TableCell><Skeleton className="h-6 w-[40px]" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-[60px]" /></TableCell>
                     <TableCell><Skeleton className="h-8 w-[100px]" /></TableCell>
-                    <TableCell className="text-right"><Skeleton className="h-8 w-[80px] ml-auto" /></TableCell>
+                    {canManage && <TableCell className="text-right"><Skeleton className="h-8 w-[80px] ml-auto" /></TableCell>}
                 </TableRow>
             ))}
         </>
@@ -376,13 +382,15 @@ export default function MaterialsManagementPage() {
                                 ล้าง
                             </Button>
                         )}
-                        <Button
-                            onClick={() => handleOpenModal()}
-                            className="h-10 gap-2 w-full lg:w-auto bg-blue-600 hover:bg-blue-700 text-white dark:bg-[#E8601C] dark:hover:bg-orange-600 rounded-xl shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0"
-                        >
-                            <Plus className="h-4 w-4" />
-                            เพิ่มวัสดุ
-                        </Button>
+                        {canManage && (
+                            <Button
+                                onClick={() => handleOpenModal()}
+                                className="h-10 gap-2 w-full lg:w-auto bg-blue-600 hover:bg-blue-700 text-white dark:bg-[#E8601C] dark:hover:bg-orange-600 rounded-xl shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0"
+                            >
+                                <Plus className="h-4 w-4" />
+                                เพิ่มวัสดุ
+                            </Button>
+                        )}
                     </div>
                 </div>
             </div>
@@ -399,7 +407,7 @@ export default function MaterialsManagementPage() {
                                 <TableHead className="text-[12px] font-semibold text-slate-600 dark:text-slate-400">จุดแจ้งเตือน</TableHead>
                                 <TableHead className="text-[12px] font-semibold text-slate-600 dark:text-slate-400">หน่วย</TableHead>
                                 <TableHead className="text-[12px] font-semibold text-slate-600 dark:text-slate-400">วันที่เพิ่ม</TableHead>
-                                <TableHead className="text-right text-[12px] font-semibold text-slate-600 dark:text-slate-400">จัดการ</TableHead>
+                                {canManage && <TableHead className="text-right text-[12px] font-semibold text-slate-600 dark:text-slate-400">จัดการ</TableHead>}
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -449,27 +457,29 @@ export default function MaterialsManagementPage() {
                                                     <span>{new Date(material.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                                 </div>
                                             </TableCell>
-                                            <TableCell className="text-right">
-                                                <div className="flex justify-end gap-1">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() => handleOpenModal(material)}
-                                                        className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:text-blue-300 dark:hover:bg-blue-950/50 rounded-xl"
-                                                    >
-                                                        <Edit className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() => handleDelete(material._id, material.name)}
-                                                        disabled={isLoadingDeleteTarget}
-                                                        className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-950/50 rounded-xl"
-                                                    >
-                                                        {isLoadingDeleteTarget ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                                                    </Button>
-                                                </div>
-                                            </TableCell>
+                                            {canManage && (
+                                                <TableCell className="text-right">
+                                                    <div className="flex justify-end gap-1">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() => handleOpenModal(material)}
+                                                            className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:text-blue-300 dark:hover:bg-blue-950/50 rounded-xl"
+                                                        >
+                                                            <Edit className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() => handleDelete(material._id, material.name)}
+                                                            disabled={isLoadingDeleteTarget}
+                                                            className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-950/50 rounded-xl"
+                                                        >
+                                                            {isLoadingDeleteTarget ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                                                        </Button>
+                                                    </div>
+                                                </TableCell>
+                                            )}
                                         </TableRow>
                                     );
                                 })
