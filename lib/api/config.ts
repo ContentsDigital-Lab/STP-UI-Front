@@ -1,6 +1,6 @@
 import { ApiError } from "./api-error";
 
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "https://std.specterint.org/api";
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "https://api.thestandardplus.com/api";
 
 let isRedirectingToLogin = false;
 
