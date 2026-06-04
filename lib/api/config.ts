@@ -57,6 +57,7 @@ export async function fetchApi<T>(
         };
 
         const response = await fetch(url, {
+            cache: "no-store", // Prevent Next.js and browser from caching the response
             ...options,
             headers,
         });

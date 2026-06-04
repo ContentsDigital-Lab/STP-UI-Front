@@ -1,7 +1,7 @@
 "use client";
 
 import { useNode } from "@craftjs/core";
-import { useRef, useState, KeyboardEvent } from "react";
+import { useRef, useState, KeyboardEvent, useEffect } from "react";
 import {
     ScanLine, Camera, CheckCircle2, XCircle, Loader2, Hash,
     RotateCcw, User, Package, ClipboardList, AlertCircle,
@@ -95,7 +95,7 @@ export function QrScanBlock({
 }: QrScanBlockProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
-    const { stationId, stationName, setOrderData, setRequestData, setPaneData, triggerRefresh, pinQueueOrderToFront } = useStationContext();
+    const { stationId, stationName, paneData, orderData, requestData, setOrderData, setRequestData, setPaneData, triggerRefresh, pinQueueOrderToFront } = useStationContext();
     const isScanMode    = dataSource === "/panes/scan";
     const isScanOutMode = dataSource === "/panes/scan-out";
     const contextType   = (isScanMode || isScanOutMode) ? "pane" : (CONTEXT_SOURCE[dataSource] ?? "order");
@@ -125,6 +125,25 @@ export function QrScanBlock({
         paneNumber: string;
         action: "scan_in" | "scan_out";
     } | null>(null);
+
+    // Sync with global state clearances (e.g., when QCInspector clears the active pane)
+    useEffect(() => {
+        if (!paneData && contextType === "pane") {
+            setScannedRecord(null);
+            setScanStatus("idle");
+            setScanResult(null);
+        }
+        if (!orderData && contextType === "order") {
+            setScannedRecord(null);
+            setScanStatus("idle");
+            setScanResult(null);
+        }
+        if (!requestData && contextType === "request") {
+            setScannedRecord(null);
+            setScanStatus("idle");
+            setScanResult(null);
+        }
+    }, [paneData, orderData, requestData, contextType]);
 
     // ── Pre-check pane's current station before scanning ────────────────────────
     async function checkStationMismatch(pn: string, action: "scan_in" | "scan_out"): Promise<boolean> {

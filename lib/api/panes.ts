@@ -2,12 +2,13 @@ import { fetchApi } from "./config";
 import { ApiResponse, Pane, PaginatedResponse } from "./types";
 
 export const panesApi = {
-    getAll: async (params?: { order?: string; request?: string; material?: string; station?: string; status_ne?: string; laminateRole?: string; parentPane?: string; page?: number; limit?: number; sort?: string; populate?: string; includeMerged?: boolean }): Promise<PaginatedResponse<Pane>> => {
+    getAll: async (params?: { order?: string; request?: string; material?: string; station?: string; status?: string; status_ne?: string; laminateRole?: string; parentPane?: string; page?: number; limit?: number; sort?: string; populate?: string; includeMerged?: boolean }): Promise<PaginatedResponse<Pane>> => {
         const qs = new URLSearchParams();
         if (params?.order)        qs.set("order",        params.order);
         if (params?.request)      qs.set("request",      params.request);
         if (params?.material)     qs.set("material",     params.material);
         if (params?.station)      qs.set("station",      params.station);
+        if (params?.status)       qs.set("currentStatus",params.status);
 
         if (params?.status_ne)    qs.set("status_ne",    params.status_ne);
         if (params?.laminateRole) qs.set("laminateRole", params.laminateRole);

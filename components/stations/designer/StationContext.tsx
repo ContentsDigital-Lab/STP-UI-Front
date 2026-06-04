@@ -85,10 +85,29 @@ export function StationProvider({
 }) {
     const [formData,        setFormData]        = useState<Record<string, unknown>>({});
     const [fieldLabels,     setFieldLabels]     = useState<Record<string, string>>({});
+    
     const [orderData,       setOrderData]       = useState<Record<string, unknown> | null>(initialOrderData   ?? null);
+    
     const [requestData,     setRequestData]     = useState<Record<string, unknown> | null>(initialRequestData ?? null);
-    const [paneData,        setPaneData]        = useState<Record<string, unknown> | null>(null);
+    
+    const [paneData, setPaneDataState] = useState<Record<string, unknown> | null>(() => {
+        if (typeof window === "undefined") return null;
+        try {
+            const saved = sessionStorage.getItem(`stp_active_pane_${stationIdProp || "global"}`);
+            return saved ? JSON.parse(saved) : null;
+        } catch { return null; }
+    });
+
     const [selectedRecord,  setSelectedRecord]  = useState<Record<string, unknown> | null>(initialOrderData ?? null);
+
+    const setPaneData = useCallback((data: Record<string, unknown> | null) => {
+        setPaneDataState(data);
+        if (typeof window !== "undefined") {
+            const key = `stp_active_pane_${stationIdProp || "global"}`;
+            if (data) sessionStorage.setItem(key, JSON.stringify(data));
+            else sessionStorage.removeItem(key);
+        }
+    }, [stationIdProp]);
     const [refreshCounter,  setRefreshCounter]  = useState(0);
     const [queueFrontOrderId, setQueueFrontOrderId] = useState<string | null>(null);
     const [isOrderReleaseStation, setIsOrderReleaseStation] = useState(false);
@@ -122,15 +141,16 @@ export function StationProvider({
 
     // ── Global Sockets ──────────────────────────────────────────────────────────
     // Listen for updates to the active pane/order and refresh them in real-time
-    useWebSocket("pane", ["pane:updated"], (event, data: any) => {
-        if (!paneId || !data) return;
+    useWebSocket("pane", ["pane:updated"], (event, rawData: any) => {
+        if (!rawData) return;
+        const data = rawData.data || rawData; // The backend wraps it in { action, data }
         const updatedId = data._id || data.id;
-        if (updatedId === paneId) {
+        if (paneId && updatedId === paneId) {
             console.log(`[Socket] Syncing active pane: ${paneId}`);
             setPaneData(data);
             
-            // If the pane reached a terminal status for this inspection, clear it
-            if (["ready", "completed", "cancelled", "claimed"].includes(data.currentStatus)) {
+            // If the pane reached a terminal or intermediate state (e.g. via mobile scan), clear it from the active panel
+            if (["ready", "completed", "cancelled", "claimed", "pending", "awaiting_scan_out"].includes(data.currentStatus)) {
                 // Wait a tiny bit then clear to ensure other components see the final state
                 setTimeout(() => setPaneData(null), 1500);
             }

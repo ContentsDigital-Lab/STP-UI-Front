@@ -133,22 +133,32 @@ export function useWebSocket(
             }
         };
 
+        // Store specific listener references for precise cleanup
+        const listeners: Record<string, (payload: unknown) => void> = {};
+
         // Listen for specified events
         events.forEach(eventName => {
-            socket.on(eventName, (payload) => handleEvent(eventName, payload));
+            const listener = (payload: unknown) => handleEvent(eventName, payload);
+            listeners[eventName] = listener;
+            socket.on(eventName, listener);
         });
 
         // Global listeners
-        socket.on('notification', (payload) => handleEvent('notification', payload));
-        socket.on('system_alert', (payload) => handleEvent('system_alert', payload));
+        const notificationListener = (payload: unknown) => handleEvent('notification', payload);
+        const systemAlertListener = (payload: unknown) => handleEvent('system_alert', payload);
+        
+        socket.on('notification', notificationListener);
+        socket.on('system_alert', systemAlertListener);
 
         return () => {
-            // Clean up event listeners
+            // Clean up exact event listeners
             events.forEach(eventName => {
-                socket.off(eventName);
+                if (listeners[eventName]) {
+                    socket.off(eventName, listeners[eventName]);
+                }
             });
-            socket.off('notification');
-            socket.off('system_alert');
+            socket.off('notification', notificationListener);
+            socket.off('system_alert', systemAlertListener);
             socket.off('connect', updateStatus);
             socket.off('disconnect', updateStatus);
             

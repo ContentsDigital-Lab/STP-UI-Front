@@ -103,7 +103,7 @@ export function QCInspectorBlock({
 }: QCInspectorProps) {
     const { connectors: { connect, drag }, selected } = useNode((s) => ({ selected: s.events.selected }));
     const isPreview = usePreview();
-    const { paneData, paneId, orderId, stationId, stationName, refreshCounter, triggerRefresh, setPaneData } = useStationContext();
+    const { paneData, paneId, orderId, stationId, stationName, refreshCounter, triggerRefresh, setPaneData, setOrderData } = useStationContext();
 
     const [checklist, setChecklist] = useState<Record<string, boolean>>({});
     const [status, setStatus] = useState<"idle" | "passing" | "failing">("idle");
@@ -142,6 +142,21 @@ export function QCInspectorBlock({
         setIsConfirmOpen(false);
     }, [paneId]);
 
+    // Auto-start the pane to trigger real-time updates for other devices
+    useEffect(() => {
+        if (paneData && stationId) {
+            const currentStatus = (paneData as any).currentStatus;
+            const paneNum = (paneData as any).paneNumber;
+            if (currentStatus === "pending" && paneNum) {
+                panesApi.scan(paneNum, {
+                    station: stationId,
+                    action: "start",
+                    force: true,
+                }).catch(err => console.error("Auto-start QC failed:", err));
+            }
+        }
+    }, [paneId, stationId, paneData]);
+
     // Fetch panes if order is scanned but no pane is selected
     useEffect(() => {
         const targetOrderId = 
@@ -172,11 +187,26 @@ export function QCInspectorBlock({
                 })
                 .finally(() => setLoadingPanes(false));
         } else if (!targetOrderId && !paneData) {
-            // Only clear panes if we have no order and no selected pane
-            setPanes([]);
-            setErrorFetch(null);
+            // No order and no active pane. 
+            // Automatically fetch any panes that are actively being inspected (in_progress) at this station.
+            if (stationId) {
+                setLoadingPanes(true);
+                setErrorFetch(null);
+                panesApi.getAll({
+                    station: stationId,
+                    status: "in_progress",
+                    limit: 100
+                }).then(res => {
+                    setPanes(res.success ? res.data ?? [] : []);
+                }).catch(() => {
+                    setPanes([]);
+                }).finally(() => setLoadingPanes(false));
+            } else {
+                setPanes([]);
+                setErrorFetch(null);
+            }
         }
-    }, [paneData, orderId, refreshCounter]);
+    }, [paneData, orderId, refreshCounter, stationId]);
 
     const toggleCheck = (item: string) => {
         setChecklist(prev => ({ ...prev, [item]: !prev[item] }));
@@ -287,6 +317,7 @@ export function QCInspectorBlock({
             if (res.success) {
                 toast.success("บันทึกการแจ้งความเสียหายและส่งเรื่องเคลมแล้ว");
                 setPaneData(null); // Clear active pane after success
+                setOrderData(null); // Also clear active order so list returns to default
                 triggerRefresh();
             } else {
                 toast.error(res.message || "เกิดข้อผิดพลาด");
@@ -372,6 +403,7 @@ export function QCInspectorBlock({
                     toast.info(`สร้างกระจกทดแทนแล้ว: ${res.data.remadePane.paneNumber}`, { duration: 5000 });
                 }
                 setPaneData(null); // Clear active pane after success
+                setOrderData(null); // Also clear active order so list returns to default
                 triggerRefresh();
             } else {
                 toast.error(res.message || "เกิดข้อผิดพลาด");
