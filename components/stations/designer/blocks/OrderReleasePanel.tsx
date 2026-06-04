@@ -433,21 +433,19 @@ export function OrderReleasePanel({
       });
 
       if (panes.length > 0) {
-        await Promise.all(
-          panes.map((p) =>
-            panesApi.update(p._id, {
-              order: order._id,
-              ...(requestId && { request: requestId }),
-              ...(firstStationId && {
-                routing: stationsToSave,
-                currentStation: firstStationId,
-                currentStatus: "pending",
-              }),
-              ...(mId && { material: mId }),
-              ...(matchingInv && { inventory: matchingInv._id }),
+        for (const p of panes) {
+          await panesApi.update(p._id, {
+            order: order._id,
+            ...(requestId && { request: requestId }),
+            ...(firstStationId && {
+              routing: stationsToSave,
+              currentStation: firstStationId,
+              currentStatus: "pending",
             }),
-          ),
-        );
+            ...(mId && { material: mId }),
+            ...(matchingInv && { inventory: matchingInv._id }),
+          });
+        }
       } else if (allPanes.length === 0) {
         const qty = Math.max(1, order.quantity ?? 1);
         const spec = mat?.specDetails;
@@ -467,13 +465,12 @@ export function OrderReleasePanel({
           ...(mId && { material: mId }),
           ...(matchingInv && { inventory: matchingInv._id }),
         };
-        await Promise.all(
-          Array.from({ length: qty }, () =>
-            panesApi.create({ ...panePayload } as Partial<
-              import("@/lib/api/types").Pane
-            >),
-          ),
-        );
+        
+        for (let i = 0; i < qty; i++) {
+          await panesApi.create({ ...panePayload } as Partial<
+            import("@/lib/api/types").Pane
+          >);
+        }
       }
 
       // 4. Try release endpoint
