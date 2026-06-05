@@ -315,12 +315,18 @@ export function RecordDetail({
         if (contextRecord) return;
         const id = new URLSearchParams(window.location.search).get(idParam)
             ?? window.location.pathname.split("/").filter(Boolean).pop();
-        if (!id) { setFetched(SAMPLE_DATA); return; }
+        if (!id) { 
+            if (!isPreview) setFetched(SAMPLE_DATA); 
+            return; 
+        }
         if (endpoint === "context") { setFetched(null); return; }
         setFetching(true);
         fetchApi<{ success: boolean; data: Record<string, unknown> }>(`${endpoint.startsWith("/") ? endpoint : "/" + endpoint}/${id}`)
             .then((res) => { if (res.success) setFetched(res.data); else setError("โหลดข้อมูลไม่สำเร็จ"); })
-            .catch(() => setFetched(SAMPLE_DATA))
+            .catch(() => {
+                if (!isPreview) setFetched(SAMPLE_DATA);
+                else setError("โหลดข้อมูลไม่สำเร็จ");
+            })
             .finally(() => setFetching(false));
     };
 
@@ -336,7 +342,17 @@ export function RecordDetail({
 
     // ── Preview render ────────────────────────────────────────────────────────
     if (isPreview) {
-        const data = record ?? SAMPLE_DATA;
+        if (!record) {
+            return (
+                <div className="w-full rounded-xl border border-dashed border-border/60 bg-card/50 flex flex-col items-center justify-center p-8 text-muted-foreground">
+                    <Database className="h-8 w-8 mb-3 opacity-20" />
+                    <p className="text-sm font-medium">ไม่มีข้อมูลถูกเลือก</p>
+                    <p className="text-xs opacity-70">กรุณาเลือกรายการเพื่อดูรายละเอียด</p>
+                </div>
+            );
+        }
+
+        const data = record;
         return (
             <div className="w-full rounded-xl border bg-card overflow-hidden">
                 <div className="px-5 py-3 border-b bg-muted/30 flex items-center justify-between">

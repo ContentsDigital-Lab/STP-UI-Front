@@ -112,7 +112,7 @@ export function ButtonBlock({
     const [pendingBody, setPendingBody] = useState<Record<string, unknown> | null>(null);
     const [confirmSummary, setConfirmSummary] = useState<{ customerName: string; materialName: string; quantity: string; stationCount: number } | null>(null);
     const actionCfg  = action && action !== "none" ? ACTION_CONFIG[action] : null;
-    const { formData, fieldLabels, resetForm, orderId, requestId, requestData, orderData, selectedRecord, triggerRefresh } = useStationContext();
+    const { formData, fieldLabels, resetForm, orderId, requestId, requestData, orderData, selectedRecord, triggerRefresh, isOrderReleaseStation, stationName } = useStationContext();
     const { query } = useEditor();
 
     // ── Preview click handler ─────────────────────────────────────────────────
@@ -269,6 +269,15 @@ export function ButtonBlock({
                 ...(requestId ? { request: requestId } : {}),
                 ...(orderId   ? { order:   orderId   } : {}),
             };
+
+            // ── Strict selection check for Order Release station ───────────────
+            const isReleaseStation = isOrderReleaseStation || stationName === "Order Release" || stationName?.includes("Release") || stationName?.includes("ปล่อยงาน");
+            if (isOrderEndpoint && isReleaseStation && !src) {
+                setErrorMsg("กรุณาเลือกบิล/คำขอจากรายการเพื่อทำรายการ");
+                setFeedback("error");
+                setTimeout(() => setFeedback(""), 8000);
+                return;
+            }
 
             // ── Mismatch check: form values must agree with selected record ────
             // (checked BEFORE override so we can compare what the user typed vs the record)
