@@ -60,7 +60,7 @@ function makeTextSprite(text: string, color = '#555555', vertical = false): THRE
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = color;
-        ctx.fillText(text, 0, 0);
+        ctx.fillText(text, 0, fontSize * 0.1);
     } else {
         canvas.width = Math.ceil(metrics.width) + 20;
         canvas.height = fontSize + 20;
@@ -68,7 +68,7 @@ function makeTextSprite(text: string, color = '#555555', vertical = false): THRE
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = color;
-        ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+        ctx.fillText(text, canvas.width / 2, canvas.height / 2 - fontSize * 0.08);
     }
     const tex = new THREE.CanvasTexture(canvas);
     tex.needsUpdate = true;
@@ -76,7 +76,7 @@ function makeTextSprite(text: string, color = '#555555', vertical = false): THRE
     const sprite = new THREE.Sprite(mat);
     sprite.userData.screenWidth = canvas.width;
     sprite.userData.screenHeight = canvas.height;
-    sprite.scale.set(canvas.width / 1.5, canvas.height / 1.5, 1);
+    sprite.scale.set(canvas.width * 8, canvas.height * 8, 1);
     return sprite;
 }
 
@@ -673,7 +673,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             const frustumWidth = camera.right - camera.left;
             const canvasWidth = renderer.domElement.clientWidth;
             const worldPerPixel = frustumWidth / canvasWidth;
-            const scaleFactor = worldPerPixel * 0.45;
+            const scaleFactor = worldPerPixel * 1.5;
 
             glassGroupRef.current.traverse((obj) => {
                 if (obj instanceof THREE.Sprite && obj.userData.screenWidth) {
@@ -685,7 +685,7 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                         const p1 = obj.userData.lineP1 as THREE.Vector3;
                         const p2 = obj.userData.lineP2 as THREE.Vector3;
                         const dir = new THREE.Vector3().subVectors(p2, p1).normalize();
-                        const halfGap = ((obj.userData.lineDirection === 'horizontal' ? sw : sh) / 2) + 3 * scaleFactor;
+                        const halfGap = ((obj.userData.lineDirection === 'horizontal' ? sw : sh) / 2) * 0.85;
                         const spritePos = new THREE.Vector3(obj.position.x, obj.position.y, p1.z);
 
                         const gapStart = spritePos.clone().sub(dir.clone().multiplyScalar(halfGap));
@@ -941,16 +941,25 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             ];
             group.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(crossPoints), crossMat));
 
+            const distBottom = h.y - bb.minY;
+            const distTop    = bb.maxY - h.y;
+            const vUseBottom = distBottom <= distTop;
+
             const labelText = getCutoutLabel(h);
             const hLabel = makeTextSprite(labelText, isSelected ? '#E8601C' : (isDark ? '#f1f5f9' : '#334155'));
-            let labelOffsetY = 28;
-            if (h.type === 'circle') labelOffsetY = h.diameter / 2 + 28;
-            else if (h.type === 'rectangle') labelOffsetY = (h.height || 60) / 2 + 28;
-            else if (h.type === 'slot') labelOffsetY = (h.width || 20) / 2 + 28;
+            let labelOffsetY = 60;
+            if (h.type === 'circle') labelOffsetY = h.diameter / 2 + 60;
+            else if (h.type === 'rectangle') labelOffsetY = (h.height || 60) / 2 + 60;
+            else if (h.type === 'slot') labelOffsetY = (h.width || 20) / 2 + 60;
             else if (h.type === 'custom' && h.points?.length) {
-                labelOffsetY = Math.max(...h.points.map(p => Math.abs(p.y))) + 28;
+                labelOffsetY = Math.max(...h.points.map(p => Math.abs(p.y))) + 60;
             }
-            hLabel.position.set(h.x, h.y - labelOffsetY, 3.3);
+
+            if (vUseBottom) {
+                hLabel.position.set(h.x, h.y + labelOffsetY, 3.3);
+            } else {
+                hLabel.position.set(h.x, h.y - labelOffsetY, 3.3);
+            }
             group.add(hLabel);
 
             const showHandles = activeToolRef.current === 'editVertex' || (isSelected && activeToolRef.current === 'select');
@@ -986,15 +995,16 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             const hEdgeBound = hUseLeft ? bb.minX : bb.maxX;
             const hEdgeEnd  = hEdgeBound;
             const hDist     = Math.round(hUseLeft ? distLeft : distRight);
-            const hLineP1   = new THREE.Vector3(h.x, h.y, 3.2);
+            const hLineP1X  = hUseLeft ? (h.x - chLen) : (h.x + chLen);
+            const hLineP1   = new THREE.Vector3(hLineP1X, h.y, 3.2);
             const hLineP2   = new THREE.Vector3(hEdgeEnd, h.y, 3.2);
-            const hLineMid  = new THREE.Vector3((h.x + hEdgeBound) / 2, h.y, 3.2);
+            const hLineMid  = new THREE.Vector3((hLineP1X + hEdgeBound) / 2, h.y, 3.2);
             const hGapLine1 = new THREE.Line(new THREE.BufferGeometry().setFromPoints([hLineP1, hLineMid]), holeDimMatH);
             const hGapLine2 = new THREE.Line(new THREE.BufferGeometry().setFromPoints([hLineMid, hLineP2]), holeDimMatH);
             group.add(hGapLine1);
             group.add(hGapLine2);
             const hDimLabel = makeTextSprite(`${hDist}`, isDark ? '#f59e0b' : '#cc8855');
-            hDimLabel.position.set((h.x + hEdgeBound) / 2, h.y, 3.3);
+            hDimLabel.position.set((hLineP1X + hEdgeBound) / 2, h.y, 3.3);
             hDimLabel.userData.gapLine1 = hGapLine1;
             hDimLabel.userData.gapLine2 = hGapLine2;
             hDimLabel.userData.lineP1 = hLineP1.clone();
@@ -1003,21 +1013,19 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             group.add(hDimLabel);
 
             const holeDimMatV = new THREE.LineBasicMaterial({ color: isDark ? 0xf59e0b : 0xcc8855 });
-            const distBottom = h.y - bb.minY;
-            const distTop    = bb.maxY - h.y;
-            const vUseBottom = distBottom <= distTop;
             const vEdgeBound = vUseBottom ? bb.minY : bb.maxY;
             const vEdgeEnd   = vEdgeBound;
             const vDist      = Math.round(vUseBottom ? distBottom : distTop);
-            const vLineP1    = new THREE.Vector3(h.x, h.y, 3.2);
+            const vLineP1Y   = vUseBottom ? (h.y - chLen) : (h.y + chLen);
+            const vLineP1    = new THREE.Vector3(h.x, vLineP1Y, 3.2);
             const vLineP2    = new THREE.Vector3(h.x, vEdgeEnd, 3.2);
-            const vLineMid   = new THREE.Vector3(h.x, (h.y + vEdgeBound) / 2, 3.2);
+            const vLineMid   = new THREE.Vector3(h.x, (vLineP1Y + vEdgeBound) / 2, 3.2);
             const vGapLine1  = new THREE.Line(new THREE.BufferGeometry().setFromPoints([vLineP1, vLineMid]), holeDimMatV);
             const vGapLine2  = new THREE.Line(new THREE.BufferGeometry().setFromPoints([vLineMid, vLineP2]), holeDimMatV);
             group.add(vGapLine1);
             group.add(vGapLine2);
             const vDimLabel = makeTextSprite(`${vDist}`, isDark ? '#f59e0b' : '#cc8855', true);
-            vDimLabel.position.set(h.x, (h.y + vEdgeBound) / 2, 3.3);
+            vDimLabel.position.set(h.x, (vLineP1Y + vEdgeBound) / 2, 3.3);
             vDimLabel.userData.gapLine1 = vGapLine1;
             vDimLabel.userData.gapLine2 = vGapLine2;
             vDimLabel.userData.lineP1 = vLineP1.clone();
