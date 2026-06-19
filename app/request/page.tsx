@@ -87,6 +87,10 @@ export default function OrderRequestsPage() {
     const [detailPanes, setDetailPanes] = useState<Pane[]>([]);
     const [panesLoading, setPanesLoading] = useState(false);
     const [showAllPanes, setShowAllPanes] = useState(false);
+    // Panes pagination inside detail panel
+    const [panesTotal, setPanesTotal] = useState(0);
+    const [visibleCount, setVisibleCount] = useState(100);
+    const [isLoadingMorePanes, setIsLoadingMorePanes] = useState(false);
 
     // Filters
     const [searchQuery, setSearchQuery] = useState("");
@@ -317,15 +321,28 @@ export default function OrderRequestsPage() {
         setDetailPanes([]);
         setPanesLoading(true);
         setShowAllPanes(false);
-        panesApi.getAll({ limit: 100 }).then(res => {
+        setVisibleCount(100);
+        
+        // Use the request's total quantity since panes API might not return pagination object
+        const total = req.details?.quantity || 0;
+        setPanesTotal(total);
+
+        // Fetch all panes for this request (up to 10000) and paginate locally
+        panesApi.getAll({ request: req._id, limit: 10000 }).then(res => {
             if (res.success) {
-                const requestPanes = (res.data ?? []).filter(p => {
-                    const pReq = typeof p.request === "string" ? p.request : (p.request as { _id?: string })?._id;
-                    return pReq === req._id;
-                });
-                setDetailPanes(requestPanes);
+                setDetailPanes(res.data ?? []);
+                // Only override if we didn't have a quantity in details and we got pagination
+                if (!total && res.pagination?.total) {
+                    setPanesTotal(res.pagination.total);
+                } else if (!total) {
+                    setPanesTotal((res.data ?? []).length);
+                }
             }
         }).catch(() => {}).finally(() => setPanesLoading(false));
+    };
+
+    const loadMorePanes = () => {
+        setVisibleCount(prev => prev + 100);
     };
 
     const openEditDialog = (req: OrderRequest) => {
@@ -752,8 +769,8 @@ export default function OrderRequestsPage() {
                                             <h3 className="text-xs font-medium text-slate-400 uppercase tracking-wider">
                                                 {lang === 'th' ? 'กระจกแต่ละชิ้น' : 'Individual Panes'}
                                             </h3>
-                                            {detailPanes.length > 0 && (
-                                                <span className="text-xs text-slate-400">{detailPanes.length} {lang === 'th' ? 'ชิ้น' : 'pcs'}</span>
+                                            {panesTotal > 0 && (
+                                                <span className="text-xs text-slate-400">{panesTotal} {lang === 'th' ? 'ชิ้น' : 'pcs'}</span>
                                             )}
                                         </div>
                                         {panesLoading ? (
@@ -766,8 +783,9 @@ export default function OrderRequestsPage() {
                                             </div>
                                         ) : (() => {
                                             const PANE_PEEK = 3;
-                                            const visible = showAllPanes ? detailPanes : detailPanes.slice(0, PANE_PEEK);
+                                            const visible = showAllPanes ? detailPanes.slice(0, visibleCount) : detailPanes.slice(0, PANE_PEEK);
                                             const hasMore = detailPanes.length > PANE_PEEK;
+                                            const currentlyVisible = visible.length;
                                             return (
                                             <div className="space-y-1.5">
                                                 {visible.map(pane => {
@@ -798,17 +816,31 @@ export default function OrderRequestsPage() {
                                                         </div>
                                                     );
                                                 })}
-                                                {hasMore && (
+                                                {hasMore && !showAllPanes && (
                                                     <button
                                                         type="button"
-                                                        onClick={() => setShowAllPanes(v => !v)}
+                                                        onClick={() => setShowAllPanes(true)}
                                                         className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/20 transition-colors"
                                                     >
-                                                        {showAllPanes ? (
-                                                            <><ChevronDown className="h-3.5 w-3.5" /> {lang === 'th' ? 'แสดงน้อยลง' : 'Show less'}</>
-                                                        ) : (
-                                                            <><ChevronRight className="h-3.5 w-3.5" /> {lang === 'th' ? `แสดงทั้งหมด (${detailPanes.length} ชิ้น)` : `Show all (${detailPanes.length} pcs)`}</>
-                                                        )}
+                                                        <ChevronDown className="h-3.5 w-3.5" /> {lang === 'th' ? `แสดงเพิ่มเติม` : `Show more`}
+                                                    </button>
+                                                )}
+                                                {showAllPanes && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowAllPanes(false)}
+                                                        className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/20 transition-colors"
+                                                    >
+                                                        <ChevronRight className="h-3.5 w-3.5" /> {lang === 'th' ? 'แสดงน้อยลง' : 'Show less'}
+                                                    </button>
+                                                )}
+                                                {showAllPanes && currentlyVisible < detailPanes.length && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={loadMorePanes}
+                                                        className="w-full flex items-center justify-center gap-1.5 py-2 mt-2 rounded-lg text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 dark:text-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 transition-colors"
+                                                    >
+                                                        {lang === 'th' ? `โหลดเพิ่ม (แสดง ${currentlyVisible}/${detailPanes.length})` : `Load more (${currentlyVisible}/${detailPanes.length})`}
                                                     </button>
                                                 )}
                                             </div>

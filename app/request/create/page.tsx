@@ -818,6 +818,8 @@ export default function CreateBillPage() {
                 } catch { /* use fallback */ }
 
                 let panesCreated = 0;
+                const createPromises: Promise<any>[] = [];
+                
                 for (const pane of validPanes) {
                     const thicknessMm = parseFloat(pane.thickness) || 0;
                     const glassSpec = [
@@ -828,45 +830,54 @@ export default function CreateBillPage() {
                     ].filter(Boolean).join(' ');
                     const { notchList, holeList } = splitHolesAndNotches(pane.holes, pane.glassWidth, pane.glassHeight);
                     const qty = Math.max(1, pane.quantity);
+                    
                     for (let i = 0; i < qty; i++) {
-                        try {
-                            const paneRes = await panesApi.create({
-                                request: requestId,
-                                dimensions: { width: pane.glassWidth, height: pane.glassHeight, thickness: thicknessMm },
-                                glassType: pane.glassType,
-                                glassTypeLabel: glassSpec,
-                                jobType: pane.glassType,
-                                holes: holeList.length > 0 ? holeList : undefined,
-                                notches: notchList.length > 0 ? notchList : undefined,
-                                ...(pane.vertices && pane.vertices.length > 0 ? { vertices: pane.vertices } : {}),
-                                ...(pane.rawGlassType || pane.sheetsPerPane > 1 ? {
-                                    rawGlass: {
-                                        ...(pane.rawGlassType ? { glassType: pane.rawGlassType } : {}),
-                                        ...(pane.rawGlassColor ? { color: pane.rawGlassColor } : {}),
-                                        thickness: thicknessMm,
-                                        sheetsPerPane: pane.sheetsPerPane,
-                                    },
-                                } : {}),
-                                ...(orderReleaseStationId ? { currentStation: orderReleaseStationId } : {}),
-                                edgeTasks: [
-                                    { side: "top", edgeProfile: pane.edgeTop, status: "pending" },
-                                    { side: "bottom", edgeProfile: pane.edgeBottom, status: "pending" },
-                                    { side: "left", edgeProfile: pane.edgeLeft, status: "pending" },
-                                    { side: "right", edgeProfile: pane.edgeRight, status: "pending" },
-                                ],
-                                cornerSpec: pane.cornerNone ? "ไม่มี" : (pane.cornerSize || "มีขนาด"),
-                                dimensionTolerance: pane.dimensionTolerances.join(', ') || "ตามมาตรฐาน มอก.",
-                            } as any);
-                            if (paneRes.success) {
-                                const d = paneRes.data as any;
-                                if (d?.parent && Array.isArray(d?.sheets)) {
-                                    panesCreated += 1 + d.sheets.length;
-                                } else {
-                                    panesCreated++;
-                                }
-                            }
-                        } catch (paneErr) {
-                            console.error(`[CreateBill] Failed to create pane:`, paneErr);
+                        const payload = {
+                            request: requestId,
+                            dimensions: { width: pane.glassWidth, height: pane.glassHeight, thickness: thicknessMm },
+                            glassType: pane.glassType,
+                            glassTypeLabel: glassSpec,
+                            jobType: pane.glassType,
+                            holes: holeList.length > 0 ? holeList : undefined,
+                            notches: notchList.length > 0 ? notchList : undefined,
+                            ...(pane.vertices && pane.vertices.length > 0 ? { vertices: pane.vertices } : {}),
+                            ...(pane.rawGlassType || pane.sheetsPerPane > 1 ? {
+                                rawGlass: {
+                                    ...(pane.rawGlassType ? { glassType: pane.rawGlassType } : {}),
+                                    ...(pane.rawGlassColor ? { color: pane.rawGlassColor } : {}),
+                                    thickness: thicknessMm,
+                                    sheetsPerPane: pane.sheetsPerPane,
+                                },
+                            } : {}),
+                            ...(orderReleaseStationId ? { currentStation: orderReleaseStationId } : {}),
+                            edgeTasks: [
+                                { side: "top", edgeProfile: pane.edgeTop, status: "pending" },
+                                { side: "bottom", edgeProfile: pane.edgeBottom, status: "pending" },
+                                { side: "left", edgeProfile: pane.edgeLeft, status: "pending" },
+                                { side: "right", edgeProfile: pane.edgeRight, status: "pending" },
+                            ],
+                            cornerSpec: pane.cornerNone ? "ไม่มี" : (pane.cornerSize || "มีขนาด"),
+                            dimensionTolerance: pane.dimensionTolerances.join(', ') || "ตามมาตรฐาน มอก.",
+                        };
+                        
+                        const p = panesApi.create(payload as any)
+                            .catch(err => {
+                                console.error(`[CreateBill] Failed to create pane:`, err);
+                                return { success: false };
+                            });
+                        createPromises.push(p);
+                    }
+                }
+
+                // Execute all creation requests in parallel
+                const results = await Promise.all(createPromises);
+                for (const paneRes of results) {
+                    if (paneRes && paneRes.success) {
+                        const d = paneRes.data as any;
+                        if (d?.parent && Array.isArray(d?.sheets)) {
+                            panesCreated += 1 + d.sheets.length;
+                        } else {
+                            panesCreated++;
                         }
                     }
                 }
@@ -1291,6 +1302,7 @@ export default function CreateBillPage() {
                             width={ap.glassWidth}
                             height={ap.glassHeight}
                             holes={ap.holes}
+                            vertices={ap.vertices}
                             onHolesChange={handleHolesChange}
                             onVerticesChange={handleVerticesChange}
                             thickness={parseInt(ap.thickness) || 6}
