@@ -256,7 +256,7 @@ export default function DashboardPage() {
     const sortedLogs = [...allLogs].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     const recentActivity = sortedLogs.slice(0, 5).map(log => {
       let materialName = "Unknown";
-      if (typeof log.material === "object") materialName = log.material.name;
+      if (typeof log.material === "object" && log.material !== null) materialName = log.material.name;
       else {
          const m = allMaterials.find(mat => mat._id === log.material);
          if (m) materialName = m.name;
