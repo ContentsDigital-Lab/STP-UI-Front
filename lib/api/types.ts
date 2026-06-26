@@ -54,7 +54,9 @@ export interface ApiResponse<T> {
 
 export interface Material {
   _id: string;
+  code?: string;
   name: string;
+  brand?: string;
   unit: string;
   reorderPoint: number;
   /** API create/update: thickness, width, length must be strings (Zod). GET may return numbers from DB. */
@@ -64,6 +66,7 @@ export interface Material {
     glassType?: string;
     width?: string | number;
     length?: string | number;
+    sqft?: string | number;
   };
   createdAt: string;
   updatedAt: string;
@@ -71,6 +74,7 @@ export interface Material {
 
 export interface Inventory {
   _id: string;
+  inventoryNumber?: string;
   material: string | Material; // Can save the populated Object or just the string ID
   stockType: "Raw" | "Reuse";
   quantity: number;

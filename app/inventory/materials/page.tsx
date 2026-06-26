@@ -82,14 +82,17 @@ export default function MaterialsManagementPage() {
 
     // Form state
     const [formData, setFormData] = useState({
+        code: "",
         name: "",
+        brand: "",
         unit: "sheet",
         reorderPoint: 10,
         thickness: "",
         color: "",
         glassType: "",
         width: "",
-        length: ""
+        length: "",
+        sqft: ""
     });
 
     useEffect(() => {
@@ -114,26 +117,32 @@ export default function MaterialsManagementPage() {
         if (material) {
             setEditingMaterial(material);
             setFormData({
+                code: material.code || "",
                 name: material.name || "",
+                brand: material.brand || "",
                 unit: normalizeMaterialUnit(material.unit || "sheet"),
                 reorderPoint: material.reorderPoint || 0,
                 thickness: material.specDetails?.thickness?.toString() || "",
                 color: material.specDetails?.color || "",
                 glassType: material.specDetails?.glassType || "",
                 width: material.specDetails?.width?.toString() || "",
-                length: material.specDetails?.length?.toString() || ""
+                length: material.specDetails?.length?.toString() || "",
+                sqft: material.specDetails?.sqft?.toString() || ""
             });
         } else {
             setEditingMaterial(null);
             setFormData({
+                code: "",
                 name: "",
+                brand: "",
                 unit: "sheet",
                 reorderPoint: 10,
                 thickness: "",
                 color: "",
                 glassType: "",
                 width: "",
-                length: ""
+                length: "",
+                sqft: ""
             });
         }
         setIsModalOpen(true);
@@ -267,9 +276,12 @@ export default function MaterialsManagementPage() {
                     <TableCell><Skeleton className="h-5 w-[200px]" /></TableCell>
                     <TableCell><Skeleton className="h-10 w-[150px]" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-[80px]" /></TableCell>
-                    <TableCell><Skeleton className="h-6 w-[40px]" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-[80px]" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-[150px]" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-[80px]" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-[80px]" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-[60px]" /></TableCell>
-                    <TableCell><Skeleton className="h-8 w-[100px]" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-[100px]" /></TableCell>
                     {canManage && <TableCell className="text-right"><Skeleton className="h-8 w-[80px] ml-auto" /></TableCell>}
                 </TableRow>
             ))}
@@ -401,7 +413,9 @@ export default function MaterialsManagementPage() {
                     <Table>
                         <TableHeader>
                             <TableRow className="bg-slate-50/80 dark:bg-slate-800/50 border-b-slate-200 dark:border-b-slate-800">
+                                <TableHead className="text-[12px] font-semibold text-slate-600 dark:text-slate-400">รหัสวัสดุ</TableHead>
                                 <TableHead className="text-[12px] font-semibold text-slate-600 dark:text-slate-400">ชื่อวัสดุ</TableHead>
+                                <TableHead className="text-[12px] font-semibold text-slate-600 dark:text-slate-400">ยี่ห้อ</TableHead>
                                 <TableHead className="text-[12px] font-semibold text-slate-600 dark:text-slate-400">สเปค (ประเภท/หนา/สี)</TableHead>
                                 <TableHead className="text-[12px] font-semibold text-slate-600 dark:text-slate-400">ขนาด (W×H)</TableHead>
                                 <TableHead className="text-[12px] font-semibold text-slate-600 dark:text-slate-400">จุดแจ้งเตือน</TableHead>
@@ -415,7 +429,7 @@ export default function MaterialsManagementPage() {
                                 <TableSkeleton />
                             ) : paginatedMaterials.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
+                                    <TableCell colSpan={9} className="h-32 text-center text-muted-foreground">
                                         <Package className="h-8 w-8 mx-auto mb-2 opacity-20" />
                                         ไม่พบวัสดุ
                                     </TableCell>
@@ -425,7 +439,17 @@ export default function MaterialsManagementPage() {
                                     const hasSize = material.specDetails?.width || material.specDetails?.length;
                                     return (
                                         <TableRow key={material._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors border-b-slate-200 dark:border-b-slate-800">
-                                            <TableCell className="font-medium text-[14px] text-slate-900 dark:text-slate-200">{material.name}</TableCell>
+                                            <TableCell className="text-[13px] font-mono font-semibold text-blue-600 dark:text-blue-400">
+                                                {material.code || "-"}
+                                            </TableCell>
+                                            <TableCell className="font-medium text-[14px] text-slate-900 dark:text-slate-200">
+                                                {material.name}
+                                            </TableCell>
+                                            <TableCell>
+                                                {material.brand ? (
+                                                    <span className="text-[13px] text-slate-600 dark:text-slate-400">{material.brand}</span>
+                                                ) : <span className="text-slate-300 dark:text-slate-600">-</span>}
+                                            </TableCell>
                                             <TableCell>
                                                 <div className="flex flex-col text-[13px] space-y-0.5 text-slate-500 dark:text-slate-400">
                                                     {material.specDetails?.glassType && <span><span className="font-medium text-slate-700 dark:text-slate-300">ประเภท:</span> {material.specDetails.glassType}</span>}
@@ -436,9 +460,14 @@ export default function MaterialsManagementPage() {
                                             </TableCell>
                                             <TableCell>
                                                 {hasSize ? (
-                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900/50">
-                                                        {material.specDetails?.width || "-"} × {material.specDetails?.length || "-"}
-                                                    </span>
+                                                    <div className="flex flex-col gap-1 items-start">
+                                                        <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900/50">
+                                                            {material.specDetails?.width || "-"} × {material.specDetails?.length || "-"}
+                                                        </span>
+                                                        {material.specDetails?.sqft && (
+                                                            <span className="text-[11px] text-slate-500 font-medium">{material.specDetails.sqft} ตร.ฟ.</span>
+                                                        )}
+                                                    </div>
                                                 ) : (
                                                     <span className="text-slate-300 dark:text-slate-600">-</span>
                                                 )}
@@ -532,18 +561,40 @@ export default function MaterialsManagementPage() {
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
-                        <div className="space-y-1.5">
-                            <Label htmlFor="name" className="text-[13px] font-medium text-slate-700">ชื่อวัสดุ *</Label>
-                            <Input
-                                id="name"
-                                placeholder="เช่น กระจกนิรภัย ใส"
-                                className="h-10 border-slate-200 rounded-xl"
-                                value={formData.name}
-                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                            />
+                        <div className="grid grid-cols-[1fr_2fr] gap-4">
+                            <div className="space-y-1.5">
+                                <Label htmlFor="code" className="text-[13px] font-medium text-slate-700">รหัสวัสดุ</Label>
+                                <Input
+                                    id="code"
+                                    placeholder="เช่น 2-1002-..."
+                                    className="h-10 border-slate-200 rounded-xl"
+                                    value={formData.code}
+                                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label htmlFor="name" className="text-[13px] font-medium text-slate-700">ชื่อวัสดุ *</Label>
+                                <Input
+                                    id="name"
+                                    placeholder="เช่น กระจกนิรภัย ใส"
+                                    className="h-10 border-slate-200 rounded-xl"
+                                    value={formData.name}
+                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                />
+                            </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-3 gap-4">
+                            <div className="space-y-1.5">
+                                <Label htmlFor="brand" className="text-[13px] font-medium text-slate-700">ยี่ห้อ</Label>
+                                <Input
+                                    id="brand"
+                                    placeholder="เช่น G, N, BG"
+                                    className="h-10 border-slate-200 rounded-xl"
+                                    value={formData.brand}
+                                    onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
+                                />
+                            </div>
                             <div className="space-y-1.5">
                                 <Label htmlFor="unit" className="text-[13px] font-medium text-slate-700">หน่วยวัด</Label>
                                 <Select
@@ -618,25 +669,35 @@ export default function MaterialsManagementPage() {
                         {/* Dimensions */}
                         <div className="pt-2 mt-2 border-t border-slate-100">
                             <h4 className="text-[13px] font-semibold text-slate-900 mb-3 uppercase tracking-wider">ขนาด</h4>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-3 gap-4">
                                 <div className="space-y-1.5">
-                                    <Label htmlFor="width" className="text-[13px] font-medium text-slate-700">ความกว้าง (Width)</Label>
+                                    <Label htmlFor="width" className="text-[13px] font-medium text-slate-700">กว้าง (Width)</Label>
                                     <Input
                                         id="width"
-                                        placeholder="เช่น 900mm, 1200mm"
+                                        placeholder="เช่น 16"
                                         className="h-10 border-slate-200 rounded-xl"
                                         value={formData.width}
                                         onChange={(e) => setFormData({ ...formData, width: e.target.value })}
                                     />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <Label htmlFor="length" className="text-[13px] font-medium text-slate-700">ความสูง (Height)</Label>
+                                    <Label htmlFor="length" className="text-[13px] font-medium text-slate-700">สูง (Height)</Label>
                                     <Input
                                         id="length"
-                                        placeholder="เช่น 600mm, 1000mm"
+                                        placeholder="เช่น 36"
                                         className="h-10 border-slate-200 rounded-xl"
                                         value={formData.length}
                                         onChange={(e) => setFormData({ ...formData, length: e.target.value })}
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="sqft" className="text-[13px] font-medium text-slate-700">ตร.ฟ. (Sq.ft)</Label>
+                                    <Input
+                                        id="sqft"
+                                        placeholder="เช่น 4"
+                                        className="h-10 border-slate-200 rounded-xl"
+                                        value={formData.sqft}
+                                        onChange={(e) => setFormData({ ...formData, sqft: e.target.value })}
                                     />
                                 </div>
                             </div>

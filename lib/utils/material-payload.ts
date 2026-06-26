@@ -65,6 +65,7 @@ export function buildMaterialSpecDetails(form: {
     glassType: string;
     width: string;
     length: string;
+    sqft?: string;
 }): Material["specDetails"] {
     const specDetails: Material["specDetails"] = {};
     const t = parsePositiveMm(form.thickness);
@@ -75,11 +76,21 @@ export function buildMaterialSpecDetails(form: {
     if (w != null) specDetails.width = specDimensionString(w);
     const len = parsePositiveMm(form.length);
     if (len != null) specDetails.length = specDimensionString(len);
+    
+    if (form.sqft && form.sqft.trim()) {
+        const sq = parseFloat(form.sqft.trim());
+        if (Number.isFinite(sq) && sq > 0) {
+            specDetails.sqft = specDimensionString(sq);
+        }
+    }
+    
     return specDetails;
 }
 
 export function materialPayloadFromForm(form: {
+    code?: string;
     name: string;
+    brand?: string;
     unit: string;
     reorderPoint: number;
     thickness: string;
@@ -87,13 +98,17 @@ export function materialPayloadFromForm(form: {
     glassType: string;
     width: string;
     length: string;
+    sqft?: string;
 }): Partial<Material> {
     const reorderPoint = Math.max(0, Math.trunc(Number(form.reorderPoint) || 0));
     const specDetails = buildMaterialSpecDetails(form);
-    return {
+    const payload: Partial<Material> = {
         name: form.name.trim(),
         unit: normalizeMaterialUnit(form.unit),
         reorderPoint,
         specDetails,
     };
+    if (form.code && form.code.trim()) payload.code = form.code.trim();
+    if (form.brand && form.brand.trim()) payload.brand = form.brand.trim();
+    return payload;
 }

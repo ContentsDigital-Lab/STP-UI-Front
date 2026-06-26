@@ -582,6 +582,7 @@ export default function InventoryPage() {
         <>
             {[...Array(5)].map((_, i) => (
                 <TableRow key={i}>
+                    <TableCell><Skeleton className="h-5 w-[80px]" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-[150px]" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-[120px]" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-[80px]" /></TableCell>
@@ -760,6 +761,7 @@ export default function InventoryPage() {
                     <Table>
                         <TableHeader>
                             <TableRow className="border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
+                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 h-10 py-3 px-4">เลขที่</TableHead>
                                 <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 h-10 py-3 px-4">{it.table.identity}</TableHead>
                                 <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 h-10 py-3 px-4">{it.table.area}</TableHead>
                                 <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 h-10 py-3 px-4">{it.table.health}</TableHead>
@@ -791,13 +793,14 @@ export default function InventoryPage() {
                                             onClick={() => openDetails(inv)}
                                         >
                                             <TableCell className="py-3.5 px-4">
+                                                <span className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase">
+                                                    {inv.inventoryNumber || inv._id.slice(-6).toUpperCase()}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell className="py-3.5 px-4">
                                                 <div className="flex flex-col">
                                                     <span className="text-sm font-medium text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                                                         {mat?.name || it.table.unknown}
-                                                    </span>
-                                                    <span className="text-xs text-slate-400 dark:text-slate-500 flex items-center mt-0.5">
-                                                        {mat?.specDetails?.thickness && <span className="mr-2">{addMmUnit(mat.specDetails.thickness)}</span>}
-                                                        {mat?.specDetails?.color && <span>{mat.specDetails.color}</span>}
                                                     </span>
                                                 </div>
                                             </TableCell>
@@ -844,7 +847,7 @@ export default function InventoryPage() {
                                 })
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="py-20 text-center">
+                                    <TableCell colSpan={7} className="py-20 text-center">
                                         <div className="flex flex-col items-center gap-3">
                                             <div className="h-14 w-14 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-slate-300 dark:text-slate-700">
                                                 <Boxes className="h-7 w-7" />
@@ -920,7 +923,7 @@ export default function InventoryPage() {
                                         <div className="flex items-center gap-2">
                                             <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${isLowStock ? "bg-red-500" : "bg-emerald-500"}`} />
                                             <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">
-                                                #{selectedInventory._id.slice(-6).toUpperCase()}
+                                                {selectedInventory.inventoryNumber || selectedInventory._id.slice(-6).toUpperCase()}
                                             </span>
                                             <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full ${selectedInventory.stockType === 'Raw'
                                                 ? 'bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400'
@@ -1001,6 +1004,8 @@ export default function InventoryPage() {
                                                         return w && l ? `${w} × ${l}` : (w ?? l ?? '—');
                                                     })()
                                                 } : null,
+                                                mat?.brand ? { label: lang === 'th' ? 'ยี่ห้อ' : 'Brand', value: mat.brand } : null,
+                                                mat?.specDetails?.sqft ? { label: lang === 'th' ? 'ตารางฟุต' : 'Area (sqft)', value: mat.specDetails.sqft.toString() } : null,
                                                 mat?.reorderPoint != null ? { label: lang === 'th' ? 'จุดสั่งซื้อ' : 'Reorder Point', value: mat.reorderPoint.toString() } : null,
                                             ].filter(Boolean).map((row, i) => (
                                                 <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-900">
@@ -1648,6 +1653,38 @@ export default function InventoryPage() {
                         >
                             <ArrowRightLeft className="h-4 w-4 mr-2" />
                             {isMoveSubmitting ? it.detail.moving : it.detail.confirmMove}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={!!deleteTargetId} onOpenChange={(open) => !open && setDeleteTargetId(null)}>
+                <DialogContent className="max-w-md p-0 border-0 shadow-2xl rounded-[1.5rem] bg-white dark:bg-[#1C1C1E] overflow-hidden">
+                    <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
+                        <DialogTitle className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-white">
+                            <AlertTriangle className="h-5 w-5 text-red-500" />
+                            {lang === 'th' ? 'ยืนยันการลบ' : 'Confirm Delete'}
+                        </DialogTitle>
+                        <DialogDescription className="text-slate-500 dark:text-slate-400 mt-2">
+                            {lang === 'th' 
+                                ? 'คุณแน่ใจหรือไม่ว่าต้องการลบรายการนี้? การกระทำนี้ไม่สามารถยกเลิกได้' 
+                                : 'Are you sure you want to delete this item? This action cannot be undone.'}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 flex justify-end gap-2">
+                        <Button
+                            variant="ghost"
+                            onClick={() => setDeleteTargetId(null)}
+                            className="rounded-xl h-10 px-4 text-slate-500 hover:text-slate-900 dark:hover:text-white"
+                        >
+                            {lang === 'th' ? 'ยกเลิก' : 'Cancel'}
+                        </Button>
+                        <Button
+                            onClick={executeDelete}
+                            variant="destructive"
+                            className="rounded-xl h-10 px-4 bg-red-600 hover:bg-red-700 text-white font-medium shadow-lg shadow-red-500/20"
+                        >
+                            {lang === 'th' ? 'ลบรายการ' : 'Delete Item'}
                         </Button>
                     </div>
                 </DialogContent>
