@@ -99,6 +99,12 @@ export default function InventoryPage() {
     const [colorFilter, setColorFilter] = useState<string>("all");
     const [glassTypeFilter, setGlassTypeFilter] = useState<string>("all");
 
+    // Material autocomplete (Import dialog)
+    const [materialSearch, setMaterialSearch] = useState("");
+    const [materialDropdownOpen, setMaterialDropdownOpen] = useState(false);
+    const materialInputRef = useRef<HTMLInputElement>(null);
+    const materialDropdownRef = useRef<HTMLDivElement>(null);
+
     // Location autocomplete (Import dialog)
     const [locationDropdownOpen, setLocationDropdownOpen] = useState(false);
     const locationInputRef = useRef<HTMLInputElement>(null);
@@ -161,6 +167,14 @@ export default function InventoryPage() {
                 !locationInputRef.current.contains(e.target as Node)
             ) {
                 setLocationDropdownOpen(false);
+            }
+            if (
+                materialDropdownRef.current &&
+                !materialDropdownRef.current.contains(e.target as Node) &&
+                materialInputRef.current &&
+                !materialInputRef.current.contains(e.target as Node)
+            ) {
+                setMaterialDropdownOpen(false);
             }
             if (
                 moveLocationDropdownRef.current &&
@@ -373,6 +387,8 @@ export default function InventoryPage() {
 
     const resetImportForm = () => {
         setImportData({ material: "", stockType: "Raw", quantity: 1, location: "" });
+        setMaterialSearch("");
+        setMaterialDropdownOpen(false);
     };
 
     const openDetails = (inv: Inventory) => {
@@ -518,6 +534,18 @@ export default function InventoryPage() {
     // Filter Options
     const locations = useMemo(() => Array.from(new Set(inventories.map(inv => inv.location))), [inventories]);
     const glassTypes = useMemo(() => Array.from(new Set(materials.map(m => m.specDetails?.glassType).filter(Boolean))), [materials]);
+
+    // Filtered materials for import dropdown
+    const filteredMaterialSuggestions = useMemo(() => {
+        const query = materialSearch.toLowerCase();
+        if (!query) return materials;
+        return materials.filter(mat => {
+            const nameMatch = mat.name.toLowerCase().includes(query);
+            const colorMatch = mat.specDetails?.color?.toLowerCase().includes(query);
+            const thickMatch = mat.specDetails?.thickness?.toString().includes(query);
+            return nameMatch || colorMatch || thickMatch;
+        });
+    }, [materials, materialSearch]);
 
     // Sorted and filtered location suggestions (Import dialog)
     const filteredLocationSuggestions = useMemo(() => {
@@ -1231,39 +1259,89 @@ export default function InventoryPage() {
                     {/* Form Body */}
                     <div className="px-6 py-5 space-y-5">
                         {/* Material Selection */}
-                        <div className="space-y-2">
+                        <div className="space-y-2 relative">
                             <Label className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                                 <Package className="h-3.5 w-3.5" />
                                 เลือกวัสดุ
                             </Label>
-                            <Select
-                                value={importData.material}
-                                onValueChange={(val) => setImportData({ ...importData, material: val || "" })}
-                            >
-                                <SelectTrigger className="h-10 w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white px-3 focus-visible:ring-2 focus-visible:ring-blue-600/20 focus-visible:border-blue-600 text-sm">
-                                    <SelectValue placeholder="เลือกวัสดุที่ต้องการ...">
-                                        {importData.material
-                                            ? materials.find(m => m._id === importData.material)?.name || importData.material
-                                            : "เลือกวัสดุที่ต้องการ..."}
-                                    </SelectValue>
-                                </SelectTrigger>
-                                <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800 p-1">
-                                    {materials.map(mat => (
-                                        <SelectItem
-                                            key={mat._id}
-                                            value={mat._id}
-                                            className="rounded-lg py-2 text-sm focus:text-blue-600 dark:focus:text-blue-400"
+                            <div className="relative">
+                                <Input
+                                    ref={materialInputRef}
+                                    placeholder="พิมพ์ค้นหาวัสดุ เช่น กระจกใส 6 มม."
+                                    value={materialDropdownOpen ? materialSearch : (importData.material ? (materials.find(m => m._id === importData.material)?.name || importData.material) : "")}
+                                    onChange={(e) => {
+                                        setMaterialSearch(e.target.value);
+                                        setMaterialDropdownOpen(true);
+                                        if (importData.material) setImportData({ ...importData, material: "" });
+                                    }}
+                                    onFocus={() => {
+                                        setMaterialSearch("");
+                                        setMaterialDropdownOpen(true);
+                                    }}
+                                    className="h-10 w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white pl-3 pr-10 text-sm focus-visible:ring-2 focus-visible:ring-blue-600/20 focus-visible:border-blue-600"
+                                    autoComplete="off"
+                                />
+                                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                                    {importData.material && (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setImportData({ ...importData, material: '' });
+                                                setMaterialSearch('');
+                                                setMaterialDropdownOpen(true);
+                                                materialInputRef.current?.focus();
+                                            }}
+                                            className="text-slate-400 hover:text-slate-600 transition-colors p-1"
                                         >
-                                            <div className="flex flex-col">
-                                                <span>{mat.name}</span>
-                                                <span className="text-[10px] opacity-60">
-                                                    {mat.specDetails?.thickness} · {mat.specDetails?.color}
-                                                </span>
-                                            </div>
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                                            <X className="h-3.5 w-3.5" />
+                                        </button>
+                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={() => setMaterialDropdownOpen(!materialDropdownOpen)}
+                                        className="text-slate-400 hover:text-slate-600 transition-colors p-1"
+                                    >
+                                        <ChevronDown className={`h-4 w-4 transition-transform ${materialDropdownOpen ? 'rotate-180' : ''}`} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Dropdown */}
+                            {materialDropdownOpen && (
+                                <div
+                                    ref={materialDropdownRef}
+                                    className="absolute z-50 left-0 right-0 top-[calc(100%+4px)] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl max-h-[200px] overflow-y-auto py-1 shadow-lg"
+                                >
+                                    {filteredMaterialSuggestions.length > 0 ? (
+                                        filteredMaterialSuggestions.map((mat) => (
+                                            <button
+                                                key={mat._id}
+                                                type="button"
+                                                onClick={() => {
+                                                    setImportData({ ...importData, material: mat._id });
+                                                    setMaterialSearch("");
+                                                    setMaterialDropdownOpen(false);
+                                                }}
+                                                className={`w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm ${
+                                                    importData.material === mat._id ? 'bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300'
+                                                }`}
+                                            >
+                                                <div className="flex flex-col">
+                                                    <span className="font-medium">{mat.name}</span>
+                                                    <span className="text-[10px] opacity-60 mt-0.5">
+                                                        {mat.specDetails?.thickness ? addMmUnit(mat.specDetails.thickness) : ''} {mat.specDetails?.color ? `· ${mat.specDetails.color}` : ''}
+                                                    </span>
+                                                </div>
+                                            </button>
+                                        ))
+                                    ) : (
+                                        <div className="py-4 text-center text-sm text-slate-500">
+                                            ไม่พบวัสดุที่ค้นหา
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         {/* Location - Google-style Autocomplete */}

@@ -40,6 +40,7 @@ import {
     PaginationLink,
     PaginationNext,
     PaginationPrevious,
+    PaginationEllipsis,
 } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2, Search, Plus, Edit, Trash2, FilterX, ChevronLeft, Package, X } from "lucide-react";
@@ -258,6 +259,22 @@ export default function MaterialsManagementPage() {
         (currentPage - 1) * ITEMS_PER_PAGE,
         currentPage * ITEMS_PER_PAGE
     );
+
+    const getPageNumbers = () => {
+        const pages: (number | string)[] = [];
+        if (totalPages <= 7) {
+            for (let i = 1; i <= totalPages; i++) pages.push(i);
+        } else {
+            if (currentPage <= 4) {
+                pages.push(1, 2, 3, 4, 5, 'ellipsis', totalPages);
+            } else if (currentPage >= totalPages - 3) {
+                pages.push(1, 'ellipsis', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages);
+            } else {
+                pages.push(1, 'ellipsis', currentPage - 1, currentPage, currentPage + 1, 'ellipsis', totalPages);
+            }
+        }
+        return pages;
+    };
 
     const resetFilters = () => {
         setSearchQuery("");
@@ -529,15 +546,19 @@ export default function MaterialsManagementPage() {
                                     className={currentPage === 1 ? "pointer-events-none opacity-50 h-8" : "cursor-pointer h-8"}
                                 />
                             </PaginationItem>
-                            {[...Array(totalPages)].map((_, i) => (
+                            {getPageNumbers().map((pageNum, i) => (
                                 <PaginationItem key={i}>
-                                    <PaginationLink
-                                        isActive={currentPage === i + 1}
-                                        onClick={() => setCurrentPage(i + 1)}
-                                        className="cursor-pointer h-8 w-8 text-xs"
-                                    >
-                                        {i + 1}
-                                    </PaginationLink>
+                                    {pageNum === 'ellipsis' ? (
+                                        <PaginationEllipsis />
+                                    ) : (
+                                        <PaginationLink
+                                            isActive={currentPage === pageNum}
+                                            onClick={() => setCurrentPage(pageNum as number)}
+                                            className="cursor-pointer h-8 w-8 text-xs"
+                                        >
+                                            {pageNum}
+                                        </PaginationLink>
+                                    )}
                                 </PaginationItem>
                             ))}
                             <PaginationItem>

@@ -66,7 +66,7 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { hasPermission } from "@/lib/auth/permissions";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 
-const ITEMS_PER_PAGE = 20;
+const ITEMS_PER_PAGE = 10;
 
 export default function OrderRequestsPage() {
     const { t, lang } = useLanguage();

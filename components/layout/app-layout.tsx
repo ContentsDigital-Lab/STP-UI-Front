@@ -51,7 +51,7 @@ export function AppLayout({ children, title }: { children: React.ReactNode; titl
     const isLoginPage = pathname === "/login";
 
     if (isLoginPage) {
-        return <div className="min-h-screen bg-background">{children}</div>;
+        return <div className="h-screen overflow-y-auto bg-background">{children}</div>;
     }
 
     if (!isAuthenticated) {

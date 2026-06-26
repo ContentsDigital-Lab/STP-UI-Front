@@ -4,7 +4,7 @@ import { ApiResponse, Notification } from "./types";
 export const notificationsApi = {
     getAll: async (params?: { limit?: number }): Promise<ApiResponse<Notification[]>> => {
         const q = new URLSearchParams();
-        q.set("limit", String(params?.limit ?? 100));
+        q.set("limit", String(params?.limit ?? 1000000));
         return fetchApi<ApiResponse<Notification[]>>(`/notifications?${q.toString()}`, {
             method: "GET",
         });

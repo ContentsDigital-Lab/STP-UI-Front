@@ -29,7 +29,7 @@ export default function RootLayout({
   return (
     <html lang="th" suppressHydrationWarning>
       <body
-        className={`${notoSansThai.variable} font-sans antialiased`}
+        className={`${notoSansThai.variable} font-sans antialiased overflow-hidden`}
       >
         <ThemeProvider
           attribute="class"
