@@ -49,7 +49,16 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import {
+    Pagination,
+    PaginationContent,
+    PaginationItem,
+    PaginationNext,
+    PaginationPrevious,
+    PaginationEllipsis,
+} from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import {
     Sheet,
     SheetContent,
@@ -278,6 +287,31 @@ export default function InventoryPage() {
             console.error("Failed to load inventory data:", error);
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleToggleInventoryActive = async (inventory: Inventory, currentStatus: boolean) => {
+        try {
+            const newStatus = !currentStatus;
+            const updated = { ...inventory, isActive: newStatus };
+            setInventories(prev => prev.map(inv => inv._id === inventory._id ? updated : inv));
+            if (selectedInventory?._id === inventory._id) setSelectedInventory(updated);
+
+            const response = await inventoriesApi.update(inventory._id, { isActive: newStatus });
+            if (response.success && response.data) {
+                setInventories(prev => prev.map(inv => inv._id === inventory._id ? response.data! : inv));
+                if (selectedInventory?._id === inventory._id) setSelectedInventory(response.data!);
+                toast.success(newStatus ? (lang === 'th' ? 'เปิดใช้งานสต็อกแล้ว' : 'Slot activated') : (lang === 'th' ? 'ปิดการใช้งานสต็อกแล้ว' : 'Slot deactivated'));
+            } else {
+                setInventories(prev => prev.map(inv => inv._id === inventory._id ? inventory : inv));
+                if (selectedInventory?._id === inventory._id) setSelectedInventory(inventory);
+                toast.error(lang === 'th' ? 'ไม่สามารถเปลี่ยนสถานะได้' : 'Failed to toggle status');
+            }
+        } catch (error) {
+            console.error("Failed to toggle active status:", error);
+            setInventories(prev => prev.map(inv => inv._id === inventory._id ? inventory : inv));
+            if (selectedInventory?._id === inventory._id) setSelectedInventory(inventory);
+            toast.error(lang === 'th' ? 'เกิดข้อผิดพลาด' : 'An error occurred');
         }
     };
 
@@ -545,8 +579,9 @@ export default function InventoryPage() {
     // Filtered materials for import dropdown
     const filteredMaterialSuggestions = useMemo(() => {
         const query = materialSearch.toLowerCase();
-        if (!query) return materials;
-        return materials.filter(mat => {
+        const activeMaterials = materials.filter(m => m.isActive !== false);
+        if (!query) return activeMaterials;
+        return activeMaterials.filter(mat => {
             const nameMatch = mat.name.toLowerCase().includes(query);
             const colorMatch = mat.specDetails?.color?.toLowerCase().includes(query);
             const thickMatch = mat.specDetails?.thickness?.toString().includes(query);
@@ -824,7 +859,7 @@ export default function InventoryPage() {
                                     return (
                                         <TableRow
                                             key={inv._id}
-                                            className={`group border-slate-100 dark:border-slate-800 transition-colors cursor-pointer ${rowBg}`}
+                                            className={`group border-slate-100 dark:border-slate-800 transition-colors cursor-pointer ${rowBg} ${inv.isActive === false ? 'opacity-50 grayscale' : ''}`}
                                             onClick={() => openDetails(inv)}
                                         >
                                             <TableCell className="py-3.5 px-4">
@@ -870,12 +905,21 @@ export default function InventoryPage() {
                                                 </span>
                                             </TableCell>
                                             <TableCell className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                                                <button
-                                                    onClick={() => openDetails(inv)}
-                                                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                                                >
-                                                    <MoreHorizontal className="h-5 w-5" />
-                                                </button>
+                                                <div className="flex items-center justify-end gap-2">
+                                                    {canManage && (
+                                                        <Switch
+                                                            checked={inv.isActive !== false}
+                                                            onCheckedChange={(checked) => handleToggleInventoryActive(inv, !checked)}
+                                                            className="scale-90"
+                                                        />
+                                                    )}
+                                                    <button
+                                                        onClick={() => openDetails(inv)}
+                                                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                                                    >
+                                                        <MoreHorizontal className="h-5 w-5" />
+                                                    </button>
+                                                </div>
                                             </TableCell>
                                         </TableRow>
                                     );
@@ -966,12 +1010,22 @@ export default function InventoryPage() {
                                                 {selectedInventory.stockType}
                                             </span>
                                         </div>
-                                        <button
-                                            onClick={() => setIsDetailOpen(false)}
-                                            className="h-7 w-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                                        >
-                                            <X className="h-4 w-4" />
-                                        </button>
+                                        <div className="flex items-center gap-2">
+                                            {canManage && (
+                                                <Switch 
+                                                    checked={selectedInventory.isActive !== false}
+                                                    onCheckedChange={(checked) => handleToggleInventoryActive(selectedInventory, !checked)}
+                                                    className="scale-75"
+                                                    title={lang === 'th' ? 'เปิด/ปิด สต็อกนี้' : 'Toggle active status'}
+                                                />
+                                            )}
+                                            <button
+                                                onClick={() => setIsDetailOpen(false)}
+                                                className="h-7 w-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </button>
+                                        </div>
                                     </div>
 
                                     {/* Material name */}

@@ -33,6 +33,7 @@ import {
     SelectTrigger,
     SelectValue
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
     Pagination,
     PaginationContent,
@@ -225,6 +226,28 @@ export default function MaterialsManagementPage() {
         } catch (error) {
             console.error("Failed to delete material:", error);
             toast.error(error instanceof Error ? error.message : 'เกิดข้อผิดพลาด');
+        }
+    };
+
+    const handleToggleMaterialActive = async (material: Material, currentStatus: boolean) => {
+        try {
+            // Optimistic update
+            const newStatus = !currentStatus;
+            setMaterials(prev => prev.map(m => m._id === material._id ? { ...m, isActive: newStatus } : m));
+            
+            const response = await materialsApi.update(material._id, { isActive: newStatus });
+            if (response.success && response.data) {
+                setMaterials(prev => prev.map(m => m._id === material._id ? response.data! : m));
+                toast.success(newStatus ? 'เปิดใช้งานวัสดุ' : 'ปิดการใช้งานวัสดุ');
+            } else {
+                // Revert on fail
+                setMaterials(prev => prev.map(m => m._id === material._id ? material : m));
+                toast.error('ไม่สามารถเปลี่ยนสถานะได้');
+            }
+        } catch (error) {
+            console.error("Failed to toggle material active status:", error);
+            setMaterials(prev => prev.map(m => m._id === material._id ? material : m));
+            toast.error('เกิดข้อผิดพลาด');
         }
     };
 
@@ -455,7 +478,7 @@ export default function MaterialsManagementPage() {
                                 paginatedMaterials.map((material) => {
                                     const hasSize = material.specDetails?.width || material.specDetails?.length;
                                     return (
-                                        <TableRow key={material._id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors border-b-slate-200 dark:border-b-slate-800">
+                                        <TableRow key={material._id} className={`hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors border-b-slate-200 dark:border-b-slate-800 ${material.isActive === false ? 'opacity-50 grayscale' : ''}`}>
                                             <TableCell className="text-[13px] font-mono font-semibold text-blue-600 dark:text-blue-400">
                                                 {material.code || "-"}
                                             </TableCell>
@@ -505,24 +528,31 @@ export default function MaterialsManagementPage() {
                                             </TableCell>
                                             {canManage && (
                                                 <TableCell className="text-right">
-                                                    <div className="flex justify-end gap-1">
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            onClick={() => handleOpenModal(material)}
-                                                            className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:text-blue-300 dark:hover:bg-blue-950/50 rounded-xl"
-                                                        >
-                                                            <Edit className="h-3.5 w-3.5" />
-                                                        </Button>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            onClick={() => handleDelete(material._id, material.name)}
-                                                            disabled={isLoadingDeleteTarget}
-                                                            className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-950/50 rounded-xl"
-                                                        >
-                                                            {isLoadingDeleteTarget ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                                                        </Button>
+                                                    <div className="flex justify-end items-center gap-2">
+                                                        <Switch 
+                                                            checked={material.isActive !== false}
+                                                            onCheckedChange={(checked) => handleToggleMaterialActive(material, !checked)}
+                                                            className="scale-90"
+                                                        />
+                                                        <div className="flex gap-1">
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                onClick={() => handleOpenModal(material)}
+                                                                className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:text-blue-300 dark:hover:bg-blue-950/50 rounded-xl"
+                                                            >
+                                                                <Edit className="h-3.5 w-3.5" />
+                                                            </Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                onClick={() => handleDelete(material._id, material.name)}
+                                                                disabled={isLoadingDeleteTarget}
+                                                                className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-950/50 rounded-xl"
+                                                            >
+                                                                {isLoadingDeleteTarget ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                                                            </Button>
+                                                        </div>
                                                     </div>
                                                 </TableCell>
                                             )}

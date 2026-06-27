@@ -188,7 +188,7 @@ function StationModal({
                         name: name.trim(),
                         colorId,
                         templateId: templateId || undefined,
-                        isLaminateStation: isLaminate || undefined,
+                        isLaminateStation: isLaminate,
                         showWithdrawClaimActions: showWithdrawClaim,
                     })}>
                         <Plus className="h-3.5 w-3.5 mr-1" />

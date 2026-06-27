@@ -408,7 +408,7 @@ export function ButtonBlock({
                     if (reqId) {
                         (async () => {
                             try {
-                                const pRes = await panesApi.getAll({ request: reqId, status_ne: "claimed", limit: 100 });
+                                const pRes = await panesApi.getAll({ request: reqId, status_ne: "claimed", limit: 5000 });
                                 const routingIds = (body.stations as string[]);
                                 const firstStationId = routingIds[0];
                                 const allPanes = pRes.success ? pRes.data as Pane[] : [];

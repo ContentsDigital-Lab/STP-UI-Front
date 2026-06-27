@@ -68,6 +68,7 @@ export interface Material {
     length?: string | number;
     sqft?: string | number;
   };
+  isActive?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -80,6 +81,7 @@ export interface Inventory {
   quantity: number;
   location: string;
   storageColor?: string;
+  isActive?: boolean;
   createdAt: string;
   updatedAt: string;
 }

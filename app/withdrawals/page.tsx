@@ -106,6 +106,7 @@ export default function WithdrawalsPage() {
     const getStockForMaterial = useCallback((materialId: string, stockType?: "Raw" | "Reuse") => {
         return inventories
             .filter((inv) => {
+                if (inv.isActive === false) return false;
                 const invMatId = inv.material && typeof inv.material === "object" ? inv.material._id : inv.material;
                 return invMatId === materialId && (!stockType || inv.stockType === stockType);
             })
@@ -431,7 +432,7 @@ export default function WithdrawalsPage() {
                                             </SelectValue>
                                         </SelectTrigger>
                                         <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800 !w-fit">
-                                            {materials.map((m) => {
+                                            {materials.filter(m => m.isActive !== false).map((m) => {
                                                 const stock = getStockForMaterial(m._id, form.stockType);
                                                 return (
                                                     <SelectItem key={m._id} value={m._id} className="rounded-lg">

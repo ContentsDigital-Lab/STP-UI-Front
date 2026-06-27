@@ -95,6 +95,7 @@ export function WithdrawModal({ stationId, onClose, initialPane }: WithdrawModal
                 // New path: match by rawGlass spec (glassType + optional thickness + color)
                 const rg = p.rawGlass;
                 matches = res.data.filter(inv => {
+                    if (inv.isActive === false) return false;
                     if (inv.quantity <= 0) return false;
                     const mat = typeof inv.material === "object" ? inv.material as Material : null;
                     if (!mat?.specDetails) return false;
@@ -112,7 +113,7 @@ export function WithdrawModal({ stationId, onClose, initialPane }: WithdrawModal
                 // Fallback: match by pane.material ID
                 const pMatId = matId(p.material);
                 matches = pMatId
-                    ? res.data.filter(inv => matId(inv.material) === pMatId && inv.quantity > 0)
+                    ? res.data.filter(inv => inv.isActive !== false && matId(inv.material) === pMatId && inv.quantity > 0)
                     : [];
             }
 

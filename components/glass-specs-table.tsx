@@ -69,7 +69,7 @@ export function GlassSpecsTable({
                             <th className="py-2.5 px-3 text-center w-10 border-r border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80">#</th>
                             <th className="py-2.5 px-3 w-20 border-r border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80">{lang === 'th' ? 'กว้าง (W)' : 'Width'}</th>
                             <th className="py-2.5 px-3 w-20 border-r border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80">{lang === 'th' ? 'สูง (H)' : 'Height'}</th>
-                            <th className="py-2.5 px-3 w-16 border-r border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80">{lang === 'th' ? 'จำนวน' : 'Qty'}</th>
+                            <th className="py-2.5 px-3 w-24 border-r border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80">{lang === 'th' ? 'จำนวน' : 'Qty'}</th>
                             <th className="py-2.5 px-3 w-36 border-r border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80">{lang === 'th' ? 'ลักษณะงาน' : 'Job Type'}</th>
                             <th className="py-2.5 px-3 w-24 border-r border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80">{lang === 'th' ? 'ความหนา' : 'Thickness'}</th>
                             <th className="py-2.5 px-3 w-28 border-r border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80">{lang === 'th' ? 'คิ้ว/มุม (Size)' : 'Corners'}</th>
