@@ -1258,6 +1258,9 @@ export default function InventoryPage() {
 
                     {/* Form Body */}
                     <div className="px-6 py-5 space-y-5">
+                        {/* Catch auto-focus to prevent dropdown from expanding immediately */}
+                        <button type="button" className="sr-only">catch focus</button>
+                        
                         {/* Material Selection */}
                         <div className="space-y-2 relative">
                             <Label className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
