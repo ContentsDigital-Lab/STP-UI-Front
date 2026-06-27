@@ -302,6 +302,9 @@ export default function InventoryPage() {
                     setInventories(prev => prev.map(inv => inv._id === existing._id ? response.data! : inv));
                     setIsImportOpen(false);
                     resetImportForm();
+                    toast.success(lang === 'th' ? 'นำเข้าสต็อกเรียบร้อย' : 'Stock imported successfully');
+                } else {
+                    toast.error(lang === 'th' ? 'เกิดข้อผิดพลาดในการนำเข้าสต็อก' : 'Failed to import stock');
                 }
             } else {
                 const color = getLocationColor(importData.location);
@@ -310,10 +313,14 @@ export default function InventoryPage() {
                     setInventories([response.data, ...inventories]);
                     setIsImportOpen(false);
                     resetImportForm();
+                    toast.success(lang === 'th' ? 'นำเข้าสต็อกเรียบร้อย' : 'Stock imported successfully');
+                } else {
+                    toast.error(lang === 'th' ? 'เกิดข้อผิดพลาดในการนำเข้าสต็อก' : 'Failed to import stock');
                 }
             }
         } catch (error) {
             console.error("Failed to process inventory:", error);
+            toast.error(lang === 'th' ? 'เกิดข้อผิดพลาดในการนำเข้าสต็อก' : 'Failed to import stock');
         } finally {
             setIsSubmitting(false);
         }
@@ -1210,21 +1217,38 @@ export default function InventoryPage() {
 
                                 {/* ── Footer ── */}
                                 {canManage && (
-                                    <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-950 grid grid-cols-2 gap-2">
+                                    <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-950 grid grid-cols-3 gap-2">
                                         <Button
                                             onClick={() => handleDelete(selectedInventory._id)}
                                             variant="outline"
-                                            className="rounded-xl h-10 border-red-200 dark:border-red-900 text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                                            className="rounded-xl h-10 border-red-200 dark:border-red-900 text-red-600 hover:bg-red-50 dark:hover:bg-red-950 px-2"
                                         >
-                                            <Trash2 className="h-4 w-4 mr-1.5" />
-                                            {it.detail.delete}
+                                            <Trash2 className="h-4 w-4 mr-1 sm:mr-1.5 shrink-0" />
+                                            <span className="truncate">{it.detail.delete}</span>
                                         </Button>
                                         <Button
                                             onClick={() => openMoveDialog(selectedInventory)}
-                                            className="rounded-xl h-10 font-bold bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white gap-2 shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0"
+                                            className="rounded-xl h-10 font-bold bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white gap-1 sm:gap-2 shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0 px-2"
                                         >
-                                            <ArrowRightLeft className="h-4 w-4" />
-                                            {it.detail.moveStock}
+                                            <ArrowRightLeft className="h-4 w-4 shrink-0" />
+                                            <span className="truncate">{it.detail.moveStock}</span>
+                                        </Button>
+                                        <Button
+                                            onClick={() => {
+                                                setImportData({
+                                                    material: typeof selectedInventory.material === 'string' ? selectedInventory.material : selectedInventory.material._id,
+                                                    stockType: selectedInventory.stockType,
+                                                    quantity: 1,
+                                                    location: selectedInventory.location
+                                                });
+                                                setMaterialSearch("");
+                                                setIsImportOpen(true);
+                                                setIsDetailOpen(false);
+                                            }}
+                                            className="rounded-xl h-10 font-bold bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white gap-1 sm:gap-2 shadow-lg shadow-emerald-500/20 border-0 px-2"
+                                        >
+                                            <Plus className="h-4 w-4 shrink-0" />
+                                            <span className="truncate">{lang === 'th' ? 'นำเข้าเพิ่ม' : 'Add Stock'}</span>
                                         </Button>
                                     </div>
                                 )}
