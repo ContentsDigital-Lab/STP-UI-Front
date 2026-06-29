@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Zap, Send, Navigation, Globe, MessageSquare, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { fetchApi } from "@/lib/api/config";
 import { panesApi } from "@/lib/api/panes";
+import { toast } from "sonner";
 
 import { Pane } from "@/lib/api/types";
 import { usePreview } from "../PreviewContext";
@@ -166,6 +167,7 @@ export function ButtonBlock({
                     setTimeout(() => setFeedback(""), 5000);
                     return;
                 }
+                toast.success("ดำเนินการสำเร็จ");
                 setFeedback("ok");
                 resetForm();
                 triggerRefresh();
@@ -440,6 +442,7 @@ export function ButtonBlock({
                     }
                 }
 
+                toast.success("ดำเนินการสำเร็จ");
                 setFeedback("ok");
                 triggerRefresh();
                 setTimeout(() => setFeedback(""), 2500);
@@ -537,6 +540,7 @@ export function ButtonBlock({
                     })();
                 }
             }
+            toast.success("ดำเนินการสำเร็จ");
             setFeedback("ok");
             triggerRefresh();
             setTimeout(() => setFeedback(""), 2500);
@@ -557,7 +561,7 @@ export function ButtonBlock({
                 <button
                     onClick={isPreview ? handlePreviewClick : undefined}
                     disabled={!isPreview || feedback === "loading" || showConfirm}
-                    className={`rounded-lg font-semibold transition-all ${VARIANT_MAP[variant] ?? VARIANT_MAP.primary} ${SIZE_MAP[size]} ${fullWidth ? "w-full" : ""} ${feedback === "ok" ? "!bg-green-500 !text-white !border-green-500" : ""} ${feedback === "error" ? "!bg-red-500 !text-white !border-red-500" : ""} disabled:opacity-70 flex items-center justify-center gap-2`}
+                    className={`rounded-lg font-semibold transition-all ${VARIANT_MAP[variant] ?? VARIANT_MAP.primary} ${SIZE_MAP[size]} ${fullWidth ? "w-full" : ""} ${feedback === "ok" ? "!bg-green-600 !text-white !border-green-600" : ""} ${feedback === "error" ? "!bg-red-500 !text-white !border-red-500" : ""} disabled:opacity-70 flex items-center justify-center gap-2`}
                 >
                     {feedback === "loading" ? (
                         <><Loader2 className="h-5 w-5 animate-spin" /> กำลังส่ง...</>
@@ -573,12 +577,6 @@ export function ButtonBlock({
                     <div className={`flex items-start gap-2 text-sm font-semibold text-white bg-red-600 border-2 border-red-700 rounded-xl px-4 py-3 ${fullWidth ? "w-full" : ""}`}>
                         <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
                         <span>{errorMsg}</span>
-                    </div>
-                )}
-                {feedback === "ok" && (
-                    <div className={`flex items-center gap-2 text-sm font-semibold text-white bg-green-700 border-2 border-green-800 rounded-xl px-4 py-3 ${fullWidth ? "w-full" : ""}`}>
-                        <CheckCircle2 className="h-5 w-5 shrink-0" />
-                        <span>ดำเนินการสำเร็จ</span>
                     </div>
                 )}
                 {showConfirm && confirmSummary && (
