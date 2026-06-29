@@ -238,7 +238,6 @@ export default function MaterialsManagementPage() {
             const response = await materialsApi.update(material._id, { isActive: newStatus });
             if (response.success && response.data) {
                 setMaterials(prev => prev.map(m => m._id === material._id ? response.data! : m));
-                toast.success(newStatus ? 'เปิดใช้งานวัสดุ' : 'ปิดการใช้งานวัสดุ');
             } else {
                 // Revert on fail
                 setMaterials(prev => prev.map(m => m._id === material._id ? material : m));

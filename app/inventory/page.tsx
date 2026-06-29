@@ -301,7 +301,6 @@ export default function InventoryPage() {
             if (response.success && response.data) {
                 setInventories(prev => prev.map(inv => inv._id === inventory._id ? response.data! : inv));
                 if (selectedInventory?._id === inventory._id) setSelectedInventory(response.data!);
-                toast.success(newStatus ? (lang === 'th' ? 'เปิดใช้งานสต็อกแล้ว' : 'Slot activated') : (lang === 'th' ? 'ปิดการใช้งานสต็อกแล้ว' : 'Slot deactivated'));
             } else {
                 setInventories(prev => prev.map(inv => inv._id === inventory._id ? inventory : inv));
                 if (selectedInventory?._id === inventory._id) setSelectedInventory(inventory);
@@ -616,20 +615,24 @@ export default function InventoryPage() {
 
             const matchesSearch = mat?.name.toLowerCase().includes(searchLower) ||
                 inv.location.toLowerCase().includes(searchLower);
-            const matchesType = stockTypeFilter === "all" || inv.stockType === stockTypeFilter;
             const matchesLocation = locationFilter === "all" || inv.location === locationFilter;
             const matchesThickness = thicknessFilter === "all" || mat?.specDetails?.thickness?.toString() === thicknessFilter;
             const matchesColor = colorFilter === "all" || mat?.specDetails?.color === colorFilter;
-            const matchesGlassType = glassTypeFilter === "all" || mat?.specDetails?.glassType === glassTypeFilter;
+            
+            const matchesGlassType = glassTypeFilter === "all" 
+                ? true 
+                : glassTypeFilter === "Reuse" 
+                    ? inv.stockType === "Reuse" 
+                    : mat?.specDetails?.glassType === glassTypeFilter;
 
             let matchesStockAlert = true;
             if (showLowStockOnly) {
                 matchesStockAlert = !!mat && inv.quantity <= mat.reorderPoint;
             }
 
-            return matchesSearch && matchesType && matchesLocation && matchesThickness && matchesColor && matchesGlassType && matchesStockAlert;
+            return matchesSearch && matchesLocation && matchesThickness && matchesColor && matchesGlassType && matchesStockAlert;
         });
-    }, [inventories, materials, searchQuery, stockTypeFilter, locationFilter, thicknessFilter, colorFilter, glassTypeFilter, showLowStockOnly, getMaterialInfo]);
+    }, [inventories, materials, searchQuery, locationFilter, thicknessFilter, colorFilter, glassTypeFilter, showLowStockOnly, getMaterialInfo]);
 
     const totalPages = Math.ceil(filteredInventories.length / ITEMS_PER_PAGE);
     const paginatedInventories = filteredInventories.slice(
@@ -768,52 +771,67 @@ export default function InventoryPage() {
             )}
 
             {/* Filter & Search */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                <div className="relative flex-1 min-w-0">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" aria-hidden />
-                    <Input
-                        placeholder={it.searchPlaceholder}
-                        value={searchQuery}
-                        onChange={(e) => {
-                            setSearchQuery(e.target.value);
-                            setCurrentPage(1);
-                        }}
-                        className="pl-9 pr-9 h-10 w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl text-sm focus-visible:ring-2 focus-visible:ring-blue-600/20 focus-visible:border-blue-600"
-                        aria-label={it.searchPlaceholder}
-                    />
-                    {searchQuery && (
-                        <button
-                            type="button"
-                            onClick={() => setSearchQuery("")}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                            aria-label="Clear search"
-                        >
-                            <X className="h-4 w-4" />
-                        </button>
-                    )}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
+                <div className="flex-1 min-w-0 space-y-1.5">
+                    <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-1.5">
+                        <Search className="h-3 w-3" />
+                        {lang === 'th' ? 'ค้นหา' : 'Search'}
+                    </Label>
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" aria-hidden />
+                        <Input
+                            placeholder={it.searchPlaceholder}
+                            value={searchQuery}
+                            onChange={(e) => {
+                                setSearchQuery(e.target.value);
+                                setCurrentPage(1);
+                            }}
+                            className="pl-9 pr-9 h-10 w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl text-sm focus-visible:ring-2 focus-visible:ring-blue-600/20 focus-visible:border-blue-600"
+                            aria-label={it.searchPlaceholder}
+                        />
+                        {searchQuery && (
+                            <button
+                                type="button"
+                                onClick={() => setSearchQuery("")}
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                                aria-label="Clear search"
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
+                        )}
+                    </div>
                 </div>
-                <Select value={locationFilter} onValueChange={(val) => { setLocationFilter(val || "all"); setCurrentPage(1); }}>
-                    <SelectTrigger className="h-10 w-full sm:w-[min(100%,200px)] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-blue-600/20" aria-label={it.area}>
-                        <SelectValue placeholder="ทุกพื้นที่" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800 min-w-[max-content]">
-                        <SelectItem value="all" className="py-2 pr-8">ทุกพื้นที่</SelectItem>
-                        {locations.map(loc => (
-                            <SelectItem key={loc} value={loc} className="py-2 pr-8 min-w-[max-content]">{loc}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-                <Select value={glassTypeFilter} onValueChange={(val) => { setGlassTypeFilter(val || "all"); setCurrentPage(1); }}>
-                    <SelectTrigger className="h-10 w-full sm:w-[min(100%,200px)] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-blue-600/20" aria-label={it.glassType}>
-                        <SelectValue placeholder="ทุกประเภท" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800 min-w-[max-content]">
-                        <SelectItem value="all" className="py-2 pr-8">ทุกประเภท</SelectItem>
-                        {glassTypes.map(type => (
-                            <SelectItem key={type} value={type} className="py-2 pr-8 min-w-[max-content]">{type}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <div className="space-y-1.5 w-full sm:w-[200px]">
+                    <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">{it.area}</Label>
+                    <Select value={locationFilter === "all" ? "" : locationFilter} onValueChange={(val) => { setLocationFilter(val || "all"); setCurrentPage(1); }}>
+                        <SelectTrigger className="h-10 w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-blue-600/20" aria-label={it.area}>
+                            <SelectValue placeholder={lang === 'th' ? 'ทั้งหมด' : 'All'} />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800 min-w-[max-content]">
+                            <SelectItem value="all" className="py-2 pr-8">{lang === 'th' ? 'ทั้งหมด' : 'All'}</SelectItem>
+                            {locations.map(loc => (
+                                <SelectItem key={loc} value={loc} className="py-2 pr-8 min-w-[max-content]">{loc}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="space-y-1.5 w-full sm:w-[200px]">
+                    <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">{it.glassType}</Label>
+                    <Select value={glassTypeFilter === "all" ? "" : glassTypeFilter} onValueChange={(val) => { setGlassTypeFilter(val || "all"); setCurrentPage(1); }}>
+                        <SelectTrigger className="h-10 w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-blue-600/20" aria-label={it.glassType}>
+                            <SelectValue placeholder={lang === 'th' ? 'ทั้งหมด' : 'All'}>
+                                {glassTypeFilter === "all" ? undefined : glassTypeFilter === "Reuse" ? (lang === 'th' ? 'เศษ' : 'Reuse') : glassTypeFilter}
+                            </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800 min-w-[max-content]">
+                            <SelectItem value="all" className="py-2 pr-8">{lang === 'th' ? 'ทั้งหมด' : 'All'}</SelectItem>
+                            <SelectItem value="Reuse" className="py-2 pr-8">{lang === 'th' ? 'เศษ' : 'Reuse'}</SelectItem>
+                            {glassTypes.map(type => (
+                                <SelectItem key={type} value={type} className="py-2 pr-8 min-w-[max-content]">{type}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
                 {(searchQuery || locationFilter !== "all" || glassTypeFilter !== "all" || showLowStockOnly) && (
                     <Button
                         variant="ghost"
