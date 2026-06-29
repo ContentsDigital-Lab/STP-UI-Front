@@ -521,7 +521,7 @@ function ProductionDetailPageInner() {
 
       if (resolvedReqId) {
         const pRes = await panesApi
-          .getAll({ request: resolvedReqId, limit: 200 })
+          .getAll({ request: resolvedReqId, limit: 5000 })
           .catch(() => null);
         if (pRes?.success && (pRes.data ?? []).length > 0) {
           setPanes((pRes.data ?? []).filter((p) => !isPaneRetiredByMerge(p)));
@@ -530,7 +530,7 @@ function ProductionDetailPageInner() {
       }
 
       // Fallback: fetch all and filter client-side
-      const allRes = await panesApi.getAll({ limit: 500 }).catch(() => null);
+      const allRes = await panesApi.getAll({ limit: 5000 }).catch(() => null);
       if (allRes?.success) {
         const allPanes = allRes.data ?? [];
 

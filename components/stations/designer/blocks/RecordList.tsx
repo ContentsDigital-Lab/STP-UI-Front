@@ -344,9 +344,11 @@ export function RecordList({
      *  Orders with 0 pending panes are hidden — all their panes have moved to the station queue. */
     const loadPendingPaneCounts = () => {
         if (!effectivePendingOnly || dataSource !== "/orders" || (!stationId && !stationName)) return;
-        panesApi.getAll({ station: stationId ?? undefined, limit: 500 }).catch(() => null).then(res => {
-            if (!res) return;
-            if (!res.success || !Array.isArray(res.data)) return;
+        
+        if (!stationId) return; // The aggregation endpoint requires stationId
+        
+        panesApi.getPendingCounts(stationId).catch(() => null).then(res => {
+            if (!res || !res.success || !Array.isArray(res.data)) return;
             const counts: Record<string, number> = {};
 
             const requestToOrder = new Map<string, string>();
@@ -360,22 +362,14 @@ export function RecordList({
                 if (reqId) requestToOrder.set(reqId, oid);
             }
 
-            for (const pane of res.data) {
-                if (isPaneRetiredByMerge(pane)) continue;
-                const atStation = isStationMatch(pane.currentStation, stationId, stationName);
-                if (!atStation || pane.currentStatus !== "pending") continue;
-
-                let orderId = pane.order
-                    ? (typeof pane.order === "string" ? pane.order : (pane.order as { _id?: string })._id ?? "")
-                    : "";
+            for (const item of res.data) {
+                let orderId = item.order ? String(item.order) : "";
                 if (!orderId) {
-                    const paneReq = pane.request
-                        ? (typeof pane.request === "string" ? pane.request : (pane.request as { _id?: string })._id ?? "")
-                        : "";
-                    orderId = paneReq ? (requestToOrder.get(paneReq) ?? "") : "";
+                    const reqId = item.request ? String(item.request) : "";
+                    orderId = reqId ? (requestToOrder.get(reqId) ?? "") : "";
                 }
                 if (!orderId) continue;
-                counts[orderId] = (counts[orderId] ?? 0) + 1;
+                counts[orderId] = (counts[orderId] ?? 0) + item.count;
             }
             setPendingCountByOrder(counts);
         }).catch(() => {});
@@ -407,9 +401,12 @@ export function RecordList({
         loadPendingPaneCounts();
         setQrPane(null);
         if (!expandedRowId) return;
+        const extraFilter = effectivePendingOnly ? { status: "pending" } : { status_ne: "claimed" };
+        const reqFilter = effectivePendingOnly ? { status: "pending" } : {};
+        console.log("WebSocket fetchFn trigger", { effectivePendingOnly, extraFilter });
         const fetchFn = dataSource === "/orders"
-            ? panesApi.getAll({ order: expandedRowId, status_ne: "claimed", limit: 100, ...(stationId ? { station: stationId } : {}) })
-            : panesApi.getAll({ request: expandedRowId, limit: 100, ...(stationId ? { station: stationId } : {}) });
+            ? panesApi.getAll({ order: expandedRowId, ...extraFilter, limit: 100, ...(stationId ? { station: stationId } : {}) })
+            : panesApi.getAll({ request: expandedRowId, ...reqFilter, limit: 100, ...(stationId ? { station: stationId } : {}) });
         fetchFn
             .then((res) => setRowPanes(res.success ? floorPanes(res.data) : []))
             .catch(() => {});
@@ -433,9 +430,12 @@ export function RecordList({
     useEffect(() => {
         if (!expandedRowId || !isApi) return;
         if (dataSource !== "/orders" && dataSource !== "/requests") return;
+        const extraFilter = effectivePendingOnly ? { status: "pending" } : { status_ne: "claimed" };
+        const reqFilter = effectivePendingOnly ? { status: "pending" } : {};
+        console.log("useEffect fetchFn trigger", { effectivePendingOnly, extraFilter });
         const fetchFn = dataSource === "/orders"
-            ? panesApi.getAll({ order: expandedRowId, status_ne: "claimed", limit: 100, ...(stationId ? { station: stationId } : {}) })
-            : panesApi.getAll({ request: expandedRowId, limit: 100, ...(stationId ? { station: stationId } : {}) });
+            ? panesApi.getAll({ order: expandedRowId, ...extraFilter, limit: 100, ...(stationId ? { station: stationId } : {}) })
+            : panesApi.getAll({ request: expandedRowId, ...reqFilter, limit: 100, ...(stationId ? { station: stationId } : {}) });
         fetchFn
             .then((res) => {
                 if (res.success) setRowPanes(floorPanes(res.data));
@@ -538,11 +538,14 @@ export function RecordList({
         setRowPanesLoading(true);
         setShowAllPanes(false);
         try {
+            const extraFilter = effectivePendingOnly ? { status: "pending" } : { status_ne: "claimed" };
+            const reqFilter = effectivePendingOnly ? { status: "pending" } : {};
+            console.log("toggleRowPanes trigger", { effectivePendingOnly, extraFilter });
             if (dataSource === "/orders") {
-                const res = await panesApi.getAll({ order: rid, status_ne: "claimed", limit: 100, ...(stationId ? { station: stationId } : {}) });
+                const res = await panesApi.getAll({ order: rid, ...extraFilter, limit: 100, ...(stationId ? { station: stationId } : {}) });
                 setRowPanes(res.success ? floorPanes(res.data) : []);
             } else {
-                const res = await panesApi.getAll({ request: rid, limit: 100, ...(stationId ? { station: stationId } : {}) });
+                const res = await panesApi.getAll({ request: rid, ...reqFilter, limit: 100, ...(stationId ? { station: stationId } : {}) });
                 setRowPanes(res.success ? floorPanes(res.data) : []);
             }
         } catch {

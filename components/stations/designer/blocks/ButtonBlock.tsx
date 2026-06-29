@@ -420,14 +420,16 @@ export function ButtonBlock({
                                     return oid === newOrderId;
                                 });
                                 if (firstStationId) {
-                                    await Promise.all(panes.map(p =>
-                                        panesApi.update(p._id, {
-                                            routing: routingIds,
-                                            currentStation: firstStationId,
-                                            currentStatus: "pending",
-                                            ...(newOrderId ? { order: newOrderId } : {}),
-                                        })
-                                    ));
+                                    for (let i = 0; i < panes.length; i += 50) {
+                                        await Promise.all(panes.slice(i, i + 50).map(p =>
+                                            panesApi.update(p._id, {
+                                                routing: routingIds,
+                                                currentStation: firstStationId,
+                                                currentStatus: "pending",
+                                                ...(newOrderId ? { order: newOrderId } : {}),
+                                            })
+                                        ));
+                                    }
                                 }
                                 if (newOrderId && panes.length > 0) {
                                     fetchApi(`/orders/${newOrderId}`, {
@@ -509,7 +511,7 @@ export function ButtonBlock({
                 if (reqId) {
                     (async () => {
                         try {
-                            const pRes = await panesApi.getAll({ request: reqId, status_ne: "claimed", limit: 100 });
+                            const pRes = await panesApi.getAll({ request: reqId, status_ne: "claimed", limit: 5000 });
                             const routingIds = (body.stations as string[]);
                             const firstStationId = routingIds[0];
                             const allPanes = pRes.success ? pRes.data as Pane[] : [];
@@ -519,14 +521,16 @@ export function ButtonBlock({
                                 return oid === newOrderId;
                             });
                             if (firstStationId) {
-                                await Promise.all(panes.map(p =>
-                                    panesApi.update(p._id, {
-                                        routing: routingIds,
-                                        currentStation: firstStationId,
-                                        currentStatus: "pending",
-                                        ...(newOrderId ? { order: newOrderId } : {}),
-                                    })
-                                ));
+                                for (let i = 0; i < panes.length; i += 50) {
+                                    await Promise.all(panes.slice(i, i + 50).map(p =>
+                                        panesApi.update(p._id, {
+                                            routing: routingIds,
+                                            currentStation: firstStationId,
+                                            currentStatus: "pending",
+                                            ...(newOrderId ? { order: newOrderId } : {}),
+                                        })
+                                    ));
+                                }
                             }
                             if (newOrderId && panes.length > 0) {
                                 fetchApi(`/orders/${newOrderId}`, {

@@ -8,7 +8,7 @@ export const panesApi = {
         if (params?.request)      qs.set("request",      params.request);
         if (params?.material)     qs.set("material",     params.material);
         if (params?.station)      qs.set("station",      params.station);
-        if (params?.status)       qs.set("currentStatus",params.status);
+        if (params?.status)       qs.set("status",       params.status);
 
         if (params?.status_ne)    qs.set("status_ne",    params.status_ne);
         if (params?.laminateRole) qs.set("laminateRole", params.laminateRole);
@@ -20,6 +20,13 @@ export const panesApi = {
         if (params?.includeMerged) qs.set("includeMerged", "true");
         const query = qs.toString();
         return fetchApi<PaginatedResponse<Pane>>(`/panes${query ? `?${query}` : ""}`, {
+            method: "GET",
+        });
+    },
+
+
+    getPendingCounts: async (stationId: string): Promise<ApiResponse<{ order: string; request: string; count: number }[]>> => {
+        return fetchApi<ApiResponse<{ order: string; request: string; count: number }[]>>(`/panes/pending-counts?station=${encodeURIComponent(stationId)}`, {
             method: "GET",
         });
     },

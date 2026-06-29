@@ -175,7 +175,7 @@ export default function ProductionPage() {
     const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null);
     const [deleting, setDeleting] = useState(false);
     const loadPanes = useCallback(async () => {
-        const pRes = await panesApi.getAll({ limit: 100 }).catch(() => null);
+        const pRes = await panesApi.getAll({ limit: 5000 }).catch(() => null);
         if (pRes?.success) {
             const map = new Map<string, Pane[]>();
             for (const p of pRes.data ?? []) {
