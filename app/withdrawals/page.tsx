@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
     Plus, Search, Trash2, ArrowDownFromLine,
-    ChevronLeft, ChevronRight, Package, MoreHorizontal,
+    ChevronLeft, ChevronRight, Package, MoreHorizontal, X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -256,6 +256,17 @@ export default function WithdrawalsPage() {
                                 </SelectContent>
                             </Select>
                         </div>
+                        {(searchQuery || stockTypeFilter !== "all") && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => { setSearchQuery(""); setStockTypeFilter("all"); }}
+                                className="h-10 rounded-xl text-slate-400 hover:text-slate-600 px-3 shrink-0"
+                            >
+                                <X className="h-3.5 w-3.5 mr-1" />
+                                ล้าง
+                            </Button>
+                        )}
                     </div>
                 </div>
 

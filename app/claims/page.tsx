@@ -390,6 +390,17 @@ export default function ClaimsPage() {
                             </Select>
                         </div>
                     </div>
+                    {(searchQuery || sourceFilter !== "all" || decisionFilter !== "all") && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => { setSearchQuery(""); setSourceFilter("all"); setDecisionFilter("all"); }}
+                            className="h-10 rounded-xl text-slate-400 hover:text-slate-600 px-3 shrink-0"
+                        >
+                            <X className="h-3.5 w-3.5 mr-1" />
+                            ล้าง
+                        </Button>
+                    )}
                 </div>
             </div>
 

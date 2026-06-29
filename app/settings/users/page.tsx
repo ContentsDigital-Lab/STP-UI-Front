@@ -44,7 +44,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Edit, Trash2, Loader2, Search, Plus, AlertTriangle, ArrowLeft, ShieldAlert } from "lucide-react";
+import { Edit, Trash2, Loader2, Search, Plus, AlertTriangle, ArrowLeft, ShieldAlert, X } from "lucide-react";
 
 export default function UsersManagementPage() {
     const { user, isLoading: isAuthLoading } = useAuth();
@@ -357,7 +357,11 @@ export default function UsersManagementPage() {
                             <div className="sm:w-44 space-y-1.5">
                                 <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">บทบาท</Label>
                                 <Select value={roleFilter} onValueChange={(val) => setRoleFilter(val || "all")}>
-                                    <SelectTrigger className="h-10 rounded-xl"><SelectValue placeholder="ทุกบทบาท" /></SelectTrigger>
+                                    <SelectTrigger className="h-10 rounded-xl">
+                                        <SelectValue placeholder="ทุกบทบาท">
+                                            {roleFilter === "all" ? "ทุกบทบาท" : roleFilter === "admin" ? "Admin" : roleFilter === "manager" ? "Manager" : roleFilter === "worker" ? "Worker" : roleFilter}
+                                        </SelectValue>
+                                    </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="all">ทุกบทบาท</SelectItem>
                                         <SelectItem value="admin">Admin</SelectItem>
@@ -366,6 +370,17 @@ export default function UsersManagementPage() {
                                     </SelectContent>
                                 </Select>
                             </div>
+                            {(searchQuery || roleFilter !== "all") && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => { setSearchQuery(""); setRoleFilter("all"); }}
+                                    className="h-10 rounded-xl text-slate-400 hover:text-slate-600 px-3 shrink-0"
+                                >
+                                    <X className="h-3.5 w-3.5 mr-1" />
+                                    ล้าง
+                                </Button>
+                            )}
                         </div>
                     </div>
 

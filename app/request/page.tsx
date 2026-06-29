@@ -95,6 +95,7 @@ export default function OrderRequestsPage() {
     // Filters
     const [searchQuery, setSearchQuery] = useState("");
     const [typeFilter, setTypeFilter] = useState<string>("all");
+    const [customerFilter, setCustomerFilter] = useState<string>("all");
 
     // Server-side pagination
     const [currentPage, setCurrentPage] = useState(1);
@@ -118,7 +119,7 @@ export default function OrderRequestsPage() {
         expectedDeliveryDate: "",
     });
 
-    const isSearchActive = searchQuery !== "" || typeFilter !== "all";
+    const isSearchActive = searchQuery !== "" || typeFilter !== "all" || customerFilter !== "all";
 
     // WebSocket
     const requestEvents = ['request:updated'];
@@ -217,10 +218,11 @@ export default function OrderRequestsPage() {
                 worker?.name?.toLowerCase().includes(searchLower);
 
             const matchesType = typeFilter === "all" || req.details?.type === typeFilter;
+            const matchesCustomer = customerFilter === "all" || cust?._id === customerFilter;
 
-            return matchesSearch && matchesType;
+            return matchesSearch && matchesType && matchesCustomer;
         });
-    }, [requests, allRequests, searchQuery, typeFilter, isSearchActive, getCustomerInfo, getWorkerInfo]);
+    }, [requests, allRequests, searchQuery, typeFilter, customerFilter, isSearchActive, getCustomerInfo, getWorkerInfo]);
 
     const totalPages = isSearchActive
         ? Math.ceil(filteredRequests.length / ITEMS_PER_PAGE)
@@ -233,6 +235,7 @@ export default function OrderRequestsPage() {
     const resetFilters = () => {
         setSearchQuery("");
         setTypeFilter("all");
+        setCustomerFilter("all");
         setCurrentPage(1);
     };
 
@@ -455,38 +458,63 @@ export default function OrderRequestsPage() {
             )}
 
             {/* Filter & Search */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-                <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                    <Input
-                        placeholder={it.searchPlaceholder}
-                        value={searchQuery}
-                        onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-                        className="pl-9 pr-9 h-10 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl text-sm"
-                    />
-                    {searchQuery && (
-                        <button
-                            onClick={() => setSearchQuery("")}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                        >
-                            <X className="h-3.5 w-3.5" />
-                        </button>
-                    )}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-4">
+                <div className="flex-1 space-y-1.5">
+                    <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">ค้นหา</label>
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <Input
+                            placeholder={it.searchPlaceholder}
+                            value={searchQuery}
+                            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                            className="pl-9 pr-9 h-10 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl text-sm"
+                        />
+                        {searchQuery && (
+                            <button
+                                onClick={() => setSearchQuery("")}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                            >
+                                <X className="h-3.5 w-3.5" />
+                            </button>
+                        )}
+                    </div>
                 </div>
 
-                <Select value={typeFilter} onValueChange={(val) => { setTypeFilter(val || "all"); setCurrentPage(1); }}>
-                    <SelectTrigger className="h-10 w-full sm:w-48 rounded-xl text-sm">
-                        <SelectValue placeholder="All Types" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">All Types</SelectItem>
-                        {productTypes.map(type => (
-                            <SelectItem key={type} value={type}>{type}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <div className="sm:w-[200px] space-y-1.5">
+                    <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">ลูกค้า</label>
+                    <Select value={customerFilter} onValueChange={(val) => { setCustomerFilter(val || "all"); setCurrentPage(1); }}>
+                        <SelectTrigger className="h-10 w-full rounded-xl text-sm">
+                            <SelectValue placeholder={lang === 'th' ? "ลูกค้าทั้งหมด" : "All Customers"}>
+                                {customerFilter === "all" ? (lang === 'th' ? "ลูกค้าทั้งหมด" : "All Customers") : (customers.find(c => c._id === customerFilter)?.name || customerFilter)}
+                            </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">{lang === 'th' ? "ลูกค้าทั้งหมด" : "All Customers"}</SelectItem>
+                            {customers.map(cust => (
+                                <SelectItem key={cust._id} value={cust._id}>{cust.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
 
-                {(searchQuery || typeFilter !== "all") && (
+                <div className="sm:w-[160px] space-y-1.5">
+                    <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">ประเภท</label>
+                    <Select value={typeFilter} onValueChange={(val) => { setTypeFilter(val || "all"); setCurrentPage(1); }}>
+                        <SelectTrigger className="h-10 w-full rounded-xl text-sm">
+                            <SelectValue placeholder={lang === 'th' ? "ทุกประเภท" : "All Types"}>
+                                {typeFilter === "all" ? (lang === 'th' ? "ทุกประเภท" : "All Types") : typeFilter}
+                            </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">{lang === 'th' ? "ทุกประเภท" : "All Types"}</SelectItem>
+                            {productTypes.map(type => (
+                                <SelectItem key={type} value={type}>{type}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                {(searchQuery || typeFilter !== "all" || customerFilter !== "all") && (
                     <Button
                         variant="ghost"
                         size="sm"
