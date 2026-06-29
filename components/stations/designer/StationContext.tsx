@@ -178,7 +178,7 @@ export function StationProvider({
         setFieldLabels((prev) => ({ ...prev, [key]: label }));
     }, []);
 
-    const resetForm = useCallback(() => { setFormData({}); setFieldLabels({}); }, []);
+    const resetForm = useCallback(() => { setFormData({}); setFieldLabels({}); setSelectedRecord(null); }, []);
 
     const walkObject = useCallback((obj: Record<string, unknown>, dotPath: string): string => {
         const parts = dotPath.split(".");

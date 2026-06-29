@@ -542,6 +542,7 @@ export function ButtonBlock({
             }
             toast.success("ดำเนินการสำเร็จ");
             setFeedback("ok");
+            resetForm();
             triggerRefresh();
             setTimeout(() => setFeedback(""), 2500);
         } catch (err: unknown) {
