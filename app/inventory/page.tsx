@@ -107,6 +107,7 @@ export default function InventoryPage() {
     const [thicknessFilter, setThicknessFilter] = useState<string>("all");
     const [colorFilter, setColorFilter] = useState<string>("all");
     const [glassTypeFilter, setGlassTypeFilter] = useState<string>("all");
+    const [brandFilter, setBrandFilter] = useState<string>("all");
 
     // Material autocomplete (Import dialog)
     const [materialSearch, setMaterialSearch] = useState("");
@@ -574,6 +575,7 @@ export default function InventoryPage() {
     // Filter Options
     const locations = useMemo(() => Array.from(new Set(inventories.map(inv => inv.location))), [inventories]);
     const glassTypes = useMemo(() => Array.from(new Set(materials.map(m => m.specDetails?.glassType).filter(Boolean))), [materials]);
+    const brands = useMemo(() => Array.from(new Set(materials.map(m => m.brand).filter(Boolean))), [materials]);
 
     // Filtered materials for import dropdown
     const filteredMaterialSuggestions = useMemo(() => {
@@ -618,6 +620,7 @@ export default function InventoryPage() {
             const matchesLocation = locationFilter === "all" || inv.location === locationFilter;
             const matchesThickness = thicknessFilter === "all" || mat?.specDetails?.thickness?.toString() === thicknessFilter;
             const matchesColor = colorFilter === "all" || mat?.specDetails?.color === colorFilter;
+            const matchesBrand = brandFilter === "all" || mat?.brand === brandFilter;
             
             const matchesGlassType = glassTypeFilter === "all" 
                 ? true 
@@ -630,9 +633,9 @@ export default function InventoryPage() {
                 matchesStockAlert = !!mat && inv.quantity <= mat.reorderPoint;
             }
 
-            return matchesSearch && matchesLocation && matchesThickness && matchesColor && matchesGlassType && matchesStockAlert;
+            return matchesSearch && matchesLocation && matchesThickness && matchesColor && matchesBrand && matchesGlassType && matchesStockAlert;
         });
-    }, [inventories, materials, searchQuery, locationFilter, thicknessFilter, colorFilter, glassTypeFilter, showLowStockOnly, getMaterialInfo]);
+    }, [inventories, materials, searchQuery, locationFilter, thicknessFilter, colorFilter, brandFilter, glassTypeFilter, showLowStockOnly, getMaterialInfo]);
 
     const totalPages = Math.ceil(filteredInventories.length / ITEMS_PER_PAGE);
     const paginatedInventories = filteredInventories.slice(
@@ -647,6 +650,7 @@ export default function InventoryPage() {
         setThicknessFilter("all");
         setColorFilter("all");
         setGlassTypeFilter("all");
+        setBrandFilter("all");
         setShowLowStockOnly(false);
         setCurrentPage(1);
     };
@@ -832,7 +836,21 @@ export default function InventoryPage() {
                         </SelectContent>
                     </Select>
                 </div>
-                {(searchQuery || locationFilter !== "all" || glassTypeFilter !== "all" || showLowStockOnly) && (
+                <div className="space-y-1.5 w-full sm:w-[200px]">
+                    <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">{lang === 'th' ? 'ยี่ห้อ' : 'Brand'}</Label>
+                    <Select value={brandFilter === "all" ? "" : brandFilter} onValueChange={(val) => { setBrandFilter(val || "all"); setCurrentPage(1); }}>
+                        <SelectTrigger className="h-10 w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:ring-blue-600/20" aria-label={lang === 'th' ? 'ยี่ห้อ' : 'Brand'}>
+                            <SelectValue placeholder={lang === 'th' ? 'ทั้งหมด' : 'All'} />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800 min-w-[max-content]">
+                            <SelectItem value="all" className="py-2 pr-8">{lang === 'th' ? 'ทั้งหมด' : 'All'}</SelectItem>
+                            {brands.map(b => (
+                                <SelectItem key={b!} value={b!} className="py-2 pr-8 min-w-[max-content]">{b}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+                {(searchQuery || locationFilter !== "all" || glassTypeFilter !== "all" || brandFilter !== "all" || showLowStockOnly) && (
                     <Button
                         variant="ghost"
                         onClick={resetFilters}

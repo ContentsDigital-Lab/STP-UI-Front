@@ -66,7 +66,7 @@ export default function MaterialsManagementPage() {
 
     // Filters
     const [searchQuery, setSearchQuery] = useState("");
-    const [thicknessFilter, setThicknessFilter] = useState<string>("all");
+    const [brandFilter, setBrandFilter] = useState<string>("all");
     const [colorFilter, setColorFilter] = useState<string>("all");
     const [glassTypeFilter, setGlassTypeFilter] = useState<string>("all");
 
@@ -251,7 +251,7 @@ export default function MaterialsManagementPage() {
     };
 
     // Filter Options
-    const thicknesses = useMemo(() => Array.from(new Set(materials.map(m => m.specDetails?.thickness?.toString()).filter(Boolean))), [materials]);
+    const brands = useMemo(() => Array.from(new Set(materials.map(m => m.brand).filter(Boolean))), [materials]);
     const colors = useMemo(() => Array.from(new Set(materials.map(m => m.specDetails?.color).filter(Boolean))), [materials]);
     const glassTypes = useMemo(() => Array.from(new Set(materials.map(m => m.specDetails?.glassType).filter(Boolean))), [materials]);
 
@@ -268,13 +268,13 @@ export default function MaterialsManagementPage() {
                 (m.specDetails?.length?.toString() || "").toLowerCase().includes(searchLower) ||
                 (m.unit || "").toLowerCase().includes(searchLower);
 
-            const matchesThickness = thicknessFilter === "all" || m.specDetails?.thickness?.toString() === thicknessFilter;
+            const matchesBrand = brandFilter === "all" || m.brand === brandFilter;
             const matchesColor = colorFilter === "all" || m.specDetails?.color === colorFilter;
             const matchesGlassType = glassTypeFilter === "all" || m.specDetails?.glassType === glassTypeFilter;
 
-            return matchesSearch && matchesThickness && matchesColor && matchesGlassType;
+            return matchesSearch && matchesBrand && matchesColor && matchesGlassType;
         });
-    }, [materials, searchQuery, thicknessFilter, colorFilter, glassTypeFilter]);
+    }, [materials, searchQuery, brandFilter, colorFilter, glassTypeFilter]);
 
     const totalPages = Math.ceil(filteredMaterials.length / ITEMS_PER_PAGE);
     const paginatedMaterials = filteredMaterials.slice(
@@ -300,13 +300,13 @@ export default function MaterialsManagementPage() {
 
     const resetFilters = () => {
         setSearchQuery("");
-        setThicknessFilter("all");
+        setBrandFilter("all");
         setColorFilter("all");
         setGlassTypeFilter("all");
         setCurrentPage(1);
     };
 
-    const hasActiveFilters = searchQuery || thicknessFilter !== "all" || colorFilter !== "all" || glassTypeFilter !== "all";
+    const hasActiveFilters = searchQuery || brandFilter !== "all" || colorFilter !== "all" || glassTypeFilter !== "all";
 
     const TableSkeleton = () => (
         <>
@@ -388,17 +388,17 @@ export default function MaterialsManagementPage() {
                         </Select>
                     </div>
 
-                    {/* Thickness Filter */}
+                    {/* Brand Filter */}
                     <div className="space-y-1.5">
-                        <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">ความหนา</Label>
-                        <Select value={thicknessFilter === "all" ? "" : thicknessFilter} onValueChange={(val) => { setThicknessFilter(val || "all"); setCurrentPage(1); }}>
+                        <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">ยี่ห้อ</Label>
+                        <Select value={brandFilter === "all" ? "" : brandFilter} onValueChange={(val) => { setBrandFilter(val || "all"); setCurrentPage(1); }}>
                             <SelectTrigger className="h-10 w-full text-sm border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-xl focus:ring-blue-600/20">
                                 <SelectValue placeholder="ทั้งหมด" />
                             </SelectTrigger>
                             <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
                                 <SelectItem value="all" className="focus:bg-slate-100 focus:text-slate-900">ทั้งหมด</SelectItem>
-                                {thicknesses.map(t => (
-                                    <SelectItem key={t!} value={t!} className="focus:bg-slate-100 focus:text-slate-900">{t}</SelectItem>
+                                {brands.map(b => (
+                                    <SelectItem key={b!} value={b!} className="focus:bg-slate-100 focus:text-slate-900">{b}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
