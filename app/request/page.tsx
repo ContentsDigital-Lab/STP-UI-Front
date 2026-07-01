@@ -19,6 +19,7 @@ import {
     Trash2,
     X,
     Truck,
+    Ban,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { Button } from "@/components/ui/button";
@@ -104,6 +105,8 @@ export default function OrderRequestsPage() {
 
     // Create/Edit Dialog
     const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+    const [cancelTargetId, setCancelTargetId] = useState<string | null>(null);
+    const [cancelReason, setCancelReason] = useState("");
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
@@ -315,6 +318,39 @@ export default function OrderRequestsPage() {
         } catch (err) {
             console.error("Failed to delete request:", err);
             toast.error(lang === 'th' ? 'เกิดข้อผิดพลาด' : 'Something went wrong');
+        }
+    };
+
+    const handleCancelClick = (id: string) => {
+        setCancelTargetId(id);
+        setCancelReason("");
+    };
+
+    const executeCancel = async () => {
+        if (!cancelTargetId) return;
+        if (!cancelReason.trim()) {
+            toast.error(lang === 'th' ? 'กรุณาระบุเหตุผลการยกเลิก' : 'Please provide a cancellation reason');
+            return;
+        }
+        
+        setIsSubmitting(true);
+        try {
+            const res = await requestsApi.cancel(cancelTargetId, cancelReason);
+            if (res.success) {
+                setCancelTargetId(null);
+                setCancelReason("");
+                setIsDetailOpen(false);
+                setSelectedRequest(null);
+                fetchData(false);
+                toast.success(lang === 'th' ? 'ยกเลิกออเดอร์สำเร็จ' : 'Request cancelled');
+            } else {
+                toast.error(lang === 'th' ? 'ยกเลิกออเดอร์ไม่สำเร็จ' : 'Failed to cancel request');
+            }
+        } catch (err) {
+            console.error("Failed to cancel request:", err);
+            toast.error(lang === 'th' ? 'เกิดข้อผิดพลาดในการยกเลิก' : 'Something went wrong');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -538,6 +574,7 @@ export default function OrderRequestsPage() {
                                 <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 text-center h-10">{it.table.quantity}</TableHead>
                                 {false && <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">{it.table.price}</TableHead>}
                                 <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">{it.table.deadline}</TableHead>
+                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">{lang === 'th' ? 'สถานะ' : 'Status'}</TableHead>
                                 <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">{it.table.assignedTo}</TableHead>
                                 <TableHead className="py-3 pr-4 h-10 w-10"></TableHead>
                             </TableRow>
@@ -589,6 +626,16 @@ export default function OrderRequestsPage() {
                                                 <span className={`text-sm ${deadlinePast ? "text-red-600 dark:text-red-400 font-medium" : deadlineWarning ? "text-amber-600 dark:text-amber-400 font-medium" : "text-slate-600 dark:text-slate-300"}`}>
                                                     {formatDate(req.deadline)}
                                                 </span>
+                                            </TableCell>
+                                            <TableCell className="py-3.5">
+                                                {(() => {
+                                                    switch (req.status) {
+                                                        case 'completed': return <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200 dark:bg-green-500/10 dark:text-green-400 dark:border-green-500/20">{lang === 'th' ? 'เสร็จสิ้น' : 'Completed'}</Badge>;
+                                                        case 'in_progress': return <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20">{lang === 'th' ? 'กำลังดำเนินการ' : 'In Progress'}</Badge>;
+                                                        case 'cancelled': return <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20">{lang === 'th' ? 'ยกเลิก' : 'Cancelled'}</Badge>;
+                                                        default: return <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">{lang === 'th' ? 'รอดำเนินการ' : 'Pending'}</Badge>;
+                                                    }
+                                                })()}
                                             </TableCell>
                                             <TableCell className="py-3.5">
                                                 {worker ? (
@@ -693,6 +740,7 @@ export default function OrderRequestsPage() {
             {/* Detail Side Panel */}
             <Sheet open={isDetailOpen} onOpenChange={setIsDetailOpen}>
                 <SheetContent className="sm:max-w-md border-l border-slate-200 dark:border-slate-800 p-0 overflow-y-auto bg-white dark:bg-slate-950">
+                    <button autoFocus className="sr-only">Focus Trap</button>
                     {selectedRequest && (() => {
                         const cust = getCustomerInfo(selectedRequest.customer);
                         const worker = getWorkerInfo(selectedRequest.assignedTo);
@@ -704,7 +752,15 @@ export default function OrderRequestsPage() {
                                 <div className="p-6 pt-12 pb-6 border-b border-slate-100 dark:border-slate-800">
                                     <div className="flex items-center gap-2 mb-3">
                                         <span className="text-xs text-slate-400 font-mono">{selectedRequest.requestNumber || `#${selectedRequest._id.slice(-6).toUpperCase()}`}</span>
-                                        {deadlinePast && (
+                                        {(() => {
+                                            switch (selectedRequest.status) {
+                                                case 'completed': return <Badge variant="outline" className="text-[10px] font-medium rounded-md bg-green-50 text-green-600 border-green-200 dark:bg-green-500/10 dark:text-green-400 dark:border-green-500/20">{lang === 'th' ? 'เสร็จสิ้น' : 'Completed'}</Badge>;
+                                                case 'in_progress': return <Badge variant="outline" className="text-[10px] font-medium rounded-md bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20">{lang === 'th' ? 'กำลังดำเนินการ' : 'In Progress'}</Badge>;
+                                                case 'cancelled': return <Badge variant="outline" className="text-[10px] font-medium rounded-md bg-red-50 text-red-600 border-red-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20">{lang === 'th' ? 'ยกเลิก' : 'Cancelled'}</Badge>;
+                                                default: return <Badge variant="outline" className="text-[10px] font-medium rounded-md bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">{lang === 'th' ? 'รอดำเนินการ' : 'Pending'}</Badge>;
+                                            }
+                                        })()}
+                                        {deadlinePast && selectedRequest.status !== 'completed' && selectedRequest.status !== 'cancelled' && (
                                             <Badge className="bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-[10px] font-medium rounded-md border-none">
                                                 {lang === 'th' ? 'เลยกำหนด' : 'Overdue'}
                                             </Badge>
@@ -730,6 +786,21 @@ export default function OrderRequestsPage() {
                                 </div>
 
                                 <div className="p-6 space-y-6 flex-1">
+                                    {/* Cancellation Reason */}
+                                    {selectedRequest.status === 'cancelled' && selectedRequest.cancelReason && (
+                                        <div className="p-4 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20">
+                                            <div className="flex items-center gap-2 mb-1.5">
+                                                <Ban className="h-4 w-4 text-red-600 dark:text-red-400" />
+                                                <h4 className="text-sm font-semibold text-red-600 dark:text-red-400">
+                                                    {lang === 'th' ? 'เหตุผลที่ยกเลิกออเดอร์' : 'Cancellation Reason'}
+                                                </h4>
+                                            </div>
+                                            <p className="text-sm text-red-700 dark:text-red-300 ml-6">
+                                                {selectedRequest.cancelReason}
+                                            </p>
+                                        </div>
+                                    )}
+
                                     {/* Order Info */}
                                     <div className="space-y-3">
                                         <h3 className="text-xs font-medium text-slate-400 uppercase tracking-wider">{it.detail.orderInfo}</h3>
@@ -879,7 +950,17 @@ export default function OrderRequestsPage() {
 
                                 {/* Panel Footer */}
                                 {canManage && (
-                                    <div className="p-6 pt-0 grid grid-cols-2 gap-2.5 mt-auto">
+                                    <div className={`p-6 pt-0 grid ${selectedRequest.status !== 'completed' && selectedRequest.status !== 'cancelled' ? 'grid-cols-3' : 'grid-cols-2'} gap-2.5 mt-auto`}>
+                                        {selectedRequest.status !== 'completed' && selectedRequest.status !== 'cancelled' && (
+                                            <Button
+                                                onClick={() => handleCancelClick(selectedRequest._id)}
+                                                variant="outline"
+                                                className="rounded-xl h-11 border-orange-200 dark:border-orange-900 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950 font-medium"
+                                                title={lang === 'th' ? "ยกเลิกออเดอร์" : "Cancel Request"}
+                                            >
+                                                <Ban className="h-4 w-4" />
+                                            </Button>
+                                        )}
                                         <Button
                                             onClick={() => handleDelete(selectedRequest._id)}
                                             variant="outline"
@@ -1098,6 +1179,62 @@ export default function OrderRequestsPage() {
                         <Button className="flex-1 rounded-xl h-10 text-sm bg-red-600 hover:bg-red-700 text-white" onClick={executeDelete}>
                             <Trash2 className="h-4 w-4 mr-1.5" />
                             {lang === 'th' ? 'ลบ' : 'Delete'}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Cancel Confirmation Dialog */}
+            <Dialog open={!!cancelTargetId} onOpenChange={(open) => { if (!open) setCancelTargetId(null); }}>
+                <DialogContent className="sm:max-w-[400px] rounded-xl p-6">
+                    <DialogHeader>
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="h-9 w-9 rounded-lg bg-orange-50 dark:bg-orange-500/10 flex items-center justify-center shrink-0">
+                                <Ban className="h-4 w-4 text-orange-500" />
+                            </div>
+                            <DialogTitle className="text-base font-semibold text-slate-900 dark:text-white">
+                                {lang === 'th' ? 'ยืนยันการยกเลิกออเดอร์' : 'Confirm Cancellation'}
+                            </DialogTitle>
+                        </div>
+                        <DialogDescription className="text-sm text-slate-500">
+                            {lang === 'th'
+                                ? 'กรุณาระบุเหตุผลในการยกเลิกออเดอร์นี้ การดำเนินการนี้ไม่สามารถย้อนกลับได้'
+                                : 'Please provide a reason for cancelling this request. This action cannot be undone.'}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                        <Label htmlFor="cancel-reason" className="text-sm font-medium mb-2 block text-slate-700 dark:text-slate-300">
+                            {lang === 'th' ? 'เหตุผลการยกเลิก' : 'Cancellation Reason'} <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                            id="cancel-reason"
+                            value={cancelReason}
+                            onChange={(e) => setCancelReason(e.target.value)}
+                            placeholder={lang === 'th' ? 'เช่น ลูกค้ายกเลิก, กระจกหมด...' : 'e.g., Customer cancelled, out of stock...'}
+                            className="w-full rounded-xl"
+                            autoFocus
+                        />
+                    </div>
+                    <div className="flex gap-2.5 mt-2">
+                        <Button variant="outline" className="flex-1 rounded-xl h-10 text-sm font-medium" onClick={() => setCancelTargetId(null)}>
+                            {lang === 'th' ? 'กลับ' : 'Back'}
+                        </Button>
+                        <Button 
+                            className="flex-1 rounded-xl h-10 text-sm bg-orange-600 hover:bg-orange-700 text-white" 
+                            onClick={executeCancel}
+                            disabled={isSubmitting || !cancelReason.trim()}
+                        >
+                            {isSubmitting ? (
+                                <span className="flex items-center gap-2">
+                                    <span className="h-4 w-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                                    {lang === 'th' ? 'กำลังดำเนินการ...' : 'Processing...'}
+                                </span>
+                            ) : (
+                                <>
+                                    <Ban className="h-4 w-4 mr-1.5" />
+                                    {lang === 'th' ? 'ยืนยันการยกเลิก' : 'Confirm Cancel'}
+                                </>
+                            )}
                         </Button>
                     </div>
                 </DialogContent>

@@ -43,5 +43,15 @@ export const requestsApi = {
             method: "DELETE",
             body: JSON.stringify({ ids }),
         });
+    },
+
+    cancel: async (id: string, reason: string): Promise<ApiResponse<OrderRequest>> => {
+        // Send a PATCH request to update the status to cancelled.
+        // Note: The reason is not strictly stored in the current backend schema for OrderRequest, 
+        // but we send it anyway in case it's added later or logged by middleware.
+        return fetchApi<ApiResponse<OrderRequest>>(`/requests/${id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ status: "cancelled", cancelReason: reason }),
+        });
     }
 };
