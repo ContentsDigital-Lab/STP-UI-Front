@@ -111,6 +111,8 @@ export default function OrderRequestsPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [editId, setEditId] = useState<string | null>(null);
+    const [originalDeadline, setOriginalDeadline] = useState("");
+    const [deadlineChangeReason, setDeadlineChangeReason] = useState("");
     const [formData, setFormData] = useState({
         customer: "",
         type: "",
@@ -255,10 +257,19 @@ export default function OrderRequestsPage() {
         });
         setIsEditing(false);
         setEditId(null);
+        setOriginalDeadline("");
+        setDeadlineChangeReason("");
     };
 
     const handleSubmit = async () => {
         if (!formData.customer || !formData.type) return;
+
+        const isDeadlineChanged = isEditing && originalDeadline !== formData.deadline;
+        if (isDeadlineChanged && !deadlineChangeReason.trim()) {
+            toast.error(lang === 'th' ? 'กรุณาระบุเหตุผลการเลื่อนกำหนดส่ง' : 'Please provide a reason for changing the deadline');
+            return;
+        }
+
         setIsSubmitting(true);
 
         const payload: any = {
@@ -272,6 +283,7 @@ export default function OrderRequestsPage() {
             deliveryLocation: formData.deliveryLocation,
             assignedTo: formData.assignedTo || undefined,
             expectedDeliveryDate: formData.expectedDeliveryDate ? new Date(formData.expectedDeliveryDate).toISOString() : undefined,
+            ...(isDeadlineChanged && { deadlineChangeReason }),
         };
 
         try {
@@ -397,6 +409,8 @@ export default function OrderRequestsPage() {
             assignedTo: workerId,
             expectedDeliveryDate: req.expectedDeliveryDate ? req.expectedDeliveryDate.split("T")[0] : "",
         });
+        setOriginalDeadline(req.deadline ? req.deadline.split("T")[0] : "");
+        setDeadlineChangeReason("");
         setIsEditing(true);
         setEditId(req._id);
         setIsFormOpen(true);
@@ -801,6 +815,21 @@ export default function OrderRequestsPage() {
                                         </div>
                                     )}
 
+                                    {/* Deadline Change Reason */}
+                                    {selectedRequest.deadlineChangeReason && (
+                                        <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-100 dark:border-amber-500/20">
+                                            <div className="flex items-center gap-2 mb-1.5">
+                                                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                                                <h4 className="text-sm font-semibold text-amber-600 dark:text-amber-400">
+                                                    {lang === 'th' ? 'เหตุผลการเลื่อนกำหนดส่ง' : 'Reason for Deadline Change'}
+                                                </h4>
+                                            </div>
+                                            <p className="text-sm text-amber-700 dark:text-amber-300 ml-6">
+                                                {selectedRequest.deadlineChangeReason}
+                                            </p>
+                                        </div>
+                                    )}
+
                                     {/* Order Info */}
                                     <div className="space-y-3">
                                         <h3 className="text-xs font-medium text-slate-400 uppercase tracking-wider">{it.detail.orderInfo}</h3>
@@ -951,6 +980,13 @@ export default function OrderRequestsPage() {
                                 {/* Panel Footer */}
                                 {canManage && (
                                     <div className={`p-6 pt-0 grid ${selectedRequest.status !== 'completed' && selectedRequest.status !== 'cancelled' ? 'grid-cols-3' : 'grid-cols-2'} gap-2.5 mt-auto`}>
+                                        <Button
+                                            onClick={() => handleDelete(selectedRequest._id)}
+                                            variant="outline"
+                                            className="rounded-xl h-11 border-red-200 dark:border-red-900 text-red-600 hover:bg-red-50 dark:hover:bg-red-950 font-medium"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
                                         {selectedRequest.status !== 'completed' && selectedRequest.status !== 'cancelled' && (
                                             <Button
                                                 onClick={() => handleCancelClick(selectedRequest._id)}
@@ -961,13 +997,6 @@ export default function OrderRequestsPage() {
                                                 <Ban className="h-4 w-4" />
                                             </Button>
                                         )}
-                                        <Button
-                                            onClick={() => handleDelete(selectedRequest._id)}
-                                            variant="outline"
-                                            className="rounded-xl h-11 border-red-200 dark:border-red-900 text-red-600 hover:bg-red-50 dark:hover:bg-red-950 font-medium"
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
                                         <Button
                                             onClick={() => openEditDialog(selectedRequest)}
                                             className="rounded-xl h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium"
@@ -1099,6 +1128,22 @@ export default function OrderRequestsPage() {
                                 />
                             </div>
                         </div>
+
+                        {/* Deadline Change Reason */}
+                        {isEditing && originalDeadline !== formData.deadline && (
+                            <div className="space-y-1.5 p-4 bg-amber-50 dark:bg-amber-900/10 rounded-xl border border-amber-200/50 dark:border-amber-900/30">
+                                <Label className="text-sm font-medium text-amber-800 dark:text-amber-300 flex items-center gap-1.5 mb-2">
+                                    <AlertTriangle className="h-4 w-4" />
+                                    {lang === 'th' ? 'เหตุผลการเปลี่ยนกำหนดส่ง' : 'Reason for changing deadline'} <span className="text-red-500">*</span>
+                                </Label>
+                                <Input
+                                    placeholder={lang === 'th' ? 'ระบุเหตุผลที่เลื่อนกำหนดส่ง...' : 'Enter reason for changing deadline...'}
+                                    value={deadlineChangeReason}
+                                    onChange={(e) => setDeadlineChangeReason(e.target.value)}
+                                    className="h-10 rounded-xl bg-white dark:bg-slate-950 border-amber-200 dark:border-amber-900/50 focus-visible:ring-amber-500"
+                                />
+                            </div>
+                        )}
 
                         {/* Assign To */}
                         <div className="space-y-1.5">

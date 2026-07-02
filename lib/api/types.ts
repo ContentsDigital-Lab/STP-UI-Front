@@ -129,6 +129,7 @@ export interface OrderRequest {
   expectedDeliveryDate: string;
   status?: "pending" | "in_progress" | "completed" | "cancelled";
   cancelReason?: string;
+  deadlineChangeReason?: string;
   createdAt: string;
   updatedAt: string;
 }
