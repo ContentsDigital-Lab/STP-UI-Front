@@ -123,6 +123,7 @@ export interface OrderRequest {
     quantity: number;
   };
   customer: string | Customer;
+  referenceId?: string;
   deadline: string;
   deliveryLocation: string;
   assignedTo: string | Worker;

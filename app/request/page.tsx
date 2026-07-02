@@ -115,6 +115,7 @@ export default function OrderRequestsPage() {
     const [deadlineChangeReason, setDeadlineChangeReason] = useState("");
     const [formData, setFormData] = useState({
         customer: "",
+        referenceId: "",
         type: "",
         quantity: 1,
         estimatedPrice: 0,
@@ -247,6 +248,7 @@ export default function OrderRequestsPage() {
     const resetForm = () => {
         setFormData({
             customer: "",
+            referenceId: "",
             type: "",
             quantity: 1,
             estimatedPrice: 0,
@@ -279,6 +281,7 @@ export default function OrderRequestsPage() {
                 estimatedPrice: formData.estimatedPrice,
             },
             customer: formData.customer,
+            referenceId: formData.referenceId || undefined,
             deadline: formData.deadline ? new Date(formData.deadline).toISOString() : undefined,
             deliveryLocation: formData.deliveryLocation,
             assignedTo: formData.assignedTo || undefined,
@@ -401,6 +404,7 @@ export default function OrderRequestsPage() {
         const workerId = typeof req.assignedTo === 'string' ? req.assignedTo : req.assignedTo?._id || "";
         setFormData({
             customer: custId,
+            referenceId: req.referenceId || "",
             type: req.details?.type || "",
             quantity: req.details?.quantity || 1,
             estimatedPrice: req.details?.estimatedPrice || 0,
@@ -452,6 +456,7 @@ export default function OrderRequestsPage() {
             {[...Array(5)].map((_, i) => (
                 <TableRow key={i}>
                     <TableCell><Skeleton className="h-4 w-[80px]" /></TableCell>
+                    <TableCell><Skeleton className="h-4 w-[100px]" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-[140px]" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-[100px]" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-[50px]" /></TableCell>
@@ -583,6 +588,7 @@ export default function OrderRequestsPage() {
                         <TableHeader>
                             <TableRow className="border-slate-100 dark:border-slate-800 hover:bg-transparent">
                                 <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 px-4 h-10">{lang === 'th' ? 'เลขที่' : 'Req #'}</TableHead>
+                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">{lang === 'th' ? 'หมายเลข PO' : 'PO Number'}</TableHead>
                                 <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">{it.table.customer}</TableHead>
                                 <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">{it.table.productType}</TableHead>
                                 <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 text-center h-10">{it.table.quantity}</TableHead>
@@ -613,6 +619,15 @@ export default function OrderRequestsPage() {
                                                 <span className="text-xs font-mono font-semibold text-blue-600 dark:text-blue-400">
                                                     {req.requestNumber || `#${req._id.slice(-6).toUpperCase()}`}
                                                 </span>
+                                            </TableCell>
+                                            <TableCell className="py-3.5">
+                                                {req.referenceId ? (
+                                                    <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                                                        {req.referenceId}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-xs text-slate-300 dark:text-slate-600">—</span>
+                                                )}
                                             </TableCell>
                                             <TableCell className="py-3.5">
                                                 <span className="text-sm font-medium text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
@@ -678,7 +693,7 @@ export default function OrderRequestsPage() {
                                 })
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={8} className="py-20 text-center border-none">
+                                    <TableCell colSpan={9} className="py-20 text-center border-none">
                                         <div className="flex flex-col items-center gap-3">
                                             <div className="h-12 w-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 dark:text-slate-500">
                                                 <ClipboardList className="h-6 w-6" />
@@ -785,6 +800,11 @@ export default function OrderRequestsPage() {
                                     </h2>
                                     {cust?.phone && (
                                         <p className="text-sm text-slate-400 mt-0.5">{cust.phone}</p>
+                                    )}
+                                    {selectedRequest.referenceId && (
+                                        <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-xs font-medium text-slate-600 dark:text-slate-300">
+                                            <span className="text-slate-400">Ref:</span> {selectedRequest.referenceId}
+                                        </div>
                                     )}
 
                                     <div className="mt-4 p-4 rounded-xl bg-blue-50 dark:bg-blue-500/10 flex items-center justify-between">
@@ -1057,6 +1077,19 @@ export default function OrderRequestsPage() {
                                     ))}
                                 </SelectContent>
                             </Select>
+                        </div>
+
+                        {/* Reference ID */}
+                        <div className="space-y-1.5">
+                            <Label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                                {lang === 'th' ? 'หมายเลข PO / รหัสอ้างอิง' : 'PO Number / Reference'}
+                            </Label>
+                            <Input
+                                placeholder={lang === 'th' ? 'เช่น PO-12345 หรือชื่อโครงการ...' : 'e.g. PO-12345 or Project Name...'}
+                                value={formData.referenceId}
+                                onChange={(e) => setFormData({ ...formData, referenceId: e.target.value })}
+                                className="h-10 rounded-xl"
+                            />
                         </div>
 
                         {/* Product Details */}

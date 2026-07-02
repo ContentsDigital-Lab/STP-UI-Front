@@ -431,6 +431,7 @@ export default function CreateBillPage() {
     // ── Order-level data (shared across all panes) ───────────────────────────
     const [orderData, setOrderData] = useState({
         customer: "",
+        referenceId: "",
         deadline: "",
         deliveryLocation: "",
         assignedTo: "",
@@ -797,6 +798,7 @@ export default function CreateBillPage() {
                 estimatedPrice: Math.round(totalPrice * 100) / 100,
             },
             customer: orderData.customer,
+            referenceId: orderData.referenceId || undefined,
             deadline: orderData.deadline ? new Date(orderData.deadline).toISOString() : undefined,
             deliveryLocation: orderData.deliveryLocation,
             assignedTo: orderData.assignedTo || undefined,
@@ -1407,6 +1409,19 @@ export default function CreateBillPage() {
                                         )}
                                     </div>
                                 )}
+
+                                {/* Reference ID */}
+                                <div className="space-y-1.5 pt-3">
+                                    <Label className="text-[10px] font-semibold text-slate-400 uppercase block mb-1">
+                                    {lang === 'th' ? 'หมายเลข PO / รหัสอ้างอิง' : 'PO Number / Reference'}
+                                </Label>
+                                <input
+                                    placeholder={lang === 'th' ? 'เช่น PO-12345 หรือชื่อโครงการ...' : 'e.g. PO-12345 or Project Name...'}
+                                    value={orderData.referenceId}
+                                    onChange={(e) => setOrderData(prev => ({ ...prev, referenceId: e.target.value }))}
+                                    className="w-full h-10 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl font-medium text-sm px-3 hover:border-primary/50 transition-colors outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                                />
+                                </div>
                             </div>
 
                             {/* Shared Spec: Dimension Tolerances & Usage */}
