@@ -25,6 +25,27 @@ import { StationTemplate } from "@/lib/types/station-designer";
 
 const ITEMS_PER_PAGE = 9;
 
+// ── Delete confirm ────────────────────────────────────────────────────────────
+function DeleteConfirm({ name, onConfirm, onCancel }: { name: string; onConfirm: () => void; onCancel: () => void }) {
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={onCancel}>
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-lg w-full max-w-sm p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-lg bg-red-50 dark:bg-red-500/10 flex items-center justify-center shrink-0">
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                    </div>
+                    <h2 className="text-base font-semibold text-slate-900 dark:text-white">ลบแม่แบบ</h2>
+                </div>
+                <p className="text-sm text-slate-500">ต้องการลบแม่แบบ <strong className="text-slate-700 dark:text-slate-300">{name}</strong> ใช่ไหม? ไม่สามารถกู้คืนได้</p>
+                <div className="flex gap-2 justify-end">
+                    <Button variant="outline" className="rounded-xl h-9 px-4 text-sm" onClick={onCancel}>ยกเลิก</Button>
+                    <Button className="rounded-xl h-9 px-5 text-sm bg-red-600 hover:bg-red-700 text-white" onClick={onConfirm}>ลบ</Button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // ── Skeleton card ──────────────────────────────────────────────────────────────
 function SkeletonCard() {
     return (
@@ -58,12 +79,12 @@ function TemplateCard({
     tmpl, deleting, duplicating, renaming, onEdit, onRename, onDelete, onDuplicate,
 }: {
     tmpl: StationTemplate;
-    deleting: string | null;
+    deleting: StationTemplate | null;
     duplicating: string | null;
     renaming: string | null;
     onEdit: (id: string) => void;
     onRename: (tmpl: StationTemplate) => void;
-    onDelete: (id: string) => void;
+    onDelete: (tmpl: StationTemplate) => void;
     onDuplicate: (id: string) => void;
 }) {
     const nodeCount =
@@ -92,7 +113,7 @@ function TemplateCard({
                     size="sm"
                     variant="outline"
                     className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/80"
-                    disabled={renaming === tmpl._id || duplicating === tmpl._id || deleting === tmpl._id}
+                    disabled={renaming === tmpl._id || duplicating === tmpl._id || deleting?._id === tmpl._id}
                     title="เปลี่ยนชื่อ"
                     onClick={() => onRename(tmpl)}
                 >
@@ -102,7 +123,7 @@ function TemplateCard({
                     size="sm"
                     variant="outline"
                     className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/80"
-                    disabled={duplicating === tmpl._id || deleting === tmpl._id || renaming === tmpl._id}
+                    disabled={duplicating === tmpl._id || deleting?._id === tmpl._id || renaming === tmpl._id}
                     title="คัดลอก template"
                     onClick={() => onDuplicate(tmpl._id)}
                 >
@@ -112,9 +133,9 @@ function TemplateCard({
                     size="sm"
                     variant="outline"
                     className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50"
-                    disabled={deleting === tmpl._id || duplicating === tmpl._id || renaming === tmpl._id}
+                    disabled={deleting?._id === tmpl._id || duplicating === tmpl._id || renaming === tmpl._id}
                     title="ลบ template"
-                    onClick={() => onDelete(tmpl._id)}
+                    onClick={() => onDelete(tmpl)}
                 >
                     <Trash2 className="h-3.5 w-3.5" />
                 </Button>
@@ -128,12 +149,12 @@ function TemplateRow({
     tmpl, deleting, duplicating, renaming, onEdit, onRename, onDelete, onDuplicate,
 }: {
     tmpl: StationTemplate;
-    deleting: string | null;
+    deleting: StationTemplate | null;
     duplicating: string | null;
     renaming: string | null;
     onEdit: (id: string) => void;
     onRename: (tmpl: StationTemplate) => void;
-    onDelete: (id: string) => void;
+    onDelete: (tmpl: StationTemplate) => void;
     onDuplicate: (id: string) => void;
 }) {
     const nodeCount =
@@ -161,7 +182,7 @@ function TemplateRow({
                 size="sm"
                 variant="outline"
                 className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/80 shrink-0"
-                disabled={renaming === tmpl._id || duplicating === tmpl._id || deleting === tmpl._id}
+                disabled={renaming === tmpl._id || duplicating === tmpl._id || deleting?._id === tmpl._id}
                 title="เปลี่ยนชื่อ"
                 onClick={() => onRename(tmpl)}
             >
@@ -171,7 +192,7 @@ function TemplateRow({
                 size="sm"
                 variant="outline"
                 className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted/80 shrink-0"
-                disabled={duplicating === tmpl._id || deleting === tmpl._id || renaming === tmpl._id}
+                disabled={duplicating === tmpl._id || deleting?._id === tmpl._id || renaming === tmpl._id}
                 title="คัดลอก template"
                 onClick={() => onDuplicate(tmpl._id)}
             >
@@ -181,9 +202,9 @@ function TemplateRow({
                 size="sm"
                 variant="outline"
                 className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 shrink-0"
-                disabled={deleting === tmpl._id || duplicating === tmpl._id || renaming === tmpl._id}
+                disabled={deleting?._id === tmpl._id || duplicating === tmpl._id || renaming === tmpl._id}
                 title="ลบ template"
-                onClick={() => onDelete(tmpl._id)}
+                onClick={() => onDelete(tmpl)}
             >
                 <Trash2 className="h-3.5 w-3.5" />
             </Button>
@@ -199,7 +220,7 @@ export default function StationDesignerGalleryPage() {
     const [creating,  setCreating]  = useState(false);
     const [showCreate, setShowCreate] = useState(false);
     const [newName,   setNewName]   = useState("");
-    const [deleting,    setDeleting]    = useState<string | null>(null);
+    const [deleting,    setDeleting]    = useState<StationTemplate | null>(null);
     const [duplicating, setDuplicating] = useState<string | null>(null);
     const [renaming,    setRenaming]    = useState<string | null>(null);
     const [renameFor,   setRenameFor]   = useState<StationTemplate | null>(null);
@@ -254,8 +275,13 @@ export default function StationDesignerGalleryPage() {
         }
     };
 
-    const handleDelete = async (id: string) => {
-        setDeleting(id);
+    const handleDelete = (tmpl: StationTemplate) => {
+        setDeleting(tmpl);
+    };
+
+    const confirmDelete = async () => {
+        if (!deleting) return;
+        const id = deleting._id;
         try {
             await deleteStationTemplate(id);
             setTemplates((prev) => prev.filter((t) => t._id !== id));
@@ -575,6 +601,15 @@ export default function StationDesignerGalleryPage() {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Delete Confirmation Modal */}
+            {deleting && (
+                <DeleteConfirm
+                    name={deleting.name}
+                    onConfirm={confirmDelete}
+                    onCancel={() => setDeleting(null)}
+                />
             )}
         </div>
         </PermissionGuard>
