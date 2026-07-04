@@ -453,94 +453,117 @@ export default function CreateBillPage() {
         notes: "",
     });
 
+    
+    const [initialHash, setInitialHash] = useState<string | null>(null);
+
+    const currentHash = useMemo(() => {
+        const panesToHash = panes.map(p => {
+            const { id, pricePerSqFt, estimatedPrice, priceAutoFilled, holePriceEach, notchPrice, grindingRate, vertices, ...rest } = p;
+            return rest;
+        });
+        return JSON.stringify({ panes: panesToHash, orderData });
+    }, [panes, orderData]);
+
+    const hasChanges = !editId || initialHash === null || currentHash !== initialHash;
+
     useEffect(() => {
         if (editId) {
-            // Load Request
-            requestsApi.getById(editId).then(res => {
-                if (res.success && res.data) {
-                    const data = res.data;
+            Promise.all([
+                requestsApi.getById(editId),
+                panesApi.getAll({ request: editId, limit: 1000 })
+            ]).then(([reqRes, panesRes]) => {
+                let initOrderData = { ...orderData };
+                if (reqRes.success && reqRes.data) {
+                    const data = reqRes.data;
                     setRequestStatus(data.status || 'pending');
-                    setOrderData({
+                    initOrderData = {
                         customer: (typeof data.customer === 'string' ? data.customer : data.customer?._id) || "",
                         referenceId: data.referenceId || "",
-                        deadline: data.deadline || "",
+                        deadline: data.deadline ? data.deadline.split('T')[0] : "",
                         deliveryLocation: data.deliveryLocation || "",
                         assignedTo: (typeof data.assignedTo === 'string' ? data.assignedTo : data.assignedTo?._id) || "",
-                        expectedDeliveryDate: data.expectedDeliveryDate || "",
-                    });
+                        expectedDeliveryDate: data.expectedDeliveryDate ? data.expectedDeliveryDate.split('T')[0] : "",
+                    };
+                    setOrderData(initOrderData);
                 }
-            });
 
-            // Load Panes
-            panesApi.getAll({ request: editId, limit: 1000 }).then(res => {
-                if (res.success && res.data) {
-                    const backendPanes: any[] = Array.isArray(res.data) ? res.data : ((res.data as any).data || []);
-                    if (!backendPanes || backendPanes.length === 0) return;
-                    
-                    setOriginalPaneIds(backendPanes.map(p => p._id));
-                    
-                    // Group panes by identical properties to restore 'quantity'
-                    const grouped = new Map();
-                    for (const bp of backendPanes) {
-                        // Skip child sheets, we only want single or parent panes
-                        if (bp.laminateRole === 'sheet') continue;
+                let initPanes = panes;
+                if (panesRes.success && panesRes.data) {
+                    const backendPanes: any[] = Array.isArray(panesRes.data) ? panesRes.data : ((panesRes.data as any).data || []);
+                    if (backendPanes && backendPanes.length > 0) {
+                        setOriginalPaneIds(backendPanes.map(p => p._id));
                         
-                        const key = JSON.stringify({
-                            w: bp.dimensions?.width,
-                            h: bp.dimensions?.height,
-                            t: bp.dimensions?.thickness,
-                            g: bp.glassType,
-                            rg: bp.rawGlass?.glassType,
-                            rc: bp.rawGlass?.color,
-                            sp: bp.rawGlass?.sheetsPerPane,
-                            holes: bp.holes?.length,
-                            notches: bp.notches?.length,
-                            et: bp.edgeTasks?.find((e: any) => e.side === 'top')?.edgeProfile,
-                            eb: bp.edgeTasks?.find((e: any) => e.side === 'bottom')?.edgeProfile,
-                            el: bp.edgeTasks?.find((e: any) => e.side === 'left')?.edgeProfile,
-                            er: bp.edgeTasks?.find((e: any) => e.side === 'right')?.edgeProfile,
-                            c: bp.cornerSpec,
-                        });
-
-                        if (grouped.has(key)) {
-                            grouped.get(key).quantity += 1;
-                        } else {
-                            grouped.set(key, {
-                                id: bp._id,
-                                glassType: bp.glassType || "",
-                                thickness: String(bp.dimensions?.thickness || 0) + 'mm',
-                                rawGlassType: bp.rawGlass?.glassType || "",
-                                rawGlassColor: bp.rawGlass?.color || "",
-                                sheetsPerPane: bp.rawGlass?.sheetsPerPane || 1,
-                                glassWidth: bp.dimensions?.width || 0,
-                                glassHeight: bp.dimensions?.height || 0,
-                                quantity: 1,
-                                edgeTop: bp.edgeTasks?.find((e: any) => e.side === 'top')?.edgeProfile || "None",
-                                edgeBottom: bp.edgeTasks?.find((e: any) => e.side === 'bottom')?.edgeProfile || "None",
-                                edgeLeft: bp.edgeTasks?.find((e: any) => e.side === 'left')?.edgeProfile || "None",
-                                edgeRight: bp.edgeTasks?.find((e: any) => e.side === 'right')?.edgeProfile || "None",
-                                cornerNone: bp.cornerSpec === "ไม่มี",
-                                cornerSize: bp.cornerSpec !== "ไม่มี" ? bp.cornerSpec : "10mm",
-                                dimensionTolerances: bp.dimensionTolerance ? bp.dimensionTolerance.split(', ') : [],
-                                holes: [...(bp.holes || []), ...(bp.notches || [])],
-                                pricePerSqFt: 0,
-                                grindingRate: 50,
-                                holePriceEach: pricingSettings?.holePriceEach || 50,
-                                notchPrice: pricingSettings?.notchPrice || 50,
-                                notchQty: bp.notches?.length || 0,
-                                estimatedPrice: 0,
-                                priceAutoFilled: false,
-                                vertices: [{ x: 0, y: 0 }, { x: bp.dimensions?.width || 800, y: 0 }, { x: bp.dimensions?.width || 800, y: bp.dimensions?.height || 600 }, { x: 0, y: bp.dimensions?.height || 600 }],
+                        const grouped = new Map();
+                        for (const bp of backendPanes) {
+                            if (bp.laminateRole === 'sheet') continue;
+                            
+                            const key = JSON.stringify({
+                                w: bp.dimensions?.width,
+                                h: bp.dimensions?.height,
+                                t: bp.dimensions?.thickness,
+                                g: bp.glassType,
+                                rg: bp.rawGlass?.glassType,
+                                rc: bp.rawGlass?.color,
+                                sp: bp.rawGlass?.sheetsPerPane,
+                                holes: bp.holes?.length,
+                                notches: bp.notches?.length,
+                                et: bp.edgeTasks?.find((e: any) => e.side === 'top')?.edgeProfile,
+                                eb: bp.edgeTasks?.find((e: any) => e.side === 'bottom')?.edgeProfile,
+                                el: bp.edgeTasks?.find((e: any) => e.side === 'left')?.edgeProfile,
+                                er: bp.edgeTasks?.find((e: any) => e.side === 'right')?.edgeProfile,
+                                c: bp.cornerSpec,
                             });
+
+                            if (grouped.has(key)) {
+                                grouped.get(key).quantity += 1;
+                            } else {
+                                grouped.set(key, {
+                                    id: bp._id,
+                                    glassType: bp.glassType || "",
+                                    thickness: String(bp.dimensions?.thickness || 0) + 'mm',
+                                    rawGlassType: bp.rawGlass?.glassType || "",
+                                    rawGlassColor: bp.rawGlass?.color || "",
+                                    sheetsPerPane: bp.rawGlass?.sheetsPerPane || 1,
+                                    glassWidth: bp.dimensions?.width || 0,
+                                    glassHeight: bp.dimensions?.height || 0,
+                                    quantity: 1,
+                                    edgeTop: bp.edgeTasks?.find((e: any) => e.side === 'top')?.edgeProfile || "None",
+                                    edgeBottom: bp.edgeTasks?.find((e: any) => e.side === 'bottom')?.edgeProfile || "None",
+                                    edgeLeft: bp.edgeTasks?.find((e: any) => e.side === 'left')?.edgeProfile || "None",
+                                    edgeRight: bp.edgeTasks?.find((e: any) => e.side === 'right')?.edgeProfile || "None",
+                                    cornerNone: bp.cornerSpec === "ไม่มี" || bp.cornerSpec === "None",
+                                    cornerSize: (bp.cornerSpec !== "ไม่มี" && bp.cornerSpec !== "None") ? bp.cornerSpec : "10mm",
+                                    dimensionTolerances: bp.dimensionTolerance ? bp.dimensionTolerance.split(', ') : [],
+                                    holes: [...(bp.holes || []), ...(bp.notches || [])],
+                                    pricePerSqFt: 0,
+                                    grindingRate: 50,
+                                    holePriceEach: pricingSettings?.holePriceEach || 50,
+                                    notchPrice: pricingSettings?.notchPrice || 50,
+                                    notchQty: bp.notches?.length || 0,
+                                    estimatedPrice: 0,
+                                    priceAutoFilled: false,
+                                    vertices: [{ x: 0, y: 0 }, { x: bp.dimensions?.width || 800, y: 0 }, { x: bp.dimensions?.width || 800, y: bp.dimensions?.height || 600 }, { x: 0, y: bp.dimensions?.height || 600 }],
+                                });
+                            }
+                        }
+                        if (grouped.size > 0) {
+                            initPanes = Array.from(grouped.values());
+                            setPanes(initPanes);
                         }
                     }
-                    if (grouped.size > 0) {
-                        setPanes(Array.from(grouped.values()));
-                    }
                 }
+
+                const panesToHash = initPanes.map(p => {
+                    const { id, pricePerSqFt, estimatedPrice, priceAutoFilled, holePriceEach, notchPrice, grindingRate, vertices, ...rest } = p;
+                    return rest;
+                });
+                setInitialHash(JSON.stringify({ panes: panesToHash, orderData: initOrderData }));
+            }).catch(err => {
+                console.error("Failed to load request or panes for edit", err);
             });
         }
     }, [editId]);
+
 
     // ── Combobox state ───────────────────────────────────────────────────────
     const [customerOpen, setCustomerOpen] = useState(false);
@@ -616,6 +639,7 @@ export default function CreateBillPage() {
     // ── Auto-fill expectedDeliveryDate based on estimation ───────────────────
     const [isDateAutoFilled, setIsDateAutoFilled] = useState(false);
     useEffect(() => {
+        if (editId) return; // Do not auto-fill expected delivery date for existing orders
         if (!estimatedCompletion?.date) return;
         
         // If the date is empty or was previously auto-filled, update it
@@ -626,7 +650,7 @@ export default function CreateBillPage() {
                 setIsDateAutoFilled(true);
             }
         }
-    }, [estimatedCompletion?.date, orderData.expectedDeliveryDate, isDateAutoFilled]);
+    }, [estimatedCompletion?.date, orderData.expectedDeliveryDate, isDateAutoFilled, editId]);
 
     const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setOrderData(prev => ({ ...prev, expectedDeliveryDate: e.target.value }));
@@ -930,12 +954,7 @@ export default function CreateBillPage() {
                 requestId = res.data._id;
             }
 
-            // If we are editing and it's not pending, we skip pane updates
-            if (editId && requestStatus !== 'pending') {
-                toast.success(lang === 'th' ? 'อัปเดตคำสั่งซื้อสำเร็จ (ไม่สามารถแก้ไขกระจกได้เนื่องจากกำลังผลิต)' : 'Request updated (panes locked)');
-                router.push('/request');
-                return;
-            }
+            // Removed the panes lock to allow editing at any status
 
             // Delete old panes if editing
             if (editId && originalPaneIds.length > 0) {
@@ -1412,7 +1431,7 @@ export default function CreateBillPage() {
                     <Button
                         id="__bill-submit-btn"
                         onClick={handleSubmit}
-                        disabled={isSubmitting || !orderData.customer || !panes.some(p => p.glassType)}
+                        disabled={isSubmitting || !orderData.customer || !panes.some(p => p.glassType) || !hasChanges}
                         className="gap-1.5 rounded-xl font-bold text-xs h-9 bg-primary hover:bg-primary/90 dark:bg-[#E8601C] dark:hover:bg-[#E8601C]/90 text-white shadow-lg shadow-primary/20 dark:shadow-orange-500/20 px-4 sm:px-6 ml-auto sm:ml-0"
                         title="บันทึก (Ctrl/⌘+S)"
                     >
