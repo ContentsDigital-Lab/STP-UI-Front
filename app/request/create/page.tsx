@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
     ChevronLeft,
@@ -245,6 +245,10 @@ export const calcPanePrice = (p: PaneSpec, ps: PricingSettings) => {
 export default function CreateBillPage() {
     const { t, lang } = useLanguage();
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const editId = searchParams.get('editId');
+    const [originalPaneIds, setOriginalPaneIds] = useState<string[]>([]);
+    const [requestStatus, setRequestStatus] = useState<string>('pending');
 
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [workers, setWorkers] = useState<Worker[]>([]);
@@ -449,6 +453,95 @@ export default function CreateBillPage() {
         notes: "",
     });
 
+    useEffect(() => {
+        if (editId) {
+            // Load Request
+            requestsApi.getById(editId).then(res => {
+                if (res.success && res.data) {
+                    const data = res.data;
+                    setRequestStatus(data.status || 'pending');
+                    setOrderData({
+                        customer: (typeof data.customer === 'string' ? data.customer : data.customer?._id) || "",
+                        referenceId: data.referenceId || "",
+                        deadline: data.deadline || "",
+                        deliveryLocation: data.deliveryLocation || "",
+                        assignedTo: (typeof data.assignedTo === 'string' ? data.assignedTo : data.assignedTo?._id) || "",
+                        expectedDeliveryDate: data.expectedDeliveryDate || "",
+                    });
+                }
+            });
+
+            // Load Panes
+            panesApi.getAll({ request: editId, limit: 1000 }).then(res => {
+                if (res.success && res.data) {
+                    const backendPanes: any[] = Array.isArray(res.data) ? res.data : ((res.data as any).data || []);
+                    if (!backendPanes || backendPanes.length === 0) return;
+                    
+                    setOriginalPaneIds(backendPanes.map(p => p._id));
+                    
+                    // Group panes by identical properties to restore 'quantity'
+                    const grouped = new Map();
+                    for (const bp of backendPanes) {
+                        // Skip child sheets, we only want single or parent panes
+                        if (bp.laminateRole === 'sheet') continue;
+                        
+                        const key = JSON.stringify({
+                            w: bp.dimensions?.width,
+                            h: bp.dimensions?.height,
+                            t: bp.dimensions?.thickness,
+                            g: bp.glassType,
+                            rg: bp.rawGlass?.glassType,
+                            rc: bp.rawGlass?.color,
+                            sp: bp.rawGlass?.sheetsPerPane,
+                            holes: bp.holes?.length,
+                            notches: bp.notches?.length,
+                            et: bp.edgeTasks?.find((e: any) => e.side === 'top')?.edgeProfile,
+                            eb: bp.edgeTasks?.find((e: any) => e.side === 'bottom')?.edgeProfile,
+                            el: bp.edgeTasks?.find((e: any) => e.side === 'left')?.edgeProfile,
+                            er: bp.edgeTasks?.find((e: any) => e.side === 'right')?.edgeProfile,
+                            c: bp.cornerSpec,
+                        });
+
+                        if (grouped.has(key)) {
+                            grouped.get(key).quantity += 1;
+                        } else {
+                            grouped.set(key, {
+                                id: bp._id,
+                                glassType: bp.glassType || "",
+                                thickness: String(bp.dimensions?.thickness || 0) + 'mm',
+                                rawGlassType: bp.rawGlass?.glassType || "",
+                                rawGlassColor: bp.rawGlass?.color || "",
+                                sheetsPerPane: bp.rawGlass?.sheetsPerPane || 1,
+                                glassWidth: bp.dimensions?.width || 0,
+                                glassHeight: bp.dimensions?.height || 0,
+                                quantity: 1,
+                                edgeTop: bp.edgeTasks?.find((e: any) => e.side === 'top')?.edgeProfile || "None",
+                                edgeBottom: bp.edgeTasks?.find((e: any) => e.side === 'bottom')?.edgeProfile || "None",
+                                edgeLeft: bp.edgeTasks?.find((e: any) => e.side === 'left')?.edgeProfile || "None",
+                                edgeRight: bp.edgeTasks?.find((e: any) => e.side === 'right')?.edgeProfile || "None",
+                                cornerNone: bp.cornerSpec === "ไม่มี",
+                                cornerSize: bp.cornerSpec !== "ไม่มี" ? bp.cornerSpec : "10mm",
+                                dimensionTolerances: bp.dimensionTolerance ? bp.dimensionTolerance.split(', ') : [],
+                                holes: [...(bp.holes || []), ...(bp.notches || [])],
+                                pricePerSqFt: 0,
+                                grindingRate: 50,
+                                holePriceEach: pricingSettings?.holePriceEach || 50,
+                                notchPrice: pricingSettings?.notchPrice || 50,
+                                notchQty: bp.notches?.length || 0,
+                                estimatedPrice: 0,
+                                priceAutoFilled: false,
+                                vertices: [{ x: 0, y: 0 }, { x: bp.dimensions?.width || 800, y: 0 }, { x: bp.dimensions?.width || 800, y: bp.dimensions?.height || 600 }, { x: 0, y: bp.dimensions?.height || 600 }],
+                            });
+                        }
+                    }
+                    if (grouped.size > 0) {
+                        setPanes(Array.from(grouped.values()));
+                    }
+                }
+            });
+        }
+    }, [editId]);
+
     // ── Combobox state ───────────────────────────────────────────────────────
     const [customerOpen, setCustomerOpen] = useState(false);
     const [customerSearch, setCustomerSearch] = useState("");
@@ -460,6 +553,19 @@ export default function CreateBillPage() {
     const [thicknessOpen, setThicknessOpen] = useState(false);
     const [thicknessSearch, setThicknessSearch] = useState("");
     const [thicknesses, setThicknesses] = useState(['3mm', '5mm', '6mm', '8mm', '10mm', '12mm', '15mm', '19mm']);
+    
+    // Sync customer search input when orderData.customer is populated (e.g. from edit load)
+    const initialCustomerSynced = useRef(false);
+    useEffect(() => {
+        if (orderData.customer && customers.length > 0 && !initialCustomerSynced.current) {
+            const cust = customers.find(c => c._id === orderData.customer);
+            if (cust) {
+                setCustomerSearch(cust.name);
+                initialCustomerSynced.current = true;
+            }
+        }
+    }, [orderData.customer, customers]);
+
     const customerRef = useRef<HTMLDivElement>(null);
     const glassTypeRef = useRef<HTMLDivElement>(null);
     const thicknessRef = useRef<HTMLDivElement>(null);
@@ -782,11 +888,19 @@ export default function CreateBillPage() {
     }, []);
 
     // ── Submit: create request + panes for ALL specs ─────────────────────────
+    
     const handleSubmit = async () => {
         const validPanes = panes.filter(p => p.glassType);
-        if (!orderData.customer || validPanes.length === 0) return;
-        setIsSubmitting(true);
+        if (validPanes.length === 0) {
+            toast.error(lang === 'th' ? 'กรุณาเพิ่มกระจกอย่างน้อย 1 รายการ' : 'Please add at least 1 pane');
+            return;
+        }
+        if (!orderData.customer) {
+            toast.error(lang === 'th' ? 'กรุณาเลือกลูกค้า' : 'Please select a customer');
+            return;
+        }
 
+        setIsSubmitting(true);
         const totalQty = validPanes.reduce((sum, p) => sum + p.quantity, 0);
         const totalPrice = validPanes.reduce((sum, p) => sum + calcPanePrice(p, pricingSettings).total, 0);
         const typeDesc = validPanes.map(p => `${p.glassType} ${p.thickness} (${p.glassWidth}×${p.glassHeight}mm)`).join(' + ');
@@ -806,23 +920,42 @@ export default function CreateBillPage() {
         };
 
         try {
-            const res = await requestsApi.create(payload);
-            if (res.success) {
-                const requestId = res.data._id;
+            let requestId = editId;
+            if (editId) {
+                const res = await requestsApi.update(editId, payload);
+                if (!res.success) throw new Error("Failed to update request");
+            } else {
+                const res = await requestsApi.create(payload);
+                if (!res.success) throw new Error("Failed to create request");
+                requestId = res.data._id;
+            }
 
-                let orderReleaseStationId = "";
-                try {
-                    const stRes = await stationsApi.getAll();
-                    if (stRes.success && Array.isArray(stRes.data)) {
-                        const ors = stRes.data.find(s => /order.?rele/i.test(s.name));
-                        if (ors) orderReleaseStationId = ors._id;
-                    }
-                } catch { /* use fallback */ }
+            // If we are editing and it's not pending, we skip pane updates
+            if (editId && requestStatus !== 'pending') {
+                toast.success(lang === 'th' ? 'อัปเดตคำสั่งซื้อสำเร็จ (ไม่สามารถแก้ไขกระจกได้เนื่องจากกำลังผลิต)' : 'Request updated (panes locked)');
+                router.push('/request');
+                return;
+            }
 
-                let panesCreated = 0;
-                const createPromises: Promise<any>[] = [];
-                
-                for (const pane of validPanes) {
+            // Delete old panes if editing
+            if (editId && originalPaneIds.length > 0) {
+                await panesApi.deleteMultiple(originalPaneIds).catch(console.error);
+            }
+
+            let orderReleaseStationId = "";
+            try {
+                const stRes = await stationsApi.getAll();
+                if (stRes.success && Array.isArray(stRes.data)) {
+                    const ors = stRes.data.find(s => /order.?rele/i.test(s.name));
+                    if (ors) orderReleaseStationId = ors._id;
+                }
+            } catch { /* use fallback */ }
+
+            let panesCreated = 0;
+            const createPromises: Promise<any>[] = [];
+            
+            for (const pane of validPanes) {
+
                     const thicknessMm = parseFloat(pane.thickness) || 0;
                     const glassSpec = [
                         pane.glassType,
@@ -892,7 +1025,6 @@ export default function CreateBillPage() {
                     toast.success(lang === 'th' ? 'สร้างคำสั่งซื้อสำเร็จ' : 'Order request created successfully');
                 }
                 router.push("/request");
-            }
         } catch (err) {
             console.error("Failed to create request:", err);
             toast.error(lang === 'th' ? 'ไม่สามารถสร้างคำสั่งซื้อได้' : 'Failed to create order request');
@@ -1415,9 +1547,9 @@ export default function CreateBillPage() {
                                     <Label className="text-[10px] font-semibold text-slate-400 uppercase block mb-1">
                                     {lang === 'th' ? 'หมายเลข PO / รหัสอ้างอิง' : 'PO Number / Reference'}
                                 </Label>
-                                <input
+                                <Input
                                     placeholder={lang === 'th' ? 'เช่น PO-12345 หรือชื่อโครงการ...' : 'e.g. PO-12345 or Project Name...'}
-                                    value={orderData.referenceId}
+                                    value={orderData.referenceId || ""}
                                     onChange={(e) => setOrderData(prev => ({ ...prev, referenceId: e.target.value }))}
                                     className="w-full h-10 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-xl font-medium text-sm px-3 hover:border-primary/50 transition-colors outline-none focus:ring-1 focus:ring-primary focus:border-primary"
                                 />
@@ -1494,7 +1626,7 @@ export default function CreateBillPage() {
                                                             <span className="flex items-center gap-0.5">
                                                                 ⌀
                                                                 <input
-                                                                    type="number" min={5} max={500} value={hole.diameter}
+                                                                    type="number" min={5} max={500} value={hole.diameter ?? 0}
                                                                     onChange={(e) => {
                                                                         const val = parseInt(e.target.value);
                                                                         if (!val || val < 5) return;
@@ -1509,7 +1641,7 @@ export default function CreateBillPage() {
                                                                 <span className="flex items-center gap-0.5">
                                                                     W:
                                                                     <input
-                                                                        type="number" min={10} max={500} value={hole.width || 100}
+                                                                        type="number" min={10} max={500} value={hole.width ?? 0}
                                                                         onChange={(e) => {
                                                                             const val = parseInt(e.target.value);
                                                                             if (!val || val < 10) return;
@@ -1521,7 +1653,7 @@ export default function CreateBillPage() {
                                                                 <span className="flex items-center gap-0.5">
                                                                     H:
                                                                     <input
-                                                                        type="number" min={10} max={500} value={hole.height || 60}
+                                                                        type="number" min={10} max={500} value={hole.height ?? 0}
                                                                         onChange={(e) => {
                                                                             const val = parseInt(e.target.value);
                                                                             if (!val || val < 10) return;
@@ -1537,7 +1669,7 @@ export default function CreateBillPage() {
                                                                 <span className="flex items-center gap-0.5">
                                                                     W:
                                                                     <input
-                                                                        type="number" min={5} max={200} value={hole.width || 20}
+                                                                        type="number" min={5} max={200} value={hole.width ?? 0}
                                                                         onChange={(e) => {
                                                                             const val = parseInt(e.target.value);
                                                                             if (!val || val < 5) return;
@@ -1549,7 +1681,7 @@ export default function CreateBillPage() {
                                                                 <span className="flex items-center gap-0.5">
                                                                     L:
                                                                     <input
-                                                                        type="number" min={10} max={500} value={hole.length || 80}
+                                                                        type="number" min={10} max={500} value={hole.length ?? 0}
                                                                         onChange={(e) => {
                                                                             const val = parseInt(e.target.value);
                                                                             if (!val || val < 10) return;
@@ -1609,7 +1741,7 @@ export default function CreateBillPage() {
                                         </Label>
                                         <Input
                                             type="date"
-                                            value={orderData.deadline}
+                                            value={orderData.deadline || ""}
                                             onChange={(e) => setOrderData(prev => ({ ...prev, deadline: e.target.value }))}
                                             className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl font-bold text-sm px-4 focus:ring-[#E8601C]"
                                         />

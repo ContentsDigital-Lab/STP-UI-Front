@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
     Plus,
     Search,
@@ -71,6 +72,7 @@ const ITEMS_PER_PAGE = 10;
 
 export default function OrderRequestsPage() {
     const { t, lang } = useLanguage();
+    const router = useRouter();
     const it = t.order_requests;
     
     const { user } = useAuth();
@@ -594,7 +596,6 @@ export default function OrderRequestsPage() {
                                 <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 text-center h-10">{it.table.quantity}</TableHead>
                                 {false && <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">{it.table.price}</TableHead>}
                                 <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">{it.table.deadline}</TableHead>
-                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">{lang === 'th' ? 'สถานะ' : 'Status'}</TableHead>
                                 <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">{it.table.assignedTo}</TableHead>
                                 <TableHead className="py-3 pr-4 h-10 w-10"></TableHead>
                             </TableRow>
@@ -656,16 +657,7 @@ export default function OrderRequestsPage() {
                                                     {formatDate(req.deadline)}
                                                 </span>
                                             </TableCell>
-                                            <TableCell className="py-3.5">
-                                                {(() => {
-                                                    switch (req.status) {
-                                                        case 'completed': return <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200 dark:bg-green-500/10 dark:text-green-400 dark:border-green-500/20">{lang === 'th' ? 'เสร็จสิ้น' : 'Completed'}</Badge>;
-                                                        case 'in_progress': return <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20">{lang === 'th' ? 'กำลังดำเนินการ' : 'In Progress'}</Badge>;
-                                                        case 'cancelled': return <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20">{lang === 'th' ? 'ยกเลิก' : 'Cancelled'}</Badge>;
-                                                        default: return <Badge variant="outline" className="bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">{lang === 'th' ? 'รอดำเนินการ' : 'Pending'}</Badge>;
-                                                    }
-                                                })()}
-                                            </TableCell>
+
                                             <TableCell className="py-3.5">
                                                 {worker ? (
                                                     <div className="flex items-center gap-2">
@@ -681,12 +673,22 @@ export default function OrderRequestsPage() {
                                                 )}
                                             </TableCell>
                                             <TableCell className="py-3.5 pr-4 text-right" onClick={(e) => e.stopPropagation()}>
-                                                <button
-                                                    onClick={() => openDetails(req)}
-                                                    className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                                                >
-                                                    <MoreHorizontal className="h-4 w-4" />
-                                                </button>
+                                                <div className="flex justify-end gap-1">
+                                                    <button
+                                                        onClick={() => router.push(`/request/create?editId=${req._id}`)}
+                                                        title={lang === 'th' ? 'แก้ไข' : 'Edit'}
+                                                        className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                                                    >
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => openDetails(req)}
+                                                        title={lang === 'th' ? 'รายละเอียด' : 'Details'}
+                                                        className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                                                    >
+                                                        <MoreHorizontal className="h-4 w-4" />
+                                                    </button>
+                                                </div>
                                             </TableCell>
                                         </TableRow>
                                     );
@@ -781,14 +783,7 @@ export default function OrderRequestsPage() {
                                 <div className="p-6 pt-12 pb-6 border-b border-slate-100 dark:border-slate-800">
                                     <div className="flex items-center gap-2 mb-3">
                                         <span className="text-xs text-slate-400 font-mono">{selectedRequest.requestNumber || `#${selectedRequest._id.slice(-6).toUpperCase()}`}</span>
-                                        {(() => {
-                                            switch (selectedRequest.status) {
-                                                case 'completed': return <Badge variant="outline" className="text-[10px] font-medium rounded-md bg-green-50 text-green-600 border-green-200 dark:bg-green-500/10 dark:text-green-400 dark:border-green-500/20">{lang === 'th' ? 'เสร็จสิ้น' : 'Completed'}</Badge>;
-                                                case 'in_progress': return <Badge variant="outline" className="text-[10px] font-medium rounded-md bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20">{lang === 'th' ? 'กำลังดำเนินการ' : 'In Progress'}</Badge>;
-                                                case 'cancelled': return <Badge variant="outline" className="text-[10px] font-medium rounded-md bg-red-50 text-red-600 border-red-200 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/20">{lang === 'th' ? 'ยกเลิก' : 'Cancelled'}</Badge>;
-                                                default: return <Badge variant="outline" className="text-[10px] font-medium rounded-md bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">{lang === 'th' ? 'รอดำเนินการ' : 'Pending'}</Badge>;
-                                            }
-                                        })()}
+
                                         {deadlinePast && selectedRequest.status !== 'completed' && selectedRequest.status !== 'cancelled' && (
                                             <Badge className="bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-[10px] font-medium rounded-md border-none">
                                                 {lang === 'th' ? 'เลยกำหนด' : 'Overdue'}
