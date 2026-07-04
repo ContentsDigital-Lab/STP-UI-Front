@@ -40,7 +40,7 @@ import { useMemo } from "react";
 // ── status config ─────────────────────────────────────────────────────────────
 const ORDER_STATUS = {
   pending: {
-    label: "รอตรวจสอบ",
+    label: "รอดำเนินการ",
     cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
   },
   in_progress: {

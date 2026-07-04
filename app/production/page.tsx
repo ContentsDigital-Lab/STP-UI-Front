@@ -25,7 +25,7 @@ import { hasPermission } from "@/lib/auth/permissions";
 
 // ── status config ─────────────────────────────────────────────────────────────
 const ORDER_STATUS = {
-    pending:     { label: "รอตรวจสอบ", cls: "text-amber-600 dark:text-amber-400",  dot: "bg-amber-400"  },
+    pending:     { label: "รอดำเนินการ", cls: "text-amber-600 dark:text-amber-400",  dot: "bg-amber-400"  },
     in_progress: { label: "กำลังผลิต", cls: "text-blue-600 dark:text-blue-400",    dot: "bg-blue-500"   },
     completed:   { label: "เสร็จแล้ว", cls: "text-green-600 dark:text-green-400",  dot: "bg-green-500"  },
     cancelled:   { label: "ยกเลิก",    cls: "text-red-500 dark:text-red-400",      dot: "bg-red-400"    },
@@ -378,7 +378,7 @@ export default function ProductionPage() {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {[
                     { label: "บิลทั้งหมด", count: totalBills,     icon: ClipboardList, accent: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10" },
-                    { label: "รอตรวจสอบ",  count: pendingBills,   icon: AlertCircle,   accent: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10" },
+                    { label: "รอดำเนินการ",  count: pendingBills,   icon: AlertCircle,   accent: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10" },
                     { label: "กำลังผลิต",  count: activeBills,    icon: RefreshCw,     accent: "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10" },
                     { label: "เสร็จแล้ว",  count: completedBills, icon: CheckCheck,    accent: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10" },
                 ].map(({ label, count, icon: Icon, accent }) => (
@@ -425,7 +425,7 @@ export default function ProductionPage() {
                         className="h-10 w-full px-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm text-slate-700 dark:text-slate-300 outline-none cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
                     >
                         <option value="all">สถานะทั้งหมด</option>
-                        <option value="pending">รอตรวจสอบ</option>
+                        <option value="pending">รอดำเนินการ</option>
                         <option value="in_progress">กำลังผลิต</option>
                         <option value="completed">เสร็จแล้ว</option>
                         <option value="cancelled">ยกเลิก</option>
