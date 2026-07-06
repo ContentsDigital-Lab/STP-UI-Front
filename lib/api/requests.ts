@@ -2,10 +2,11 @@ import { fetchApi } from "./config";
 import { ApiResponse, PaginatedResponse, OrderRequest } from "./types";
 
 export const requestsApi = {
-    getAll: async (params?: { page?: number; limit?: number }): Promise<PaginatedResponse<OrderRequest>> => {
+    getAll: async (params?: { page?: number; limit?: number; status?: string }): Promise<PaginatedResponse<OrderRequest>> => {
         const q = new URLSearchParams();
         if (params?.page) q.set("page", String(params.page));
         q.set("limit", String(params?.limit ?? 1000000));
+        if (params?.status) q.set("status", params.status);
         const qs = q.toString();
         return fetchApi<PaginatedResponse<OrderRequest>>(`/requests${qs ? `?${qs}` : ""}`, {
             method: "GET",

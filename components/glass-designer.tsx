@@ -164,13 +164,32 @@ function getDefaultVertices(w: number, h: number): VertexData[] {
     ];
 }
 
-function getBoundingBox(verts: VertexData[]) {
+function getBoundingBox(verts: VertexData[], holes: HoleData[] = []) {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const v of verts) {
         if (v.x < minX) minX = v.x;
         if (v.y < minY) minY = v.y;
         if (v.x > maxX) maxX = v.x;
         if (v.y > maxY) maxY = v.y;
+    }
+    for (const h of holes) {
+        let r = 0;
+        if (h.type === 'circle') r = h.diameter / 2;
+        else if (h.type === 'rectangle') r = Math.max(h.width || 0, h.height || 0) / 2;
+        else if (h.type === 'slot') r = Math.max(h.width || 0, h.length || 0) / 2;
+        else if (h.type === 'custom' && h.points) {
+            for (const p of h.points) {
+                if (h.x + p.x < minX) minX = h.x + p.x;
+                if (h.y + p.y < minY) minY = h.y + p.y;
+                if (h.x + p.x > maxX) maxX = h.x + p.x;
+                if (h.y + p.y > maxY) maxY = h.y + p.y;
+            }
+            continue;
+        }
+        if (h.x - r < minX) minX = h.x - r;
+        if (h.y - r < minY) minY = h.y - r;
+        if (h.x + r > maxX) maxX = h.x + r;
+        if (h.y + r > maxY) maxY = h.y + r;
     }
     return { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY };
 }
@@ -504,7 +523,11 @@ function GlassCtxMenu({ pos, hasSelection, hasMultiSelection, hasGrouped, hasCli
                     {section.map((item, ii) => (
                         <button
                             key={ii}
-                            onClick={item.action}
+                            onPointerDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                item.action();
+                            }}
                             disabled={item.disabled}
                             className={`flex items-center gap-2.5 px-3 py-1.5 text-left text-[13px] rounded-lg mx-1 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                                 item.danger ? 'text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30' : 'text-foreground hover:bg-accent'
@@ -1125,8 +1148,8 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         const cy = (bb.minY + bb.maxY) / 2;
 
         const camera = new THREE.OrthographicCamera(
-            -camW / 2 + cx, camW / 2 + cx,
-            camH / 2 + cy, -camH / 2 + cy,
+            -camW / 2, camW / 2,
+            camH / 2, -camH / 2,
             0.1, 1000
         );
         camera.position.set(cx, cy, 100);
@@ -1168,10 +1191,11 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             }
             const rcx = (rbb.minX + rbb.maxX) / 2;
             const rcy = (rbb.minY + rbb.maxY) / 2;
-            camera.left = -nW / 2 + rcx;
-            camera.right = nW / 2 + rcx;
-            camera.top = nH / 2 + rcy;
-            camera.bottom = -nH / 2 + rcy;
+            camera.left = -nW / 2;
+            camera.right = nW / 2;
+            camera.top = nH / 2;
+            camera.bottom = -nH / 2;
+            camera.position.set(rcx, rcy, 100);
             camera.updateProjectionMatrix();
             renderScene();
         };
@@ -1379,8 +1403,8 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 panStartRef.current = { x: e.clientX, y: e.clientY };
                 const cam = cameraRef.current!;
                 camStartRef.current = {
-                    cx: (cam.left + cam.right) / 2,
-                    cy: (cam.top + cam.bottom) / 2,
+                    cx: cam.position.x,
+                    cy: cam.position.y,
                 };
                 canvas.style.cursor = 'grabbing';
                 return;
@@ -1591,15 +1615,9 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 const scaleY = (cam.top - cam.bottom) / rect.height;
                 const dx = (e.clientX - panStartRef.current.x) * scaleX;
                 const dy = (e.clientY - panStartRef.current.y) * scaleY;
-                const halfW = (cam.right - cam.left) / 2;
-                const halfH = (cam.top - cam.bottom) / 2;
-                cam.left = camStartRef.current.cx - dx - halfW;
-                cam.right = camStartRef.current.cx - dx + halfW;
-                cam.top = camStartRef.current.cy + dy + halfH;
-                cam.bottom = camStartRef.current.cy + dy - halfH;
                 cam.position.set(
-                    (cam.left + cam.right) / 2,
-                    (cam.top + cam.bottom) / 2,
+                    camStartRef.current.cx - dx,
+                    camStartRef.current.cy + dy,
                     100
                 );
                 cam.updateProjectionMatrix();
@@ -1896,14 +1914,12 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
             if (e.ctrlKey) {
                 // Pinch-to-zoom or Ctrl+Scroll
                 const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9;
-                const cx = (cam.left + cam.right) / 2;
-                const cy = (cam.top + cam.bottom) / 2;
                 const halfW = ((cam.right - cam.left) / 2) * zoomFactor;
                 const halfH = ((cam.top - cam.bottom) / 2) * zoomFactor;
-                cam.left = cx - halfW;
-                cam.right = cx + halfW;
-                cam.top = cy + halfH;
-                cam.bottom = cy - halfH;
+                cam.left = -halfW;
+                cam.right = halfW;
+                cam.top = halfH;
+                cam.bottom = -halfH;
             } else {
                 // Touchpad Panning (Two-finger scroll)
                 const rect = canvas.getBoundingClientRect();
@@ -1914,17 +1930,10 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 const dx = e.deltaX * scaleX;
                 const dy = -e.deltaY * scaleY;
                 
-                cam.left += dx;
-                cam.right += dx;
-                cam.top += dy;
-                cam.bottom += dy;
+                cam.position.x += dx;
+                cam.position.y += dy;
             }
 
-            cam.position.set(
-                (cam.left + cam.right) / 2,
-                (cam.top + cam.bottom) / 2,
-                100
-            );
             cam.updateProjectionMatrix();
             renderScene();
         };
@@ -2036,10 +2045,10 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
         }
         const cx = (bb.minX + bb.maxX) / 2;
         const cy = (bb.minY + bb.maxY) / 2;
-        cam.left = -camW / 2 + cx;
-        cam.right = camW / 2 + cx;
-        cam.top = camH / 2 + cy;
-        cam.bottom = -camH / 2 + cy;
+        cam.left = -camW / 2;
+        cam.right = camW / 2;
+        cam.top = camH / 2;
+        cam.bottom = -camH / 2;
         cam.position.set(cx, cy, 100);
         cam.updateProjectionMatrix();
         renderScene();

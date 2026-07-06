@@ -913,7 +913,7 @@ export default function CreateBillPage() {
 
     // ── Submit: create request + panes for ALL specs ─────────────────────────
     
-    const handleSubmit = async () => {
+    const handleSubmit = async (isDraft: boolean = false) => {
         const validPanes = panes.filter(p => p.glassType);
         if (validPanes.length === 0) {
             toast.error(lang === 'th' ? 'กรุณาเพิ่มกระจกอย่างน้อย 1 รายการ' : 'Please add at least 1 pane');
@@ -929,7 +929,7 @@ export default function CreateBillPage() {
         const totalPrice = validPanes.reduce((sum, p) => sum + calcPanePrice(p, pricingSettings).total, 0);
         const typeDesc = validPanes.map(p => `${p.glassType} ${p.thickness} (${p.glassWidth}×${p.glassHeight}mm)`).join(' + ');
 
-        const payload = {
+        const payload: Partial<OrderRequest> = {
             details: {
                 type: typeDesc,
                 quantity: totalQty,
@@ -941,6 +941,7 @@ export default function CreateBillPage() {
             deliveryLocation: orderData.deliveryLocation,
             assignedTo: orderData.assignedTo || undefined,
             expectedDeliveryDate: orderData.expectedDeliveryDate ? new Date(orderData.expectedDeliveryDate).toISOString() : undefined,
+            status: isDraft ? 'draft' : 'pending',
         };
 
         try {
@@ -1003,7 +1004,7 @@ export default function CreateBillPage() {
                                     sheetsPerPane: pane.sheetsPerPane,
                                 },
                             } : {}),
-                            ...(orderReleaseStationId ? { currentStation: orderReleaseStationId } : {}),
+                            ...(orderReleaseStationId && !isDraft ? { currentStation: orderReleaseStationId } : {}),
                             edgeTasks: [
                                 { side: "top", edgeProfile: pane.edgeTop, status: "pending" },
                                 { side: "bottom", edgeProfile: pane.edgeBottom, status: "pending" },
@@ -1428,10 +1429,26 @@ export default function CreateBillPage() {
                     >
                         {isRightPanelOpen ? <PanelRightClose className="h-5 w-5" /> : <PanelRightOpen className="h-5 w-5" />}
                     </Button>
+                    {(!editId || requestStatus === 'draft') && (
+                        <Button
+                            id="__bill-draft-btn"
+                            variant="outline"
+                            onClick={() => handleSubmit(true)}
+                            disabled={isSubmitting || !orderData.customer || !panes.some(p => p.glassType) || !hasChanges}
+                            className="gap-1.5 rounded-xl font-bold text-xs h-9 dark:border-slate-700 dark:hover:bg-slate-800 hidden sm:flex"
+                            title={lang === 'th' ? "บันทึกเป็นแบบร่าง" : "Save as Draft"}
+                        >
+                            <Save className="h-3.5 w-3.5" />
+                            {isSubmitting
+                                ? (lang === 'th' ? 'บันทึก...' : 'Saving...')
+                                : (lang === 'th' ? 'บันทึกแบบร่าง' : 'Draft')
+                            }
+                        </Button>
+                    )}
                     <Button
                         id="__bill-submit-btn"
-                        onClick={handleSubmit}
-                        disabled={isSubmitting || !orderData.customer || !panes.some(p => p.glassType) || !hasChanges}
+                        onClick={() => handleSubmit(false)}
+                        disabled={isSubmitting || !orderData.customer || !panes.some(p => p.glassType) || (!hasChanges && requestStatus !== 'draft')}
                         className="gap-1.5 rounded-xl font-bold text-xs h-9 bg-primary hover:bg-primary/90 dark:bg-[#E8601C] dark:hover:bg-[#E8601C]/90 text-white shadow-lg shadow-primary/20 dark:shadow-orange-500/20 px-4 sm:px-6 ml-auto sm:ml-0"
                         title="บันทึก (Ctrl/⌘+S)"
                     >

@@ -99,6 +99,7 @@ export default function OrderRequestsPage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [typeFilter, setTypeFilter] = useState<string>("all");
     const [customerFilter, setCustomerFilter] = useState<string>("all");
+    const [statusFilter, setStatusFilter] = useState<string>("all");
 
     // Server-side pagination
     const [currentPage, setCurrentPage] = useState(1);
@@ -127,7 +128,7 @@ export default function OrderRequestsPage() {
         expectedDeliveryDate: "",
     });
 
-    const isSearchActive = searchQuery !== "" || typeFilter !== "all" || customerFilter !== "all";
+    const isSearchActive = searchQuery !== "" || typeFilter !== "all" || customerFilter !== "all" || statusFilter !== "all";
 
     // WebSocket
     const requestEvents = ['request:updated'];
@@ -145,7 +146,7 @@ export default function OrderRequestsPage() {
         if (showLoading) setIsLoading(true);
         try {
             const [reqRes, custRes, workerRes] = await Promise.all([
-                requestsApi.getAll({ page: currentPage, limit: ITEMS_PER_PAGE }),
+                requestsApi.getAll({ page: currentPage, limit: ITEMS_PER_PAGE, status: statusFilter === 'all' ? undefined : statusFilter }),
                 customersApi.getAll(),
                 workersApi.getAll(),
             ]);
@@ -160,7 +161,7 @@ export default function OrderRequestsPage() {
             if (workerRes.success && workerRes.data) setWorkers(workerRes.data);
 
             // Background fetch: get all records (up to API max 100) for stats & search
-            requestsApi.getAll({ limit: 100 }).then(allRes => {
+            requestsApi.getAll({ limit: 100, status: statusFilter === 'all' ? undefined : statusFilter }).then(allRes => {
                 if (allRes.success && allRes.data) setAllRequests(allRes.data);
             }).catch(() => {});
         } catch (error) {
@@ -227,10 +228,11 @@ export default function OrderRequestsPage() {
 
             const matchesType = typeFilter === "all" || req.details?.type === typeFilter;
             const matchesCustomer = customerFilter === "all" || cust?._id === customerFilter;
+            const matchesStatus = statusFilter === "all" || req.status === statusFilter;
 
-            return matchesSearch && matchesType && matchesCustomer;
+            return matchesSearch && matchesType && matchesCustomer && matchesStatus;
         });
-    }, [requests, allRequests, searchQuery, typeFilter, customerFilter, isSearchActive, getCustomerInfo, getWorkerInfo]);
+    }, [requests, allRequests, searchQuery, typeFilter, customerFilter, statusFilter, isSearchActive, getCustomerInfo, getWorkerInfo]);
 
     const totalPages = isSearchActive
         ? Math.ceil(filteredRequests.length / ITEMS_PER_PAGE)
@@ -244,6 +246,7 @@ export default function OrderRequestsPage() {
         setSearchQuery("");
         setTypeFilter("all");
         setCustomerFilter("all");
+        setStatusFilter("all");
         setCurrentPage(1);
     };
 
@@ -571,7 +574,26 @@ export default function OrderRequestsPage() {
                     </Select>
                 </div>
 
-                {(searchQuery || typeFilter !== "all" || customerFilter !== "all") && (
+                
+                <div className="sm:w-[160px] space-y-1.5">
+                    <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">{lang === 'th' ? 'สถานะ' : 'Status'}</label>
+                    <Select value={statusFilter} onValueChange={(val) => { setStatusFilter(val || "all"); setCurrentPage(1); }}>
+                        <SelectTrigger className="h-10 w-full rounded-xl text-sm">
+                            <SelectValue placeholder={lang === 'th' ? 'ทุกสถานะ' : 'All Statuses'}>
+                                {statusFilter === 'all' ? (lang === 'th' ? 'ทุกสถานะ' : 'All Statuses') : (lang === 'th' && statusFilter === 'draft' ? 'ฉบับร่าง' : statusFilter === 'draft' ? 'Draft' : lang === 'th' && statusFilter === 'pending' ? 'รอดำเนินการ' : statusFilter === 'pending' ? 'Pending' : lang === 'th' && statusFilter === 'completed' ? 'เสร็จสิ้น' : statusFilter === 'completed' ? 'Completed' : lang === 'th' && statusFilter === 'cancelled' ? 'ยกเลิก' : statusFilter === 'cancelled' ? 'Cancelled' : statusFilter)}
+                            </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">{lang === 'th' ? 'ทุกสถานะ' : 'All Statuses'}</SelectItem>
+                            <SelectItem value="draft">{lang === 'th' ? 'ฉบับร่าง' : 'Draft'}</SelectItem>
+                            <SelectItem value="pending">{lang === 'th' ? 'รอดำเนินการ' : 'Pending'}</SelectItem>
+                            <SelectItem value="completed">{lang === 'th' ? 'เสร็จสิ้น' : 'Completed'}</SelectItem>
+                            <SelectItem value="cancelled">{lang === 'th' ? 'ยกเลิก' : 'Cancelled'}</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                {(searchQuery || typeFilter !== "all" || customerFilter !== "all" || statusFilter !== "all") && (
                     <Button
                         variant="ghost"
                         size="sm"
@@ -589,14 +611,15 @@ export default function OrderRequestsPage() {
                     <Table>
                         <TableHeader>
                             <TableRow className="border-slate-100 dark:border-slate-800 hover:bg-transparent">
-                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 px-4 h-10">{lang === 'th' ? 'เลขที่' : 'Req #'}</TableHead>
-                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">{lang === 'th' ? 'หมายเลข PO' : 'PO Number'}</TableHead>
-                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">{it.table.customer}</TableHead>
-                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">{it.table.productType}</TableHead>
-                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 text-center h-10">{it.table.quantity}</TableHead>
+                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 px-4 h-10 w-[12%]">{lang === 'th' ? 'เลขที่' : 'Req #'}</TableHead>
+                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10 w-[12%]">{lang === 'th' ? 'หมายเลข PO' : 'PO Number'}</TableHead>
+                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10 w-[15%]">{it.table.customer}</TableHead>
+                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10 w-[25%]">{it.table.productType}</TableHead>
+                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 text-center h-10 w-[8%]">{it.table.quantity}</TableHead>
                                 {false && <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">{it.table.price}</TableHead>}
-                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">{it.table.deadline}</TableHead>
-                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">{it.table.assignedTo}</TableHead>
+                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10 w-[12%]">{it.table.deadline}</TableHead>
+                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10 w-[10%]">{lang === 'th' ? 'สถานะ' : 'Status'}</TableHead>
+                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10 w-[12%]">{it.table.assignedTo}</TableHead>
                                 <TableHead className="py-3 pr-4 h-10 w-10"></TableHead>
                             </TableRow>
                         </TableHeader>
@@ -614,7 +637,7 @@ export default function OrderRequestsPage() {
                                         <TableRow
                                             key={req._id}
                                             className="group hover:bg-slate-50/60 dark:hover:bg-slate-800/40 border-slate-100 dark:border-slate-800 cursor-pointer"
-                                            onClick={() => openDetails(req)}
+                                            onClick={() => req.status === 'draft' ? router.push(`/request/create?editId=${req._id}`) : openDetails(req)}
                                         >
                                             <TableCell className="py-3.5 px-4">
                                                 <span className="text-xs font-mono font-semibold text-blue-600 dark:text-blue-400">
@@ -659,6 +682,24 @@ export default function OrderRequestsPage() {
                                             </TableCell>
 
                                             <TableCell className="py-3.5">
+                                                {(() => {
+                                                    switch(req.status) {
+                                                        case 'draft':
+                                                            return <Badge className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-none font-medium text-[11px] px-2">{lang === 'th' ? 'แบบร่าง' : 'Draft'}</Badge>;
+                                                        case 'pending':
+                                                            return <Badge className="bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-none font-medium text-[11px] px-2">{lang === 'th' ? 'รอผลิต' : 'Pending'}</Badge>;
+                                                        case 'in-progress':
+                                                            return <Badge className="bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-none font-medium text-[11px] px-2">{lang === 'th' ? 'กำลังดำเนินการ' : 'In Progress'}</Badge>;
+                                                        case 'completed':
+                                                            return <Badge className="bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-none font-medium text-[11px] px-2">{lang === 'th' ? 'เสร็จสิ้น' : 'Completed'}</Badge>;
+                                                        case 'cancelled':
+                                                            return <Badge className="bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border-none font-medium text-[11px] px-2">{lang === 'th' ? 'ยกเลิกแล้ว' : 'Cancelled'}</Badge>;
+                                                        default:
+                                                            return <Badge className="bg-slate-50 dark:bg-slate-800 text-slate-500 border-none font-medium text-[11px] px-2">{req.status}</Badge>;
+                                                    }
+                                                })()}
+                                            </TableCell>
+                                            <TableCell className="py-3.5">
                                                 {worker ? (
                                                     <div className="flex items-center gap-2">
                                                         <div className="h-6 w-6 rounded-md bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center text-[10px] font-semibold text-blue-600 dark:text-blue-400">
@@ -674,15 +715,23 @@ export default function OrderRequestsPage() {
                                             </TableCell>
                                             <TableCell className="py-3.5 pr-4 text-right" onClick={(e) => e.stopPropagation()}>
                                                 <div className="flex justify-end gap-1">
+                                                    {req.status !== 'draft' && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                router.push(`/request/create?editId=${req._id}`);
+                                                            }}
+                                                            title={lang === 'th' ? 'แก้ไข' : 'Edit'}
+                                                            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                                                        >
+                                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+                                                        </button>
+                                                    )}
                                                     <button
-                                                        onClick={() => router.push(`/request/create?editId=${req._id}`)}
-                                                        title={lang === 'th' ? 'แก้ไข' : 'Edit'}
-                                                        className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                                                    >
-                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => openDetails(req)}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            openDetails(req);
+                                                        }}
                                                         title={lang === 'th' ? 'รายละเอียด' : 'Details'}
                                                         className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
                                                     >
@@ -695,7 +744,7 @@ export default function OrderRequestsPage() {
                                 })
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={9} className="py-20 text-center border-none">
+                                    <TableCell colSpan={10} className="py-20 text-center border-none">
                                         <div className="flex flex-col items-center gap-3">
                                             <div className="h-12 w-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 dark:text-slate-500">
                                                 <ClipboardList className="h-6 w-6" />
@@ -994,27 +1043,33 @@ export default function OrderRequestsPage() {
 
                                 {/* Panel Footer */}
                                 {canManage && (
-                                    <div className={`p-6 pt-0 grid ${selectedRequest.status !== 'completed' && selectedRequest.status !== 'cancelled' ? 'grid-cols-3' : 'grid-cols-2'} gap-2.5 mt-auto`}>
+                                    <div className={`p-6 pt-0 grid ${selectedRequest.status !== 'completed' && selectedRequest.status !== 'cancelled' && selectedRequest.status !== 'draft' ? 'grid-cols-3' : 'grid-cols-2'} gap-2.5 mt-auto`}>
                                         <Button
                                             onClick={() => handleDelete(selectedRequest._id)}
                                             variant="outline"
                                             className="rounded-xl h-11 border-red-200 dark:border-red-900 text-red-600 hover:bg-red-50 dark:hover:bg-red-950 font-medium"
+                                            title={lang === 'th' ? 'ลบรายการ' : 'Delete Item'}
                                         >
-                                            <Trash2 className="h-4 w-4" />
+                                            <Trash2 className="mr-2 h-4 w-4" />
+                                            {lang === 'th' ? 'ลบ' : 'Delete'}
                                         </Button>
-                                        {selectedRequest.status !== 'completed' && selectedRequest.status !== 'cancelled' && (
+
+                                        {selectedRequest.status !== 'completed' && selectedRequest.status !== 'cancelled' && selectedRequest.status !== 'draft' && (
                                             <Button
                                                 onClick={() => handleCancelClick(selectedRequest._id)}
                                                 variant="outline"
                                                 className="rounded-xl h-11 border-orange-200 dark:border-orange-900 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950 font-medium"
-                                                title={lang === 'th' ? "ยกเลิกออเดอร์" : "Cancel Request"}
+                                                title={lang === 'th' ? 'ยกเลิกออเดอร์' : 'Cancel Request'}
                                             >
-                                                <Ban className="h-4 w-4" />
+                                                <Ban className="mr-2 h-4 w-4" />
+                                                {lang === 'th' ? 'ยกเลิก' : 'Cancel'}
                                             </Button>
                                         )}
+                                        
                                         <Button
                                             onClick={() => openEditDialog(selectedRequest)}
                                             className="rounded-xl h-11 bg-blue-600 hover:bg-blue-700 text-white font-medium"
+                                            title={lang === 'th' ? 'แก้ไขด่วน' : 'Quick Edit'}
                                         >
                                             <Edit3 className="mr-2 h-4 w-4" />
                                             {it.detail.edit}

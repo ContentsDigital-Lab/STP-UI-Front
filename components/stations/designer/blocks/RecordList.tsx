@@ -302,6 +302,12 @@ export function RecordList({
             .then(([mainData, ordersData, panesRes]) => {
                 if (!mainData.length && !fetching && !silent) { setError("โหลดข้อมูลไม่สำเร็จ"); }
                 let data = mainData;
+                
+                // Exclude drafts from showing in any designer station list
+                if (dataSource === "/requests") {
+                    data = data.filter((r) => r.status !== "draft");
+                }
+
                 if (shouldHideProcessed && ordersData.length > 0) {
                     const processedRequestIds = new Set<string>(
                         ordersData.map((o) => {

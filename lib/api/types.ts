@@ -128,7 +128,7 @@ export interface OrderRequest {
   deliveryLocation: string;
   assignedTo: string | Worker;
   expectedDeliveryDate: string;
-  status?: "pending" | "in_progress" | "completed" | "cancelled";
+  status?: "draft" | "pending" | "in_progress" | "completed" | "cancelled";
   cancelReason?: string;
   deadlineChangeReason?: string;
   createdAt: string;

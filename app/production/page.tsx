@@ -247,7 +247,7 @@ export default function ProductionPage() {
 
     // Apply filters: status, station (if any), then date, then search
     const filtered = useMemo(() => {
-        let result = bills;
+        let result = bills.filter(b => b.request?.status !== 'draft');
 
         // Status filter
         if (filterStatus !== "all") {
