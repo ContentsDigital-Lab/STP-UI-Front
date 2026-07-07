@@ -65,7 +65,7 @@ import { useProductionStats } from "@/lib/hooks/use-production-stats";
 import { Timer, Info } from "lucide-react";
 import { customersApi } from "@/lib/api/customers";
 import { workersApi } from "@/lib/api/workers";
-import { Customer, Worker, Material } from "@/lib/api/types";
+import { Customer, Worker, Material, OrderRequest } from "@/lib/api/types";
 import { materialsApi } from "@/lib/api/materials";
 import jsPDF from "jspdf";
 import { toast } from "sonner";
@@ -1039,10 +1039,12 @@ export default function CreateBillPage() {
 
                 if (panesCreated > 0) {
                     toast.success(lang === 'th'
-                        ? `สร้างคำสั่งซื้อสำเร็จ — สร้างกระจก ${panesCreated} ชิ้น`
-                        : `Order created — ${panesCreated} panes created`);
+                        ? (isDraft ? `บันทึกแบบร่างสำเร็จ — สร้างกระจก ${panesCreated} ชิ้น` : `สร้างคำสั่งซื้อสำเร็จ — สร้างกระจก ${panesCreated} ชิ้น`)
+                        : (isDraft ? `Draft saved — ${panesCreated} panes created` : `Order created — ${panesCreated} panes created`));
                 } else {
-                    toast.success(lang === 'th' ? 'สร้างคำสั่งซื้อสำเร็จ' : 'Order request created successfully');
+                    toast.success(lang === 'th' 
+                        ? (isDraft ? 'บันทึกแบบร่างสำเร็จ' : 'สร้างคำสั่งซื้อสำเร็จ') 
+                        : (isDraft ? 'Draft saved successfully' : 'Order request created successfully'));
                 }
                 router.push("/request");
         } catch (err) {

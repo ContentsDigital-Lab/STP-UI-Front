@@ -688,7 +688,7 @@ export default function OrderRequestsPage() {
                                                             return <Badge className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-none font-medium text-[11px] px-2">{lang === 'th' ? 'แบบร่าง' : 'Draft'}</Badge>;
                                                         case 'pending':
                                                             return <Badge className="bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-none font-medium text-[11px] px-2">{lang === 'th' ? 'รอผลิต' : 'Pending'}</Badge>;
-                                                        case 'in-progress':
+                                                        case 'in_progress':
                                                             return <Badge className="bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-none font-medium text-[11px] px-2">{lang === 'th' ? 'กำลังดำเนินการ' : 'In Progress'}</Badge>;
                                                         case 'completed':
                                                             return <Badge className="bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-none font-medium text-[11px] px-2">{lang === 'th' ? 'เสร็จสิ้น' : 'Completed'}</Badge>;
