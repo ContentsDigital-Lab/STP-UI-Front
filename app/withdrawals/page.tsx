@@ -404,7 +404,7 @@ export default function WithdrawalsPage() {
                                             }}
                                         </SelectValue>
                                     </SelectTrigger>
-                                    <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800 !w-fit">
+                                    <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
                                         {orders.filter((o) => o.status !== "cancelled").map((o) => (
                                             <SelectItem key={o._id} value={o._id} className="rounded-lg">
                                                 {o.orderNumber ?? `#${o._id.slice(-6)}`} — {o.customer && typeof o.customer === "object" ? o.customer.name : o.customer?.slice(-6) ?? "-"}

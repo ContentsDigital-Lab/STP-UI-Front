@@ -571,7 +571,7 @@ export default function ClaimsPage() {
                                             }}
                                         </SelectValue>
                                     </SelectTrigger>
-                                    <SelectContent className="!w-fit">
+                                    <SelectContent>
                                         {orders.filter((o) => o.status !== "cancelled").map((o) => (
                                             <SelectItem key={o._id} value={o._id}>
                                                 {o.orderNumber ?? `#${o._id.slice(-6)}`}
