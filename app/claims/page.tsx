@@ -591,7 +591,7 @@ export default function ClaimsPage() {
                                             }}
                                         </SelectValue>
                                     </SelectTrigger>
-                                    <SelectContent>
+                                    <SelectContent className="!w-fit">
                                         {materials.map((m) => (
                                             <SelectItem key={m._id} value={m._id}>{m.name}</SelectItem>
                                         ))}

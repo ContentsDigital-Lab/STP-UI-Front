@@ -22,22 +22,17 @@ export function PermissionGuard({
 }: PermissionGuardProps) {
     const { user, isLoading } = useAuth();
     const router = useRouter();
-    const [isAuthorized, setIsAuthorized] = useState(false);
+    const slug = user?.role && typeof user.role === 'object' ? user.role.slug : user?.role;
+    const isAuthorized = !!(slug === "admin" || 
+        (user && (Array.isArray(permission) 
+            ? permission.some(p => hasPermission(user, p)) 
+            : hasPermission(user, permission))));
 
     useEffect(() => {
-        if (!isLoading) {
-            const slug = user?.role && typeof user.role === 'object' ? user.role.slug : user?.role;
-            const authorized = slug === "admin" || 
-                (user && (Array.isArray(permission) 
-                    ? permission.some(p => hasPermission(user, p)) 
-                    : hasPermission(user, permission)));
-            setIsAuthorized(!!authorized);
-
-            if (!authorized && redirectTo) {
-                router.replace(redirectTo);
-            }
+        if (!isLoading && !isAuthorized && redirectTo) {
+            router.replace(redirectTo);
         }
-    }, [user, isLoading, permission, redirectTo, router]);
+    }, [isLoading, isAuthorized, redirectTo, router]);
 
     if (isLoading) {
         return (
