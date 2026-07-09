@@ -860,6 +860,13 @@ function ProductionDetailPageInner() {
               {/* Bill tab */}
               {infoTab === "bill" && request && (
                 <>
+                  {request.referenceId && (
+                    <InfoRow
+                      icon={Hash}
+                      label="หมายเลข PO"
+                      value={request.referenceId}
+                    />
+                  )}
                   <InfoRow
                     icon={Package}
                     label="ประเภทสินค้า"

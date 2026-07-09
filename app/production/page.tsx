@@ -535,41 +535,55 @@ export default function ProductionPage() {
                                         {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                                     </span>
 
-                                    <div className="flex-1 min-w-0 space-y-1.5">
-                                        {/* Row 1: customer + id + deadline */}
-                                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                                            <span className="font-bold text-sm text-slate-900 dark:text-white">{bill.customer}</span>
-                                            <span className="font-mono text-xs text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
-                                                {bill.request?.requestNumber ?? `#${bill.id.slice(-6).toUpperCase()}`}
-                                            </span>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
+                                            {/* Col 1: Customer & Stations */}
+                                            <div className="flex flex-col items-start gap-1.5">
+                                                <span className="font-bold text-sm text-slate-900 dark:text-white leading-none mt-0.5">{bill.customer}</span>
+                                                {allStationIds.length > 0 && (
+                                                    <div className="flex items-center gap-1 flex-wrap">
+                                                        {allStationIds.map((sid) => {
+                                                            const station = stationMap.get(sid);
+                                                            const colorId = station?.colorId ?? "sky";
+                                                            const color   = getColorOption(colorId);
+                                                            return (
+                                                                <span
+                                                                    key={sid}
+                                                                    title={station?.name ?? sid}
+                                                                    className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${color.cls}`}
+                                                                >
+                                                                    <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: color.swatch }} />
+                                                                    {station?.name ?? sid}
+                                                                </span>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Col 2: REQ & PO */}
+                                            <div className="flex flex-col items-start gap-1">
+                                                <span className="font-mono text-xs text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded leading-none font-medium">
+                                                    {bill.request?.requestNumber ?? `#${bill.id.slice(-6).toUpperCase()}`}
+                                                </span>
+                                                {bill.request?.referenceId && (
+                                                    <span 
+                                                        className="font-mono text-xs font-medium text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded border border-dashed border-slate-300 dark:border-slate-600 leading-none" 
+                                                        title="PO Number"
+                                                    >
+                                                        {bill.request.referenceId}
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            {/* Col 3: Deadline */}
                                             {bill.request?.deadline && (
-                                                <div className="flex items-center gap-1 text-xs text-slate-400">
+                                                <div className="flex items-center gap-1 text-xs text-slate-400 mt-0.5">
                                                     <CalendarDays className="h-3 w-3" />
                                                     กำหนดส่ง {fmtDate(bill.request.deadline)}
                                                 </div>
                                             )}
                                         </div>
-
-                                        {/* Row 2: station dots for all unique stations in this bill */}
-                                        {allStationIds.length > 0 && (
-                                            <div className="flex items-center gap-1 flex-wrap">
-                                                {allStationIds.map((sid) => {
-                                                    const station = stationMap.get(sid);
-                                                    const colorId = station?.colorId ?? "sky";
-                                                    const color   = getColorOption(colorId);
-                                                    return (
-                                                        <span
-                                                            key={sid}
-                                                            title={station?.name ?? sid}
-                                                            className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${color.cls}`}
-                                                        >
-                                                            <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: color.swatch }} />
-                                                            {station?.name ?? sid}
-                                                        </span>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
                                     </div>
 
                                     {/* Stats */}
