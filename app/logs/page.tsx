@@ -4,10 +4,12 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { materialLogsApi } from "@/lib/api/material-logs";
 import { panesApi } from "@/lib/api/panes";
 import { productionLogsApi } from "@/lib/api/production-logs";
-import { MaterialLog, Order, Material, Worker, Inventory, PaneLog, TimelineEvent, Pane, Station } from "@/lib/api/types";
+import { MaterialLog, Order, Material, Worker, Inventory, PaneLog, TimelineEvent, Pane, Station, Claim, Withdrawal } from "@/lib/api/types";
 import { inventoriesApi } from "@/lib/api/inventories";
 import { workersApi } from "@/lib/api/workers";
 import { stationsApi } from "@/lib/api/stations";
+import { claimsApi } from "@/lib/api/claims";
+import { withdrawalsApi } from "@/lib/api/withdrawals";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import { useWebSocket } from "@/lib/hooks/use-socket";
@@ -174,6 +176,10 @@ export default function MaterialLogsPage() {
     // Station lookup (for resolving station IDs to names/colors)
     const [stationMap, setStationMap] = useState<Map<string, Station>>(new Map());
 
+    // Reference lookups
+    const [claimMap, setClaimMap] = useState<Map<string, Claim>>(new Map());
+    const [withdrawalMap, setWithdrawalMap] = useState<Map<string, Withdrawal>>(new Map());
+
     // Detail panel state
     const [isDetailOpen, setIsDetailOpen] = useState(false);
     const [selectedLog, setSelectedLog] = useState<MaterialLog | null>(null);
@@ -220,6 +226,17 @@ export default function MaterialLogsPage() {
         stationsApi.getAll().then(res => {
             if (res.success && res.data) {
                 setStationMap(new Map(res.data.map(s => [s._id, s])));
+            }
+        }).catch(() => {});
+        // Fetch claims and withdrawals for references
+        claimsApi.getAll().then(res => {
+            if (res.success && res.data) {
+                setClaimMap(new Map(res.data.map(c => [c._id, c])));
+            }
+        }).catch(() => {});
+        withdrawalsApi.getAll().then(res => {
+            if (res.success && res.data) {
+                setWithdrawalMap(new Map(res.data.map(w => [w._id, w])));
             }
         }).catch(() => {});
     }, [fetchLogs]);
@@ -273,11 +290,7 @@ export default function MaterialLogsPage() {
         const hasInventoryRef = !!log.referenceId && !log.referenceType;
 
         const filtered = allLogs
-            .filter(l => {
-                if (getMaterialId(l) !== matId) return false;
-                if (hasInventoryRef) return l.referenceId === log.referenceId && !l.referenceType;
-                return !l.referenceId || !!l.referenceType;
-            })
+            .filter(l => getMaterialId(l) === matId)
             .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
         setSelectedLog(log);
@@ -436,17 +449,18 @@ export default function MaterialLogsPage() {
         );
     };
 
-    const renderActionDot = (log: MaterialLog) => {
+    const renderActionDot = (log: MaterialLog, isHead: boolean) => {
         const effectiveAction = getEffectiveAction(log, moveSourceIds);
-        const dotColor: Record<string, string> = {
-            import: "bg-emerald-500",
-            import_move: "bg-violet-500",
-            withdraw: "bg-orange-500",
-            withdraw_move: "bg-violet-500",
-            claim: "bg-red-500",
-            cut: "bg-blue-500",
+        const actionColors: Record<string, { fill: string; hollow: string }> = {
+            import: { fill: "bg-emerald-500", hollow: "border-2 border-emerald-500 bg-white dark:bg-slate-900" },
+            import_move: { fill: "bg-violet-500", hollow: "border-2 border-violet-500 bg-white dark:bg-slate-900" },
+            withdraw: { fill: "bg-orange-500", hollow: "border-2 border-orange-500 bg-white dark:bg-slate-900" },
+            withdraw_move: { fill: "bg-violet-500", hollow: "border-2 border-violet-500 bg-white dark:bg-slate-900" },
+            claim: { fill: "bg-red-500", hollow: "border-2 border-red-500 bg-white dark:bg-slate-900" },
+            cut: { fill: "bg-blue-500", hollow: "border-2 border-blue-500 bg-white dark:bg-slate-900" },
         };
-        return <div className={`w-3 h-3 rounded-full shrink-0 mt-1.5 ${dotColor[effectiveAction] ?? "bg-slate-400"}`} />;
+        const style = actionColors[effectiveAction] ?? { fill: "bg-slate-400", hollow: "border-2 border-slate-400 bg-white dark:bg-slate-900" };
+        return <div className={`w-3 h-3 rounded-full shrink-0 mt-1.5 z-10 relative ${isHead ? style.hollow : style.fill}`} />;
     };
 
     const renderQuantityChanged = (qty: number) => {
@@ -538,9 +552,19 @@ export default function MaterialLogsPage() {
         const colorClass = log.referenceType === "withdrawal"
             ? "text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-500/10"
             : "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10";
+            
+        let refText = log.referenceId.slice(-6).toUpperCase();
+        if (log.referenceType === "claim") {
+            const c = claimMap.get(log.referenceId);
+            if (c?.claimNumber) refText = c.claimNumber;
+        } else if (log.referenceType === "withdrawal") {
+            const w = withdrawalMap.get(log.referenceId);
+            if (w?.withdrawalNumber) refText = w.withdrawalNumber;
+        }
+
         return (
             <span className={`text-xs font-medium px-2 py-1 rounded-md ${colorClass}`}>
-                {label} #{log.referenceId.slice(-6).toUpperCase()}
+                {label} {refText}
             </span>
         );
     };
@@ -910,8 +934,8 @@ export default function MaterialLogsPage() {
                             </div>
                             <SheetDescription className="text-sm text-slate-500 mt-1">
                                 {lang === "th"
-                                    ? `ประวัติการเคลื่อนไหวทั้งหมด ${detailLogs.length} รายการ`
-                                    : `${detailLogs.length} movement records in total`}
+                                    ? `ประวัติการเคลื่อนไหวทั้งหมด ${timeline.length} รายการ`
+                                    : `${timeline.length} movement records in total`}
                             </SheetDescription>
                         </div>
                         <Button
@@ -947,26 +971,26 @@ export default function MaterialLogsPage() {
                                             : <TrendingDown className="h-4 w-4 text-red-600 dark:text-red-400" />
                                         }
                                         <span className={`text-xl font-bold tabular-nums ${detailStats.net >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-                                            {detailStats.net >= 0 ? "+" : ""}{detailStats.net.toLocaleString()}
+                                            {Math.abs(detailStats.net).toLocaleString()}
                                         </span>
                                     </div>
                                 </div>
 
                                 <div className="rounded-lg p-3 bg-slate-50 dark:bg-slate-800/50">
                                     <p className="text-[11px] text-slate-400 mb-0.5">{lang === "th" ? "นำเข้า" : "Import"}</p>
-                                    <span className="text-base font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">+{detailStats.totalImport.toLocaleString()}</span>
+                                    <span className="text-base font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{detailStats.totalImport.toLocaleString()}</span>
                                 </div>
                                 <div className="rounded-lg p-3 bg-slate-50 dark:bg-slate-800/50">
                                     <p className="text-[11px] text-slate-400 mb-0.5">{lang === "th" ? "เบิกออก" : "Withdraw"}</p>
-                                    <span className="text-base font-bold text-orange-600 dark:text-orange-400 tabular-nums">-{detailStats.totalWithdraw.toLocaleString()}</span>
+                                    <span className="text-base font-bold text-orange-600 dark:text-orange-400 tabular-nums">{detailStats.totalWithdraw.toLocaleString()}</span>
                                 </div>
                                 <div className="rounded-lg p-3 bg-slate-50 dark:bg-slate-800/50">
                                     <p className="text-[11px] text-slate-400 mb-0.5">{lang === "th" ? "ตัด/แปรรูป" : "Cut"}</p>
-                                    <span className="text-base font-bold text-blue-600 dark:text-blue-400 tabular-nums">-{detailStats.totalCut.toLocaleString()}</span>
+                                    <span className="text-base font-bold text-blue-600 dark:text-blue-400 tabular-nums">{detailStats.totalCut.toLocaleString()}</span>
                                 </div>
                                 <div className="rounded-lg p-3 bg-slate-50 dark:bg-slate-800/50">
                                     <p className="text-[11px] text-slate-400 mb-0.5">{lang === "th" ? "เคลม" : "Claim"}</p>
-                                    <span className="text-base font-bold text-red-600 dark:text-red-400 tabular-nums">-{detailStats.totalClaim.toLocaleString()}</span>
+                                    <span className="text-base font-bold text-red-600 dark:text-red-400 tabular-nums">{detailStats.totalClaim.toLocaleString()}</span>
                                 </div>
                             </div>
                         </div>
@@ -1082,7 +1106,7 @@ export default function MaterialLogsPage() {
                             <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-4">
                                 {lang === "th" ? "ไทม์ไลน์ทั้งหมด" : "Full Timeline"}
                                 <span className="ml-1.5 normal-case text-slate-300 dark:text-slate-600">
-                                    ({lang === "th" ? "เก่าสุดขึ้นก่อน" : "oldest first"})
+                                    ({lang === "th" ? "ใหม่สุดขึ้นก่อน" : "newest first"})
                                 </span>
                             </p>
 
@@ -1107,9 +1131,11 @@ export default function MaterialLogsPage() {
                                 </div>
                             ) : (
                                 <div className="relative">
-                                    <div className="absolute left-[5px] top-2 bottom-2 w-0.5 bg-slate-100 dark:bg-slate-800" />
                                     <div className="flex flex-col gap-0">
-                                        {timeline.map(event => {
+                                        {[...timeline].reverse().map((event, index, arr) => {
+                                            const isLast = index === timeline.length - 1;
+                                            const lineStyle = "bg-slate-200 dark:bg-slate-700";
+
                                             const isMat  = event.logType === "material_log";
                                             const isPane = event.logType === "pane_log";
                                             const matLog  = isMat  ? event as MaterialLog & { logType: "material_log" } : null;
@@ -1124,27 +1150,24 @@ export default function MaterialLogsPage() {
                                                 const stockType = matLog.stockType ?? (matLog.referenceId && !matLog.referenceType ? invMap.get(matLog.referenceId)?.stockType : undefined);
                                                 const moveLocs = getMoveLocations(matLog, moveSourceIds, invMap, parentLogMap, logById);
                                                 const singleLoc = !moveLocs ? getLocation(matLog, invMap) : null;
+                                                const effectiveAction = getEffectiveAction(matLog, moveSourceIds);
+                                                const matStyle = { import: "bg-emerald-500", import_move: "bg-violet-500", withdraw: "bg-orange-500", withdraw_move: "bg-violet-500", claim: "bg-red-500", cut: "bg-blue-500" }[effectiveAction] ?? "bg-slate-400";
                                                 return (
                                                     <div key={matLog._id} className="relative pl-7 pb-4">
-                                                        <div className="absolute left-0 top-1.5">{renderActionDot(matLog)}</div>
+                                                        {!isLast && <div className={`absolute left-[5px] top-[18px] h-full w-0.5 z-0 ${lineStyle}`} />}
+                                                        <div className="absolute left-0 top-1.5">{renderActionDot(matLog, index === 0)}</div>
                                                         <div className="bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-800 p-3 hover:border-slate-200 dark:hover:border-slate-700 transition-colors">
                                                             <div className="flex items-start justify-between gap-3 mb-2">
                                                                 <div className="flex flex-col gap-1">
                                                                     {renderActionBadge(matLog)}
                                                                     <div className="flex items-center gap-1 text-[11px] text-slate-400 mt-0.5">
-                                                                        <Clock className="h-2.5 w-2.5" />
                                                                         {new Date(matLog.createdAt).toLocaleString(lang === "th" ? "th-TH" : "en-US", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                                                                     </div>
                                                                 </div>
                                                                 <div className="text-right shrink-0">{renderQuantityChanged(matLog.quantityChanged)}</div>
                                                             </div>
                                                             <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-50 dark:border-slate-800">
-                                                                {stockType && (
-                                                                    <span className={`text-[11px] font-medium px-2 py-0.5 rounded-md ${stockType === "Raw" ? "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400" : "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"}`}>{stockType}</span>
-                                                                )}
-                                                                {singleLoc && (
-                                                                    <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 px-2 py-0.5 rounded-md">{singleLoc}</span>
-                                                                )}
+
                                                                 {moveLocs && (
                                                                     <div className="flex items-center gap-1 text-[11px] font-medium text-violet-600 dark:text-violet-400">
                                                                         <span className="px-1.5 py-0.5 rounded bg-violet-50 dark:bg-violet-500/10">{moveLocs.from ?? '?'}</span>
@@ -1163,9 +1186,21 @@ export default function MaterialLogsPage() {
                                                                     </span>
                                                                 )}
                                                                 {matLog.referenceType && matLog.referenceId && (
-                                                                    <span className={`text-[11px] font-medium px-2 py-0.5 rounded-md ${matLog.referenceType === "withdrawal" ? "text-orange-600 bg-orange-50 dark:text-orange-400 dark:bg-orange-500/10" : "text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-500/10"}`}>
-                                                                        {REF_TYPE_LABELS[matLog.referenceType]?.[lang] ?? matLog.referenceType} #{matLog.referenceId.slice(-6).toUpperCase()}
-                                                                    </span>
+                                                                    (() => {
+                                                                        let refText = matLog.referenceId.slice(-6).toUpperCase();
+                                                                        if (matLog.referenceType === "claim") {
+                                                                            const c = claimMap.get(matLog.referenceId);
+                                                                            if (c?.claimNumber) refText = c.claimNumber;
+                                                                        } else if (matLog.referenceType === "withdrawal") {
+                                                                            const w = withdrawalMap.get(matLog.referenceId);
+                                                                            if (w?.withdrawalNumber) refText = w.withdrawalNumber;
+                                                                        }
+                                                                        return (
+                                                                            <span className={`text-[11px] font-medium px-2 py-0.5 rounded-md ${matLog.referenceType === "withdrawal" ? "text-orange-600 bg-orange-50 dark:text-orange-400 dark:bg-orange-500/10" : "text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-500/10"}`}>
+                                                                                {REF_TYPE_LABELS[matLog.referenceType]?.[lang] ?? matLog.referenceType} {refText}
+                                                                            </span>
+                                                                        );
+                                                                    })()
                                                                 )}
                                                             </div>
                                                         </div>
@@ -1179,18 +1214,19 @@ export default function MaterialLogsPage() {
                                                 const order  = typeof paneLog.order  === "object" ? paneLog.order  as Order  : null;
                                                 const worker = typeof paneLog.worker === "object" ? paneLog.worker as Worker : null;
                                                 const workerName = worker?.name ?? worker?.username ?? (typeof paneLog.worker === "string" ? workerMap.get(paneLog.worker)?.name : null) ?? null;
-                                                const actionCfg: Record<string, { label: string; icon: React.ReactNode; dot: string; cls: string }> = {
-                                                    scan_in:           { label: lang === "th" ? "เข้าสถานี"  : "Entered station",  icon: <Circle       className="h-3 w-3" />, dot: "bg-blue-500",    cls: "bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/40" },
-                                                    start:             { label: lang === "th" ? "เริ่มงาน"   : "Started work",     icon: <Play         className="h-3 w-3" />, dot: "bg-amber-500",   cls: "bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/40" },
-                                                    complete:          { label: lang === "th" ? "เสร็จสิ้น"  : "Completed",        icon: <CheckCircle2 className="h-3 w-3" />, dot: "bg-emerald-500", cls: "bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/40" },
-                                                    scan_out:          { label: lang === "th" ? "ออกสถานี"   : "Scan out",         icon: <Circle       className="h-3 w-3" />, dot: "bg-violet-500",  cls: "bg-violet-50 text-violet-700 border-violet-100 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-900/40" },
-                                                    laminate_start:    { label: lang === "th" ? "เริ่มประกบ"  : "Laminate start",   icon: <Layers       className="h-3 w-3" />, dot: "bg-fuchsia-500", cls: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-100 dark:bg-fuchsia-950/30 dark:text-fuchsia-400 dark:border-fuchsia-900/40" },
-                                                    laminate_complete: { label: lang === "th" ? "ประกบเสร็จ"  : "Laminate done",    icon: <CheckCircle2 className="h-3 w-3" />, dot: "bg-fuchsia-500", cls: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-100 dark:bg-fuchsia-950/30 dark:text-fuchsia-400 dark:border-fuchsia-900/40" },
+                                                const actionCfg: Record<string, { label: string; icon: React.ReactNode; dot: string; hollow: string; cls: string }> = {
+                                                    scan_in:           { label: lang === "th" ? "เข้าสถานี"  : "Entered station",  icon: <Circle       className="h-3 w-3" />, dot: "bg-blue-500",    hollow: "border-2 border-blue-500 bg-white dark:bg-slate-900", cls: "bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-900/40" },
+                                                    start:             { label: lang === "th" ? "เริ่มงาน"   : "Started work",     icon: <Play         className="h-3 w-3" />, dot: "bg-amber-500",   hollow: "border-2 border-amber-500 bg-white dark:bg-slate-900", cls: "bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-900/40" },
+                                                    complete:          { label: lang === "th" ? "เสร็จสิ้น"  : "Completed",        icon: <CheckCircle2 className="h-3 w-3" />, dot: "bg-emerald-500", hollow: "border-2 border-emerald-500 bg-white dark:bg-slate-900", cls: "bg-emerald-50 text-emerald-700 border-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-900/40" },
+                                                    scan_out:          { label: lang === "th" ? "ออกสถานี"   : "Scan out",         icon: <Circle       className="h-3 w-3" />, dot: "bg-violet-500",  hollow: "border-2 border-violet-500 bg-white dark:bg-slate-900", cls: "bg-violet-50 text-violet-700 border-violet-100 dark:bg-violet-950/30 dark:text-violet-400 dark:border-violet-900/40" },
+                                                    laminate_start:    { label: lang === "th" ? "เริ่มประกบ"  : "Laminate start",   icon: <Layers       className="h-3 w-3" />, dot: "bg-fuchsia-500", hollow: "border-2 border-fuchsia-500 bg-white dark:bg-slate-900", cls: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-100 dark:bg-fuchsia-950/30 dark:text-fuchsia-400 dark:border-fuchsia-900/40" },
+                                                    laminate_complete: { label: lang === "th" ? "ประกบเสร็จ"  : "Laminate done",    icon: <CheckCircle2 className="h-3 w-3" />, dot: "bg-fuchsia-500", hollow: "border-2 border-fuchsia-500 bg-white dark:bg-slate-900", cls: "bg-fuchsia-50 text-fuchsia-700 border-fuchsia-100 dark:bg-fuchsia-950/30 dark:text-fuchsia-400 dark:border-fuchsia-900/40" },
                                                 };
                                                 const cfg = actionCfg[paneLog.action];
                                                 return (
                                                     <div key={paneLog._id} className="relative pl-7 pb-4">
-                                                        <div className={`absolute left-0 top-1.5 w-3 h-3 rounded-full ${cfg?.dot ?? "bg-slate-400"}`} />
+                                                        {!isLast && <div className={`absolute left-[5px] top-[18px] h-full w-0.5 z-0 ${lineStyle}`} />}
+                                                        <div className={`absolute left-0 top-3 w-3 h-3 rounded-full z-10 ${index === 0 ? (cfg?.hollow ?? "border-2 border-slate-400 bg-white dark:bg-slate-900") : (cfg?.dot ?? "bg-slate-400")}`} />
                                                         <div className="bg-slate-50/50 dark:bg-slate-800/30 rounded-lg border border-slate-100 dark:border-slate-800 p-3 hover:border-slate-200 dark:hover:border-slate-700 transition-colors">
                                                             <div className="flex items-start justify-between gap-3 mb-2">
                                                                 <div className="flex flex-col gap-1">
@@ -1199,7 +1235,6 @@ export default function MaterialLogsPage() {
                                                                         {cfg?.label ?? paneLog.action}
                                                                     </span>
                                                                     <div className="flex items-center gap-1 text-[11px] text-slate-400 mt-0.5">
-                                                                        <Clock className="h-2.5 w-2.5" />
                                                                         {new Date(paneLog.createdAt).toLocaleString(lang === "th" ? "th-TH" : "en-US", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                                                                     </div>
                                                                 </div>
@@ -1237,7 +1272,7 @@ export default function MaterialLogsPage() {
                 <div className="shrink-0 px-6 py-3 border-t border-slate-100 dark:border-slate-800">
                     <div className="flex items-center justify-between">
                         <span className="text-xs text-slate-400">
-                            {lang === "th" ? "ข้อมูล ณ" : "As of"} {lastUpdated?.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) ?? "—"}
+                            {lang === "th" ? "ข้อมูล ณ" : "As of"} {lastUpdated ? `${lastUpdated.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })} ${lang === "th" ? "วันนี้" : "today"}` : "—"}
                         </span>
                         <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
                             <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />

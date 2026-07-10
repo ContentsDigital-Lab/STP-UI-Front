@@ -823,7 +823,7 @@ export function StationQueueBlock({
                                 }`}
                             >
                                 <Grid3X3 className="h-3.5 w-3.5" />
-                                ตามรุ่นกระจก
+                                ตามประเภทกระจก
                             </button>
                         </div>
                     )}
