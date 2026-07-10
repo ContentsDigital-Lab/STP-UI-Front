@@ -75,6 +75,8 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import { isAdmin } from "@/lib/auth/role-utils";
 import { hasPermission } from "@/lib/auth/permissions";
+import { useUnit } from "@/lib/unit/unit-context";
+
 
 const ITEMS_PER_PAGE = 10;
 
@@ -88,6 +90,7 @@ export default function InventoryPage() {
     const it = t.inventory_dashboard;
     const { user: currentWorker } = useAuth();
     const canManage = isAdmin(currentWorker?.role) || hasPermission(currentWorker, 'inventory:manage');
+    const { unit, formatCurrentUnit } = useUnit();
 
     const [isLoading, setIsLoading] = useState(true);
     const [inventories, setInventories] = useState<Inventory[]>([]);
@@ -249,11 +252,16 @@ export default function InventoryPage() {
     const [moveDestStockType, setMoveDestStockType] = useState<"Raw" | "Reuse">("Raw");
     const [isMoveSubmitting, setIsMoveSubmitting] = useState(false);
 
+    const wsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
     // WebSocket for real-time updates (v8 Socket.io + Rooms)
     const inventoryEvents = ['inventory:updated', 'material:updated'];
     useWebSocket('inventory', inventoryEvents, (event: string) => {
         console.log(`[Inventory] Received ${event}, refreshing data...`);
-        fetchData(false); // Silent refresh on message
+        if (wsTimeoutRef.current) clearTimeout(wsTimeoutRef.current);
+        wsTimeoutRef.current = setTimeout(() => {
+            fetchData(false);
+        }, 1500);
     });
 
     useEffect(() => {
@@ -291,18 +299,15 @@ export default function InventoryPage() {
         }
     };
 
-    const handleToggleInventoryActive = async (inventory: Inventory, currentStatus: boolean) => {
-        try {
-            const newStatus = !currentStatus;
-            const updated = { ...inventory, isActive: newStatus };
-            setInventories(prev => prev.map(inv => inv._id === inventory._id ? updated : inv));
-            if (selectedInventory?._id === inventory._id) setSelectedInventory(updated);
+    const handleToggleInventoryActive = async (inventory: Inventory, newStatus: boolean) => {
+        // Optimistic update
+        const updated = { ...inventory, isActive: newStatus };
+        setInventories(prev => prev.map(inv => inv._id === inventory._id ? updated : inv));
+        if (selectedInventory?._id === inventory._id) setSelectedInventory(updated);
 
+        try {
             const response = await inventoriesApi.update(inventory._id, { isActive: newStatus });
-            if (response.success && response.data) {
-                setInventories(prev => prev.map(inv => inv._id === inventory._id ? response.data! : inv));
-                if (selectedInventory?._id === inventory._id) setSelectedInventory(response.data!);
-            } else {
+            if (!response.success) {
                 setInventories(prev => prev.map(inv => inv._id === inventory._id ? inventory : inv));
                 if (selectedInventory?._id === inventory._id) setSelectedInventory(inventory);
                 toast.error(lang === 'th' ? 'ไม่สามารถเปลี่ยนสถานะได้' : 'Failed to toggle status');
@@ -564,6 +569,20 @@ export default function InventoryPage() {
         return /^[\d.,\s]+$/.test(str.trim()) ? `${str} mm` : str;
     };
 
+    // For width/height, respect the saved dimension unit or default to mm
+    const addDimensionUnit = (val?: string | number, savedUnit?: 'inch' | 'mm'): string => {
+        if (val === undefined || val === null || val === '') return '—';
+        const str = String(val);
+        if (/^[\d.,\s]+$/.test(str.trim())) {
+            if (savedUnit === 'inch') {
+                const num = parseFloat(str);
+                return `${(num / 25.4).toFixed(2)} inch`;
+            }
+            return `${str} mm`;
+        }
+        return str;
+    };
+
     // Helper to get material info
     const getMaterialInfo = (materialIdOrObj: string | Material) => {
         if (typeof materialIdOrObj === "string") {
@@ -634,6 +653,12 @@ export default function InventoryPage() {
             }
 
             return matchesSearch && matchesLocation && matchesThickness && matchesColor && matchesBrand && matchesGlassType && matchesStockAlert;
+        }).sort((a, b) => {
+            const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            const timeDiff = timeB - timeA;
+            if (timeDiff !== 0 && !isNaN(timeDiff)) return timeDiff;
+            return (b._id || "").localeCompare(a._id || "");
         });
     }, [inventories, materials, searchQuery, locationFilter, thicknessFilter, colorFilter, brandFilter, glassTypeFilter, showLowStockOnly, getMaterialInfo]);
 
@@ -945,7 +970,7 @@ export default function InventoryPage() {
                                                     {canManage && (
                                                         <Switch
                                                             checked={inv.isActive !== false}
-                                                            onCheckedChange={(checked) => handleToggleInventoryActive(inv, !checked)}
+                                                            onCheckedChange={(checked) => handleToggleInventoryActive(inv, checked)}
                                                             className="scale-90"
                                                         />
                                                     )}
@@ -1111,9 +1136,11 @@ export default function InventoryPage() {
 
                                     {/* Technical Specs */}
                                     <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-950">
-                                        <div className="flex items-center gap-2 mb-3">
-                                            <Shield className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-                                            <h3 className="text-xs font-medium text-slate-400 uppercase tracking-wider">{it.detail.technical}</h3>
+                                        <div className="flex items-center justify-between mb-3">
+                                            <div className="flex items-center gap-2">
+                                                <Shield className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                                                <h3 className="text-xs font-medium text-slate-400 uppercase tracking-wider">{it.detail.technical}</h3>
+                                            </div>
                                         </div>
                                         <div className="space-y-2">
                                             {[
@@ -1122,10 +1149,11 @@ export default function InventoryPage() {
                                                 mat?.specDetails?.color ? { label: lang === 'th' ? 'สี' : 'Color', value: mat.specDetails.color } : null,
                                                 mat?.specDetails?.glassType ? { label: lang === 'th' ? 'ประเภทกระจก' : 'Glass Type', value: mat.specDetails.glassType } : null,
                                                 (mat?.specDetails?.width || mat?.specDetails?.length) ? {
-                                                    label: lang === 'th' ? 'ขนาด (กว้าง × สูง)' : 'Size (W × H)',
+                                                    label: lang === 'th' ? `ขนาด (กว้าง × สูง)` : `Size (W × H)`,
                                                     value: (() => {
-                                                        const w = mat?.specDetails?.width ? addMmUnit(mat.specDetails.width) : null;
-                                                        const l = mat?.specDetails?.length ? addMmUnit(mat.specDetails.length) : null;
+                                                        const dimUnit = mat?.specDetails?.dimensionUnit as 'inch' | 'mm' | undefined;
+                                                        const w = mat?.specDetails?.width ? addDimensionUnit(mat.specDetails.width, dimUnit) : null;
+                                                        const l = mat?.specDetails?.length ? addDimensionUnit(mat.specDetails.length, dimUnit) : null;
                                                         return w && l ? `${w} × ${l}` : (w ?? l ?? '—');
                                                     })()
                                                 } : null,

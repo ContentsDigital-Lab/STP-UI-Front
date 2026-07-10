@@ -665,6 +665,9 @@ function ProductionDetailPageInner() {
     ORDER_STATUS[order.status as keyof typeof ORDER_STATUS] ??
     ORDER_STATUS.pending;
 
+  const orderType = request?.details?.type;
+  const isInch = orderType?.includes("inch") ?? false;
+
   const stationLookup = new Map<string, number>();
   (order.stations ?? []).forEach((ref, i) => {
     const sid = getStationId(ref);
@@ -1186,7 +1189,7 @@ function ProductionDetailPageInner() {
                                   (pane.dimensions.width > 0 ||
                                     pane.dimensions.height > 0) && (
                                     <span className="text-[11px] font-mono font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg">
-                                      {pane.dimensions.width}×{pane.dimensions.height}
+                                      {isInch ? Number((pane.dimensions.width / 25.4).toFixed(2)) : pane.dimensions.width}×{isInch ? Number((pane.dimensions.height / 25.4).toFixed(2)) : pane.dimensions.height} {isInch ? "inch" : "mm"}
                                     </span>
                                   )}
                                 {pane.jobType && (
@@ -1251,6 +1254,7 @@ function ProductionDetailPageInner() {
           pane={selectedPane}
           stationMap={stationMap}
           stationByName={stationByName}
+          isInch={isInch}
           onClose={() => {
             setSelectedPane(null);
             if (paneIdFromUrl) {

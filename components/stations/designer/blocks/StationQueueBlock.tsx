@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { panesApi } from "@/lib/api/panes";
 import { Pane } from "@/lib/api/types";
 import { parseQrScan } from "@/lib/utils/parseQrScan";
-import { getStationName, isPaneWithdrawn, isStationMatch } from "@/lib/utils/station-helpers";
+import { getStationName, isPaneWithdrawn, isStationMatch, formatPaneDimWithUnit } from "@/lib/utils/station-helpers";
 import { isPaneRetiredByMerge, resolveActivePane } from "@/lib/utils/pane-laminate";
 import { withMergedIntoScanRetry } from "@/lib/utils/merged-into-scan";
 import { usePreview } from "../PreviewContext";
@@ -82,6 +82,7 @@ function isPaneOnStationProgressQueue(
     if (!isStationMatch(p.currentStation, stationId, stationName)) return false;
     return p.currentStatus === "in_progress";
 }
+
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export function StationQueueBlock({
@@ -1048,7 +1049,17 @@ export function StationQueueBlock({
                                                                     )}
                                                                 </div>
                                                                 <span className="text-[11px] text-muted-foreground">
-                                                                    {pane.dimensions?.width} × {pane.dimensions?.height} mm
+                                                                    {(() => {
+                                                                        const pd = formatPaneDimWithUnit(pane);
+                                                                        return pd.dimStr ? (
+                                                                            <>
+                                                                                <span>{pd.dimStr}</span>
+                                                                                {pd.thicknessStr && (
+                                                                                    <span className="opacity-40 ml-1">{pd.thicknessStr}</span>
+                                                                                )}
+                                                                            </>
+                                                                        ) : null;
+                                                                    })()}
                                                                 </span>
                                                             </div>
                                                         </div>
@@ -1241,10 +1252,17 @@ export function StationQueueBlock({
                                                                         )}
                                                                     </div>
                                                                     <div className="flex items-center gap-2 text-[11px] text-muted-foreground font-medium">
-                                                                        <span>{pane.dimensions?.width}×{pane.dimensions?.height}</span>
-                                                                        {pane.dimensions?.thickness && (
-                                                                            <span className="opacity-40">({pane.dimensions.thickness}mm)</span>
-                                                                        )}
+                                                                        {(() => {
+                                                                            const pd = formatPaneDimWithUnit(pane);
+                                                                            return pd.dimStr ? (
+                                                                                <>
+                                                                                    <span>{pd.dimStr}</span>
+                                                                                    {pd.thicknessStr && (
+                                                                                        <span className="opacity-40">{pd.thicknessStr}</span>
+                                                                                    )}
+                                                                                </>
+                                                                            ) : null;
+                                                                        })()}
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -1370,7 +1388,13 @@ export function StationQueueBlock({
                 {qrPane && (
                     <QrCodeModal 
                         code={qrPane.paneNumber}
-                        label={`${qrPane.glassTypeLabel ?? ''} ${qrPane.dimensions?.width ?? ''}×${qrPane.dimensions?.height ?? ''}`.trim()}
+                        label={[
+                            qrPane.glassTypeLabel,
+                            (() => {
+                                const pd = formatPaneDimWithUnit(qrPane);
+                                return pd.dimStr ? `${pd.dimStr}${pd.thicknessStr ? ` ${pd.thicknessStr}` : ""}` : "";
+                            })(),
+                        ].filter(Boolean).join(" — ")}
                         value={qrPane.qrCode || `STDPLUS:${qrPane.paneNumber}`}
                         onClose={() => setQrPane(null)}
                     />

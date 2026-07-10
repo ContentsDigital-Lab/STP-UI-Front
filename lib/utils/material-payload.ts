@@ -112,3 +112,16 @@ export function materialPayloadFromForm(form: {
     if (form.brand && form.brand.trim()) payload.brand = form.brand.trim();
     return payload;
 }
+
+export function formatDimension(val?: string | number, savedUnit?: 'inch' | 'mm'): string {
+    if (val === undefined || val === null || val === '') return '-';
+    const str = String(val);
+    if (/^[\d.,\s]+$/.test(str.trim())) {
+        const num = parseFloat(str);
+        if (savedUnit === 'inch') {
+            return `${Number((num / 25.4).toFixed(2))}`;
+        }
+        return `${Number(num.toFixed(2))}`;
+    }
+    return str;
+}

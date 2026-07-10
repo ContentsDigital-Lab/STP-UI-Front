@@ -12,6 +12,7 @@ import { panesApi } from "@/lib/api/panes";
 import { Pane, PaginatedResponse } from "@/lib/api/types";
 import StickerThumbnail from "@/app/settings/sticker/StickerThumbnail";
 import type { StickerElement } from "@/app/settings/sticker/types";
+import { formatPaneDimWithUnit } from "@/lib/utils/station-helpers";
 
 const MM_TO_PX = 3.7795275591;
 const LS_KEY   = "std_sticker_template";
@@ -28,9 +29,10 @@ function sub(text: string, pane: Pane, order: Record<string, unknown> | null): s
         "{{paneNumber}}":   pane.paneNumber ?? "",
         "{{paneId}}":       pane._id ?? "",
         "{{glassType}}":    pane.jobType ?? pane.glassType ?? pane.glassTypeLabel ?? "",
-        "{{dimensions}}":   pane.dimensions
-            ? `${pane.dimensions.width}×${pane.dimensions.height}${pane.dimensions.thickness > 0 ? `×${pane.dimensions.thickness}` : ""}mm`
-            : "",
+        "{{dimensions}}":   (() => {
+            const pd = formatPaneDimWithUnit(pane);
+            return pd.dimStr ? `${pd.dimStr}${pd.thicknessStr ? ` ${pd.thicknessStr}` : ""}` : "";
+        })(),
         "{{width}}":        pane.dimensions ? String(pane.dimensions.width) : "",
         "{{height}}":       pane.dimensions ? String(pane.dimensions.height) : "",
         "{{thickness}}":    pane.dimensions ? String(pane.dimensions.thickness) : "",

@@ -11,6 +11,7 @@ import { useWebSocket } from "@/lib/hooks/use-socket";
 import { useAuth } from "@/lib/auth/auth-context";
 import { Pane, Order, Material, Inventory, Withdrawal } from "@/lib/api/types";
 import { CameraScanModal } from "@/components/stations/designer/blocks/CameraScanModal";
+import { formatPaneDimWithUnit } from "@/lib/utils/station-helpers";
 
 interface WithdrawModalProps {
     stationId?: string;
@@ -134,7 +135,7 @@ export function WithdrawModal({ stationId, onClose, initialPane }: WithdrawModal
         setError(null);
         setFetching(true);
         try {
-            const res = await panesApi.getById(raw);
+            const res = await panesApi.getById(raw, "request,order,material");
             if (!res.success || !res.data) {
                 setError(`ไม่พบกระจก "${raw}" ในระบบ`);
                 return;
@@ -324,7 +325,17 @@ export function WithdrawModal({ stationId, onClose, initialPane }: WithdrawModal
                                 {pane.dimensions && (
                                     <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                                         <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/></svg>
-                                        <span>{pane.dimensions.width} × {pane.dimensions.height} × {pane.dimensions.thickness} mm</span>
+                                        <span>
+                                            {(() => {
+                                                const pd = formatPaneDimWithUnit(pane, orderObj);
+                                                return pd.dimStr ? (
+                                                    <>
+                                                        {pd.dimStr}
+                                                        {pd.thicknessStr && ` ${pd.thicknessStr}`}
+                                                    </>
+                                                ) : null;
+                                            })()}
+                                        </span>
                                     </div>
                                 )}
                                 {orderObj && (

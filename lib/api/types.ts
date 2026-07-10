@@ -67,6 +67,7 @@ export interface Material {
     width?: string | number;
     length?: string | number;
     sqft?: string | number;
+    dimensionUnit?: 'inch' | 'mm';
   };
   isActive?: boolean;
   createdAt: string;

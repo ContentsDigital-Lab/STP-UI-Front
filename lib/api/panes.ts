@@ -31,8 +31,8 @@ export const panesApi = {
         });
     },
 
-    getById: async (id: string): Promise<ApiResponse<Pane>> => {
-        return fetchApi<ApiResponse<Pane>>(`/panes/${id}`, {
+    getById: async (id: string, populate?: string): Promise<ApiResponse<Pane>> => {
+        return fetchApi<ApiResponse<Pane>>(`/panes/${id}${populate ? `?populate=${populate}` : ""}`, {
             method: "GET",
         });
     },

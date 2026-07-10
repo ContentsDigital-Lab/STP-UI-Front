@@ -53,13 +53,17 @@ import {
     materialPayloadFromForm,
     materialUnitDisplayLabel,
     normalizeMaterialUnit,
+    formatDimension,
 } from "@/lib/utils/material-payload";
+import { useUnit } from "@/lib/unit/unit-context";
+import { UnitToggle } from "@/components/ui/unit-toggle";
 
 const ITEMS_PER_PAGE = 10;
 
 export default function MaterialsManagementPage() {
     const [materials, setMaterials] = useState<Material[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const { unit, setUnit, toMm, formatCurrentUnit } = useUnit();
 
     const { user: currentWorker } = useAuth();
     const canManage = isAdmin(currentWorker?.role) || hasPermission(currentWorker, 'materials:manage');
@@ -118,6 +122,13 @@ export default function MaterialsManagementPage() {
     const handleOpenModal = (material?: Material) => {
         if (material) {
             setEditingMaterial(material);
+            if (material.specDetails?.dimensionUnit) {
+                setUnit(material.specDetails.dimensionUnit as 'inch' | 'mm');
+            } else if (material.specDetails?.width || material.specDetails?.length) {
+                setUnit('mm');
+            } else {
+                setUnit('inch');
+            }
             setFormData({
                 code: material.code || "",
                 name: material.name || "",
@@ -133,6 +144,7 @@ export default function MaterialsManagementPage() {
             });
         } else {
             setEditingMaterial(null);
+            setUnit('inch');
             setFormData({
                 code: "",
                 name: "",
@@ -155,6 +167,11 @@ export default function MaterialsManagementPage() {
         setIsSubmitting(true);
 
         const payload = materialPayloadFromForm(formData) as Partial<Material>;
+        if (payload.specDetails) {
+            payload.specDetails.dimensionUnit = unit;
+        } else {
+            payload.specDetails = { dimensionUnit: unit };
+        }
 
         try {
             if (editingMaterial) {
@@ -229,23 +246,20 @@ export default function MaterialsManagementPage() {
         }
     };
 
-    const handleToggleMaterialActive = async (material: Material, currentStatus: boolean) => {
+    const handleToggleMaterialActive = async (material: Material, newStatus: boolean) => {
+        // Optimistic update
+        setMaterials(prev => prev.map(m => m._id === material._id ? { ...m, isActive: newStatus } : m));
         try {
-            // Optimistic update
-            const newStatus = !currentStatus;
-            setMaterials(prev => prev.map(m => m._id === material._id ? { ...m, isActive: newStatus } : m));
-            
             const response = await materialsApi.update(material._id, { isActive: newStatus });
-            if (response.success && response.data) {
-                setMaterials(prev => prev.map(m => m._id === material._id ? response.data! : m));
-            } else {
+            if (!response.success) {
                 // Revert on fail
-                setMaterials(prev => prev.map(m => m._id === material._id ? material : m));
+                setMaterials(prev => prev.map(m => m._id === material._id ? { ...m, isActive: !newStatus } : m));
                 toast.error('ไม่สามารถเปลี่ยนสถานะได้');
             }
         } catch (error) {
             console.error("Failed to toggle material active status:", error);
-            setMaterials(prev => prev.map(m => m._id === material._id ? material : m));
+            // Revert on fail
+            setMaterials(prev => prev.map(m => m._id === material._id ? { ...m, isActive: !newStatus } : m));
             toast.error('เกิดข้อผิดพลาด');
         }
     };
@@ -273,6 +287,12 @@ export default function MaterialsManagementPage() {
             const matchesGlassType = glassTypeFilter === "all" || m.specDetails?.glassType === glassTypeFilter;
 
             return matchesSearch && matchesBrand && matchesColor && matchesGlassType;
+        }).sort((a, b) => {
+            const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            const timeDiff = timeB - timeA;
+            if (timeDiff !== 0 && !isNaN(timeDiff)) return timeDiff;
+            return (b._id || "").localeCompare(a._id || "");
         });
     }, [materials, searchQuery, brandFilter, colorFilter, glassTypeFilter]);
 
@@ -500,8 +520,8 @@ export default function MaterialsManagementPage() {
                                             <TableCell>
                                                 {hasSize ? (
                                                     <div className="flex flex-col gap-1 items-start">
-                                                        <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900/50">
-                                                            {material.specDetails?.width || "-"} × {material.specDetails?.length || "-"}
+                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-xs font-medium border ${material.specDetails?.dimensionUnit === 'inch' ? 'bg-purple-50 text-purple-700 border-purple-100 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900/50' : 'bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900/50'}`}>
+                                                            {formatDimension(material.specDetails?.width, material.specDetails?.dimensionUnit as any)} {material.specDetails?.dimensionUnit || 'mm'} × {formatDimension(material.specDetails?.length, material.specDetails?.dimensionUnit as any)} {material.specDetails?.dimensionUnit || 'mm'}
                                                         </span>
                                                         {material.specDetails?.sqft && (
                                                             <span className="text-[11px] text-slate-500 font-medium">{material.specDetails.sqft} ตร.ฟ.</span>
@@ -530,7 +550,7 @@ export default function MaterialsManagementPage() {
                                                     <div className="flex justify-end items-center gap-2">
                                                         <Switch 
                                                             checked={material.isActive !== false}
-                                                            onCheckedChange={(checked) => handleToggleMaterialActive(material, !checked)}
+                                                            onCheckedChange={(checked) => handleToggleMaterialActive(material, checked)}
                                                             className="scale-90"
                                                         />
                                                         <div className="flex gap-1">
@@ -546,10 +566,9 @@ export default function MaterialsManagementPage() {
                                                                 variant="ghost"
                                                                 size="icon"
                                                                 onClick={() => handleDelete(material._id, material.name)}
-                                                                disabled={isLoadingDeleteTarget}
                                                                 className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-950/50 rounded-xl"
                                                             >
-                                                                {isLoadingDeleteTarget ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                                                                <Trash2 className="h-3.5 w-3.5" />
                                                             </Button>
                                                         </div>
                                                     </div>
@@ -718,26 +737,36 @@ export default function MaterialsManagementPage() {
 
                         {/* Dimensions */}
                         <div className="pt-2 mt-2 border-t border-slate-100">
-                            <h4 className="text-[13px] font-semibold text-slate-900 mb-3 uppercase tracking-wider">ขนาด</h4>
+                            <div className="flex items-center justify-between mb-3">
+                                <h4 className="text-[13px] font-semibold text-slate-900 uppercase tracking-wider">ขนาด</h4>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[11px] font-medium text-slate-500">หน่วยวัด:</span>
+                                    <UnitToggle />
+                                </div>
+                            </div>
                             <div className="grid grid-cols-3 gap-4">
                                 <div className="space-y-1.5">
-                                    <Label htmlFor="width" className="text-[13px] font-medium text-slate-700">กว้าง (Width)</Label>
+                                    <Label htmlFor="width" className="text-[13px] font-medium text-slate-700">กว้าง ({unit === 'mm' ? 'mm' : 'inch'})</Label>
                                     <Input
                                         id="width"
-                                        placeholder="เช่น 16"
+                                        type="number"
+                                        step="any"
+                                        placeholder={unit === 'mm' ? "เช่น 400" : "เช่น 16"}
                                         className="h-10 border-slate-200 rounded-xl"
-                                        value={formData.width}
-                                        onChange={(e) => setFormData({ ...formData, width: e.target.value })}
+                                        value={formData.width ? formatCurrentUnit(formData.width) : ''}
+                                        onChange={(e) => setFormData({ ...formData, width: e.target.value ? toMm(e.target.value).toString() : '' })}
                                     />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <Label htmlFor="length" className="text-[13px] font-medium text-slate-700">สูง (Height)</Label>
+                                    <Label htmlFor="length" className="text-[13px] font-medium text-slate-700">สูง ({unit === 'mm' ? 'mm' : 'inch'})</Label>
                                     <Input
                                         id="length"
-                                        placeholder="เช่น 36"
+                                        type="number"
+                                        step="any"
+                                        placeholder={unit === 'mm' ? "เช่น 900" : "เช่น 36"}
                                         className="h-10 border-slate-200 rounded-xl"
-                                        value={formData.length}
-                                        onChange={(e) => setFormData({ ...formData, length: e.target.value })}
+                                        value={formData.length ? formatCurrentUnit(formData.length) : ''}
+                                        onChange={(e) => setFormData({ ...formData, length: e.target.value ? toMm(e.target.value).toString() : '' })}
                                     />
                                 </div>
                                 <div className="space-y-1.5">

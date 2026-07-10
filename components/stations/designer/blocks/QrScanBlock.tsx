@@ -12,7 +12,7 @@ import { fetchApi } from "@/lib/api/config";
 import { panesApi } from "@/lib/api/panes";
 import { Pane } from "@/lib/api/types";
 import { parseQrScan } from "@/lib/utils/parseQrScan";
-import { getStationId, getStationName, isPaneWithdrawn, isStationMatch } from "@/lib/utils/station-helpers";
+import { getStationId, getStationName, isPaneWithdrawn, isStationMatch, formatPaneDimWithUnit } from "@/lib/utils/station-helpers";
 import { resolveActivePane } from "@/lib/utils/pane-laminate";
 import { withMergedIntoScanRetry } from "@/lib/utils/merged-into-scan";
 import { usePreview } from "../PreviewContext";
@@ -656,8 +656,15 @@ export function QrScanBlock({
                                     <div className="min-w-0">
                                         <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-0.5">ขนาด (WxH)</p>
                                         <p className="text-sm font-medium text-foreground">
-                                            {pane.dimensions.width}x{pane.dimensions.height}
-                                            {pane.dimensions.thickness ? `x${pane.dimensions.thickness}` : ""}
+                                            {(() => {
+                                                const pd = formatPaneDimWithUnit(pane);
+                                                return pd.dimStr ? (
+                                                    <>
+                                                        {pd.dimStr.replace(' * ', 'x')}
+                                                        {pd.thicknessStr && ` ${pd.thicknessStr}`}
+                                                    </>
+                                                ) : null;
+                                            })()}
                                         </p>
                                     </div>
                                 )}
@@ -832,8 +839,15 @@ export function QrScanBlock({
                                     <div className="min-w-0">
                                         <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-0.5">ขนาด (WxH)</p>
                                         <p className="text-sm font-medium text-foreground">
-                                            {pane.dimensions.width}x{pane.dimensions.height}
-                                            {pane.dimensions.thickness ? `x${pane.dimensions.thickness}` : ""}
+                                            {(() => {
+                                                const pd = formatPaneDimWithUnit(pane);
+                                                return pd.dimStr ? (
+                                                    <>
+                                                        {pd.dimStr.replace(' * ', 'x')}
+                                                        {pd.thicknessStr && ` ${pd.thicknessStr}`}
+                                                    </>
+                                                ) : null;
+                                            })()}
                                         </p>
                                     </div>
                                 )}

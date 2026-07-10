@@ -637,6 +637,7 @@ export default function ProductionPage() {
                                             const cfg = ORDER_STATUS[order.status as StatusKey] ?? ORDER_STATUS.pending;
                                             const orderPanes = paneMap.get(order._id) ?? [];
                                             const isOrderOpen = expandedOrders.has(order._id);
+                                            const isInch = bill.request?.details?.type?.includes("inch") ?? false;
 
                                             const isZeroQty = (order.quantity ?? 0) === 0;
 
@@ -792,7 +793,7 @@ export default function ProductionPage() {
                                                                                 )}
                                                                                 {pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0) && (
                                                                                     <span className="text-[10px] text-slate-400 font-mono">
-                                                                                        {pane.dimensions.width}×{pane.dimensions.height}
+                                                                                        {isInch ? Number((pane.dimensions.width / 25.4).toFixed(2)) : pane.dimensions.width}×{isInch ? Number((pane.dimensions.height / 25.4).toFixed(2)) : pane.dimensions.height} {isInch ? "inch" : ""}
                                                                                     </span>
                                                                                 )}
                                                                             </div>

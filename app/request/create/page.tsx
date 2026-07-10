@@ -73,6 +73,8 @@ import { getCachedPricingSettings, cachePricingSettings, DEFAULT_PRICING, type P
 import { pricingSettingsApi } from "@/lib/api/pricing-settings";
 import { jobTypesApi, type JobType } from "@/lib/api/job-types";
 import { useWebSocket } from "@/lib/hooks/use-socket";
+import { UnitToggle } from "@/components/ui/unit-toggle";
+import { useUnit } from "@/lib/unit/unit-context";
 
 // ─── Multi-pane spec type ────────────────────────────────────────────────────
 
@@ -109,10 +111,10 @@ export interface PaneSpec {
 let _paneIdSeq = 0;
 const createDefaultPane = (ps: PricingSettings, initialTolerances: string[] = []): PaneSpec => ({
     id: `pane_${++_paneIdSeq}_${Date.now()}`,
-    glassWidth: 800,
-    glassHeight: 600,
+    glassWidth: 609.6,
+    glassHeight: 762,
     holes: [],
-    vertices: [{ x: 0, y: 0 }, { x: 800, y: 0 }, { x: 800, y: 600 }, { x: 0, y: 600 }],
+    vertices: [{ x: 0, y: 0 }, { x: 609.6, y: 0 }, { x: 609.6, y: 762 }, { x: 0, y: 762 }],
     glassType: "",
     thickness: "",
     quantity: 1,
@@ -244,6 +246,7 @@ export const calcPanePrice = (p: PaneSpec, ps: PricingSettings) => {
 
 export default function CreateBillPage() {
     const { t, lang } = useLanguage();
+    const { unit, setUnit, formatCurrentUnit } = useUnit();
     const router = useRouter();
     const searchParams = useSearchParams();
     const editId = searchParams.get('editId');
@@ -476,6 +479,11 @@ export default function CreateBillPage() {
                 if (reqRes.success && reqRes.data) {
                     const data = reqRes.data;
                     setRequestStatus(data.status || 'pending');
+                    if (data.details?.type?.includes('inch')) {
+                        setUnit('inch');
+                    } else if (data.details?.type?.includes('mm')) {
+                        setUnit('mm');
+                    }
                     initOrderData = {
                         customer: (typeof data.customer === 'string' ? data.customer : data.customer?._id) || "",
                         referenceId: data.referenceId || "",
@@ -561,6 +569,8 @@ export default function CreateBillPage() {
             }).catch(err => {
                 console.error("Failed to load request or panes for edit", err);
             });
+        } else {
+            setUnit('inch');
         }
     }, [editId]);
 
@@ -927,7 +937,7 @@ export default function CreateBillPage() {
         setIsSubmitting(true);
         const totalQty = validPanes.reduce((sum, p) => sum + p.quantity, 0);
         const totalPrice = validPanes.reduce((sum, p) => sum + calcPanePrice(p, pricingSettings).total, 0);
-        const typeDesc = validPanes.map(p => `${p.glassType} ${p.thickness} (${p.glassWidth}×${p.glassHeight}mm)`).join(' + ');
+        const typeDesc = validPanes.map(p => `${p.glassType} ${p.thickness} (${formatCurrentUnit(p.glassWidth)}×${formatCurrentUnit(p.glassHeight)}${unit})`).join(' + ');
 
         const payload: Partial<OrderRequest> = {
             details: {
@@ -981,7 +991,7 @@ export default function CreateBillPage() {
                         pane.glassType,
                         pane.thickness,
                         pane.rawGlassType ? `(ดิบ: ${pane.rawGlassColor ? pane.rawGlassColor + ' ' : ''}${pane.rawGlassType} ${pane.thickness}mm×${pane.sheetsPerPane}แผ่น)` : null,
-                        `${pane.glassWidth}×${pane.glassHeight}mm`,
+                        `${formatCurrentUnit(pane.glassWidth)}×${formatCurrentUnit(pane.glassHeight)}${unit}`,
                     ].filter(Boolean).join(' ');
                     const { notchList, holeList } = splitHolesAndNotches(pane.holes, pane.glassWidth, pane.glassHeight);
                     const qty = Math.max(1, pane.quantity);

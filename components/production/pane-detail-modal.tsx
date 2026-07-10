@@ -64,11 +64,13 @@ export function PaneDetailModal({
   pane,
   stationMap,
   stationByName,
+  isInch,
   onClose,
 }: {
   pane: Pane;
   stationMap: Map<string, Station>;
   stationByName: Map<string, Station>;
+  isInch?: boolean;
   onClose: () => void;
 }) {
   const [logs, setLogs] = useState<PaneLog[]>([]);
@@ -291,10 +293,13 @@ export function PaneDetailModal({
     claimed: "ถูกเคลม",
   };
 
-  const dimStr =
-    pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0)
-      ? `${pane.dimensions.width} × ${pane.dimensions.height}${pane.dimensions.thickness > 0 ? ` × ${pane.dimensions.thickness}` : ""} mm`
-      : null;
+  const dimStr = (() => {
+    if (!pane.dimensions || (pane.dimensions.width <= 0 && pane.dimensions.height <= 0)) return null;
+    const w = isInch ? Number((pane.dimensions.width / 25.4).toFixed(2)) : pane.dimensions.width;
+    const h = isInch ? Number((pane.dimensions.height / 25.4).toFixed(2)) : pane.dimensions.height;
+    const unitStr = isInch ? "inch" : "mm";
+    return `${w} × ${h} ${unitStr}${pane.dimensions.thickness > 0 ? ` (หนา ${pane.dimensions.thickness} mm)` : ""}`;
+  })();
 
   const rawGlassStr = pane.rawGlass
     ? [

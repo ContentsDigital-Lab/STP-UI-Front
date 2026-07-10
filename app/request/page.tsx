@@ -60,7 +60,7 @@ import { requestsApi } from "@/lib/api/requests";
 import { customersApi } from "@/lib/api/customers";
 import { workersApi } from "@/lib/api/workers";
 import { OrderRequest, Customer, Worker, Pane } from "@/lib/api/types";
-import { getStationName } from "@/lib/utils/station-helpers";
+import { getStationName, formatPaneDimWithUnit } from "@/lib/utils/station-helpers";
 import { getRoleName } from "@/lib/auth/role-utils";
 import { toast } from "sonner";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
@@ -205,7 +205,15 @@ export default function OrderRequestsPage() {
 
     // Filter options — derived from full dataset
     const productTypes = useMemo(
-        () => Array.from(new Set(allRequests.map(r => r.details?.type).filter(Boolean))),
+        () => {
+            const types = allRequests.map(r => {
+                const t = r.details?.type;
+                if (!t) return null;
+                const pIdx = t.indexOf('(');
+                return pIdx !== -1 ? t.substring(0, pIdx).trim() : t.trim();
+            }).filter(Boolean);
+            return Array.from(new Set(types));
+        },
         [allRequests]
     );
 
@@ -226,7 +234,8 @@ export default function OrderRequestsPage() {
                 req.details?.type?.toLowerCase().includes(searchLower) ||
                 worker?.name?.toLowerCase().includes(searchLower);
 
-            const matchesType = typeFilter === "all" || req.details?.type === typeFilter;
+            const reqBaseType = req.details?.type ? (req.details.type.indexOf('(') !== -1 ? req.details.type.substring(0, req.details.type.indexOf('(')).trim() : req.details.type.trim()) : "";
+            const matchesType = typeFilter === "all" || reqBaseType === typeFilter;
             const matchesCustomer = customerFilter === "all" || cust?._id === customerFilter;
             const matchesStatus = statusFilter === "all" || req.status === statusFilter;
 
@@ -659,7 +668,7 @@ export default function OrderRequestsPage() {
                                                 </span>
                                             </TableCell>
                                             <TableCell className="py-3.5">
-                                                <span className="text-xs font-medium px-2 py-1 rounded-md bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                                                <span className={`text-xs font-medium px-2 py-1 rounded-md ${req.details?.type?.includes('inch') ? 'bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400' : 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400'}`}>
                                                     {req.details?.type || "—"}
                                                 </span>
                                             </TableCell>
@@ -851,14 +860,14 @@ export default function OrderRequestsPage() {
                                         </div>
                                     )}
 
-                                    <div className="mt-4 p-4 rounded-xl bg-blue-50 dark:bg-blue-500/10 flex items-center justify-between">
+                                    <div className={`mt-4 p-4 rounded-xl flex items-center justify-between ${selectedRequest.details?.type?.includes('inch') ? 'bg-purple-50 dark:bg-purple-500/10' : 'bg-blue-50 dark:bg-blue-500/10'}`}>
                                         <div>
-                                            <p className="text-[11px] text-blue-500 dark:text-blue-400 mb-0.5">{it.table.productType}</p>
-                                            <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">{selectedRequest.details?.type || "—"}</p>
+                                            <p className={`text-[11px] mb-0.5 ${selectedRequest.details?.type?.includes('inch') ? 'text-purple-500 dark:text-purple-400' : 'text-blue-500 dark:text-blue-400'}`}>{it.table.productType}</p>
+                                            <p className={`text-sm font-semibold ${selectedRequest.details?.type?.includes('inch') ? 'text-purple-700 dark:text-purple-300' : 'text-blue-700 dark:text-blue-300'}`}>{selectedRequest.details?.type || "—"}</p>
                                         </div>
                                         <div className="text-right">
-                                            <p className="text-[11px] text-blue-500 dark:text-blue-400 mb-0.5">{it.table.quantity}</p>
-                                            <p className="text-2xl font-bold text-blue-700 dark:text-blue-300 tabular-nums">{selectedRequest.details?.quantity?.toLocaleString() || 0}</p>
+                                            <p className={`text-[11px] mb-0.5 ${selectedRequest.details?.type?.includes('inch') ? 'text-purple-500 dark:text-purple-400' : 'text-blue-500 dark:text-blue-400'}`}>{it.table.quantity}</p>
+                                            <p className={`text-2xl font-bold tabular-nums ${selectedRequest.details?.type?.includes('inch') ? 'text-purple-700 dark:text-purple-300' : 'text-blue-700 dark:text-blue-300'}`}>{selectedRequest.details?.quantity?.toLocaleString() || 0}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -999,8 +1008,15 @@ export default function OrderRequestsPage() {
                                                                 </div>
                                                                 {pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0) && (
                                                                     <p className="text-[10px] text-slate-400 mt-0.5">
-                                                                        {pane.dimensions.width}×{pane.dimensions.height}
-                                                                        {pane.dimensions.thickness > 0 && ` (${pane.dimensions.thickness}mm)`}
+                                                                        {(() => {
+                                                                            const pd = formatPaneDimWithUnit(pane, selectedRequest);
+                                                                            return pd.dimStr ? (
+                                                                                <>
+                                                                                    {pd.dimStr}
+                                                                                    {pd.thicknessStr && ` ${pd.thicknessStr}`}
+                                                                                </>
+                                                                            ) : null;
+                                                                        })()}
                                                                     </p>
                                                                 )}
                                                             </div>

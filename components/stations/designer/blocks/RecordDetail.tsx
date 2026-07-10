@@ -10,7 +10,7 @@ import { Pane } from "@/lib/api/types";
 import { usePreview } from "../PreviewContext";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { useStationContext } from "../StationContext";
-import { getStationName, isStationMatch } from "@/lib/utils/station-helpers";
+import { getStationName, isStationMatch, formatPaneDimWithUnit } from "@/lib/utils/station-helpers";
 import { STATUS_CONFIG } from "./StatusIndicator";
 
 // ── Field display config ──────────────────────────────────────────────────────
@@ -212,8 +212,15 @@ function PaneListSection({ record, endpoint, showPaneQr: showPaneQrProp = true }
                             </span>
                             {pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0) && (
                                 <span className="text-[10px] text-muted-foreground">
-                                    {pane.dimensions.width}×{pane.dimensions.height}
-                                    {pane.dimensions.thickness > 0 && ` (${pane.dimensions.thickness}mm)`}
+                                    {(() => {
+                                        const pd = formatPaneDimWithUnit(pane, record);
+                                        return pd.dimStr ? (
+                                            <>
+                                                {pd.dimStr}
+                                                {pd.thicknessStr && ` ${pd.thicknessStr}`}
+                                            </>
+                                        ) : null;
+                                    })()}
                                 </span>
                             )}
                             <span className="ml-auto text-[10px] text-muted-foreground">{getStationName(pane.currentStation)}</span>
@@ -233,8 +240,15 @@ function PaneListSection({ record, endpoint, showPaneQr: showPaneQrProp = true }
                             </span>
                             {pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0) && (
                                 <span className="text-[10px] text-muted-foreground">
-                                    {pane.dimensions.width}×{pane.dimensions.height}
-                                    {pane.dimensions.thickness > 0 && ` (${pane.dimensions.thickness}mm)`}
+                                    {(() => {
+                                        const pd = formatPaneDimWithUnit(pane, record);
+                                        return pd.dimStr ? (
+                                            <>
+                                                {pd.dimStr}
+                                                {pd.thicknessStr && ` ${pd.thicknessStr}`}
+                                            </>
+                                        ) : null;
+                                    })()}
                                 </span>
                             )}
                             <span className="ml-auto text-[10px] text-muted-foreground">{getStationName(pane.currentStation)}</span>
@@ -260,7 +274,10 @@ function PaneListSection({ record, endpoint, showPaneQr: showPaneQrProp = true }
                     code={qrPane.paneNumber}
                     label={[
                         qrPane.glassTypeLabel,
-                        qrPane.dimensions ? `${qrPane.dimensions.width}×${qrPane.dimensions.height}${qrPane.dimensions.thickness ? ` (${qrPane.dimensions.thickness}mm)` : ""}` : "",
+                        (() => {
+                            const pd = formatPaneDimWithUnit(qrPane, record);
+                            return pd.dimStr ? `${pd.dimStr}${pd.thicknessStr ? ` ${pd.thicknessStr}` : ""}` : "";
+                        })(),
                     ].filter(Boolean).join(" — ")}
                     value={qrPane.qrCode || `STDPLUS:${qrPane.paneNumber}`}
                     onClose={() => setQrPane(null)}

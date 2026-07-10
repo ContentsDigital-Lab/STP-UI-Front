@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Layers, Plus, Copy, Trash2 } from "lucide-react";
 import type { PaneSpec } from "@/app/request/create/page";
 import type { PricingSettings } from "@/lib/pricing-settings";
+import { useUnit } from "@/lib/unit/unit-context";
+import { UnitToggle } from "@/components/ui/unit-toggle";
 
 interface GlassSpecsTableProps {
     panes: PaneSpec[];
@@ -39,6 +41,8 @@ export function GlassSpecsTable({
     rawGlassTypeOptions,
     calcPanePrice,
 }: GlassSpecsTableProps) {
+    const { unit, toMm, formatCurrentUnit } = useUnit();
+
     return (
         <div className="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col h-[350px] shrink-0 w-full z-10">
             {/* Table Header Bar */}
@@ -49,16 +53,22 @@ export function GlassSpecsTable({
                         {lang === 'th' ? `รายการแผ่นกระจก (${panes.length} แผ่น)` : `Glass Specs (${panes.length} Sheets)`}
                     </span>
                 </div>
-                <Button
-                    type="button"
-                    onClick={addPane}
-                    size="sm"
-                    variant="outline"
-                    className="h-7 px-2.5 rounded-lg text-[11px] font-bold text-[#E8601C] border-[#E8601C]/20 hover:bg-[#E8601C]/5 gap-1"
-                >
-                    <Plus className="h-3.5 w-3.5" />
-                    {lang === 'th' ? 'เพิ่มแผ่นกระจก' : 'Add Pane'}
-                </Button>
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-medium text-slate-500">{lang === 'th' ? 'หน่วยวัด:' : 'Unit:'}</span>
+                        <UnitToggle />
+                    </div>
+                    <Button
+                        type="button"
+                        onClick={addPane}
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2.5 rounded-lg text-[11px] font-bold text-[#E8601C] border-[#E8601C]/20 hover:bg-[#E8601C]/5 gap-1"
+                    >
+                        <Plus className="h-3.5 w-3.5" />
+                        {lang === 'th' ? 'เพิ่มแผ่นกระจก' : 'Add Pane'}
+                    </Button>
+                </div>
             </div>
 
             {/* Spreadsheet Grid */}
@@ -67,8 +77,8 @@ export function GlassSpecsTable({
                     <thead>
                         <tr className="bg-slate-50/50 dark:bg-slate-900/30 text-slate-500 font-bold border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10 backdrop-blur select-none">
                             <th className="py-2.5 px-3 text-center w-10 border-r border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80">#</th>
-                            <th className="py-2.5 px-3 w-20 border-r border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80">{lang === 'th' ? 'กว้าง (W)' : 'Width'}</th>
-                            <th className="py-2.5 px-3 w-20 border-r border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80">{lang === 'th' ? 'สูง (H)' : 'Height'}</th>
+                            <th className="py-2.5 px-3 w-20 border-r border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80">{lang === 'th' ? `กว้าง (${unit})` : `Width (${unit})`}</th>
+                            <th className="py-2.5 px-3 w-20 border-r border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80">{lang === 'th' ? `สูง (${unit})` : `Height (${unit})`}</th>
                             <th className="py-2.5 px-3 w-24 border-r border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80">{lang === 'th' ? 'จำนวน' : 'Qty'}</th>
                             <th className="py-2.5 px-3 w-36 border-r border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80">{lang === 'th' ? 'ลักษณะงาน' : 'Job Type'}</th>
                             <th className="py-2.5 px-3 w-24 border-r border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80">{lang === 'th' ? 'ความหนา' : 'Thickness'}</th>
@@ -111,10 +121,12 @@ export function GlassSpecsTable({
                                         <input
                                             id={`pane-w-${idx}`}
                                             type="number"
-                                            min={50}
-                                            value={pane.glassWidth}
+                                            step="any"
+                                            min={unit === 'inch' ? 2 : 50}
+                                            value={formatCurrentUnit(pane.glassWidth)}
                                             onChange={(e) => {
-                                                const w = Math.max(1, parseInt(e.target.value) || 1);
+                                                const parsed = parseFloat(e.target.value) || 0;
+                                                const w = Math.max(1, Math.round(toMm(parsed)));
                                                 updatePaneAt(idx, {
                                                     glassWidth: w,
                                                     vertices: [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: pane.glassHeight }, { x: 0, y: pane.glassHeight }],
@@ -132,15 +144,18 @@ export function GlassSpecsTable({
                                         <input
                                             id={`pane-h-${idx}`}
                                             type="number"
-                                            min={50}
-                                            value={pane.glassHeight}
+                                            step="any"
+                                            min={unit === 'inch' ? 2 : 50}
+                                            value={formatCurrentUnit(pane.glassHeight)}
                                             onChange={(e) => {
-                                                const h = Math.max(1, parseInt(e.target.value) || 1);
+                                                const parsed = parseFloat(e.target.value) || 0;
+                                                const h = Math.max(1, Math.round(toMm(parsed)));
                                                 updatePaneAt(idx, {
                                                     glassHeight: h,
                                                     vertices: [{ x: 0, y: 0 }, { x: pane.glassWidth, y: 0 }, { x: pane.glassWidth, y: h }, { x: 0, y: h }],
                                                 });
                                             }}
+
                                             onFocus={() => {
                                                 if (activeTab !== idx) setActiveTab(idx);
                                             }}

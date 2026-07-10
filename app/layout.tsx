@@ -3,6 +3,7 @@ import { Noto_Sans_Thai } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { LanguageProvider } from "@/lib/i18n/language-context";
+import { UnitProvider } from "@/lib/unit/unit-context";
 import { AuthProvider } from "@/lib/auth/auth-context";
 import { AppLayout } from "@/components/layout/app-layout";
 import { Toaster } from "sonner";
@@ -38,11 +39,13 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <AuthProvider>
-            <LanguageProvider>
-              <GlobalNotificationListener />
-              <AppLayout>{children}</AppLayout>
-              <Toaster position="top-center" richColors closeButton />
-            </LanguageProvider>
+            <UnitProvider>
+              <LanguageProvider>
+                <GlobalNotificationListener />
+                <AppLayout>{children}</AppLayout>
+                <Toaster position="top-center" richColors closeButton />
+              </LanguageProvider>
+            </UnitProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

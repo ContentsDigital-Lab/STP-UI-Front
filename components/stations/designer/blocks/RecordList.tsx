@@ -12,7 +12,7 @@ import { Pane, PaneStation } from "@/lib/api/types";
 import { usePreview } from "../PreviewContext";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { useStationContext } from "../StationContext";
-import { getStationId, getStationName, isStationMatch } from "@/lib/utils/station-helpers";
+import { getStationId, getStationName, isStationMatch, formatPaneDimWithUnit } from "@/lib/utils/station-helpers";
 import { isPaneRetiredByMerge } from "@/lib/utils/pane-laminate";
 
 function floorPanes(list: Pane[] | undefined): Pane[] {
@@ -741,8 +741,15 @@ export function RecordList({
                                                                         </span>
                                                                         {pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0) && (
                                                                             <span className="text-[10px] text-muted-foreground">
-                                                                                {pane.dimensions.width}×{pane.dimensions.height}
-                                                                                {pane.dimensions.thickness > 0 && ` (${pane.dimensions.thickness}mm)`}
+                                                                                {(() => {
+                                                                                    const pd = formatPaneDimWithUnit(pane, row);
+                                                                                    return pd.dimStr ? (
+                                                                                        <>
+                                                                                            {pd.dimStr}
+                                                                                            {pd.thicknessStr && ` ${pd.thicknessStr}`}
+                                                                                        </>
+                                                                                    ) : null;
+                                                                                })()}
                                                                             </span>
                                                                         )}
                                                                         <span className="ml-auto text-[10px] text-muted-foreground">{getStationName(pane.currentStation)}</span>
@@ -832,7 +839,11 @@ export function RecordList({
                     code={qrPane.paneNumber}
                     label={[
                         qrPane.glassTypeLabel,
-                        qrPane.dimensions ? `${qrPane.dimensions.width}×${qrPane.dimensions.height}${qrPane.dimensions.thickness ? ` (${qrPane.dimensions.thickness}mm)` : ""}` : "",
+                        (() => {
+                            const qrRow = rows.find(r => String(r._id ?? r[idField] ?? "") === expandedRowId);
+                            const pd = formatPaneDimWithUnit(qrPane, qrRow);
+                            return pd.dimStr ? `${pd.dimStr}${pd.thicknessStr ? ` ${pd.thicknessStr}` : ""}` : "";
+                        })(),
                     ].filter(Boolean).join(" — ")}
                     value={qrPane.qrCode || `STDPLUS:${qrPane.paneNumber}`}
                     onClose={() => setQrPane(null)}

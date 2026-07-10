@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { panesApi } from "@/lib/api/panes";
 import { Pane } from "@/lib/api/types";
 import { getStickerTemplate, StickerTemplateRecord } from "@/lib/api/sticker-templates";
+import { formatPaneDimWithUnit } from "@/lib/utils/station-helpers";
 import type { StickerElement } from "@/app/settings/sticker/types";
 
 const MM_TO_PX = 3.7795275591;
@@ -27,9 +28,10 @@ function substituteVars(text: string, pane: Pane, order: Record<string, unknown>
     const vars: Record<string, string> = {
         "{{paneNumber}}":   pane.paneNumber ?? "",
         "{{glassType}}":    pane.jobType ?? pane.glassType ?? pane.glassTypeLabel ?? "",
-        "{{dimensions}}":   pane.dimensions
-            ? `${pane.dimensions.width}×${pane.dimensions.height}${pane.dimensions.thickness > 0 ? `×${pane.dimensions.thickness}` : ""}mm`
-            : "",
+        "{{dimensions}}":   (() => {
+            const pd = formatPaneDimWithUnit(pane, order);
+            return pd.dimStr ? `${pd.dimStr}${pd.thicknessStr ? ` ${pd.thicknessStr}` : ""}` : "";
+        })(),
         "{{qrCode}}":       pane.qrCode || `STDPLUS:${pane.paneNumber}`,
         "{{orderCode}}":    (order?.orderNumber ?? order?.code ?? "") as string,
         "{{customerName}}": (customer?.name ?? "") as string,
@@ -352,8 +354,15 @@ export default function PaneStickerPrintPage() {
                                             {pane.glassTypeLabel && <p className="text-xs font-semibold text-gray-700">{pane.glassTypeLabel}</p>}
                                             {pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0) && (
                                                 <p className="text-[10px] text-gray-500 mt-0.5">
-                                                    {pane.dimensions.width} × {pane.dimensions.height}
-                                                    {pane.dimensions.thickness > 0 && ` × ${pane.dimensions.thickness}mm`}
+                                                    {(() => {
+                                                        const pd = formatPaneDimWithUnit(pane);
+                                                        return pd.dimStr ? (
+                                                            <>
+                                                                {pd.dimStr}
+                                                                {pd.thicknessStr && ` ${pd.thicknessStr}`}
+                                                            </>
+                                                        ) : null;
+                                                    })()}
                                                 </p>
                                             )}
                                         </div>

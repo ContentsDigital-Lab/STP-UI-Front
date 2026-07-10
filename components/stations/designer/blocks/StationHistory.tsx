@@ -11,7 +11,7 @@ import { fetchApi } from "@/lib/api/config";
 import { panesApi } from "@/lib/api/panes";
 import { Pane } from "@/lib/api/types";
 import { parseQrScan } from "@/lib/utils/parseQrScan";
-import { isStationMatch } from "@/lib/utils/station-helpers";
+import { isStationMatch, formatPaneDimWithUnit } from "@/lib/utils/station-helpers";
 import { isPaneRetiredByMerge, resolveActivePane } from "@/lib/utils/pane-laminate";
 import { withMergedIntoScanRetry } from "@/lib/utils/merged-into-scan";
 import { usePreview } from "../PreviewContext";
@@ -427,8 +427,15 @@ export function StationHistory({
                                                                 )}
                                                                 {pane.dimensions && (pane.dimensions.width > 0 || pane.dimensions.height > 0) && (
                                                                     <span className="text-[10px] text-muted-foreground/60 shrink-0">
-                                                                        {pane.dimensions.width}×{pane.dimensions.height}
-                                                                        {pane.dimensions.thickness > 0 && ` (${pane.dimensions.thickness}mm)`}
+                                                                        {(() => {
+                                                                            const pd = formatPaneDimWithUnit(pane);
+                                                                            return pd.dimStr ? (
+                                                                                <>
+                                                                                    {pd.dimStr}
+                                                                                    {pd.thicknessStr && ` ${pd.thicknessStr}`}
+                                                                                </>
+                                                                            ) : null;
+                                                                        })()}
                                                                     </span>
                                                                 )}
                                                             </div>
@@ -512,7 +519,10 @@ export function StationHistory({
                         code={qrPane.paneNumber}
                         label={[
                             qrPane.glassTypeLabel,
-                            qrPane.dimensions ? `${qrPane.dimensions.width}×${qrPane.dimensions.height}${qrPane.dimensions.thickness > 0 ? ` (${qrPane.dimensions.thickness}mm)` : ""}` : "",
+                            (() => {
+                                const pd = formatPaneDimWithUnit(qrPane);
+                                return pd.dimStr ? `${pd.dimStr}${pd.thicknessStr ? ` ${pd.thicknessStr}` : ""}` : "";
+                            })(),
                         ].filter(Boolean).join(" — ")}
                         value={qrPane.qrCode || `STDPLUS:${qrPane.paneNumber}`}
                         onClose={() => setQrPane(null)}
