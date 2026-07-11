@@ -21,6 +21,7 @@ export const metadata: Metadata = {
 };
 
 import { GlobalNotificationListener } from "@/components/notifications/global-listener";
+import { QueryProvider } from "@/components/providers/query-provider";
 
 export default function RootLayout({
   children,
@@ -32,22 +33,24 @@ export default function RootLayout({
       <body
         className={`${notoSansThai.variable} font-sans antialiased overflow-hidden`}
       >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <AuthProvider>
-            <UnitProvider>
-              <LanguageProvider>
-                <GlobalNotificationListener />
-                <AppLayout>{children}</AppLayout>
-                <Toaster position="top-center" richColors closeButton />
-              </LanguageProvider>
-            </UnitProvider>
-          </AuthProvider>
-        </ThemeProvider>
+        <QueryProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <AuthProvider>
+              <UnitProvider>
+                <LanguageProvider>
+                  <GlobalNotificationListener />
+                  <AppLayout>{children}</AppLayout>
+                  <Toaster position="top-center" richColors closeButton />
+                </LanguageProvider>
+              </UnitProvider>
+            </AuthProvider>
+          </ThemeProvider>
+        </QueryProvider>
       </body>
     </html>
   );

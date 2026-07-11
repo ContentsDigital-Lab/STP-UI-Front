@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     effectiveShowWithdrawClaimActions,
     removeWithdrawClaimLocalPreference,
@@ -228,20 +229,32 @@ export default function StationsPage() {
     const { user } = useAuth();
     const canManage = hasPermission(user, "stations:manage");
 
-    const [stations,    setStations]    = useState<Station[]>([]);
-    const [templates,   setTemplates]   = useState<StationTemplate[]>([]);
-    const [tmplNames,   setTmplNames]   = useState<Record<string, string>>({});
-    const [loading,     setLoading]     = useState(true);
-    const [loadingTmpl, setLoadingTmpl] = useState(true);
+    const queryClient = useQueryClient();
+
+    const { data: stations = [], isLoading: loading } = useQuery({
+        queryKey: ["stations"],
+        queryFn: async () => {
+            const res = await stationsApi.getAll();
+            return res.success ? res.data : [];
+        }
+    });
+
+    const { data: templatesData, isLoading: loadingTmpl } = useQuery({
+        queryKey: ["stationTemplates"],
+        queryFn: async () => {
+            const t = await getStationTemplates();
+            const names: Record<string, string> = {};
+            for (const tmpl of t) names[tmpl._id] = tmpl.name;
+            return { templates: t, tmplNames: names };
+        }
+    });
+    
+    const templates = templatesData?.templates ?? [];
+    const tmplNames = templatesData?.tmplNames ?? {};
 
     const [showCreate, setShowCreate] = useState(false);
     const [editing,    setEditing]    = useState<Station | null>(null);
     const [deleting,   setDeleting]   = useState<Station | null>(null);
-
-    const reload = async () => {
-        const res = await stationsApi.getAll();
-        if (res.success) setStations(res.data);
-    };
 
     useEffect(() => {
         // Clear all legacy localStorage station data
@@ -250,60 +263,54 @@ export default function StationsPage() {
             localStorage.removeItem("std_station_templates");
             localStorage.removeItem("std_station_colors");
         }
-
-        reload().finally(() => setLoading(false));
-        getStationTemplates()
-            .then((t) => {
-                setTemplates(t);
-                const names: Record<string, string> = {};
-                for (const tmpl of t) names[tmpl._id] = tmpl.name;
-                setTmplNames(names);
-            })
-            .finally(() => setLoadingTmpl(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const handleCreate = async (data: { name: string; colorId: string; templateId?: string; isLaminateStation?: boolean; showWithdrawClaimActions?: boolean }) => {
-        try {
-            const res = await stationsApi.create(data);
+    const createMutation = useMutation({
+        mutationFn: (data: any) => stationsApi.create(data),
+        onSuccess: (res, data) => {
             if (res.success && res.data?._id) {
                 syncWithdrawClaimLocalPreference(res.data._id, data.showWithdrawClaimActions);
             }
-            await reload();
+            queryClient.invalidateQueries({ queryKey: ["stations"] });
             setShowCreate(false);
             toast.success("สร้างสถานีแล้ว");
-        } catch (err) {
+        },
+        onError: (err) => {
             toast.error("สร้างสถานีไม่สำเร็จ — " + (err instanceof Error ? err.message : "unknown error"));
         }
-    };
+    });
 
-    const handleUpdate = async (data: { name: string; colorId: string; templateId?: string; isLaminateStation?: boolean; showWithdrawClaimActions?: boolean }) => {
-        if (!editing) return;
-        try {
-            const res = await stationsApi.update(editing._id, data);
+    const updateMutation = useMutation({
+        mutationFn: ({ id, data }: { id: string, data: any }) => stationsApi.update(id, data),
+        onSuccess: (res, { id, data }) => {
             if (res.success) {
-                syncWithdrawClaimLocalPreference(editing._id, data.showWithdrawClaimActions);
+                syncWithdrawClaimLocalPreference(id, data.showWithdrawClaimActions);
             }
-            await reload();
+            queryClient.invalidateQueries({ queryKey: ["stations"] });
             setEditing(null);
             toast.success("บันทึกแล้ว");
-        } catch (err) {
+        },
+        onError: (err) => {
             toast.error("บันทึกไม่สำเร็จ — " + (err instanceof Error ? err.message : "unknown error"));
         }
-    };
+    });
 
-    const handleDelete = async () => {
-        if (!deleting) return;
-        try {
-            await stationsApi.delete(deleting._id);
-            removeWithdrawClaimLocalPreference(deleting._id);
-            await reload();
+    const deleteMutation = useMutation({
+        mutationFn: (id: string) => stationsApi.delete(id),
+        onSuccess: (_, id) => {
+            removeWithdrawClaimLocalPreference(id);
+            queryClient.invalidateQueries({ queryKey: ["stations"] });
             setDeleting(null);
             toast.success("ลบสถานีแล้ว");
-        } catch (err) {
+        },
+        onError: (err) => {
             toast.error("ลบไม่สำเร็จ — " + (err instanceof Error ? err.message : "unknown error"));
         }
-    };
+    });
+
+    const handleCreate = (data: any) => createMutation.mutate(data);
+    const handleUpdate = (data: any) => editing && updateMutation.mutate({ id: editing._id, data });
+    const handleDelete = () => deleting && deleteMutation.mutate(deleting._id);
 
     const filteredStations = stations.filter((station) => {
         const slug = user?.role && typeof user.role === 'object' ? user.role.slug : user?.role;
