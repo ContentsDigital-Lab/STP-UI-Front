@@ -895,9 +895,8 @@ export default function MaterialLogsPage() {
                                                             { day: "2-digit", month: "short", year: "numeric" }
                                                         )}
                                                     </span>
-                                                    <span className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
-                                                        <Clock className="h-2.5 w-2.5" />
-                                                        {new Date(log.createdAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                                                    <span className="text-[11px] text-slate-400 mt-0.5">
+                                                        {new Date(log.createdAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}{lang === "th" ? " น." : ""}
                                                     </span>
                                                 </div>
                                             </TableCell>

@@ -377,7 +377,7 @@ export default function ProductionPage() {
             {/* Summary cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {[
-                    { filterValue: "all", label: "ออเดอร์ทั้งหมด", count: orders.length,     icon: ClipboardList, accent: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10" },
+                    { filterValue: "all", label: "ออเดอร์ทั้งหมด", count: orders.length,     icon: Package, accent: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10" },
                     { filterValue: "pending", label: "รอดำเนินการ",  count: pendingOrdersCount,   icon: AlertCircle,   accent: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10" },
                     { filterValue: "in_progress", label: "กำลังผลิต",  count: activeOrdersCount,    icon: RefreshCw,     accent: "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10" },
                     { filterValue: "completed", label: "เสร็จแล้ว",  count: completedOrdersCount, icon: CheckCheck,    accent: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10" },

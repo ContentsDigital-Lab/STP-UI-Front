@@ -274,7 +274,7 @@ export default function DashboardPage() {
       return {
          type: log.actionType,
          material: materialName,
-         qty: log.actionType === "import" ? `+${Math.abs(log.quantityChanged)}` : `-${Math.abs(log.quantityChanged)}`,
+         qty: log.quantityChanged === 0 ? "—" : log.actionType === "import" ? `+${Math.abs(log.quantityChanged)}` : `-${Math.abs(log.quantityChanged)}`,
          time: timeStr,
          user: userName,
       };
@@ -365,7 +365,7 @@ export default function DashboardPage() {
             value: dataLoaded ? analytics.withdrawalsToday.toString() : "...",
             change: "",
             positive: true,
-            icon: ArrowUpRight,
+            icon: Package,
             accent: "text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-500/10",
             href: "/withdrawals?dateFilter=today"
           },
