@@ -5,6 +5,7 @@ import { materialLogsApi } from "@/lib/api/material-logs";
 import { panesApi } from "@/lib/api/panes";
 import { productionLogsApi } from "@/lib/api/production-logs";
 import { MaterialLog, Order, Material, Worker, Inventory, PaneLog, TimelineEvent, Pane, Station, Claim, Withdrawal } from "@/lib/api/types";
+import { useUnit } from "@/lib/unit/unit-context";
 import { inventoriesApi } from "@/lib/api/inventories";
 import { workersApi } from "@/lib/api/workers";
 import { stationsApi } from "@/lib/api/stations";
@@ -154,6 +155,7 @@ function getMoveLocations(
 
 export default function MaterialLogsPage() {
     const { t, lang } = useLanguage();
+    const { unit, formatCurrentUnit } = useUnit();
     const [logs, setLogs] = useState<MaterialLog[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -282,6 +284,38 @@ export default function MaterialLogsPage() {
             });
 
             setLastUpdated(new Date());
+        }, [])
+    );
+
+    // Subscribe to "claim" room to keep references updated
+    useWebSocket(
+        "claim",
+        ["claim:updated"],
+        useCallback((_event: string, data: unknown) => {
+            const payload = data as { action?: string; data?: Claim };
+            if (payload?.data && payload.action !== "deleted") {
+                setClaimMap(prev => {
+                    const next = new Map(prev);
+                    next.set(payload.data!._id, payload.data!);
+                    return next;
+                });
+            }
+        }, [])
+    );
+
+    // Subscribe to "withdrawal" room to keep references updated
+    useWebSocket(
+        "withdrawal",
+        ["withdrawal:updated"],
+        useCallback((_event: string, data: unknown) => {
+            const payload = data as { action?: string; data?: Withdrawal };
+            if (payload?.data && payload.action !== "deleted") {
+                setWithdrawalMap(prev => {
+                    const next = new Map(prev);
+                    next.set(payload.data!._id, payload.data!);
+                    return next;
+                });
+            }
         }, [])
     );
 
@@ -423,7 +457,9 @@ export default function MaterialLogsPage() {
         const totalImport = detailLogs.filter(l => l.actionType === "import").reduce((s, l) => s + l.quantityChanged, 0);
         const totalWithdraw = detailLogs.filter(l => l.actionType === "withdraw").reduce((s, l) => s + Math.abs(l.quantityChanged), 0);
         const totalCut = detailLogs.filter(l => l.actionType === "cut").reduce((s, l) => s + Math.abs(l.quantityChanged), 0);
-        const totalClaim = detailLogs.filter(l => l.actionType === "claim").reduce((s, l) => s + Math.abs(l.quantityChanged), 0);
+        const totalClaim = detailLogs.filter(l => l.actionType === "claim").reduce((s, l) => {
+            return s + Math.abs(l.quantityChanged);
+        }, 0);
         const net = detailLogs.reduce((s, l) => s + l.quantityChanged, 0);
         return { totalImport, totalWithdraw, totalCut, totalClaim, net };
     }, [detailLogs]);
@@ -463,9 +499,23 @@ export default function MaterialLogsPage() {
         return <div className={`w-3 h-3 rounded-full shrink-0 mt-1.5 z-10 relative ${isHead ? style.hollow : style.fill}`} />;
     };
 
-    const renderQuantityChanged = (qty: number) => {
+    const renderQuantity = (log: MaterialLog) => {
+        const action = log.actionType;
+        const qty = log.quantityChanged;
+        
+        if (qty === 0) return <span className="text-slate-300 dark:text-slate-700">—</span>;
+        
         const isPositive = qty > 0;
-        const colorClass = isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400";
+        const colorClass = action === "claim" ? "text-red-600 dark:text-red-400" : (isPositive ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400");
+        
+        if (action === "claim") {
+            return (
+                <span className={`text-sm font-bold tabular-nums ${colorClass}`}>
+                    {Math.abs(qty).toLocaleString()}
+                </span>
+            );
+        }
+
         const sign = isPositive ? "+" : "";
         return (
             <span className={`text-sm font-bold tabular-nums ${colorClass}`}>
@@ -475,9 +525,18 @@ export default function MaterialLogsPage() {
     };
 
     const renderOrderRef = (log: MaterialLog) => {
-        if (!log.order) return <span className="text-slate-300 dark:text-slate-700">—</span>;
-        const orderObj = typeof log.order === "object" && log.order !== null ? log.order as Order : null;
-        const orderId = orderObj?._id ?? String(log.order);
+        let orderObj = typeof log.order === "object" && log.order !== null ? log.order as Order : null;
+        let orderId = orderObj?._id ?? (log.order ? String(log.order) : null);
+
+        // Fallback: If it's a claim or remake, resolve order from the claim reference
+        if (!orderId && log.referenceType === "claim" && log.referenceId) {
+            const claim = claimMap.get(log.referenceId);
+            if (claim && claim.order) {
+                orderObj = typeof claim.order === "object" && claim.order !== null ? claim.order as Order : null;
+                orderId = orderObj?._id ?? String(claim.order);
+            }
+        }
+
         if (!orderId) return <span className="text-slate-300 dark:text-slate-700">—</span>;
         const label = orderObj?.orderNumber ?? `#${orderId.slice(-6).toUpperCase()}`;
         return (
@@ -488,6 +547,47 @@ export default function MaterialLogsPage() {
     };
 
     const renderStation = (log: MaterialLog) => {
+        // If it's a claim or remake, show the station where it was claimed (defectStation)
+        if (log.actionType === "claim") {
+            if (log.referenceType === "claim" && log.referenceId) {
+                const c = claimMap.get(log.referenceId);
+                const defectStationId = c?.defectStation ? getStationId(c.defectStation) : null;
+                if (defectStationId) {
+                    const station = stationMap.get(defectStationId);
+                    const name = station?.name ?? getStationName(c!.defectStation);
+                    
+                    const COLOR_MAP: Record<string, { bg: string; text: string; dot: string }> = {
+                        red:     { bg: "bg-red-50 dark:bg-red-500/10",     text: "text-red-600 dark:text-red-400",     dot: "bg-red-500" },
+                        orange:  { bg: "bg-orange-50 dark:bg-orange-500/10", text: "text-orange-600 dark:text-orange-400", dot: "bg-orange-500" },
+                        amber:   { bg: "bg-amber-50 dark:bg-amber-500/10", text: "text-amber-600 dark:text-amber-400", dot: "bg-amber-500" },
+                        yellow:  { bg: "bg-yellow-50 dark:bg-yellow-500/10", text: "text-yellow-600 dark:text-yellow-400", dot: "bg-yellow-500" },
+                        lime:    { bg: "bg-lime-50 dark:bg-lime-500/10",   text: "text-lime-600 dark:text-lime-400",   dot: "bg-lime-500" },
+                        green:   { bg: "bg-green-50 dark:bg-green-500/10", text: "text-green-600 dark:text-green-400", dot: "bg-green-500" },
+                        emerald: { bg: "bg-emerald-50 dark:bg-emerald-500/10", text: "text-emerald-600 dark:text-emerald-400", dot: "bg-emerald-500" },
+                        teal:    { bg: "bg-teal-50 dark:bg-teal-500/10",   text: "text-teal-600 dark:text-teal-400",   dot: "bg-teal-500" },
+                        cyan:    { bg: "bg-cyan-50 dark:bg-cyan-500/10",   text: "text-cyan-600 dark:text-cyan-400",   dot: "bg-cyan-500" },
+                        sky:     { bg: "bg-sky-50 dark:bg-sky-500/10",     text: "text-sky-600 dark:text-sky-400",     dot: "bg-sky-500" },
+                        blue:    { bg: "bg-blue-50 dark:bg-blue-500/10",   text: "text-blue-600 dark:text-blue-400",   dot: "bg-blue-500" },
+                        indigo:  { bg: "bg-indigo-50 dark:bg-indigo-500/10", text: "text-indigo-600 dark:text-indigo-400", dot: "bg-indigo-500" },
+                        violet:  { bg: "bg-violet-50 dark:bg-violet-500/10", text: "text-violet-600 dark:text-violet-400", dot: "bg-violet-500" },
+                        purple:  { bg: "bg-purple-50 dark:bg-purple-500/10", text: "text-purple-600 dark:text-purple-400", dot: "bg-purple-500" },
+                        fuchsia: { bg: "bg-fuchsia-50 dark:bg-fuchsia-500/10", text: "text-fuchsia-600 dark:text-fuchsia-400", dot: "bg-fuchsia-500" },
+                        pink:    { bg: "bg-pink-50 dark:bg-pink-500/10",   text: "text-pink-600 dark:text-pink-400",   dot: "bg-pink-500" },
+                        rose:    { bg: "bg-rose-50 dark:bg-rose-500/10",   text: "text-rose-600 dark:text-rose-400",   dot: "bg-rose-500" },
+                        slate:   { bg: "bg-slate-100 dark:bg-slate-800",   text: "text-slate-600 dark:text-slate-400", dot: "bg-slate-500" },
+                    };
+                    const colorId = station?.colorId ?? "sky";
+                    const colorClasses = COLOR_MAP[colorId] ?? COLOR_MAP.sky;
+                    return (
+                        <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md ${colorClasses.bg} ${colorClasses.text}`}>
+                            <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${colorClasses.dot}`} />
+                            {name}
+                        </span>
+                    );
+                }
+            }
+        }
+
         // Try to get station from pane first (most accurate for current station)
         const pane = log.panes && log.panes.length > 0 && typeof log.panes[0] === "object" ? log.panes[0] as Pane : null;
         if (pane && pane.currentStation) {
@@ -631,7 +731,7 @@ export default function MaterialLogsPage() {
                     { label: lang === "th" ? "รายการทั้งหมด" : "Total Records", value: filteredLogs.length, accent: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10", icon: History },
                     { label: lang === "th" ? "นำเข้า" : "Imported", value: logs.filter(l => l.actionType === "import").length, accent: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10", icon: ArrowDownRight },
                     { label: lang === "th" ? "เบิกออก" : "Withdrawn", value: logs.filter(l => l.actionType === "withdraw").length, accent: "text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-500/10", icon: ArrowUpRight },
-                    { label: lang === "th" ? "ตัด/เคลม" : "Cut/Claim", value: logs.filter(l => l.actionType === "cut" || l.actionType === "claim").length, accent: "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10", icon: Scissors },
+                    { label: lang === "th" ? "ตัด/เคลม/รีเมค" : "Cut/Claim/Remake", value: logs.filter(l => l.actionType === "cut" || l.actionType === "claim").length, accent: "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10", icon: Scissors },
                 ].map((stat) => (
                     <div key={stat.label} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm">
                         <div className={`h-8 w-8 rounded-lg flex items-center justify-center mb-2 ${stat.accent}`}>
@@ -673,6 +773,7 @@ export default function MaterialLogsPage() {
                                     <SelectItem value="import">{lang === "th" ? "นำเข้าคลัง" : "Import"}</SelectItem>
                                     <SelectItem value="withdraw">{lang === "th" ? "เบิกออก" : "Withdraw"}</SelectItem>
                                     <SelectItem value="claim">{lang === "th" ? "เคลม" : "Claim"}</SelectItem>
+                                    <SelectItem value="remake">{lang === "th" ? "รีเมค (ทำใหม่)" : "Remake"}</SelectItem>
                                     <SelectItem value="cut">{lang === "th" ? "ตัด/แปรรูป" : "Cut"}</SelectItem>
                                 </SelectContent>
                             </Select>
@@ -729,7 +830,7 @@ export default function MaterialLogsPage() {
                                 <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">
                                     {lang === "th" ? "การกระทำ" : "Action"}
                                 </TableHead>
-                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10 whitespace-nowrap">
+                                <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10 whitespace-nowrap text-right px-4">
                                     {lang === "th" ? "จำนวน" : "Qty"}
                                 </TableHead>
                                 <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10 whitespace-nowrap">
@@ -789,8 +890,8 @@ export default function MaterialLogsPage() {
                                                 {renderActionBadge(log)}
                                             </TableCell>
 
-                                            <TableCell className="py-3.5">
-                                                {renderQuantityChanged(log.quantityChanged)}
+                                            <TableCell className="py-3.5 px-4">
+                                                {renderQuantity(log)}
                                             </TableCell>
 
                                             <TableCell className="py-3.5">
@@ -1045,7 +1146,7 @@ export default function MaterialLogsPage() {
 
                                             const dims = pane?.dimensions;
                                             const dimStr = dims && (dims.width > 0 || dims.height > 0)
-                                                ? `${dims.width}×${dims.height}${dims.thickness > 0 ? ` (${dims.thickness}mm)` : ""}`
+                                                ? `${formatCurrentUnit(dims.width)}×${formatCurrentUnit(dims.height)}${unit === 'mm' ? '' : ` ${unit}`}${dims.thickness > 0 ? ` (${dims.thickness}mm)` : ""}`
                                                 : null;
 
                                             return (
@@ -1164,7 +1265,7 @@ export default function MaterialLogsPage() {
                                                                         {new Date(matLog.createdAt).toLocaleString(lang === "th" ? "th-TH" : "en-US", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                                                                     </div>
                                                                 </div>
-                                                                <div className="text-right shrink-0">{renderQuantityChanged(matLog.quantityChanged)}</div>
+                                                                <div className="text-right shrink-0">{renderQuantity(matLog)}</div>
                                                             </div>
                                                             <div className="flex flex-wrap gap-1.5 pt-2 border-t border-slate-50 dark:border-slate-800">
 
@@ -1311,7 +1412,7 @@ export default function MaterialLogsPage() {
                             const p = viewingPane;
                             const dims = p.dimensions;
                             const dimStr = dims && (dims.width > 0 || dims.height > 0)
-                                ? `${dims.width} × ${dims.height}${dims.thickness > 0 ? ` × ${dims.thickness}` : ""} mm`
+                                ? `${formatCurrentUnit(dims.width)} × ${formatCurrentUnit(dims.height)} ${unit === 'mm' ? 'mm' : unit}${dims.thickness > 0 ? ` (หนา ${dims.thickness}mm)` : ""}`
                                 : null;
                             const rawGlassStr = p.rawGlass
                                 ? [p.rawGlass.glassType, p.rawGlass.color, p.rawGlass.thickness ? `${p.rawGlass.thickness}mm` : null, p.rawGlass.sheetsPerPane > 1 ? `${p.rawGlass.sheetsPerPane} แผ่น/ชิ้น` : null].filter(Boolean).join(" · ")

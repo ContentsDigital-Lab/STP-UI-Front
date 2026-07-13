@@ -909,7 +909,7 @@ export default function InventoryPage() {
                                     const mat = getMaterialInfo(inv.material);
                                     const isLow = mat && inv.quantity <= mat.reorderPoint;
                                     const isNearLow = mat && !isLow && inv.quantity <= mat.reorderPoint * 1.5;
-                                    const statusText = isLow ? it.table.lowStock : it.table.healthy;
+                                    const statusText = isLow ? it.table.lowStock : isNearLow ? it.table.warning : it.table.healthy;
 
                                     const rowBg = isLow
                                         ? 'bg-red-50/70 dark:bg-red-950/20 hover:bg-red-100/80 dark:hover:bg-red-950/30'
@@ -946,7 +946,9 @@ export default function InventoryPage() {
                                                     variant="secondary"
                                                     className={`rounded-md px-2 py-0.5 text-xs font-medium ${isLow
                                                         ? "bg-red-50 dark:bg-red-900/20 text-red-600 border-red-100 dark:border-red-900/50"
-                                                        : "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 border-emerald-100 dark:border-emerald-900/50"
+                                                        : isNearLow
+                                                            ? "bg-amber-50 dark:bg-amber-900/20 text-amber-600 border-amber-100 dark:border-amber-900/50"
+                                                            : "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 border-emerald-100 dark:border-emerald-900/50"
                                                         }`}
                                                 >
                                                     {statusText}
@@ -1050,6 +1052,7 @@ export default function InventoryPage() {
                     {selectedInventory && (() => {
                         const mat = getMaterialInfo(selectedInventory.material);
                         const isLowStock = mat?.reorderPoint != null && selectedInventory.quantity <= mat.reorderPoint;
+                        const isNearLowStock = mat?.reorderPoint != null && !isLowStock && selectedInventory.quantity <= mat.reorderPoint * 1.5;
                         const reorderPct = mat?.reorderPoint && mat.reorderPoint > 0
                             ? Math.min(100, Math.round((selectedInventory.quantity / (mat.reorderPoint * 3)) * 100))
                             : null;
@@ -1061,7 +1064,7 @@ export default function InventoryPage() {
                                     {/* Close + meta row */}
                                     <div className="flex items-center justify-between mb-4">
                                         <div className="flex items-center gap-2">
-                                            <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${isLowStock ? "bg-red-500" : "bg-emerald-500"}`} />
+                                            <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${isLowStock ? "bg-red-500" : isNearLowStock ? "bg-amber-500" : "bg-emerald-500"}`} />
                                             <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">
                                                 {selectedInventory.inventoryNumber || selectedInventory._id.slice(-6).toUpperCase()}
                                             </span>
@@ -1115,8 +1118,8 @@ export default function InventoryPage() {
                                                         {lang === 'th' ? 'จุดสั่งซื้อ' : 'Reorder at'} {mat.reorderPoint}
                                                     </p>
                                                 )}
-                                                <p className={`text-xs font-medium ${isLowStock ? "text-red-500" : "text-emerald-600"}`}>
-                                                    {isLowStock ? it.table.lowStock : it.table.healthy}
+                                                <p className={`text-xs font-medium ${isLowStock ? "text-red-500" : isNearLowStock ? "text-amber-500" : "text-emerald-600"}`}>
+                                                    {isLowStock ? it.table.lowStock : isNearLowStock ? it.table.warning : it.table.healthy}
                                                 </p>
                                             </div>
                                         </div>

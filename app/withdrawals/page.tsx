@@ -1,9 +1,12 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
     Plus, Search, Trash2, ArrowDownFromLine,
-    ChevronLeft, ChevronRight, Package, MoreHorizontal, X
+    ChevronLeft, ChevronRight, Package, MoreHorizontal, X,
+    Info, User, Calendar, Hash, Factory, Eye
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,6 +71,9 @@ export default function WithdrawalsPage() {
     const [deleteTarget, setDeleteTarget] = useState<Withdrawal | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
 
+    // Detail dialog
+    const [detailTarget, setDetailTarget] = useState<Withdrawal | null>(null);
+
     // Initial data load (once)
     useEffect(() => {
         Promise.all([
@@ -131,6 +137,18 @@ export default function WithdrawalsPage() {
         if (typeof w === "object") return w.name;
         return workerMap.get(w)?.name ?? w.slice(-6);
     };
+
+    const InfoRow = ({ icon: Icon, label, value }: { icon: React.ElementType, label: string, value: string }) => (
+        <div className="flex items-start gap-3 sm:gap-4 py-3 sm:py-4 border-b border-slate-100 dark:border-slate-800/60 last:border-0 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors px-2 -mx-2 rounded-xl">
+            <div className="p-2 rounded-xl bg-blue-50 dark:bg-[#E8601C]/10 text-blue-600 dark:text-[#E8601C] shrink-0 mt-0.5">
+                <Icon className="h-4 w-4" />
+            </div>
+            <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{label}</p>
+                <p className="text-sm sm:text-base font-semibold text-slate-800 dark:text-slate-200 mt-1 break-words">{value}</p>
+            </div>
+        </div>
+    );
 
     // Filtered & paginated data
     const filtered = useMemo(() => {
@@ -307,7 +325,11 @@ export default function WithdrawalsPage() {
                                 </TableRow>
                             ) : (
                                 paginated.map((w) => (
-                                    <TableRow key={w._id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 border-slate-100 dark:border-slate-800">
+                                    <TableRow 
+                                        key={w._id} 
+                                        className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 border-slate-100 dark:border-slate-800 cursor-pointer"
+                                        onClick={() => setDetailTarget(w)}
+                                    >
                                         <TableCell className="text-sm py-3.5 px-4 text-slate-600 dark:text-slate-300">
                                             {new Date(w.withdrawnDate ?? w.createdAt).toLocaleDateString("th-TH")}
                                         </TableCell>
@@ -323,15 +345,22 @@ export default function WithdrawalsPage() {
                                         </TableCell>
                                         <TableCell className="text-sm py-3.5 text-slate-600 dark:text-slate-300">{getWorkerName(w.withdrawnBy)}</TableCell>
                                         {canManage && (
-                                            <TableCell className="py-3.5 pr-4">
+                                            <TableCell className="py-3.5 pr-4" onClick={(e) => e.stopPropagation()}>
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger className="inline-flex h-8 w-8 items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
                                                         <MoreHorizontal className="h-4 w-4" />
                                                     </DropdownMenuTrigger>
                                                     <DropdownMenuContent align="end">
+                                                        <DropdownMenuItem onClick={() => setDetailTarget(w)}>
+                                                            <Eye className="mr-2 h-4 w-4" />
+                                                            ดูรายละเอียด
+                                                        </DropdownMenuItem>
                                                         <DropdownMenuItem
                                                             className="text-red-500 focus:text-red-500"
-                                                            onClick={() => setDeleteTarget(w)}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setDeleteTarget(w);
+                                                            }}
                                                         >
                                                             <Trash2 className="mr-2 h-4 w-4" />
                                                             ลบรายการ
@@ -515,6 +544,43 @@ export default function WithdrawalsPage() {
                             <Button className="flex-1 rounded-xl h-10 text-sm bg-red-600 hover:bg-red-700 text-white" onClick={handleDelete} disabled={isDeleting}>
                                 {isDeleting ? "กำลังลบ..." : "ลบรายการ"}
                             </Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+                {/* Detail Dialog */}
+                <Dialog open={!!detailTarget} onOpenChange={() => setDetailTarget(null)}>
+                    <DialogContent className="sm:max-w-lg rounded-xl p-0 overflow-hidden bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800">
+                        {/* Header */}
+                        <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="h-10 w-10 rounded-xl bg-blue-100 dark:bg-[#E8601C]/20 flex items-center justify-center shrink-0">
+                                        <Package className="h-5 w-5 text-blue-600 dark:text-[#E8601C]" />
+                                    </div>
+                                    <div>
+                                        <DialogTitle className="text-lg font-bold text-slate-900 dark:text-white">รายละเอียดการเบิก</DialogTitle>
+                                        <DialogDescription className="text-xs font-medium text-slate-500 mt-0.5">
+                                            รหัส: {detailTarget?.withdrawalNumber || (detailTarget?._id ? `#${detailTarget._id.slice(-6).toUpperCase()}` : "-")}
+                                        </DialogDescription>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Body */}
+                        <div className="px-6 py-5">
+                            {detailTarget && (
+                                <div className="space-y-2">
+                                    <InfoRow icon={Package} label="วัสดุที่เบิก" value={getMaterialName(detailTarget.material)} />
+                                    <InfoRow icon={Hash} label="จำนวน" value={`${detailTarget.quantity} ชิ้น`} />
+                                    <InfoRow icon={Factory} label="ประเภทสต็อก" value={detailTarget.stockType === "Raw" ? "กระจกดิบ (Raw)" : "กระจกนำกลับ (Reuse)"} />
+                                    <InfoRow icon={Info} label="อ้างอิง Order" value={getOrderLabel(detailTarget.order)} />
+                                    <InfoRow icon={User} label="ผู้เบิก" value={getWorkerName(detailTarget.withdrawnBy)} />
+                                    <InfoRow icon={Calendar} label="วัน-เวลาที่เบิก" value={new Date(detailTarget.withdrawnDate || detailTarget.createdAt).toLocaleDateString("th-TH", {
+                                        day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit"
+                                    })} />
+                                </div>
+                            )}
                         </div>
                     </DialogContent>
                 </Dialog>

@@ -123,6 +123,7 @@ export function ClaimModal({ stationId, onClose }: ClaimModalProps) {
                 source: "worker",
                 reportedBy: user?._id,
                 photos: photos.length ? photos : undefined,
+                defectStation: stationId,
             });
 
             if (!res.success) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Package, X, Factory, CheckCheck, Loader2 } from "lucide-react";
+import { Package, X, Factory, Check, Loader2 } from "lucide-react";
 import { panesApi } from "@/lib/api/panes";
 import { paneLogsApi } from "@/lib/api/pane-logs";
 import { getColorOption } from "@/lib/stations/stations-store";
@@ -351,8 +351,8 @@ export function PaneDetailModal({
                       className="h-8 w-8 rounded-full flex items-center justify-center"
                       style={{ backgroundColor: `${heroColor.swatch}25` }}
                     >
-                      <CheckCheck
-                        className="h-4 w-4"
+                      <Check
+                        className="h-3 w-3"
                         style={{ color: heroColor.swatch }}
                       />
                     </div>
@@ -401,7 +401,7 @@ export function PaneDetailModal({
               )}
 
               {routing.length > 0 && (
-                <div className="flex items-center gap-1.5 mt-4">
+                <div className="flex items-center gap-1.5 mt-4 mb-2">
                   <div className="flex items-center flex-1 min-w-0">
                     {routing.map((routeRef, idx) => {
                       const rid = getStationId(routeRef);
@@ -411,26 +411,45 @@ export function PaneDetailModal({
                         (rname ? stationByName.get(rname) : undefined) ??
                         (rid ? stationByName.get(rid) : undefined);
                       const dc = getColorOption(st?.colorId ?? "sky");
-                      const dp =
-                        isCompleted ||
-                        (currentStationIdx >= 0 && idx < currentStationIdx);
-                      const dcr = !isCompleted && idx === currentStationIdx;
+                      const dp = isCompleted 
+                        ? idx < routing.length - 1 
+                        : (currentStationIdx >= 0 && idx < currentStationIdx);
+                      const dcr = isCompleted
+                        ? idx === routing.length - 1
+                        : (!isCompleted && idx === currentStationIdx);
                       return (
                         <div
                           key={rid || `r-${idx}`}
-                          className="flex items-center flex-1"
+                          className={`flex items-center ${idx < routing.length - 1 ? "flex-1" : ""}`}
                         >
-                          <div
-                            className={`shrink-0 rounded-full ${dcr ? "w-3.5 h-3.5 ring-2 ring-white dark:ring-slate-900 animate-pulse" : dp ? "w-2.5 h-2.5" : "w-2 h-2 bg-slate-200 dark:bg-slate-700"}`}
-                            style={
-                              dp || dcr
-                                ? { backgroundColor: dc.swatch }
-                                : undefined
-                            }
-                          />
+                          <div className="relative flex justify-center shrink-0">
+                            <div
+                              className={`shrink-0 rounded-full ${dcr ? "w-3.5 h-3.5 border-2 bg-white dark:bg-slate-900 z-10" : dp ? "w-2.5 h-2.5" : "w-2 h-2 bg-slate-200 dark:bg-slate-700"}`}
+                              style={
+                                dcr
+                                  ? { borderColor: dc.swatch }
+                                  : dp
+                                  ? { backgroundColor: dc.swatch }
+                                  : undefined
+                              }
+                            />
+                            <span 
+                              className={`absolute top-[18px] text-[9px] font-semibold text-slate-500 whitespace-nowrap ${
+                                routing.length === 1 
+                                  ? "left-1/2 -translate-x-1/2" 
+                                  : idx === 0 
+                                    ? "left-0" 
+                                    : idx === routing.length - 1 
+                                      ? "right-0" 
+                                      : "left-1/2 -translate-x-1/2"
+                              }`}
+                            >
+                              {st?.name ?? rname ?? rid}
+                            </span>
+                          </div>
                           {idx < routing.length - 1 && (
                             <div
-                              className={`h-[3px] flex-1 mx-0.5 rounded-full ${dp ? "" : "bg-slate-200 dark:bg-slate-700"}`}
+                              className={`h-[3px] flex-1 mx-1.5 rounded-full ${dp ? "" : "bg-slate-200 dark:bg-slate-700"}`}
                               style={
                                 dp
                                   ? { backgroundColor: `${dc.swatch}40` }
@@ -639,22 +658,24 @@ export function PaneDetailModal({
                           <div
                             className={`shrink-0 rounded-full flex items-center justify-center ${
                               isCurrent
-                                ? "w-5 h-5"
+                                ? "w-5 h-5 border-[3px] bg-white dark:bg-slate-900"
                                 : isPassed
                                   ? "w-4 h-4"
                                   : "w-3 h-3 bg-slate-200 dark:bg-slate-700"
                             }`}
                             style={
-                              isPassed || isCurrent
+                              isCurrent
+                                ? { borderColor: color.swatch }
+                                : isPassed
                                 ? { backgroundColor: color.swatch }
                                 : undefined
                             }
                           >
-                            {isPassed && (
-                              <CheckCheck className="h-2 w-2 text-white" />
+                            {isPassed && !isCurrent && (
+                              <Check className="h-3 w-3 text-white" strokeWidth={3} />
                             )}
                             {isCurrent && (
-                              <div className="h-2 w-2 rounded-full bg-white animate-pulse" />
+                              <div className="h-2 w-2 rounded-full animate-pulse" style={{ backgroundColor: color.swatch }} />
                             )}
                           </div>
 

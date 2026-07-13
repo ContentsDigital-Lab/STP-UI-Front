@@ -55,7 +55,7 @@ export const th = {
             quantity: "จำนวน",
             unknown: "ไม่พบข้อมูลวัสดุ",
             healthy: "ปกติ",
-            warning: "ควรระวัง",
+            warning: "ใกล้จุดต่ำ",
             lowStock: "สต็อกต่ำ"
         },
         detail: {

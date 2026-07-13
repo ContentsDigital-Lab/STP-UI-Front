@@ -123,14 +123,20 @@ export function GlassSpecsTable({
                                             type="number"
                                             step="any"
                                             min={unit === 'inch' ? 2 : 50}
-                                            value={formatCurrentUnit(pane.glassWidth)}
+                                            value={pane.glassWidth === 0 ? "" : formatCurrentUnit(pane.glassWidth)}
                                             onChange={(e) => {
-                                                const parsed = parseFloat(e.target.value) || 0;
-                                                const w = Math.max(1, Math.round(toMm(parsed)));
-                                                updatePaneAt(idx, {
-                                                    glassWidth: w,
-                                                    vertices: [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: pane.glassHeight }, { x: 0, y: pane.glassHeight }],
-                                                });
+                                                if (e.target.value === "") {
+                                                    updatePaneAt(idx, { glassWidth: 0 });
+                                                    return;
+                                                }
+                                                const parsed = parseFloat(e.target.value);
+                                                if (!isNaN(parsed)) {
+                                                    const w = toMm(parsed);
+                                                    updatePaneAt(idx, {
+                                                        glassWidth: w,
+                                                        vertices: [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: pane.glassHeight }, { x: 0, y: pane.glassHeight }],
+                                                    });
+                                                }
                                             }}
                                             onFocus={() => {
                                                 if (activeTab !== idx) setActiveTab(idx);
@@ -146,14 +152,20 @@ export function GlassSpecsTable({
                                             type="number"
                                             step="any"
                                             min={unit === 'inch' ? 2 : 50}
-                                            value={formatCurrentUnit(pane.glassHeight)}
+                                            value={pane.glassHeight === 0 ? "" : formatCurrentUnit(pane.glassHeight)}
                                             onChange={(e) => {
-                                                const parsed = parseFloat(e.target.value) || 0;
-                                                const h = Math.max(1, Math.round(toMm(parsed)));
-                                                updatePaneAt(idx, {
-                                                    glassHeight: h,
-                                                    vertices: [{ x: 0, y: 0 }, { x: pane.glassWidth, y: 0 }, { x: pane.glassWidth, y: h }, { x: 0, y: h }],
-                                                });
+                                                if (e.target.value === "") {
+                                                    updatePaneAt(idx, { glassHeight: 0 });
+                                                    return;
+                                                }
+                                                const parsed = parseFloat(e.target.value);
+                                                if (!isNaN(parsed)) {
+                                                    const h = toMm(parsed);
+                                                    updatePaneAt(idx, {
+                                                        glassHeight: h,
+                                                        vertices: [{ x: 0, y: 0 }, { x: pane.glassWidth, y: 0 }, { x: pane.glassWidth, y: h }, { x: 0, y: h }],
+                                                    });
+                                                }
                                             }}
 
                                             onFocus={() => {
@@ -169,9 +181,16 @@ export function GlassSpecsTable({
                                             id={`pane-qty-${idx}`}
                                             type="number"
                                             min={1}
-                                            value={pane.quantity}
+                                            value={pane.quantity === 0 ? "" : pane.quantity}
                                             onChange={(e) => {
-                                                updatePaneAt(idx, { quantity: Math.max(1, parseInt(e.target.value) || 1) });
+                                                if (e.target.value === "") {
+                                                    updatePaneAt(idx, { quantity: 0 });
+                                                    return;
+                                                }
+                                                const parsed = parseInt(e.target.value);
+                                                if (!isNaN(parsed)) {
+                                                    updatePaneAt(idx, { quantity: parsed });
+                                                }
                                             }}
                                             onFocus={() => {
                                                 if (activeTab !== idx) setActiveTab(idx);

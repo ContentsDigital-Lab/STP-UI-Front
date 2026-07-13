@@ -1009,7 +1009,7 @@ export default function ClaimsPage() {
                     </DialogHeader>
                     <div className="flex justify-end gap-3 pt-4">
                         <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={isDeleting} className="rounded-xl h-10 px-5 text-sm">ยกเลิก</Button>
-                        <Button variant="destructive" onClick={handleDelete} disabled={isDeleting} className="bg-red-600 hover:bg-red-700 rounded-xl h-10 px-5 text-sm font-semibold">
+                        <Button variant="destructive" onClick={handleDelete} disabled={isDeleting} className="bg-red-600 hover:bg-red-700 text-white rounded-xl h-10 px-5 text-sm font-semibold">
                             {isDeleting ? "กำลังลบ..." : "ลบรายการ"}
                         </Button>
                     </div>

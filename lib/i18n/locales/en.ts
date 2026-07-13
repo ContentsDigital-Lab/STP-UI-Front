@@ -57,7 +57,7 @@ export const en: Dictionary = {
             quantity: "Quantity",
             unknown: "Unknown Material",
             healthy: "Healthy",
-            warning: "Warning",
+            warning: "Near Low Stock",
             lowStock: "Low Stock"
         },
         detail: {
