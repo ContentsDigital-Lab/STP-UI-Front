@@ -104,6 +104,7 @@ export default function InventoryPage() {
 
     // Filters
     const [searchQuery, setSearchQuery] = useState("");
+    const [activeCard, setActiveCard] = useState<string>("");
     const [stockTypeFilter, setStockTypeFilter] = useState<string>("all");
     const [showLowStockOnly, setShowLowStockOnly] = useState<boolean>(false);
     const [locationFilter, setLocationFilter] = useState<string>("all");
@@ -677,6 +678,7 @@ export default function InventoryPage() {
         setGlassTypeFilter("all");
         setBrandFilter("all");
         setShowLowStockOnly(false);
+        setActiveCard("");
         setCurrentPage(1);
     };
 
@@ -747,32 +749,52 @@ export default function InventoryPage() {
             {!isLoading && (
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                     {statRows.map((item) => {
+                        const isHighlighted = activeCard === item.key;
+                        const handleCardClick = () => {
+                            if (activeCard === item.key) {
+                                setActiveCard("");
+                                if (item.key === "low") setShowLowStockOnly(false);
+                                if (item.key === "top") setSearchQuery("");
+                            } else {
+                                setActiveCard(item.key);
+                                if (item.key === "low") {
+                                    setShowLowStockOnly(true);
+                                    if (activeCard === "top") setSearchQuery("");
+                                } else if (item.key === "top") {
+                                    setSearchQuery(topMaterialName);
+                                    setShowLowStockOnly(false);
+                                } else {
+                                    // total or qty
+                                    setShowLowStockOnly(false);
+                                    setSearchQuery("");
+                                }
+                            }
+                            setCurrentPage(1);
+                        };
+
                         if (item.kind === "low") {
                             return (
                                 <button
                                     key={item.key}
                                     type="button"
-                                    onClick={() => {
-                                        setShowLowStockOnly(!showLowStockOnly);
-                                        setCurrentPage(1);
-                                    }}
-                                    className={`text-left bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 p-3 sm:p-5 transition-colors flex flex-col justify-between ${showLowStockOnly
+                                    onClick={handleCardClick}
+                                    className={`text-left bg-white dark:bg-slate-900 rounded-xl border p-3 sm:p-5 transition-colors flex flex-col justify-between cursor-pointer ${isHighlighted
                                         ? "border-red-300 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20 ring-1 ring-red-200 dark:ring-red-900"
-                                        : "hover:border-slate-300 dark:hover:border-slate-700"
+                                        : "border-slate-200/60 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
                                         }`}
                                 >
                                     <div>
-                                        <div className={`flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-lg mb-2 sm:mb-3 ${showLowStockOnly
+                                        <div className={`flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-lg mb-2 sm:mb-3 ${isHighlighted
                                             ? "bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400"
                                             : "bg-red-50 dark:bg-red-950/30 text-red-500 dark:text-red-400"
                                             }`}>
                                             <AlertTriangle className="h-4 w-4" />
                                         </div>
-                                        <p className={`line-clamp-1 text-[11px] sm:text-xs font-semibold ${showLowStockOnly ? "text-red-700 dark:text-red-400" : "text-slate-500 dark:text-slate-400"}`}>
+                                        <p className={`line-clamp-1 text-[11px] sm:text-xs font-semibold ${isHighlighted ? "text-red-700 dark:text-red-400" : "text-slate-500 dark:text-slate-400"}`}>
                                             {item.label}
                                         </p>
                                     </div>
-                                    <p className={`mt-1 text-lg sm:text-xl font-bold tabular-nums truncate ${showLowStockOnly ? "text-red-800 dark:text-red-200" : "text-slate-900 dark:text-white"}`}>
+                                    <p className={`mt-1 text-lg sm:text-xl font-bold tabular-nums truncate ${isHighlighted ? "text-red-800 dark:text-red-200" : "text-slate-900 dark:text-white"}`}>
                                         {item.value}
                                     </p>
                                 </button>
@@ -782,7 +804,12 @@ export default function InventoryPage() {
                         return (
                             <div
                                 key={item.key}
-                                className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 p-3 sm:p-5 flex flex-col justify-between"
+                                onClick={handleCardClick}
+                                className={`bg-white dark:bg-slate-900 rounded-xl border p-3 sm:p-5 flex flex-col justify-between transition-all duration-200 cursor-pointer ${
+                                    isHighlighted
+                                        ? "bg-blue-50/50 dark:bg-blue-900/20 border-2 border-blue-400 dark:border-blue-700 ring-1 ring-blue-500/20"
+                                        : "border-slate-200/60 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow"
+                                }`}
                             >
                                 <div>
                                     <div className={`flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-lg mb-2 sm:mb-3 ${item.accent}`}>
@@ -813,6 +840,8 @@ export default function InventoryPage() {
                             value={searchQuery}
                             onChange={(e) => {
                                 setSearchQuery(e.target.value);
+                                if (activeCard === "top" && e.target.value !== topMaterialName) setActiveCard("");
+                                if ((activeCard === "total" || activeCard === "qty") && e.target.value !== "") setActiveCard("");
                                 setCurrentPage(1);
                             }}
                             className="pl-9 pr-9 h-10 w-full bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl text-sm focus-visible:ring-2 focus-visible:ring-blue-600/20 focus-visible:border-blue-600"
@@ -821,7 +850,10 @@ export default function InventoryPage() {
                         {searchQuery && (
                             <button
                                 type="button"
-                                onClick={() => setSearchQuery("")}
+                                onClick={() => {
+                                    setSearchQuery("");
+                                    if (activeCard === "top") setActiveCard("");
+                                }}
                                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                                 aria-label="Clear search"
                             >

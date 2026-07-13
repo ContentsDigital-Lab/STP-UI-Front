@@ -97,6 +97,7 @@ export default function OrderRequestsPage() {
 
     // Filters
     const [searchQuery, setSearchQuery] = useState("");
+    const [activeCard, setActiveCard] = useState<string>("");
     const [typeFilter, setTypeFilter] = useState<string>("all");
     const [customerFilter, setCustomerFilter] = useState<string>("all");
     const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -128,7 +129,7 @@ export default function OrderRequestsPage() {
         expectedDeliveryDate: "",
     });
 
-    const isSearchActive = searchQuery !== "" || typeFilter !== "all" || customerFilter !== "all" || statusFilter !== "all";
+    const isSearchActive = searchQuery !== "" || typeFilter !== "all" || customerFilter !== "all" || statusFilter !== "all" || activeCard !== "";
 
     // WebSocket
     const requestEvents = ['request:updated'];
@@ -239,9 +240,28 @@ export default function OrderRequestsPage() {
             const matchesCustomer = customerFilter === "all" || cust?._id === customerFilter;
             const matchesStatus = statusFilter === "all" || req.status === statusFilter;
 
-            return matchesSearch && matchesType && matchesCustomer && matchesStatus;
+            let matchesCard = true;
+            if (activeCard === "week") {
+                const now = new Date();
+                const weekAgo = new Date(now);
+                weekAgo.setDate(weekAgo.getDate() - 7);
+                matchesCard = new Date(req.createdAt) >= weekAgo;
+            } else if (activeCard === "assigned") {
+                matchesCard = !!req.assignedTo;
+            } else if (activeCard === "deadline") {
+                if (!req.deadline) matchesCard = false;
+                else {
+                    const dl = new Date(req.deadline);
+                    const now = new Date();
+                    const threeDaysFromNow = new Date(now);
+                    threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
+                    matchesCard = dl <= threeDaysFromNow && dl >= now;
+                }
+            }
+
+            return matchesSearch && matchesType && matchesCustomer && matchesStatus && matchesCard;
         });
-    }, [requests, allRequests, searchQuery, typeFilter, customerFilter, statusFilter, isSearchActive, getCustomerInfo, getWorkerInfo]);
+    }, [requests, allRequests, searchQuery, typeFilter, customerFilter, statusFilter, activeCard, isSearchActive, getCustomerInfo, getWorkerInfo]);
 
     const totalPages = isSearchActive
         ? Math.ceil(filteredRequests.length / ITEMS_PER_PAGE)
@@ -256,6 +276,7 @@ export default function OrderRequestsPage() {
         setTypeFilter("all");
         setCustomerFilter("all");
         setStatusFilter("all");
+        setActiveCard("");
         setCurrentPage(1);
     };
 
@@ -510,19 +531,40 @@ export default function OrderRequestsPage() {
             {!isLoading && (
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                     {[
-                        { label: it.totalRequests, value: globalStats.total, icon: ClipboardList, accent: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10" },
-                        { label: it.thisWeek, value: globalStats.thisWeek, icon: Calendar, accent: "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10" },
-                        { label: it.assigned, value: `${globalStats.assigned}/${globalStats.total}`, icon: UserCheck, accent: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10" },
-                        { label: it.approachingDeadline, value: globalStats.approaching, icon: AlertTriangle, accent: globalStats.approaching > 0 ? "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10" : "text-slate-400 bg-slate-100 dark:bg-slate-800", danger: globalStats.approaching > 0 },
-                    ].map((s, i) => (
-                        <div key={i} className={`bg-white dark:bg-slate-900 rounded-xl border p-4 sm:p-5 ${s.danger ? "border-amber-200 dark:border-amber-900/40" : "border-slate-200/60 dark:border-slate-800"}`}>
-                            <div className={`h-9 w-9 rounded-lg flex items-center justify-center mb-3 ${s.accent}`}>
-                                <s.icon className="h-[18px] w-[18px]" />
+                        { filterValue: "all", label: it.totalRequests, value: globalStats.total, icon: ClipboardList, accent: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10" },
+                        { filterValue: "week", label: it.thisWeek, value: globalStats.thisWeek, icon: Calendar, accent: "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10" },
+                        { filterValue: "assigned", label: it.assigned, value: `${globalStats.assigned}/${globalStats.total}`, icon: UserCheck, accent: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10" },
+                        { filterValue: "deadline", label: it.approachingDeadline, value: globalStats.approaching, icon: AlertTriangle, accent: globalStats.approaching > 0 ? "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10" : "text-slate-400 bg-slate-100 dark:bg-slate-800", danger: globalStats.approaching > 0 },
+                    ].map((s, i) => {
+                        const isHighlighted = activeCard === s.filterValue;
+                        const handleCardClick = () => {
+                            if (s.filterValue === "all") {
+                                setActiveCard(activeCard === "all" ? "" : "all");
+                            } else {
+                                setActiveCard(activeCard === s.filterValue ? "" : s.filterValue);
+                            }
+                            setCurrentPage(1);
+                        };
+                        return (
+                            <div 
+                                key={i} 
+                                onClick={handleCardClick}
+                                className={`rounded-xl p-4 sm:p-5 transition-all duration-200 cursor-pointer ${
+                                    isHighlighted
+                                        ? s.danger
+                                            ? "bg-red-50/50 dark:bg-red-900/20 border-2 border-red-400 dark:border-red-700 ring-1 ring-red-500/20"
+                                            : "bg-blue-50/50 dark:bg-blue-900/20 border-2 border-blue-400 dark:border-blue-700 ring-1 ring-blue-500/20"
+                                        : "bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow"
+                                }`}
+                            >
+                                <div className={`h-9 w-9 rounded-lg flex items-center justify-center mb-3 ${s.accent}`}>
+                                    <s.icon className="h-[18px] w-[18px]" />
+                                </div>
+                                <p className="text-[13px] text-slate-500 dark:text-slate-400 mb-0.5">{s.label}</p>
+                                <p className={`text-2xl sm:text-3xl font-bold tracking-tight ${s.danger ? "text-amber-600 dark:text-amber-400" : "text-slate-900 dark:text-white"}`}>{s.value}</p>
                             </div>
-                            <p className="text-[13px] text-slate-500 dark:text-slate-400 mb-0.5">{s.label}</p>
-                            <p className={`text-2xl sm:text-3xl font-bold tracking-tight ${s.danger ? "text-amber-600 dark:text-amber-400" : "text-slate-900 dark:text-white"}`}>{s.value}</p>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
 
@@ -602,7 +644,7 @@ export default function OrderRequestsPage() {
                     </Select>
                 </div>
 
-                {(searchQuery || typeFilter !== "all" || customerFilter !== "all" || statusFilter !== "all") && (
+                {(searchQuery || typeFilter !== "all" || customerFilter !== "all" || statusFilter !== "all" || (activeCard !== "" && activeCard !== "all")) && (
                     <Button
                         variant="ghost"
                         size="sm"

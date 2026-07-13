@@ -170,7 +170,7 @@ export default function ProductionPage() {
     const [page,      setPage]      = useState(1);
     const [expanded,  setExpanded]  = useState<Set<string>>(new Set());
     const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
-    const [filterStatus,  setFilterStatus]  = useState<string>("all");
+    const [filterStatus,  setFilterStatus]  = useState<string>("");
     const [filterStation, setFilterStation] = useState<string>("all");
     const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null);
     const [deleting, setDeleting] = useState(false);
@@ -250,7 +250,7 @@ export default function ProductionPage() {
         let result = bills.filter(b => b.request?.status !== 'draft');
 
         // Status filter
-        if (filterStatus !== "all") {
+        if (filterStatus !== "all" && filterStatus !== "") {
             result = result.filter(b =>
                 b.orders.some(o => o.status === filterStatus)
             );
@@ -377,19 +377,37 @@ export default function ProductionPage() {
             {/* Summary cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {[
-                    { label: "บิลทั้งหมด", count: totalBills,     icon: ClipboardList, accent: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10" },
-                    { label: "รอดำเนินการ",  count: pendingBills,   icon: AlertCircle,   accent: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10" },
-                    { label: "กำลังผลิต",  count: activeBills,    icon: RefreshCw,     accent: "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10" },
-                    { label: "เสร็จแล้ว",  count: completedBills, icon: CheckCheck,    accent: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10" },
-                ].map(({ label, count, icon: Icon, accent }) => (
-                    <div key={label} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 p-4 sm:p-5">
-                        <div className={`h-9 w-9 rounded-lg flex items-center justify-center mb-3 ${accent}`}>
-                            <Icon className="h-[18px] w-[18px]" />
+                    { filterValue: "all", label: "บิลทั้งหมด", count: totalBills,     icon: ClipboardList, accent: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10" },
+                    { filterValue: "pending", label: "รอดำเนินการ",  count: pendingBills,   icon: AlertCircle,   accent: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10" },
+                    { filterValue: "in_progress", label: "กำลังผลิต",  count: activeBills,    icon: RefreshCw,     accent: "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10" },
+                    { filterValue: "completed", label: "เสร็จแล้ว",  count: completedBills, icon: CheckCheck,    accent: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10" },
+                ].map(({ filterValue, label, count, icon: Icon, accent }) => {
+                    const isHighlighted = filterStatus === filterValue;
+                    return (
+                        <div 
+                            key={label} 
+                            onClick={() => {
+                                if (filterValue === "all") {
+                                    setFilterStatus(filterStatus === "all" ? "" : "all");
+                                } else {
+                                    setFilterStatus(filterStatus === filterValue ? "" : filterValue);
+                                }
+                                setPage(1);
+                            }}
+                            className={`rounded-xl p-4 sm:p-5 transition-all duration-200 cursor-pointer ${
+                                isHighlighted
+                                    ? "bg-blue-50/50 dark:bg-blue-900/20 border-2 border-blue-400 dark:border-blue-700 ring-1 ring-blue-500/20"
+                                    : "bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow"
+                            }`}
+                        >
+                            <div className={`h-9 w-9 rounded-lg flex items-center justify-center mb-3 ${accent}`}>
+                                <Icon className="h-[18px] w-[18px]" />
+                            </div>
+                            <p className="text-[13px] text-slate-500 dark:text-slate-400 mb-0.5">{label}</p>
+                            <p className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">{loading ? "…" : count}</p>
                         </div>
-                        <p className="text-[13px] text-slate-500 dark:text-slate-400 mb-0.5">{label}</p>
-                        <p className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">{loading ? "…" : count}</p>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
 
             {/* Filters row */}
@@ -420,8 +438,8 @@ export default function ProductionPage() {
                 <div className="sm:w-[160px] space-y-1.5">
                     <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">สถานะ</label>
                     <select
-                        value={filterStatus}
-                        onChange={e => setFilterStatus(e.target.value)}
+                        value={filterStatus || "all"}
+                        onChange={e => setFilterStatus(e.target.value === "all" ? "" : e.target.value)}
                         className="h-10 w-full px-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm text-slate-700 dark:text-slate-300 outline-none cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
                     >
                         <option value="all">สถานะทั้งหมด</option>
@@ -462,19 +480,19 @@ export default function ProductionPage() {
                 </div>
 
                 {/* Clear all filters */}
-                {(search || filterStatus !== "all" || filterStation !== "all" || dateFilter !== "all") && (
+                {(search || (filterStatus !== "all" && filterStatus !== "") || filterStation !== "all" || dateFilter !== "all") && (
                     <Button
                         variant="ghost"
                         size="sm"
                         className="h-10 rounded-xl text-slate-400 hover:text-slate-600 px-3 shrink-0"
-                        onClick={() => { setSearch(""); setFilterStatus("all"); setFilterStation("all"); setDateFilter("all"); }}
+                        onClick={() => { setSearch(""); setFilterStatus(""); setFilterStation("all"); setDateFilter("all"); }}
                     >
                         <X className="h-3.5 w-3.5 mr-1" />
                         ล้าง
                     </Button>
                 )}
             </div>
-            {!loading && (search || filterStatus !== "all" || filterStation !== "all" || dateFilter !== "all") && (
+            {!loading && (search || (filterStatus !== "all" && filterStatus !== "") || filterStation !== "all" || dateFilter !== "all") && (
                 <p className="text-xs text-slate-400 -mt-4">
                     พบ <span className="font-medium text-slate-600 dark:text-slate-300">{filtered.length}</span> จาก {bills.length} บิล
                 </p>

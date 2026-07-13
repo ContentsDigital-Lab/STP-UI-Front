@@ -42,6 +42,12 @@ import {
     SheetDescription,
 } from "@/components/ui/sheet";
 import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import {
     Search,
     FilterX,
     Clock,
@@ -64,6 +70,7 @@ import {
     Circle,
     Play,
     Factory,
+    Maximize2,
 } from "lucide-react";
 
 const ITEMS_PER_PAGE = 10;
@@ -162,7 +169,8 @@ export default function MaterialLogsPage() {
 
     // Filters
     const [searchQuery, setSearchQuery] = useState("");
-    const [actionFilter, setActionFilter] = useState<string>("all");
+    const [isTimelineExpanded, setIsTimelineExpanded] = useState(false);
+    const [actionFilter, setActionFilter] = useState<string>("");
     const [stockTypeFilter, setStockTypeFilter] = useState<string>("all");
     const [dateFilter, setDateFilter] = useState<string>("all");
 
@@ -405,7 +413,7 @@ export default function MaterialLogsPage() {
                 refId.includes(searchLower);
 
             const matchesAction =
-                actionFilter === "all" || log.actionType === actionFilter;
+                actionFilter === "" || actionFilter === "all" || log.actionType === actionFilter || (actionFilter === "cut_claim_remake" && ["cut", "claim", "remake"].includes(log.actionType));
 
             const matchesStockType =
                 stockTypeFilter === "all" || log.stockType === stockTypeFilter;
@@ -440,7 +448,7 @@ export default function MaterialLogsPage() {
 
     const resetFilters = () => {
         setSearchQuery("");
-        setActionFilter("all");
+        setActionFilter("");
         setStockTypeFilter("all");
         setDateFilter("all");
         setCurrentPage(1);
@@ -448,7 +456,7 @@ export default function MaterialLogsPage() {
 
     const hasActiveFilters =
         searchQuery ||
-        actionFilter !== "all" ||
+        (actionFilter !== "all" && actionFilter !== "") ||
         stockTypeFilter !== "all" ||
         dateFilter !== "all";
 
@@ -728,12 +736,23 @@ export default function MaterialLogsPage() {
             {/* Stats */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {[
-                    { label: lang === "th" ? "รายการทั้งหมด" : "Total Records", value: filteredLogs.length, accent: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10", icon: History },
-                    { label: lang === "th" ? "นำเข้า" : "Imported", value: logs.filter(l => l.actionType === "import").length, accent: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10", icon: ArrowDownRight },
-                    { label: lang === "th" ? "เบิกออก" : "Withdrawn", value: logs.filter(l => l.actionType === "withdraw").length, accent: "text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-500/10", icon: ArrowUpRight },
-                    { label: lang === "th" ? "ตัด/เคลม/รีเมค" : "Cut/Claim/Remake", value: logs.filter(l => l.actionType === "cut" || l.actionType === "claim").length, accent: "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10", icon: Scissors },
+                    { filterValue: "all", label: lang === "th" ? "รายการทั้งหมด" : "Total Records", value: logs.length, accent: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10", icon: History },
+                    { filterValue: "import", label: lang === "th" ? "นำเข้า" : "Imported", value: logs.filter(l => l.actionType === "import").length, accent: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10", icon: ArrowDownRight },
+                    { filterValue: "withdraw", label: lang === "th" ? "เบิกออก" : "Withdrawn", value: logs.filter(l => l.actionType === "withdraw").length, accent: "text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-500/10", icon: ArrowUpRight },
+                    { filterValue: "cut_claim_remake", label: lang === "th" ? "ตัด/เคลม/รีเมค" : "Cut/Claim/Remake", value: logs.filter(l => l.actionType === "cut" || l.actionType === "claim" || l.actionType === "remake").length, accent: "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10", icon: FileWarning },
                 ].map((stat) => (
-                    <div key={stat.label} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm">
+                    <div 
+                        key={stat.label} 
+                        onClick={() => {
+                            setActionFilter(actionFilter === stat.filterValue ? "" : stat.filterValue);
+                            setCurrentPage(1);
+                        }}
+                        className={`rounded-2xl p-4 shadow-sm transition-all duration-200 cursor-pointer ${
+                            actionFilter === stat.filterValue
+                                ? "bg-blue-50/50 dark:bg-blue-900/20 border-2 border-blue-400 dark:border-blue-700 ring-1 ring-blue-500/20"
+                                : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow"
+                        }`}
+                    >
                         <div className={`h-8 w-8 rounded-lg flex items-center justify-center mb-2 ${stat.accent}`}>
                             <stat.icon className="h-4 w-4" />
                         </div>
@@ -764,17 +783,20 @@ export default function MaterialLogsPage() {
                     <div className="grid grid-cols-3 gap-3 lg:flex lg:gap-3">
                         <div className="space-y-1.5 lg:w-40 shrink-0">
                             <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">{lang === "th" ? "การกระทำ" : "Action"}</Label>
-                            <Select value={actionFilter === "all" ? "" : actionFilter} onValueChange={(v) => { setActionFilter(v || "all"); setCurrentPage(1); }}>
+                            <Select value={actionFilter} onValueChange={(v) => { setActionFilter(v || ""); setCurrentPage(1); }}>
                                 <SelectTrigger className="h-10 w-full rounded-xl text-sm border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
                                     <SelectValue placeholder={lang === "th" ? "ทั้งหมด" : "All"} />
                                 </SelectTrigger>
                                 <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
                                     <SelectItem value="all">{lang === "th" ? "ทุกการกระทำ" : "All Actions"}</SelectItem>
                                     <SelectItem value="import">{lang === "th" ? "นำเข้าคลัง" : "Import"}</SelectItem>
+                                    <SelectItem value="import_move">{lang === "th" ? "ย้ายเข้า" : "Import Move"}</SelectItem>
                                     <SelectItem value="withdraw">{lang === "th" ? "เบิกออก" : "Withdraw"}</SelectItem>
+                                    <SelectItem value="withdraw_move">{lang === "th" ? "ย้ายออก" : "Withdraw Move"}</SelectItem>
                                     <SelectItem value="claim">{lang === "th" ? "เคลม" : "Claim"}</SelectItem>
-                                    <SelectItem value="remake">{lang === "th" ? "รีเมค (ทำใหม่)" : "Remake"}</SelectItem>
-                                    <SelectItem value="cut">{lang === "th" ? "ตัด/แปรรูป" : "Cut"}</SelectItem>
+                                    <SelectItem value="cut">{lang === "th" ? "ตัด" : "Cut"}</SelectItem>
+                                    <SelectItem value="remake">{lang === "th" ? "ตัดใหม่ (Remake)" : "Remake"}</SelectItem>
+                                    <SelectItem value="cut_claim_remake">{lang === "th" ? "ตัด/เคลม/รีเมค" : "Cut/Claim/Remake"}</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -875,7 +897,7 @@ export default function MaterialLogsPage() {
                                                     </span>
                                                     <span className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
                                                         <Clock className="h-2.5 w-2.5" />
-                                                        {new Date(log.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                                        {new Date(log.createdAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
                                                     </span>
                                                 </div>
                                             </TableCell>
@@ -1204,14 +1226,28 @@ export default function MaterialLogsPage() {
 
                         {/* Merged Timeline */}
                         <div className="px-6 py-5">
-                            <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-4">
-                                {lang === "th" ? "ไทม์ไลน์ทั้งหมด" : "Full Timeline"}
-                                <span className="ml-1.5 normal-case text-slate-300 dark:text-slate-600">
-                                    ({lang === "th" ? "ใหม่สุดขึ้นก่อน" : "newest first"})
-                                </span>
-                            </p>
+                            <div className="flex items-center justify-between mb-4">
+                                <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">
+                                    {lang === "th" ? "ไทม์ไลน์ทั้งหมด" : "Full Timeline"}
+                                    <span className="ml-1.5 normal-case text-slate-300 dark:text-slate-600">
+                                        ({lang === "th" ? "ใหม่สุดขึ้นก่อน" : "newest first"})
+                                    </span>
+                                </p>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setIsTimelineExpanded(true)}
+                                    className="h-7 px-2 text-slate-400 hover:text-slate-700"
+                                >
+                                    <Maximize2 className="h-3.5 w-3.5" />
+                                    <span className="ml-1.5 text-[11px]">{lang === "th" ? "ขยายหน้าต่าง" : "Expand"}</span>
+                                </Button>
+                            </div>
 
-                            {timelineLoading ? (
+                            {(() => {
+                                const renderList = () => (
+                                    <>
+                                        {timelineLoading ? (
                                 <div className="flex flex-col gap-3">
                                     {[...Array(4)].map((_, i) => (
                                         <div key={i} className="relative pl-7">
@@ -1366,6 +1402,27 @@ export default function MaterialLogsPage() {
                                     </div>
                                 </div>
                             )}
+                                    </>
+                                );
+                                return (
+                                    <>
+                                        {renderList()}
+                                        <Dialog open={isTimelineExpanded} onOpenChange={setIsTimelineExpanded}>
+                                            <DialogContent onOverlayClick={() => setIsTimelineExpanded(false)} className="sm:max-w-[800px] lg:max-w-[1000px] max-h-[85vh] flex flex-col p-0 bg-white dark:bg-slate-900 overflow-hidden">
+                                                <DialogHeader className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 shrink-0">
+                                                    <DialogTitle className="text-lg font-bold flex items-center gap-2">
+                                                        <History className="h-5 w-5 text-blue-600 dark:text-[#E8601C]" />
+                                                        {lang === "th" ? "ไทม์ไลน์ทั้งหมด" : "Full Timeline"}
+                                                    </DialogTitle>
+                                                </DialogHeader>
+                                                <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30 dark:bg-slate-900">
+                                                    {renderList()}
+                                                </div>
+                                            </DialogContent>
+                                        </Dialog>
+                                    </>
+                                );
+                            })()}
                         </div>
                     </div>
 

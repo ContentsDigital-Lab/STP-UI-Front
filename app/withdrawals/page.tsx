@@ -53,7 +53,8 @@ export default function WithdrawalsPage() {
 
     // Filters
     const [searchQuery, setSearchQuery] = useState("");
-    const [stockTypeFilter, setStockTypeFilter] = useState("all");
+    const [stockTypeFilter, setStockTypeFilter] = useState("");
+    const [dateFilter, setDateFilter] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
 
     // Create dialog
@@ -155,8 +156,9 @@ export default function WithdrawalsPage() {
         return withdrawals.filter((w) => {
             const matName = getMaterialName(w.material).toLowerCase();
             const matchSearch = !searchQuery || matName.includes(searchQuery.toLowerCase());
-            const matchType = stockTypeFilter === "all" || w.stockType === stockTypeFilter;
-            return matchSearch && matchType;
+            const matchType = stockTypeFilter === "" || stockTypeFilter === "all" || w.stockType === stockTypeFilter;
+            const matchDate = dateFilter === "" || dateFilter === "all" || (dateFilter === "today" && new Date(w.withdrawnDate ?? w.createdAt).toDateString() === new Date().toDateString());
+            return matchSearch && matchType && matchDate;
         });
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [withdrawals, searchQuery, stockTypeFilter]);
@@ -165,7 +167,7 @@ export default function WithdrawalsPage() {
     const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
     // Reset page on filter change
-    useEffect(() => { setCurrentPage(1); }, [searchQuery, stockTypeFilter]);
+    useEffect(() => { setCurrentPage(1); }, [searchQuery, stockTypeFilter, dateFilter]);
 
     const handleCreate = async () => {
         if (!form.order || !form.material || !form.quantity) {
@@ -225,22 +227,48 @@ export default function WithdrawalsPage() {
                     )}
                 </div>
 
-                {/* Stats */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                     {[
-                        { label: "รายการทั้งหมด", value: withdrawals.length, accent: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10", icon: ArrowDownFromLine },
-                        { label: "กระจกดิบ (Raw)", value: withdrawals.filter((w) => w.stockType === "Raw").length, accent: "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10", icon: Package },
-                        { label: "กระจกนำกลับ (Reuse)", value: withdrawals.filter((w) => w.stockType === "Reuse").length, accent: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10", icon: Package },
-                        { label: "วันนี้", value: withdrawals.filter((w) => new Date(w.createdAt).toDateString() === new Date().toDateString()).length, accent: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10", icon: Package },
-                    ].map((stat) => (
-                        <div key={stat.label} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm">
-                            <div className={`h-8 w-8 rounded-lg flex items-center justify-center mb-2 ${stat.accent}`}>
-                                <stat.icon className="h-4 w-4" />
+                        { filterValue: "all", filterType: "all", label: "รายการทั้งหมด", value: withdrawals.length, accent: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10", icon: ArrowDownFromLine },
+                        { filterValue: "Raw", filterType: "stock", label: "กระจกดิบ (Raw)", value: withdrawals.filter((w) => w.stockType === "Raw").length, accent: "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10", icon: Package },
+                        { filterValue: "Reuse", filterType: "stock", label: "กระจกนำกลับ (Reuse)", value: withdrawals.filter((w) => w.stockType === "Reuse").length, accent: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10", icon: Package },
+                        { filterValue: "today", filterType: "date", label: "วันนี้", value: withdrawals.filter((w) => new Date(w.createdAt).toDateString() === new Date().toDateString()).length, accent: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10", icon: Package },
+                    ].map((stat) => {
+                        const isHighlighted = 
+                            (stat.filterType === "all" && stockTypeFilter === "all") ||
+                            (stat.filterType === "stock" && stockTypeFilter === stat.filterValue) ||
+                            (stat.filterType === "date" && dateFilter === stat.filterValue);
+
+                        return (
+                            <div 
+                                key={stat.label} 
+                                onClick={() => {
+                                    if (stat.filterType === "stock") {
+                                        setStockTypeFilter(stockTypeFilter === stat.filterValue ? "" : stat.filterValue);
+                                        setDateFilter("");
+                                    } else if (stat.filterType === "date") {
+                                        setDateFilter(dateFilter === stat.filterValue ? "" : stat.filterValue);
+                                        setStockTypeFilter("");
+                                    } else {
+                                        setStockTypeFilter(stockTypeFilter === "all" ? "" : "all");
+                                        setDateFilter("");
+                                    }
+                                    setCurrentPage(1);
+                                }}
+                                className={`rounded-2xl p-4 shadow-sm transition-all duration-200 cursor-pointer ${
+                                    isHighlighted
+                                        ? "bg-blue-50/50 dark:bg-blue-900/20 border-2 border-blue-400 dark:border-blue-700 ring-1 ring-blue-500/20"
+                                        : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow"
+                                }`}
+                            >
+                                <div className={`h-8 w-8 rounded-lg flex items-center justify-center mb-2 ${stat.accent}`}>
+                                    <stat.icon className="h-4 w-4" />
+                                </div>
+                                <p className="text-[12px] text-slate-500 dark:text-slate-400 mb-0.5">{stat.label}</p>
+                                <p className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{isLoading ? "-" : stat.value}</p>
                             </div>
-                            <p className="text-[12px] text-slate-500 dark:text-slate-400 mb-0.5">{stat.label}</p>
-                            <p className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{isLoading ? "-" : stat.value}</p>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
 
                 {/* Filters */}
@@ -263,7 +291,7 @@ export default function WithdrawalsPage() {
                         </div>
                         <div className="space-y-1.5 sm:w-48 shrink-0">
                             <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">ประเภท</Label>
-                            <Select value={stockTypeFilter === "all" ? "" : stockTypeFilter} onValueChange={(v) => setStockTypeFilter(v || "all")}>
+                            <Select value={stockTypeFilter} onValueChange={(v) => { setStockTypeFilter(v || ""); setCurrentPage(1); }}>
                                 <SelectTrigger className="h-10 w-full rounded-xl text-sm border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-blue-600/20">
                                     <SelectValue placeholder="ทุกประเภท" />
                                 </SelectTrigger>
@@ -274,11 +302,11 @@ export default function WithdrawalsPage() {
                                 </SelectContent>
                             </Select>
                         </div>
-                        {(searchQuery || stockTypeFilter !== "all") && (
+                        {(searchQuery || (stockTypeFilter !== "all" && stockTypeFilter !== "") || (dateFilter !== "all" && dateFilter !== "")) && (
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => { setSearchQuery(""); setStockTypeFilter("all"); }}
+                                onClick={() => { setSearchQuery(""); setStockTypeFilter(""); setDateFilter(""); }}
                                 className="h-10 rounded-xl text-slate-400 hover:text-slate-600 px-3 shrink-0"
                             >
                                 <X className="h-3.5 w-3.5 mr-1" />

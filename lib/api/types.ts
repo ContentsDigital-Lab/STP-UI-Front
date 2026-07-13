@@ -90,7 +90,7 @@ export interface Inventory {
 export interface MaterialLog {
   _id: string;
   material: string | Material;
-  actionType: "withdraw" | "claim" | "import" | "cut";
+  actionType: "withdraw" | "claim" | "import" | "cut" | "remake";
   referenceId?: string;
   referenceType?: "claim" | "withdrawal";
   quantityChanged: number;

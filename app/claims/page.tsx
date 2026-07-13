@@ -56,7 +56,7 @@ export default function ClaimsPage() {
     // Filters
     const [searchQuery, setSearchQuery] = useState("");
     const [sourceFilter, setSourceFilter] = useState("all");
-    const [decisionFilter, setDecisionFilter] = useState("all");
+    const [decisionFilter, setDecisionFilter] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
 
     // Create dialog
@@ -220,7 +220,7 @@ export default function ClaimsPage() {
             const matName = getMaterialName(c.material).toLowerCase();
             const matchSearch = !searchQuery || matName.includes(searchQuery.toLowerCase()) || c.description.toLowerCase().includes(searchQuery.toLowerCase());
             const matchSource = sourceFilter === "all" || c.source === sourceFilter;
-            const matchDecision = decisionFilter === "all"
+            const matchDecision = decisionFilter === "" || decisionFilter === "all"
                 || (decisionFilter === "pending" && !c.decision)
                 || c.decision === decisionFilter;
             return matchSearch && matchSource && matchDecision;
@@ -328,12 +328,23 @@ export default function ClaimsPage() {
             {/* Stats */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {[
-                    { label: "รายการทั้งหมด", value: claims.length, accent: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10", icon: ShieldAlert },
-                    { label: "รอตัดสิน", value: claims.filter((c) => !c.decision).length, accent: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10", icon: ShieldAlert },
-                    { label: "ทำลาย", value: claims.filter((c) => c.decision === "destroy").length, accent: "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10", icon: Trash2 },
-                    { label: "เก็บไว้", value: claims.filter((c) => c.decision === "keep").length, accent: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10", icon: ClipboardCheck },
+                    { filterValue: "all", label: "รายการทั้งหมด", value: claims.length, accent: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10", icon: ShieldAlert },
+                    { filterValue: "pending", label: "รอตัดสิน", value: claims.filter((c) => !c.decision).length, accent: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10", icon: ShieldAlert },
+                    { filterValue: "destroy", label: "ทำลาย", value: claims.filter((c) => c.decision === "destroy").length, accent: "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10", icon: Trash2 },
+                    { filterValue: "keep", label: "เก็บไว้", value: claims.filter((c) => c.decision === "keep").length, accent: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10", icon: ClipboardCheck },
                 ].map((stat) => (
-                    <div key={stat.label} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm">
+                    <div 
+                        key={stat.label} 
+                        onClick={() => {
+                            setDecisionFilter(decisionFilter === stat.filterValue ? "" : stat.filterValue);
+                            setCurrentPage(1);
+                        }}
+                        className={`rounded-2xl p-4 shadow-sm transition-all duration-200 cursor-pointer ${
+                            decisionFilter === stat.filterValue
+                                ? "bg-blue-50/50 dark:bg-blue-900/20 border-2 border-blue-400 dark:border-blue-700 ring-1 ring-blue-500/20"
+                                : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow"
+                        }`}
+                    >
                         <div className={`h-8 w-8 rounded-lg flex items-center justify-center mb-2 ${stat.accent}`}>
                             <stat.icon className="h-4 w-4" />
                         </div>
@@ -377,7 +388,7 @@ export default function ClaimsPage() {
                         </div>
                         <div className="space-y-1.5 sm:w-44 shrink-0">
                             <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">สถานะ</Label>
-                            <Select value={decisionFilter === "all" ? "" : decisionFilter} onValueChange={(v) => setDecisionFilter(v || "all")}>
+                            <Select value={decisionFilter} onValueChange={(v) => { setDecisionFilter(v || ""); setCurrentPage(1); }}>
                                 <SelectTrigger className="h-10 w-full rounded-xl text-sm border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-blue-600/20">
                                     <SelectValue placeholder="ทุกสถานะ" />
                                 </SelectTrigger>
@@ -390,11 +401,11 @@ export default function ClaimsPage() {
                             </Select>
                         </div>
                     </div>
-                    {(searchQuery || sourceFilter !== "all" || decisionFilter !== "all") && (
+                    {(searchQuery || sourceFilter !== "all" || (decisionFilter !== "all" && decisionFilter !== "")) && (
                         <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => { setSearchQuery(""); setSourceFilter("all"); setDecisionFilter("all"); }}
+                            onClick={() => { setSearchQuery(""); setSourceFilter("all"); setDecisionFilter(""); }}
                             className="h-10 rounded-xl text-slate-400 hover:text-slate-600 px-3 shrink-0"
                         >
                             <X className="h-3.5 w-3.5 mr-1" />
