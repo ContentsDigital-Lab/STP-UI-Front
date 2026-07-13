@@ -161,6 +161,15 @@ export default function InventoryPage() {
             const storedColors = localStorage.getItem('locationColorMap');
             if (storedColors) setLocationColors(JSON.parse(storedColors));
         } catch { /* ignore */ }
+
+        // Check for URL params
+        if (typeof window !== "undefined") {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get("filter") === "low") {
+                setActiveCard("low");
+                setShowLowStockOnly(true);
+            }
+        }
     }, []);
 
     const trackLocationUsage = useCallback((loc: string) => {

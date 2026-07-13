@@ -18,7 +18,7 @@ import { ordersApi } from "@/lib/api/orders";
 import { requestsApi } from "@/lib/api/requests";
 import { Station, Order, Customer, Material } from "@/lib/api/types";
 import { getColorOption } from "@/lib/stations/stations-store";
-import { effectiveShowWithdrawClaimActions } from "@/lib/stations/withdraw-claim-visibility";
+import { effectiveShowWithdrawAction, effectiveShowClaimAction } from "@/lib/stations/withdraw-claim-visibility";
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { useCheckinSocket } from "@/lib/hooks/use-checkin-socket";
 import { playNotificationSound } from "@/lib/notification-sounds";
@@ -256,9 +256,14 @@ export default function LiveStationPage() {
 
     const color = station ? getColorOption(station.colorId) : null;
 
-    const showWithdrawClaimButtons = useMemo(() => {
+    const showWithdrawBtn = useMemo(() => {
         if (!station) return false;
-        return effectiveShowWithdrawClaimActions(station);
+        return effectiveShowWithdrawAction(station);
+    }, [station, withdrawClaimPrefRev]);
+
+    const showClaimBtn = useMemo(() => {
+        if (!station) return false;
+        return effectiveShowClaimAction(station);
     }, [station, withdrawClaimPrefRev]);
 
     const checkinUrl = typeof window !== "undefined"
@@ -279,22 +284,26 @@ export default function LiveStationPage() {
                     {station.name}
                 </span>
             )}
-            {showWithdrawClaimButtons && (
+            {(showWithdrawBtn || showClaimBtn) && (
                 <div className="ml-auto flex items-center gap-2 shrink-0">
-                    <button
-                        onClick={() => setShowWithdraw(true)}
-                        className="flex items-center gap-1.5 h-11 px-4 rounded-xl border-2 border-orange-600 dark:border-orange-500 bg-white dark:bg-slate-800 text-orange-700 dark:text-orange-400 font-bold text-sm active:bg-orange-50 dark:active:bg-orange-900/20"
-                    >
-                        <PackageOpen className="h-5 w-5" />
-                        <span>เบิก</span>
-                    </button>
-                    <button
-                        onClick={() => setShowClaim(true)}
-                        className="flex items-center gap-1.5 h-11 px-4 rounded-xl bg-red-600 text-white font-bold text-sm border-2 border-red-700 active:bg-red-700"
-                    >
-                        <FileWarning className="h-5 w-5" />
-                        <span>เคลม</span>
-                    </button>
+                    {showWithdrawBtn && (
+                        <button
+                            onClick={() => setShowWithdraw(true)}
+                            className="flex items-center gap-1.5 h-11 px-4 rounded-xl border-2 border-orange-600 dark:border-orange-500 bg-white dark:bg-slate-800 text-orange-700 dark:text-orange-400 font-bold text-sm active:bg-orange-50 dark:active:bg-orange-900/20"
+                        >
+                            <PackageOpen className="h-5 w-5" />
+                            <span>เบิก</span>
+                        </button>
+                    )}
+                    {showClaimBtn && (
+                        <button
+                            onClick={() => setShowClaim(true)}
+                            className="flex items-center gap-1.5 h-11 px-4 rounded-xl bg-red-600 text-white font-bold text-sm border-2 border-red-700 active:bg-red-700"
+                        >
+                            <FileWarning className="h-5 w-5" />
+                            <span>เคลม</span>
+                        </button>
+                    )}
                 </div>
             )}
         </div>

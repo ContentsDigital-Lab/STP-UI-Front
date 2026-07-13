@@ -94,6 +94,14 @@ export default function WithdrawalsPage() {
                 setWorkerMap(map);
             }
         }).catch(() => toast.error("Failed to load data")).finally(() => setIsLoading(false));
+
+        // Check URL params for filters
+        if (typeof window !== "undefined") {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get("dateFilter") === "today") {
+                setDateFilter("today");
+            }
+        }
     }, []);
 
     // WebSocket — all state mutations come from here after initial load
@@ -157,11 +165,22 @@ export default function WithdrawalsPage() {
             const matName = getMaterialName(w.material).toLowerCase();
             const matchSearch = !searchQuery || matName.includes(searchQuery.toLowerCase());
             const matchType = stockTypeFilter === "" || stockTypeFilter === "all" || w.stockType === stockTypeFilter;
-            const matchDate = dateFilter === "" || dateFilter === "all" || (dateFilter === "today" && new Date(w.withdrawnDate ?? w.createdAt).toDateString() === new Date().toDateString());
+            let matchDate = true;
+            if (dateFilter && dateFilter !== "all") {
+                const wDate = new Date(w.withdrawnDate ?? w.createdAt);
+                if (dateFilter === "today") {
+                    matchDate = wDate.toDateString() === new Date().toDateString();
+                } else {
+                    // Normalize to local date string to match YYYY-MM-DD from input[type="date"]
+                    const localDate = new Date(wDate.getTime() - wDate.getTimezoneOffset() * 60000);
+                    const wDateString = localDate.toISOString().slice(0, 10);
+                    matchDate = wDateString === dateFilter;
+                }
+            }
             return matchSearch && matchType && matchDate;
         });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [withdrawals, searchQuery, stockTypeFilter]);
+    }, [withdrawals, searchQuery, stockTypeFilter, dateFilter]);
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
     const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
@@ -302,6 +321,18 @@ export default function WithdrawalsPage() {
                                 </SelectContent>
                             </Select>
                         </div>
+                        <div className="space-y-1.5 sm:w-48 shrink-0">
+                            <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">วันที่สร้าง</Label>
+                            <Input 
+                                type="date"
+                                value={dateFilter === "all" || dateFilter === "today" ? "" : dateFilter}
+                                onChange={(e) => {
+                                    setDateFilter(e.target.value || "all");
+                                    setCurrentPage(1);
+                                }}
+                                className="h-10 w-full rounded-xl text-sm border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 focus:ring-blue-600/20 text-slate-500"
+                            />
+                        </div>
                         {(searchQuery || (stockTypeFilter !== "all" && stockTypeFilter !== "") || (dateFilter !== "all" && dateFilter !== "")) && (
                             <Button
                                 variant="ghost"
@@ -358,8 +389,13 @@ export default function WithdrawalsPage() {
                                         className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 border-slate-100 dark:border-slate-800 cursor-pointer"
                                         onClick={() => setDetailTarget(w)}
                                     >
-                                        <TableCell className="text-sm py-3.5 px-4 text-slate-600 dark:text-slate-300">
-                                            {new Date(w.withdrawnDate ?? w.createdAt).toLocaleDateString("th-TH")}
+                                        <TableCell className="py-3.5 px-4">
+                                            <div className="text-sm text-slate-900 dark:text-white font-medium">
+                                                {new Date(w.withdrawnDate ?? w.createdAt).toLocaleDateString("th-TH")}
+                                            </div>
+                                            <div className="text-[11px] text-slate-500 mt-0.5">
+                                                {new Date(w.withdrawnDate ?? w.createdAt).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })} น.
+                                            </div>
                                         </TableCell>
                                         <TableCell className="text-sm font-medium py-3.5 text-slate-900 dark:text-white">{getMaterialName(w.material)}</TableCell>
                                         <TableCell className="text-sm py-3.5 tabular-nums">{w.quantity}</TableCell>

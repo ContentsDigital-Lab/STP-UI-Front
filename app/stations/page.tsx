@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-    effectiveShowWithdrawClaimActions,
+    effectiveShowWithdrawAction,
+    effectiveShowClaimAction,
     removeWithdrawClaimLocalPreference,
-    syncWithdrawClaimLocalPreference,
+    syncWithdrawActionLocalPreference,
+    syncClaimActionLocalPreference,
 } from "@/lib/stations/withdraw-claim-visibility";
 import { useRouter } from "next/navigation";
 import {
@@ -63,26 +65,35 @@ function StationModal({
     initial?:   Partial<Station>;
     templates:  StationTemplate[];
     onClose:    () => void;
-    onSave:     (data: { name: string; colorId: string; templateId?: string; isLaminateStation?: boolean; showWithdrawClaimActions?: boolean }) => void;
+    onSave:     (data: { name: string; colorId: string; templateId?: string; isLaminateStation?: boolean; showWithdrawAction?: boolean; showClaimAction?: boolean }) => void;
 }) {
     const [name,       setName]       = useState(initial?.name       ?? "");
     const [colorId,    setColorId]    = useState(initial?.colorId    ?? "sky");
     const [templateId, setTemplateId] = useState<string>(resolveTemplateId(initial?.templateId));
     const [isLaminate, setIsLaminate] = useState(initial?.isLaminateStation ?? false);
-    const [showWithdrawClaim, setShowWithdrawClaim] = useState(() => {
+    const [showWithdraw, setShowWithdraw] = useState(() => {
         if (initial?._id) {
-            return effectiveShowWithdrawClaimActions(initial as Station);
+            return effectiveShowWithdrawAction(initial as Station);
         }
-        return initial?.showWithdrawClaimActions !== false;
+        return initial?.showWithdrawAction !== false;
+    });
+
+    const [showClaim, setShowClaim] = useState(() => {
+        if (initial?._id) {
+            return effectiveShowClaimAction(initial as Station);
+        }
+        return initial?.showClaimAction !== false;
     });
 
     useEffect(() => {
         if (!initial?._id) {
-            setShowWithdrawClaim(initial?.showWithdrawClaimActions !== false);
+            setShowWithdraw(initial?.showWithdrawAction !== false);
+            setShowClaim(initial?.showClaimAction !== false);
         } else {
-            setShowWithdrawClaim(effectiveShowWithdrawClaimActions(initial as Station));
+            setShowWithdraw(effectiveShowWithdrawAction(initial as Station));
+            setShowClaim(effectiveShowClaimAction(initial as Station));
         }
-    }, [initial?._id, initial?.showWithdrawClaimActions]);
+    }, [initial?._id, initial?.showWithdrawAction, initial?.showClaimAction]);
 
     const color    = getColorOption(colorId);
     const isEdit   = Boolean(initial?._id);
@@ -117,7 +128,8 @@ function StationModal({
                             colorId,
                             templateId: templateId || undefined,
                             isLaminateStation: isLaminate || undefined,
-                            showWithdrawClaimActions: showWithdrawClaim,
+                            showWithdrawAction: showWithdraw,
+                            showClaimAction: showClaim,
                         })}
                     />
                     {name.trim() && (
@@ -172,13 +184,26 @@ function StationModal({
                 <label className="flex items-center gap-3 cursor-pointer">
                     <input
                         type="checkbox"
-                        checked={showWithdrawClaim}
-                        onChange={(e) => setShowWithdrawClaim(e.target.checked)}
+                        checked={showWithdraw}
+                        onChange={(e) => setShowWithdraw(e.target.checked)}
                         className="h-4 w-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500"
                     />
                     <div>
-                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">แสดงปุ่มเบิก / เคลม</span>
-                        <p className="text-xs text-slate-400">แสดงปุ่มเบิกวัสดุและแจ้งเคลมที่หัวหน้าจอสถานี</p>
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">แสดงปุ่มเบิก</span>
+                        <p className="text-xs text-slate-400">แสดงปุ่มเบิกวัสดุที่หัวหน้าจอสถานี</p>
+                    </div>
+                </label>
+
+                <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                        type="checkbox"
+                        checked={showClaim}
+                        onChange={(e) => setShowClaim(e.target.checked)}
+                        className="h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
+                    />
+                    <div>
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">แสดงปุ่มเคลม</span>
+                        <p className="text-xs text-slate-400">แสดงปุ่มแจ้งเคลมที่หัวหน้าจอสถานี</p>
                     </div>
                 </label>
 
@@ -190,7 +215,8 @@ function StationModal({
                         colorId,
                         templateId: templateId || undefined,
                         isLaminateStation: isLaminate,
-                        showWithdrawClaimActions: showWithdrawClaim,
+                        showWithdrawAction: showWithdraw,
+                        showClaimAction: showClaim,
                     })}>
                         <Plus className="h-3.5 w-3.5 mr-1" />
                         {isEdit ? "บันทึก" : "สร้างสถานี"}
@@ -269,7 +295,8 @@ export default function StationsPage() {
         mutationFn: (data: any) => stationsApi.create(data),
         onSuccess: (res, data) => {
             if (res.success && res.data?._id) {
-                syncWithdrawClaimLocalPreference(res.data._id, data.showWithdrawClaimActions);
+                syncWithdrawActionLocalPreference(res.data._id, data.showWithdrawAction);
+                syncClaimActionLocalPreference(res.data._id, data.showClaimAction);
             }
             queryClient.invalidateQueries({ queryKey: ["stations"] });
             setShowCreate(false);
@@ -284,7 +311,8 @@ export default function StationsPage() {
         mutationFn: ({ id, data }: { id: string, data: any }) => stationsApi.update(id, data),
         onSuccess: (res, { id, data }) => {
             if (res.success) {
-                syncWithdrawClaimLocalPreference(id, data.showWithdrawClaimActions);
+                syncWithdrawActionLocalPreference(id, data.showWithdrawAction);
+                syncClaimActionLocalPreference(id, data.showClaimAction);
             }
             queryClient.invalidateQueries({ queryKey: ["stations"] });
             setEditing(null);

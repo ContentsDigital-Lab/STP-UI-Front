@@ -16,6 +16,7 @@ import {
   Zap,
   BarChart3,
   Activity,
+  ArrowUpRight,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n/language-context";
 import Link from "next/link";
@@ -38,6 +39,7 @@ import { ordersApi } from "@/lib/api/orders";
 import { inventoriesApi } from "@/lib/api/inventories";
 import { materialsApi } from "@/lib/api/materials";
 import { materialLogsApi } from "@/lib/api/material-logs";
+import { withdrawalsApi } from "@/lib/api/withdrawals";
 import { OrderRequest, Order, Inventory, Material, MaterialLog } from "@/lib/api/types";
 import { useAuth } from "@/lib/auth/auth-context";
 import { hasPermission } from "@/lib/auth/permissions";
@@ -84,6 +86,7 @@ export default function DashboardPage() {
   const [allInventories, setAllInventories] = useState<Inventory[]>([]);
   const [allMaterials, setAllMaterials] = useState<Material[]>([]);
   const [allLogs, setAllLogs] = useState<MaterialLog[]>([]);
+  const [allWithdrawals, setAllWithdrawals] = useState<any[]>([]);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [chartRange, setChartRange] = useState<"1d" | "7d" | "30d">("7d");
@@ -97,18 +100,20 @@ export default function DashboardPage() {
 
   const fetchLiveData = useCallback(async () => {
     try {
-      const [rRes, oRes, iRes, mRes, lRes] = await Promise.all([
+      const [rRes, oRes, iRes, mRes, lRes, wRes] = await Promise.all([
         requestsApi.getAll(),
         ordersApi.getAll(),
         inventoriesApi.getAll(),
         materialsApi.getAll(),
         materialLogsApi.getAll(),
+        withdrawalsApi.getAll(),
       ]);
       if (rRes.success && rRes.data) setAllRequests(rRes.data);
       if (oRes.success && oRes.data) setAllOrders(oRes.data);
       if (iRes.success && iRes.data) setAllInventories(iRes.data);
       if (mRes.success && mRes.data) setAllMaterials(mRes.data);
       if (lRes.success && lRes.data) setAllLogs(lRes.data);
+      if (wRes.success && wRes.data) setAllWithdrawals(wRes.data);
     } catch (e) {
       console.error(e);
     } finally {
@@ -218,15 +223,11 @@ export default function DashboardPage() {
 
     const totalStock = allInventories.reduce((sum, inv) => sum + inv.quantity, 0);
 
-    const stockByMaterial: Record<string, number> = {};
-    allInventories.forEach((inv) => {
-      if (!inv.material) return;
-      const matId = typeof inv.material === "string" ? inv.material : inv.material._id;
-      stockByMaterial[matId] = (stockByMaterial[matId] || 0) + inv.quantity;
-    });
     let lowStockAlerts = 0;
-    allMaterials.forEach((m) => {
-      if ((stockByMaterial[m._id] || 0) <= m.reorderPoint) {
+    allInventories.forEach((inv) => {
+      const matId = typeof inv.material === "string" ? inv.material : inv.material?._id;
+      const m = allMaterials.find(mat => mat._id === matId);
+      if (m && inv.quantity <= m.reorderPoint) {
         lowStockAlerts++;
       }
     });
@@ -279,6 +280,10 @@ export default function DashboardPage() {
       };
     });
 
+    const withdrawalsToday = allWithdrawals.filter(
+      (w) => isSameDay(new Date(w.createdAt), now)
+    ).length;
+
     return {
       days,
       pending,
@@ -292,6 +297,7 @@ export default function DashboardPage() {
       completedOrders,
       totalStock,
       lowStockAlerts,
+      withdrawalsToday,
       chartData,
       recentActivity
     };
@@ -334,38 +340,43 @@ export default function DashboardPage() {
             positive: true,
             icon: Boxes,
             accent: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10",
+            href: "/inventory"
           },
           {
-            label: t.dashboard.low_stock_alerts,
-            value: dataLoaded ? analytics.lowStockAlerts.toString() : "...",
-            change: "",
-            positive: analytics.lowStockAlerts === 0,
-            icon: AlertTriangle,
-            accent: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10",
-          },
-          {
-            label: t.dashboard.pending_requests,
-            value: dataLoaded ? analytics.pending.toString() : "...",
-            change: "",
-            positive: false,
-            icon: Clock,
-            accent: "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10",
-          },
-          {
-            label: t.dashboard.completed_today,
-            value: dataLoaded ? analytics.completedOrders.toString() : "...",
+            label: lang === "th" ? "คำขอสัปดาห์นี้" : "Requests this week",
+            value: dataLoaded ? analytics.thisWeek.toString() : "...",
             change: "",
             positive: true,
-            icon: CheckCircle2,
-            accent: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10",
+            icon: ClipboardList,
+            accent: "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10",
+            href: "/request?activeCard=week"
+          },
+          {
+            label: lang === "th" ? "ออเดอร์กำลังผลิต" : "Orders in production",
+            value: dataLoaded ? (analytics.inProgress + analytics.pendingOrders).toString() : "...",
+            change: "",
+            positive: true,
+            icon: Activity,
+            accent: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10",
+            href: "/production"
+          },
+          {
+            label: lang === "th" ? "เบิกวันนี้" : "Withdrawals today",
+            value: dataLoaded ? analytics.withdrawalsToday.toString() : "...",
+            change: "",
+            positive: true,
+            icon: ArrowUpRight,
+            accent: "text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-500/10",
+            href: "/withdrawals?dateFilter=today"
           },
         ].map((kpi, i) => (
-          <div
+          <Link
+            href={kpi.href}
             key={i}
-            className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 p-4 sm:p-5"
+            className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 p-4 sm:p-5 hover:border-blue-200 dark:hover:border-blue-800/40 hover:shadow-md transition-all cursor-pointer group"
           >
             <div className="flex items-center justify-between mb-3">
-              <div className={`h-9 w-9 rounded-lg flex items-center justify-center ${kpi.accent}`}>
+              <div className={`h-9 w-9 rounded-lg flex items-center justify-center ${kpi.accent} group-hover:scale-110 transition-transform`}>
                 <kpi.icon className="h-[18px] w-[18px]" />
               </div>
               <span
@@ -378,13 +389,13 @@ export default function DashboardPage() {
                 {kpi.change}
               </span>
             </div>
-            <p className="text-[13px] text-slate-500 dark:text-slate-400 mb-0.5">
+            <p className="text-[13px] text-slate-500 dark:text-slate-400 mb-0.5 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
               {kpi.label}
             </p>
             <p className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
               {kpi.value}
             </p>
-          </div>
+          </Link>
         ))}
       </div>
 

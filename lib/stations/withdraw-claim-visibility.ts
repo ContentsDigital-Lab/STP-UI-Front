@@ -1,11 +1,12 @@
 import type { Station } from "@/lib/api/types";
 
-const LS_KEY = "std_station_show_withdraw_claim_v1";
+const LS_KEY_WITHDRAW = "std_station_show_withdraw_v1";
+const LS_KEY_CLAIM = "std_station_show_claim_v1";
 
-function readMap(): Record<string, boolean> {
+function readMap(key: string): Record<string, boolean> {
     if (typeof window === "undefined") return {};
     try {
-        const raw = localStorage.getItem(LS_KEY);
+        const raw = localStorage.getItem(key);
         if (!raw) return {};
         const parsed = JSON.parse(raw) as unknown;
         if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
@@ -19,31 +20,52 @@ function readMap(): Record<string, boolean> {
     }
 }
 
-function writeMap(map: Record<string, boolean>) {
+function writeMap(key: string, map: Record<string, boolean>) {
     if (typeof window === "undefined") return;
-    localStorage.setItem(LS_KEY, JSON.stringify(map));
+    localStorage.setItem(key, JSON.stringify(map));
 }
 
-/** API wins when it returns a boolean; otherwise use local preference (for backends that omit the field). */
-export function effectiveShowWithdrawClaimActions(
-    station: Pick<Station, "_id" | "showWithdrawClaimActions">
+export function effectiveShowWithdrawAction(
+    station: Pick<Station, "_id" | "showWithdrawAction">
 ): boolean {
-    if (station.showWithdrawClaimActions === false) return false;
-    if (station.showWithdrawClaimActions === true) return true;
+    if (station.showWithdrawAction === false) return false;
+    if (station.showWithdrawAction === true) return true;
     if (typeof window === "undefined") return true;
-    return readMap()[station._id] !== false;
+    return readMap(LS_KEY_WITHDRAW)[station._id] !== false;
 }
 
-/** Call after successful create/update so the toggle persists even if the API ignores the field. */
-export function syncWithdrawClaimLocalPreference(
+export function effectiveShowClaimAction(
+    station: Pick<Station, "_id" | "showClaimAction">
+): boolean {
+    if (station.showClaimAction === false) return false;
+    if (station.showClaimAction === true) return true;
+    if (typeof window === "undefined") return true;
+    return readMap(LS_KEY_CLAIM)[station._id] !== false;
+}
+
+export function syncWithdrawActionLocalPreference(
     stationId: string,
     show: boolean | undefined
 ): void {
     if (typeof window === "undefined" || !stationId) return;
-    const map = readMap();
+    const map = readMap(LS_KEY_WITHDRAW);
     if (show === false) map[stationId] = false;
     else delete map[stationId];
-    writeMap(map);
+    writeMap(LS_KEY_WITHDRAW, map);
+    window.dispatchEvent(
+        new CustomEvent("std-withdraw-claim-pref", { detail: { stationId } })
+    );
+}
+
+export function syncClaimActionLocalPreference(
+    stationId: string,
+    show: boolean | undefined
+): void {
+    if (typeof window === "undefined" || !stationId) return;
+    const map = readMap(LS_KEY_CLAIM);
+    if (show === false) map[stationId] = false;
+    else delete map[stationId];
+    writeMap(LS_KEY_CLAIM, map);
     window.dispatchEvent(
         new CustomEvent("std-withdraw-claim-pref", { detail: { stationId } })
     );
@@ -51,7 +73,12 @@ export function syncWithdrawClaimLocalPreference(
 
 export function removeWithdrawClaimLocalPreference(stationId: string): void {
     if (typeof window === "undefined" || !stationId) return;
-    const map = readMap();
-    delete map[stationId];
-    writeMap(map);
+    
+    const withdrawMap = readMap(LS_KEY_WITHDRAW);
+    delete withdrawMap[stationId];
+    writeMap(LS_KEY_WITHDRAW, withdrawMap);
+    
+    const claimMap = readMap(LS_KEY_CLAIM);
+    delete claimMap[stationId];
+    writeMap(LS_KEY_CLAIM, claimMap);
 }
