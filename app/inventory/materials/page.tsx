@@ -78,7 +78,7 @@ export default function MaterialsManagementPage() {
     const [currentPage, setCurrentPage] = useState(1);
 
     // Delete confirmation state
-    const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; logCount: number; step: 1 | 2 } | null>(null);
+    const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; logCount: number; step: 1 | 2; isLoadingLogs?: boolean } | null>(null);
     const [isLoadingDeleteTarget, setIsLoadingDeleteTarget] = useState(false);
 
     // Modal state
@@ -205,17 +205,17 @@ export default function MaterialsManagementPage() {
         }
     };
 
-    const handleDelete = async (id: string, name: string) => {
-        setIsLoadingDeleteTarget(true);
-        try {
-            const logsRes = await materialLogsApi.getAll({ materialId: id });
-            const logCount = logsRes.success && logsRes.data ? logsRes.data.length : 0;
-            setDeleteTarget({ id, name, logCount, step: 1 });
-        } catch {
-            setDeleteTarget({ id, name, logCount: 0, step: 1 });
-        } finally {
-            setIsLoadingDeleteTarget(false);
-        }
+    const handleDelete = (id: string, name: string) => {
+        setDeleteTarget({ id, name, logCount: 0, step: 1, isLoadingLogs: true });
+        
+        materialLogsApi.getAll({ materialId: id })
+            .then(logsRes => {
+                const logCount = logsRes.success && logsRes.data ? logsRes.data.length : 0;
+                setDeleteTarget(prev => prev?.id === id ? { ...prev, logCount, isLoadingLogs: false } : prev);
+            })
+            .catch(() => {
+                setDeleteTarget(prev => prev?.id === id ? { ...prev, logCount: 0, isLoadingLogs: false } : prev);
+            });
     };
 
     const executeDelete = async () => {
@@ -811,11 +811,16 @@ export default function MaterialsManagementPage() {
                             <DialogDescription className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
                                 ลบ <span className="font-bold text-slate-700 dark:text-slate-300">&ldquo;{deleteTarget?.name}&rdquo;</span> ออกจากระบบ? การกระทำนี้ไม่สามารถย้อนกลับได้
                             </DialogDescription>
-                            {deleteTarget && deleteTarget.logCount > 0 && (
+                            {deleteTarget?.isLoadingLogs ? (
+                                <p className="text-xs bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 mt-2 flex items-center gap-2">
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                    กำลังตรวจสอบข้อมูลที่เกี่ยวข้อง...
+                                </p>
+                            ) : deleteTarget && deleteTarget.logCount > 0 ? (
                                 <p className="text-xs bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 px-3 py-2 rounded-lg border border-red-100 dark:border-red-900/50 mt-2">
                                     ⚠️ ประวัติการเคลื่อนไหวทั้งหมด <span className="font-bold">{deleteTarget.logCount} รายการ</span> จะถูกลบด้วย
                                 </p>
-                            )}
+                            ) : null}
                         </DialogHeader>
                     </div>
                     <div className="px-6 pb-6 flex gap-3">
@@ -824,42 +829,10 @@ export default function MaterialsManagementPage() {
                         </Button>
                         <Button
                             className="flex-1 rounded-xl h-11 font-bold bg-red-600 hover:bg-red-700 text-white"
-                            onClick={() => deleteTarget && setDeleteTarget({ ...deleteTarget, step: 2 })}
+                            onClick={executeDelete}
                         >
                             <Trash2 className="h-4 w-4 mr-1.5" />
                             ยืนยัน
-                        </Button>
-                    </div>
-                </DialogContent>
-            </Dialog>
-
-            {/* Delete Confirmation Dialog — Step 2 (final, when logs exist) */}
-            <Dialog open={deleteTarget?.step === 2} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
-                <DialogContent className="sm:max-w-[360px] border-slate-200 dark:border-slate-800 rounded-2xl p-0">
-                    <div className="p-6">
-                        <DialogHeader>
-                            <div className="flex items-center gap-3 mb-3">
-                                <div className="h-10 w-10 rounded-xl bg-red-100 dark:bg-red-950/50 flex items-center justify-center shrink-0">
-                                    <Trash2 className="h-5 w-5 text-red-600" />
-                                </div>
-                                <DialogTitle className="text-lg font-bold text-red-600 dark:text-red-400">ยืนยันการลบถาวร</DialogTitle>
-                            </div>
-                            <DialogDescription className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-                                คุณแน่ใจหรือไม่? วัสดุ <span className="font-bold text-slate-700 dark:text-slate-300">&ldquo;{deleteTarget?.name}&rdquo;</span>
-                                {deleteTarget && deleteTarget.logCount > 0
-                                    ? <> และประวัติการเคลื่อนไหว <span className="font-bold text-red-600">{deleteTarget.logCount} รายการ</span> จะถูกลบออกจากระบบถาวร</>
-                                    : <> จะถูกลบออกจากระบบถาวร</>
-                                }
-                            </DialogDescription>
-                        </DialogHeader>
-                    </div>
-                    <div className="px-6 pb-6 flex gap-3">
-                        <Button variant="outline" className="flex-1 rounded-xl h-11 font-bold" onClick={() => setDeleteTarget(null)}>
-                            ยกเลิก
-                        </Button>
-                        <Button className="flex-1 rounded-xl h-11 font-bold bg-red-700 hover:bg-red-800 text-white" onClick={executeDelete}>
-                            <Trash2 className="h-4 w-4 mr-1.5" />
-                            ลบถาวร
                         </Button>
                     </div>
                 </DialogContent>
