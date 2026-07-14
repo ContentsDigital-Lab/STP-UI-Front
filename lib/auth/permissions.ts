@@ -17,7 +17,8 @@ export type Permission =
   | 'settings:manage'
   | 'dashboard:view'
   | 'stations:manage'
-  | 'stickers:manage';
+  | 'stickers:manage'
+  | 'data:export';
 
 export interface Role {
   _id: string;
@@ -93,4 +94,5 @@ export const PERMISSION_LABELS: Record<Permission, { label: string, group: strin
   'dashboard:view': { label: 'ดูหน้าแดชบอร์ด', group: 'ภาพรวม' },
   'stations:manage': { label: 'จัดการและออกแบบสถานี', group: 'ตั้งค่า' },
   'stickers:manage': { label: 'จัดการและออกแบบสติ๊กเกอร์', group: 'ตั้งค่า' },
+  'data:export': { label: 'นำออกข้อมูลระบบ (Export Data)', group: 'ตั้งค่า' },
 };

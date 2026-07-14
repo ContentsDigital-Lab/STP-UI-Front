@@ -1,15 +1,20 @@
 "use client";
 
+import React, { useState } from "react";
 import Link from "next/link";
-import { UserCog, ShieldAlert, Users, Bell, Tag, DollarSign, Layers } from "lucide-react";
+import { UserCog, ShieldAlert, Users, Bell, Tag, DollarSign, Layers, FileDown } from "lucide-react";
 import { useAuth } from "@/lib/auth/auth-context";
 import { hasPermission, Permission } from "@/lib/auth/permissions";
+import { ExportDataModal } from "@/app/settings/components/ExportDataModal";
+import { Button } from "@/components/ui/button";
 
 export default function SettingsPage() {
     const { user } = useAuth();
+    const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
     const settingsItems: {
-        href: string;
+        href?: string;
+        onClick?: () => void;
         title: string;
         description: string;
         icon: any;
@@ -22,8 +27,8 @@ export default function SettingsPage() {
     }[] = [
         {
             href: "/settings/users",
-            title: "User Management",
-            description: "Manage administrators, managers, and factory workers. Set permissions and view user activity.",
+            title: "จัดการผู้ใช้งาน",
+            description: "จัดการผู้ดูแลระบบ ผู้จัดการ และพนักงานโรงงาน กำหนดสิทธิ์และดูการเข้าใช้งาน",
             icon: UserCog,
             color: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10",
             lockedIcon: ShieldAlert,
@@ -32,8 +37,8 @@ export default function SettingsPage() {
         },
         {
             href: "/settings/customers",
-            title: "Customer Management",
-            description: "Manage customer records, contact details, and discount rates.",
+            title: "จัดการข้อมูลลูกค้า",
+            description: "จัดการรายชื่อลูกค้า ข้อมูลการติดต่อ และระดับส่วนลด",
             icon: Users,
             color: "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10",
             permission: "settings:view",
@@ -71,6 +76,15 @@ export default function SettingsPage() {
             icon: Tag,
             color: "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10",
             permission: "stickers:manage",
+            hideIfLocked: true,
+        },
+        {
+            onClick: () => setIsExportModalOpen(true),
+            title: "นำออกข้อมูล",
+            description: "ส่งออกข้อมูลในระบบเป็นไฟล์ CSV หรือ Excel (XLSX) เพื่อนำไปใช้งานต่อ",
+            icon: FileDown,
+            color: "text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10",
+            permission: "data:export",
             hideIfLocked: true,
         }
     ];
@@ -111,23 +125,37 @@ export default function SettingsPage() {
                     }
 
                     const Icon = item.icon;
-                    return (
-                        <Link key={idx} href={item.href} className="block h-full group outline-none">
-                            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 p-5 h-full transition-all duration-200 group-hover:border-blue-200 dark:group-hover:border-slate-700 group-hover:shadow-sm ring-2 ring-transparent group-focus-visible:ring-blue-500">
-                                <div className={`h-10 w-10 rounded-lg flex items-center justify-center mb-4 ${item.color}`}>
-                                    <Icon className="h-5 w-5" />
-                                </div>
-                                <h3 className="text-sm font-semibold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors mb-1">
-                                    {item.title}
-                                </h3>
-                                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                                    {item.description}
-                                </p>
+                    const cardContent = (
+                        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/60 dark:border-slate-800 p-5 h-full transition-all duration-200 group-hover:border-blue-200 dark:group-hover:border-slate-700 group-hover:shadow-sm ring-2 ring-transparent group-focus-visible:ring-blue-500 text-left">
+                            <div className={`h-10 w-10 rounded-lg flex items-center justify-center mb-4 ${item.color}`}>
+                                <Icon className="h-5 w-5" />
                             </div>
+                            <h3 className="text-sm font-semibold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors mb-1">
+                                {item.title}
+                            </h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                                {item.description}
+                            </p>
+                        </div>
+                    );
+
+                    if (item.onClick) {
+                        return (
+                            <button key={idx} onClick={item.onClick} className="block h-full group outline-none w-full cursor-pointer">
+                                {cardContent}
+                            </button>
+                        );
+                    }
+
+                    return (
+                        <Link key={idx} href={item.href!} className="block h-full group outline-none">
+                            {cardContent}
                         </Link>
                     );
                 })}
             </div>
+            
+            <ExportDataModal open={isExportModalOpen} onOpenChange={setIsExportModalOpen} />
         </div>
     );
 }
