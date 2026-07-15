@@ -16,6 +16,7 @@ import {
   Printer,
   Info,
   CheckCheck,
+  Check,
   ChevronRight,
   AlertTriangle,
 } from "lucide-react";
@@ -234,7 +235,7 @@ function StationJourney({
                   />
                 )}
                 {isPast && !isCur && !isCancelled && (
-                  <CheckCheck className="h-2.5 w-2.5 text-white" />
+                  <Check className="h-2.5 w-2.5 text-white" />
                 )}
               </div>
             </div>
@@ -320,7 +321,7 @@ function StationJourney({
                           )}
                           {isPast && !isCur && (
                             <div className="text-[11px] font-medium text-green-600 dark:text-green-400 mt-0.5 flex items-center gap-1">
-                              <CheckCheck className="h-3 w-3" />
+                              <Check className="h-3 w-3" />
                               เสร็จแล้ว
                             </div>
                           )}
@@ -937,7 +938,7 @@ function ProductionDetailPageInner() {
 
               {order.status === "completed" && (
                 <div className="flex items-center gap-2.5 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-4 py-3 shrink-0">
-                  <CheckCheck className="h-4 w-4 text-green-600 shrink-0" />
+                  <Check className="h-4 w-4 text-green-600 shrink-0" />
                   <span className="text-sm text-green-700 dark:text-green-400 font-bold">
                     คำสั่งผลิตนี้เสร็จสมบูรณ์แล้ว
                   </span>
@@ -1235,7 +1236,7 @@ function ProductionDetailPageInner() {
                             </div>
                             {pane.currentStatus === "completed" && (
                               <div className="absolute top-0 right-0 p-1.5 bg-green-500 rounded-bl-2xl">
-                                <CheckCheck className="h-4 w-4 text-white" />
+                                <Check className="h-4 w-4 text-white" />
                               </div>
                             )}
                           </button>

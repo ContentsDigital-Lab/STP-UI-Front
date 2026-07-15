@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
     ClipboardList, Search, RefreshCw, ChevronDown, ChevronRight, ChevronLeft,
     AlertCircle, Package, ArrowRight, MapPin,
-    CalendarDays, Printer, X, CheckCheck, Wifi, WifiOff, Trash2,
+    CalendarDays, Printer, X, Check, Wifi, WifiOff, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -103,7 +103,7 @@ function StationFlow({
                 );
             })}
             {isDone && (
-                <CheckCheck className="h-3.5 w-3.5 text-green-500 ml-0.5" />
+                <Check className="h-3.5 w-3.5 text-green-500 ml-0.5" />
             )}
         </div>
     );
@@ -117,7 +117,7 @@ function CurrentStationBadge({
     stationMap: Map<string, Station>;
 }) {
     if (order.status === "completed") {
-        return <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-medium"><CheckCheck className="h-3 w-3" />เสร็จแล้ว</span>;
+        return <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-medium"><Check className="h-3 w-3" />เสร็จแล้ว</span>;
     }
     if (order.status === "cancelled") {
         return <span className="text-xs text-muted-foreground/50 italic">ยกเลิก</span>;
@@ -380,7 +380,7 @@ export default function ProductionPage() {
                     { filterValue: "all", label: "ออเดอร์ทั้งหมด", count: orders.length,     icon: Package, accent: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10" },
                     { filterValue: "pending", label: "รอดำเนินการ",  count: pendingOrdersCount,   icon: AlertCircle,   accent: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10" },
                     { filterValue: "in_progress", label: "กำลังผลิต",  count: activeOrdersCount,    icon: RefreshCw,     accent: "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10" },
-                    { filterValue: "completed", label: "เสร็จแล้ว",  count: completedOrdersCount, icon: CheckCheck,    accent: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10" },
+                    { filterValue: "completed", label: "เสร็จแล้ว",  count: completedOrdersCount, icon: Check,    accent: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10" },
                 ].map(({ filterValue, label, count, icon: Icon, accent }) => {
                     const isHighlighted = filterStatus === filterValue;
                     return (

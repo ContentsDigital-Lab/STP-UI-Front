@@ -15,6 +15,7 @@ const fmtTime = (d?: string) => {
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
+    second: "2-digit",
   });
 };
 
@@ -38,11 +39,13 @@ function PaneField({
   value,
   mono,
   accent,
+  tooltip,
 }: {
   label: string;
   value: string | null | undefined;
   mono?: boolean;
   accent?: string;
+  tooltip?: string;
 }) {
   if (!value) return null;
   return (
@@ -51,7 +54,8 @@ function PaneField({
         {label}
       </span>
       <span
-        className={`text-sm font-medium break-all min-w-0 ${accent ?? "text-slate-800 dark:text-slate-200"} ${mono ? "font-mono" : ""}`}
+        title={tooltip}
+        className={`text-sm font-medium break-all min-w-0 ${accent ?? "text-slate-800 dark:text-slate-200"} ${mono ? "font-mono" : ""} ${tooltip ? "cursor-help underline decoration-dashed decoration-slate-300 dark:decoration-slate-600 underline-offset-[3px]" : ""}`}
       >
         {value}
       </span>
@@ -360,7 +364,7 @@ export function PaneDetailModal({
                       className="text-sm font-bold"
                       style={{ color: heroColor.swatch }}
                     >
-                      ผลิตเสร็จแล้ว
+                      ทำเสร็จแล้ว
                     </span>
                   </div>
                   {totalMs > 0 && (
@@ -697,7 +701,10 @@ export function PaneDetailModal({
                             </span>
                           )}
                           {isPassed && duration && (
-                            <span className="text-[11px] font-semibold text-slate-400 shrink-0 tabular-nums">
+                            <span 
+                              className="text-[11px] font-semibold text-slate-400 shrink-0 tabular-nums cursor-help underline decoration-dashed decoration-slate-300 dark:decoration-slate-600 underline-offset-[3px]"
+                              title="ระยะเวลา (เสร็จ - เข้า)"
+                            >
                               {duration}
                             </span>
                           )}
@@ -753,7 +760,7 @@ export function PaneDetailModal({
                 value={pane.startedAt ? fmtTime(pane.startedAt) : null}
               />
               <PaneField
-                label="ผลิตเสร็จ"
+                label="ทำเสร็จ"
                 value={pane.completedAt ? fmtTime(pane.completedAt) : null}
                 accent="text-green-600 dark:text-green-400"
               />
@@ -767,9 +774,14 @@ export function PaneDetailModal({
                   label="ระยะเวลารวม"
                   value={fmtDuration(totalMs)}
                   accent="text-slate-800 dark:text-white"
+                  tooltip="ระยะเวลา (ทำเสร็จ - เริ่มผลิต)"
                 />
               )}
-              <PaneField label="อัพเดทล่าสุด" value={fmtTime(pane.updatedAt)} />
+              <PaneField 
+                label="อัพเดทล่าสุด" 
+                value={fmtTime(pane.updatedAt)} 
+                tooltip="เวลาล่าสุดที่มีการอัพเดทข้อมูล เช่น การสแกนเข้า, การกดทำเสร็จ, หรือแก้ไขข้อมูล" 
+              />
             </div>
           </div>
         </div>

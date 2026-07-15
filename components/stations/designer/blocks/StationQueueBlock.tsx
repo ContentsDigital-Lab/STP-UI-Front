@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState, KeyboardEvent } from "react";
 import { 
     RotateCcw, Camera, ScanBarcode, QrCode, XCircle, CheckCircle2, AlertTriangle, 
     ChevronDown, ChevronRight, Package, Grid3X3, PackageOpen, Loader2, MapPin, 
-    Layers, Merge, Bell, CheckCheck, Play, Maximize, Box, ListChecks, Database,
+    Layers, Merge, Bell, Check, Play, Maximize, Box, ListChecks, Database,
     PackageCheck, Package2, AlertCircle
 } from "lucide-react";
 import { toast } from "sonner";
@@ -997,7 +997,7 @@ export function StationQueueBlock({
                                                         gSelected ? "bg-primary border-primary" : someSelected ? "bg-primary/20 border-primary" : "border-muted-foreground/30 hover:border-primary/50"
                                                     }`}
                                                 >
-                                                    {gSelected && <CheckCheck className="h-3.5 w-3.5 text-primary-foreground font-bold" />}
+                                                    {gSelected && <Check className="h-3.5 w-3.5 text-primary-foreground font-bold" />}
                                                     {!gSelected && someSelected && <div className="h-1.5 w-1.5 bg-primary rounded-sm" />}
                                                 </button>
                                                 <div className="flex flex-col min-w-0 flex-1 gap-0.5">
@@ -1021,7 +1021,7 @@ export function StationQueueBlock({
                                                 }
                                                 className="h-8 px-3 rounded-lg font-bold"
                                             >
-                                                {batchLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <CheckCheck className="h-3.5 w-3.5 mr-1.5" />}
+                                                {batchLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Check className="h-3.5 w-3.5 mr-1.5" />}
                                                 ทำเสร็จที่เลือก
                                             </Button>
                                         </div>
@@ -1039,7 +1039,7 @@ export function StationQueueBlock({
                                                             <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center transition-colors ${
                                                                 isSel ? "bg-primary border-primary" : "border-muted-foreground/20 group-hover:border-primary/40"
                                                             }`}>
-                                                                {isSel && <CheckCheck className="h-2.5 w-2.5 text-primary-foreground font-bold" />}
+                                                                {isSel && <Check className="h-2.5 w-2.5 text-primary-foreground font-bold" />}
                                                             </div>
                                                             <div className="flex flex-col min-w-0">
                                                                 <div className="flex items-center gap-2">
@@ -1299,7 +1299,7 @@ export function StationQueueBlock({
                                                                                     : "bg-primary hover:bg-primary/90 text-primary-foreground"
                                                                             }`}
                                                                         >
-                                                                            {isLoading ? <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> : res === "success" ? <CheckCheck className="h-3 w-3 mr-1.5" /> : null}
+                                                                            {isLoading ? <Loader2 className="h-3 w-3 animate-spin mr-1.5" /> : res === "success" ? <Check className="h-3 w-3 mr-1.5" /> : null}
                                                                             ทำเสร็จ
                                                                         </Button>
                                                                         <button

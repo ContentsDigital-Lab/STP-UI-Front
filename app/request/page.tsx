@@ -1153,7 +1153,7 @@ export default function OrderRequestsPage() {
             {/* Create/Edit Dialog */}
             <Dialog open={isFormOpen} onOpenChange={(open) => {
                 setIsFormOpen(open);
-                if (!open) resetForm();
+                if (!open) setTimeout(() => resetForm(), 300);
             }}>
                 <DialogContent className="sm:max-w-[520px] rounded-xl p-6 max-h-[90vh] overflow-y-auto">
                     <DialogHeader className="mb-4">

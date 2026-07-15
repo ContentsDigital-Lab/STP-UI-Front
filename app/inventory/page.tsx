@@ -1231,9 +1231,6 @@ export default function InventoryPage() {
                                             </div>
                                         ) : materialLogs.length > 0 ? (
                                             <div className="relative space-y-1">
-                                                {/* Vertical timeline line */}
-                                                <div className="absolute left-[19px] top-5 bottom-5 w-px bg-slate-100 dark:bg-slate-800" />
-
                                                 {(() => {
                                                     // Build from ALL material logs (not just this slot's filtered logs)
                                                     // so withdraw logs in source panel are correctly identified as "move out"
