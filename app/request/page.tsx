@@ -474,6 +474,17 @@ export default function OrderRequestsPage() {
         });
     };
 
+    const formatDateTime = (dateStr: string) => {
+        if (!dateStr) return "—";
+        return new Date(dateStr).toLocaleString(lang === 'th' ? 'th-TH' : 'en-US', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+        });
+    };
+
     const formatPrice = (price: number) => {
         return new Intl.NumberFormat(lang === 'th' ? 'th-TH' : 'en-US', {
             style: 'currency',
@@ -719,10 +730,13 @@ export default function OrderRequestsPage() {
                                                     {cust?.name || (lang === 'th' ? 'ไม่ระบุ' : 'Unknown')}
                                                 </span>
                                             </TableCell>
-                                            <TableCell className="py-3.5">
-                                                <span className={`text-xs font-medium px-2 py-1 rounded-md ${req.details?.type?.includes('inch') ? 'bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400' : 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400'}`}>
+                                            <TableCell className="py-3.5 max-w-[200px]">
+                                                <div 
+                                                    className={`text-xs font-medium px-2 py-1 rounded-md truncate inline-block max-w-full ${req.details?.type?.includes('inch') ? 'bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400' : 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400'}`}
+                                                    title={req.details?.type || ""}
+                                                >
                                                     {req.details?.type || "—"}
-                                                </span>
+                                                </div>
                                             </TableCell>
                                             <TableCell className="py-3.5 text-center">
                                                 <span className="text-sm font-semibold text-slate-900 dark:text-white tabular-nums">
@@ -993,7 +1007,7 @@ export default function OrderRequestsPage() {
                                                     {it.detail.deadlineLabel}
                                                 </p>
                                                 <p className={`text-sm font-medium ${deadlinePast ? 'text-red-600' : 'text-slate-900 dark:text-white'}`}>
-                                                    {formatDate(selectedRequest.deadline)}
+                                                    {formatDateTime(selectedRequest.deadline)}
                                                 </p>
                                             </div>
                                             <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-900">
@@ -1001,16 +1015,16 @@ export default function OrderRequestsPage() {
                                                     <Truck className="h-3 w-3" />
                                                     {it.detail.expectedDelivery}
                                                 </p>
-                                                <p className="text-sm font-medium text-slate-900 dark:text-white">{formatDate(selectedRequest.expectedDeliveryDate)}</p>
+                                                <p className="text-sm font-medium text-slate-900 dark:text-white">{formatDateTime(selectedRequest.expectedDeliveryDate)}</p>
                                             </div>
                                             <div className="grid grid-cols-2 gap-2.5">
                                                 <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-900">
                                                     <p className="text-[11px] text-slate-400 mb-0.5">{it.detail.createdAt}</p>
-                                                    <p className="text-xs font-medium text-slate-600 dark:text-slate-300">{formatDate(selectedRequest.createdAt)}</p>
+                                                    <p className="text-xs font-medium text-slate-600 dark:text-slate-300">{formatDateTime(selectedRequest.createdAt)}</p>
                                                 </div>
                                                 <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-900">
                                                     <p className="text-[11px] text-slate-400 mb-0.5">{it.detail.updatedAt}</p>
-                                                    <p className="text-xs font-medium text-slate-600 dark:text-slate-300">{formatDate(selectedRequest.updatedAt)}</p>
+                                                    <p className="text-xs font-medium text-slate-600 dark:text-slate-300">{formatDateTime(selectedRequest.updatedAt)}</p>
                                                 </div>
                                             </div>
                                         </div>
