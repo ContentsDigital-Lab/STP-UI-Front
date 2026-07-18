@@ -71,7 +71,13 @@ export function WithdrawModal({ stationId, onClose, initialPane }: WithdrawModal
 
     useEffect(() => {
         if (initialPane) {
-            fetchMatchingInventory(initialPane);
+            if (initialPane.withdrawal) {
+                setError(`กระจกนี้ถูกเบิกไปแล้ว ไม่สามารถเบิกซ้ำได้`);
+                setStep("scan");
+                setPane(null);
+            } else {
+                fetchMatchingInventory(initialPane);
+            }
         } else {
             inputRef.current?.focus();
         }
@@ -141,6 +147,10 @@ export function WithdrawModal({ stationId, onClose, initialPane }: WithdrawModal
                 return;
             }
             const p = res.data as Pane;
+            if (p.withdrawal) {
+                setError(`กระจก ${raw} ถูกเบิกไปแล้ว ไม่สามารถเบิกซ้ำได้`);
+                return;
+            }
             if (p.currentStatus === "completed") {
                 setError(`กระจก ${raw} เสร็จสิ้นแล้ว ไม่สามารถเบิกได้`);
                 return;
