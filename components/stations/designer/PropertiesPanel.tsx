@@ -813,14 +813,20 @@ export function PropertiesPanel() {
     const props     = (node?.data?.props ?? {}) as Record<string, unknown>;
     const blockName = node?.data?.displayName ?? node?.data?.name ?? "";
     const fieldMeta = FIELD_META[blockName] ?? {};
-    const setProp   = (key: string, value: string | number | boolean) => {
-        actions.setProp(selected, (p: Record<string, unknown>) => {
-            p[key] = value;
-            if (key === "dataSource" && typeof value === "string") {
-                const preset = COLUMN_PRESETS[value];
-                p.columnsJson = JSON.stringify(preset ?? []);
-            }
-        });
+    const setProp   = (key: string, value: string | number | boolean, isCustom = false) => {
+        if (isCustom) {
+            actions.setCustom(selected, (c: Record<string, unknown>) => {
+                c[key] = value;
+            });
+        } else {
+            actions.setProp(selected, (p: Record<string, unknown>) => {
+                p[key] = value;
+                if (key === "dataSource" && typeof value === "string") {
+                    const preset = COLUMN_PRESETS[value];
+                    p.columnsJson = JSON.stringify(preset ?? []);
+                }
+            });
+        }
     };
 
     // ── Scan canvas for form fields → build dynamic dataVar suggestions ────────
