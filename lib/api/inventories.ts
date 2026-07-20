@@ -4,7 +4,7 @@ import { ApiResponse, Inventory } from "./types";
 export const inventoriesApi = {
     getAll: async (params?: { limit?: number }): Promise<ApiResponse<Inventory[]>> => {
         const q = new URLSearchParams();
-        q.set("limit", String(params?.limit ?? 1000000));
+        q.set("limit", String(params?.limit ?? 1000));
         return fetchApi<ApiResponse<Inventory[]>>(`/inventories?${q.toString()}`, {
             method: "GET",
         });

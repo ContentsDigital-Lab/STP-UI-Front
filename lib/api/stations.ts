@@ -4,7 +4,7 @@ import { ApiResponse, Station } from "./types";
 export const stationsApi = {
     getAll: async (params?: { limit?: number }): Promise<ApiResponse<Station[]>> => {
         const q = new URLSearchParams();
-        q.set("limit", String(params?.limit ?? 1000000));
+        q.set("limit", String(params?.limit ?? 1000));
         return fetchApi<ApiResponse<Station[]>>(`/stations?${q.toString()}`, { method: "GET" });
     },
 

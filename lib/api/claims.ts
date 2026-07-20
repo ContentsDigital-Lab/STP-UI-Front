@@ -4,7 +4,7 @@ import { ApiResponse, Claim } from "./types";
 export const claimsApi = {
     getAll: async (params?: { limit?: number }): Promise<ApiResponse<Claim[]>> => {
         const q = new URLSearchParams();
-        q.set("limit", String(params?.limit ?? 1000000));
+        q.set("limit", String(params?.limit ?? 1000));
         return fetchApi<ApiResponse<Claim[]>>(`/claims?${q.toString()}`, {
             method: "GET",
         });

@@ -30,7 +30,6 @@ import { claimsApi } from "@/lib/api/claims";
 import { stationsApi } from "@/lib/api/stations";
 import { materialLogsApi } from "@/lib/api/material-logs";
 import { paneLogsApi } from "@/lib/api/pane-logs";
-import * as XLSX from "xlsx";
 
 interface ExportDataModalProps {
     open: boolean;
@@ -406,6 +405,7 @@ export function ExportDataModal({ open, onOpenChange }: ExportDataModalProps) {
 
         try {
             const data = prepareExportData(selectedFields, dataToExport);
+            const XLSX = await import("xlsx");
             const worksheet = XLSX.utils.json_to_sheet(data);
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, "Data");

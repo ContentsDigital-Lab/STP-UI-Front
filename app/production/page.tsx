@@ -15,7 +15,9 @@ import { panesApi } from "@/lib/api/panes";
 import { requestsApi } from "@/lib/api/requests";
 import { stationsApi } from "@/lib/api/stations";
 import { getColorOption } from "@/lib/stations/stations-store";
+import { toast } from "sonner";
 import { useWebSocket } from "@/lib/hooks/use-socket";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { Order, OrderRequest, Station, Pane } from "@/lib/api/types";
 import { getStationId, getStationName } from "@/lib/utils/station-helpers";
 import { isPaneRetiredByMerge } from "@/lib/utils/pane-laminate";
@@ -88,13 +90,11 @@ function StationFlow({
                                          ...(isCur ? { color: color.swatch } : {}) }}
                             />
                             {/* tooltip */}
-                            {station && (
-                                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-1.5 py-0.5 rounded text-[10px] whitespace-nowrap bg-popover border shadow-sm text-foreground opacity-0 group-hover/dot:opacity-100 pointer-events-none transition-opacity z-10">
-                                    {station.name}
-                                    {isCur && " ← ปัจจุบัน"}
-                                    {isPast && !isDone && " ✓"}
-                                </span>
-                            )}
+                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-1.5 py-0.5 rounded text-[10px] whitespace-nowrap bg-popover border shadow-sm text-foreground opacity-0 group-hover/dot:opacity-100 pointer-events-none transition-opacity z-10">
+                                {station?.name ?? getStationName(sidOrObj) ?? sid}
+                                {isCur && " ← ปัจจุบัน"}
+                                {isPast && !isDone && " ✓"}
+                            </span>
                         </div>
                         {idx < stationIds.length - 1 && (
                             <span className="text-muted-foreground/20 text-[10px] leading-none">›</span>
@@ -160,11 +160,6 @@ export default function ProductionPage() {
     const { user } = useAuth();
     const canManage = hasPermission(user, "production:manage") || hasPermission(user, "orders:manage");
 
-    const [orders,    setOrders]    = useState<Order[]>([]);
-    const [requests,  setRequests]  = useState<OrderRequest[]>([]);
-    const [stations,  setStations]  = useState<Station[]>([]);
-    const [paneMap,   setPaneMap]   = useState<Map<string, Pane[]>>(new Map());
-    const [loading,   setLoading]   = useState(true);
     const [search,    setSearch]    = useState("");
     const [dateFilter, setDateFilter] = useState<string>("all");
     const [page,      setPage]      = useState(1);
@@ -174,43 +169,43 @@ export default function ProductionPage() {
     const [filterStation, setFilterStation] = useState<string>("all");
     const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null);
     const [deleting, setDeleting] = useState(false);
-    const loadPanes = useCallback(async () => {
-        const pRes = await panesApi.getAll({ limit: 5000 }).catch(() => null);
-        if (pRes?.success) {
-            const map = new Map<string, Pane[]>();
-            for (const p of pRes.data ?? []) {
-                if (isPaneRetiredByMerge(p)) continue;
-                if (p.currentStatus === "claimed") continue;
-                if (p.laminateRole === "sheet") continue;
-                const oid = typeof p.order === "string" ? p.order : (p.order as Order)?._id;
-                if (!oid) continue;
-                if (!map.has(oid)) map.set(oid, []);
-                map.get(oid)!.push(p);
-            }
-            setPaneMap(map);
-        }
-    }, []);
+    
+    const queryClient = useQueryClient();
 
-    const load = useCallback(async () => {
-        setLoading(true);
-        try {
-            const [oRes, rRes, sRes] = await Promise.all([
-                ordersApi.getAll(),
-                requestsApi.getAll(),
-                stationsApi.getAll(),
-            ]);
-            if (oRes.success) setOrders(oRes.data ?? []);
-            if (rRes.success) setRequests(rRes.data ?? []);
-            if (sRes.success) setStations(sRes.data ?? []);
-            await loadPanes();
-        } finally {
-            setLoading(false);
+    const results = useQueries({
+        queries: [
+            { queryKey: ["orders"], queryFn: () => ordersApi.getAll() },
+            { queryKey: ["requests"], queryFn: () => requestsApi.getAll() },
+            { queryKey: ["stations"], queryFn: () => stationsApi.getAll() },
+            { queryKey: ["panes", { limit: 5000 }], queryFn: () => panesApi.getAll({ limit: 5000 }) },
+        ]
+    });
+
+    const loading = results.some(r => r.isLoading);
+    const orders = results[0].data?.data ?? [];
+    const requests = results[1].data?.data ?? [];
+    const stations = results[2].data?.data ?? [];
+    const panesList = results[3].data?.data ?? [];
+
+    const paneMap = useMemo(() => {
+        const map = new Map<string, Pane[]>();
+        for (const p of panesList) {
+            if (isPaneRetiredByMerge(p)) continue;
+            if (p.currentStatus === "claimed") continue;
+            if (p.laminateRole === "sheet") continue;
+            const oid = typeof p.order === "string" ? p.order : (p.order as Order)?._id;
+            if (!oid) continue;
+            if (!map.has(oid)) map.set(oid, []);
+            map.get(oid)!.push(p);
         }
-    }, [loadPanes]);
-    useEffect(() => { load(); }, [load]);
+        return map;
+    }, [panesList]);
 
     const { status: wsStatus } = useWebSocket("production", [...SOCKET_EVENTS, "pane:updated", "pane:laminated"], () => {
-        load();
+        queryClient.invalidateQueries({ queryKey: ["orders"] });
+        queryClient.invalidateQueries({ queryKey: ["requests"] });
+        queryClient.invalidateQueries({ queryKey: ["stations"] });
+        queryClient.invalidateQueries({ queryKey: ["panes"] });
     });
 
     const stationMap = useMemo(() => new Map(stations.map(s => [s._id, s])), [stations]);
@@ -239,10 +234,25 @@ export default function ProductionPage() {
 
     // Stations actually used by current orders (for filter dropdown)
     const usedStations = useMemo(() => {
-        const ids = new Set(
-            orders.flatMap(o => (o.stations ?? []).map(getStationId).filter(Boolean))
-        );
-        return stations.filter(s => ids.has(s._id));
+        const map = new Map<string, { _id: string; name: string }>();
+        orders.forEach(o => {
+            (o.stations ?? []).forEach(s => {
+                const sid = getStationId(s);
+                if (sid) {
+                    const sName = getStationName(s);
+                    if (!map.has(sid) || map.get(sid)!.name === sid) {
+                        map.set(sid, { _id: sid, name: sName || sid });
+                    }
+                }
+            });
+        });
+        // Override with any official names from the global stations list if available
+        stations.forEach(s => {
+            if (map.has(s._id)) {
+                map.set(s._id, { _id: s._id, name: s.name });
+            }
+        });
+        return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
     }, [orders, stations]);
 
     // Apply filters: status, station (if any), then date, then search
@@ -338,7 +348,7 @@ export default function ProductionPage() {
         try {
             const res = await ordersApi.delete(deleteTarget.id);
             if (res.success) {
-                setOrders(prev => prev.filter(o => o._id !== deleteTarget.id));
+                queryClient.invalidateQueries({ queryKey: ["orders"] });
             }
         } catch { /* ignore */ }
         setDeleting(false);
@@ -367,7 +377,12 @@ export default function ProductionPage() {
                         {wsStatus === "open" ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
                         <span className="hidden sm:inline">{wsStatus === "open" ? "Live" : "ออฟไลน์"}</span>
                     </span>
-                    <Button variant="outline" size="sm" className="gap-1.5 rounded-xl h-9 text-sm" onClick={load} disabled={loading}>
+                    <Button variant="outline" size="sm" className="gap-1.5 rounded-xl h-9 text-sm" onClick={() => {
+                        queryClient.invalidateQueries({ queryKey: ["orders"] });
+                        queryClient.invalidateQueries({ queryKey: ["requests"] });
+                        queryClient.invalidateQueries({ queryKey: ["stations"] });
+                        queryClient.invalidateQueries({ queryKey: ["panes"] });
+                    }} disabled={loading}>
                         <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
                         รีเฟรช
                     </Button>
@@ -532,14 +547,20 @@ export default function ProductionPage() {
                         const isOpen = expanded.has(bill.id);
                         const visibleOrders = bill.orders;
 
-                        // Collect unique station ids across all orders in this bill
-                        const allStationIds = Array.from(
-                            new Set(
-                                bill.orders.flatMap(o =>
-                                    (o.stations ?? []).map(getStationId).filter(Boolean)
-                                )
-                            )
-                        );
+                        // Collect unique station ids and their best known names across all orders in this bill
+                        const uniqueStations = new Map<string, string>();
+                        bill.orders.forEach(o => {
+                            (o.stations ?? []).forEach(s => {
+                                const sid = getStationId(s);
+                                if (sid) {
+                                    const sName = getStationName(s);
+                                    if (!uniqueStations.has(sid) || uniqueStations.get(sid) === sid) {
+                                        uniqueStations.set(sid, sName || sid);
+                                    }
+                                }
+                            });
+                        });
+                        const allStationIds = Array.from(uniqueStations.keys());
 
                         return (
                             <div key={bill.id} className="group/bill hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
@@ -564,14 +585,15 @@ export default function ProductionPage() {
                                                             const station = stationMap.get(sid);
                                                             const colorId = station?.colorId ?? "sky";
                                                             const color   = getColorOption(colorId);
+                                                            const displayName = station?.name ?? uniqueStations.get(sid) ?? sid;
                                                             return (
                                                                 <span
                                                                     key={sid}
-                                                                    title={station?.name ?? sid}
+                                                                    title={displayName}
                                                                     className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${color.cls}`}
                                                                 >
                                                                     <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: color.swatch }} />
-                                                                    {station?.name ?? sid}
+                                                                    {displayName}
                                                                 </span>
                                                             );
                                                         })}

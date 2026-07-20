@@ -286,7 +286,7 @@ function ElementNode({ el, isSelected, onSelect, onChange, onRotating, onRotateE
         return (
             <>
                 <Text ref={shapeRef as React.RefObject<Konva.Text>} {...common} x={el.x} y={el.y} rotation={el.rotation ?? 0} text={el.text} fontSize={el.fontSize} fill={el.fill} fontStyle={fontStyle} fontFamily={cssFontFamily(el.fontFamily ?? "Prompt")} />
-                {isSelected && <Transformer {...trProps} enabledAnchors={["middle-left", "middle-right"]} />}
+                {isSelected ? <Transformer {...trProps} enabledAnchors={["middle-left", "middle-right"]} /> : null}
             </>
         );
     }
@@ -300,9 +300,9 @@ function ElementNode({ el, isSelected, onSelect, onChange, onRotating, onRotateE
                     onDblClick={() => { if (rectGroupRef.current) onEditLabel?.(el.id, rectGroupRef.current); }}
                 >
                     <Rect x={0} y={0} width={el.width} height={el.height} fill={el.fill === "transparent" ? "" : el.fill} stroke={el.stroke} strokeWidth={el.strokeWidth} />
-                    {el.label && <Text x={0} y={0} width={el.width} height={el.height} text={el.label} align="center" verticalAlign="middle" fontSize={el.labelFontSize ?? 12} fill={el.labelColor ?? "#000000"} listening={false} fontFamily="'Prompt', sans-serif" />}
+                    {el.label ? <Text x={0} y={0} width={el.width} height={el.height} text={el.label} align="center" verticalAlign="middle" fontSize={el.labelFontSize ?? 12} fill={el.labelColor ?? "#000000"} listening={false} fontFamily="'Prompt', sans-serif" /> : null}
                 </Group>
-                {isSelected && <Transformer {...trProps} />}
+                {isSelected ? <Transformer {...trProps} /> : null}
             </>
         );
     }
@@ -310,7 +310,7 @@ function ElementNode({ el, isSelected, onSelect, onChange, onRotating, onRotateE
         return (
             <>
                 <Line ref={shapeRef as React.RefObject<Konva.Line>} {...common} x={el.x} y={el.y} rotation={el.rotation ?? 0} points={el.points} stroke={el.stroke} strokeWidth={el.strokeWidth} hitStrokeWidth={10} />
-                {isSelected && <Transformer {...trProps} enabledAnchors={["middle-left", "middle-right"]} />}
+                {isSelected ? <Transformer {...trProps} enabledAnchors={["middle-left", "middle-right"]} /> : null}
             </>
         );
     }
@@ -370,7 +370,7 @@ function ElementNode({ el, isSelected, onSelect, onChange, onRotating, onRotateE
                         />
                     )}
                 </Group>
-                {isSelected && <Transformer {...trProps} />}
+                {isSelected ? <Transformer {...trProps} /> : null}
             </>
         );
     }
@@ -423,7 +423,7 @@ function StaticElement({ el }: { el: Exclude<StickerElement, GroupElement> }) {
     if (el.type === "rect") return (
         <Group x={el.x} y={el.y} rotation={el.rotation ?? 0}>
             <Rect x={0} y={0} width={el.width} height={el.height} fill={el.fill === "transparent" ? "" : el.fill} stroke={el.stroke} strokeWidth={el.strokeWidth} />
-            {el.label && <Text x={0} y={0} width={el.width} height={el.height} text={el.label} align="center" verticalAlign="middle" fontSize={el.labelFontSize ?? 12} fill={el.labelColor ?? "#000000"} listening={false} fontFamily="'Prompt', sans-serif" />}
+            {el.label ? <Text x={0} y={0} width={el.width} height={el.height} text={el.label} align="center" verticalAlign="middle" fontSize={el.labelFontSize ?? 12} fill={el.labelColor ?? "#000000"} listening={false} fontFamily="'Prompt', sans-serif" /> : null}
         </Group>
     );
     if (el.type === "line")  return <Line x={el.x} y={el.y} rotation={el.rotation ?? 0} points={el.points} stroke={el.stroke} strokeWidth={el.strokeWidth} />;
@@ -449,7 +449,7 @@ function StaticElement({ el }: { el: Exclude<StickerElement, GroupElement> }) {
         return (
             <Group x={s.x} y={s.y} rotation={s.rotation ?? 0}>
                 {shapeNode}
-                {s.label && <Text x={0} y={0} width={s.width} height={s.height} text={s.label} align="center" verticalAlign="middle" fontSize={s.labelFontSize ?? 12} fill={s.labelColor ?? "#000000"} listening={false} fontFamily="'Prompt', sans-serif" />}
+                {s.label ? <Text x={0} y={0} width={s.width} height={s.height} text={s.label} align="center" verticalAlign="middle" fontSize={s.labelFontSize ?? 12} fill={s.labelColor ?? "#000000"} listening={false} fontFamily="'Prompt', sans-serif" /> : null}
             </Group>
         );
     }

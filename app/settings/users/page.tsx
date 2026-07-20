@@ -88,6 +88,9 @@ export default function UsersManagementPage() {
     // Role Management state
     const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
     const [editingRole, setEditingRole] = useState<Partial<Role> | null>(null);
+    const [isDeleteRoleOpen, setIsDeleteRoleOpen] = useState(false);
+    const [deletingRole, setDeletingRole] = useState<Role | null>(null);
+    const [isDeletingRole, setIsDeletingRole] = useState(false);
 
     const canManageUsers = isAdmin(user?.role) || hasPermission(user, "users:manage");
     const canManageRoles = isAdmin(user?.role) || hasPermission(user, "roles:manage");
@@ -271,13 +274,61 @@ export default function UsersManagementPage() {
         }
     };
 
+    const confirmDeleteRole = async () => {
+        if (!deletingRole) return;
+        setIsDeletingRole(true);
+        try {
+            const response = await rolesApi.delete(deletingRole._id);
+            if (response.success) {
+                toast.success(`ลบบทบาท "${deletingRole.name}" เรียบร้อย`);
+                setIsDeleteRoleOpen(false);
+                fetchWorkers(); // Refresh roles list
+            }
+        } catch (error) {
+            console.error("Failed to delete role:", error);
+            toast.error(getApiErrorMessage(error, "ไม่สามารถลบบทบาทได้"));
+        } finally {
+            setIsDeletingRole(false);
+        }
+    };
+
     const isSelf = (workerId: string) => user?._id === workerId;
+
+    const resolveRoleSlug = (workerRole: Role | string | undefined | null) => {
+        if (!workerRole) return "";
+        if (typeof workerRole === "object") {
+            if (workerRole.slug) return workerRole.slug;
+            const found = roles.find(r => r._id === workerRole._id);
+            if (found) return found.slug;
+            return workerRole._id || "";
+        }
+        const found = roles.find(r => r._id === workerRole || r.slug === workerRole);
+        if (found) return found.slug;
+        return workerRole as string;
+    };
+
+    const resolveRoleName = (workerRole: Role | string | undefined | null) => {
+        if (!workerRole) return "";
+        if (typeof workerRole === "object") {
+            if (workerRole.name) return workerRole.name;
+            const found = roles.find(r => r._id === workerRole._id);
+            if (found) return found.name;
+            return workerRole._id || "";
+        }
+        const found = roles.find(r => r._id === workerRole || r.slug === workerRole);
+        if (found) return found.name;
+        if (workerRole === "admin") return "Admin";
+        if (workerRole === "worker") return "Worker";
+        if (workerRole === "manager") return "Manager";
+        return workerRole as string;
+    };
 
     const filteredWorkers = workers.filter((worker) => {
         const matchesSearch =
             worker.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            worker.username.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesRole = roleFilter === "all" || getRoleSlug(worker.role) === roleFilter;
+            worker.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (worker.position && worker.position.toLowerCase().includes(searchQuery.toLowerCase()));
+        const matchesRole = roleFilter === "all" || resolveRoleSlug(worker.role) === roleFilter;
         return matchesSearch && matchesRole;
     });
 
@@ -351,7 +402,7 @@ export default function UsersManagementPage() {
                                 <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">ค้นหา</Label>
                                 <div className="relative">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                                    <Input placeholder="ค้นหาด้วยชื่อหรือ username..." className="pl-9 h-10 rounded-xl" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+                                    <Input placeholder="ค้นหาด้วยชื่อ, username หรือตำแหน่ง..." className="pl-9 h-10 rounded-xl" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                                 </div>
                             </div>
                             <div className="sm:w-44 space-y-1.5">
@@ -362,11 +413,11 @@ export default function UsersManagementPage() {
                                             {roleFilter === "all" ? "ทุกบทบาท" : roleFilter === "admin" ? "Admin" : roleFilter === "manager" ? "Manager" : roleFilter === "worker" ? "Worker" : roleFilter}
                                         </SelectValue>
                                     </SelectTrigger>
-                                    <SelectContent>
+                                    <SelectContent alignItemWithTrigger={false}>
                                         <SelectItem value="all">ทุกบทบาท</SelectItem>
-                                        <SelectItem value="admin">Admin</SelectItem>
-                                        <SelectItem value="manager">Manager</SelectItem>
-                                        <SelectItem value="worker">Worker</SelectItem>
+                                        {roles.map(r => (
+                                            <SelectItem key={r.slug} value={r.slug}>{r.name}</SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -416,8 +467,8 @@ export default function UsersManagementPage() {
                                     <TableCell className="text-sm text-slate-500 dark:text-slate-400 py-3.5">{worker.username}</TableCell>
                                     <TableCell className="text-sm text-slate-600 dark:text-slate-300 py-3.5">{worker.position}</TableCell>
                                     <TableCell className="py-3.5">
-                                        <Badge variant="outline" className={`text-xs font-medium px-2 py-0.5 rounded-md border-0 ${getRoleBadgeColor(getRoleSlug(worker.role))}`}>
-                                            {getRoleName(worker.role)}
+                                        <Badge variant="outline" className={`text-xs font-medium px-2 py-0.5 rounded-md border-0 ${getRoleBadgeColor(resolveRoleSlug(worker.role))}`}>
+                                            {resolveRoleName(worker.role)}
                                         </Badge>
                                     </TableCell>
                                     <TableCell className="text-right py-3.5 pr-4">
@@ -429,8 +480,8 @@ export default function UsersManagementPage() {
                                                         size="sm"
                                                         className="rounded-lg h-8 w-8 p-0 hover:bg-slate-100 dark:hover:bg-slate-800"
                                                         onClick={() => handleEditClick(worker)}
-                                                        disabled={isSelf(worker._id) || (!isAdmin(user?.role) && getRoleSlug(worker.role) === "admin")}
-                                                        title={isSelf(worker._id) ? "ไม่สามารถแก้ไขตัวเองได้" : !isAdmin(user?.role) && getRoleSlug(worker.role) === "admin" ? "ไม่สามารถแก้ไข Admin ได้" : "แก้ไขบทบาท"}
+                                                        disabled={isSelf(worker._id) || (!isAdmin(user?.role) && resolveRoleSlug(worker.role) === "admin")}
+                                                        title={isSelf(worker._id) ? "ไม่สามารถแก้ไขตัวเองได้" : !isAdmin(user?.role) && resolveRoleSlug(worker.role) === "admin" ? "ไม่สามารถแก้ไข Admin ได้" : "แก้ไขบทบาท"}
                                                     >
                                                         <Edit className="h-4 w-4 text-slate-500" />
                                                     </Button>
@@ -439,7 +490,7 @@ export default function UsersManagementPage() {
                                                         size="sm"
                                                         className="rounded-lg h-8 w-8 p-0 hover:bg-red-50 dark:hover:bg-red-950"
                                                         onClick={() => handleDeleteClick(worker)}
-                                                        disabled={isSelf(worker._id) || (!isAdmin(user?.role) && getRoleSlug(worker.role) === "admin")}
+                                                        disabled={isSelf(worker._id) || (!isAdmin(user?.role) && resolveRoleSlug(worker.role) === "admin")}
                                                         title={isSelf(worker._id) ? "ไม่สามารถลบตัวเองได้" : "ลบผู้ใช้"}
                                                     >
                                                         <Trash2 className="h-4 w-4 text-red-500" />
@@ -513,7 +564,7 @@ export default function UsersManagementPage() {
                             disabled={isSaving || (!isAdmin(user?.role) && editRole === "admin")}
                             className="rounded-xl h-10 min-w-[120px] bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white text-sm font-bold shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0"
                         >
-                            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                             บันทึก
                         </Button>
                     </div>
@@ -638,14 +689,29 @@ export default function UsersManagementPage() {
                                             <p className="text-xs text-slate-500 line-clamp-2 mt-1">{role.description || "ไม่มีคำอธิบาย"}</p>
                                         </div>
                                         {canManageRoles && (
-                                            <Button 
-                                                variant="ghost" 
-                                                size="sm" 
-                                                onClick={() => handleEditRole(role)}
-                                                className="h-8 w-8 p-0 shrink-0 ml-2 hover:bg-slate-100 dark:hover:bg-slate-800"
-                                            >
-                                                <Edit className="h-4 w-4 text-slate-500" />
-                                            </Button>
+                                            <div className="flex items-center">
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="sm" 
+                                                    onClick={() => handleEditRole(role)}
+                                                    className="h-8 w-8 p-0 shrink-0 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                                >
+                                                    <Edit className="h-4 w-4 text-slate-500" />
+                                                </Button>
+                                                {!['admin', 'manager', 'worker'].includes(role.slug) && (
+                                                    <Button 
+                                                        variant="ghost" 
+                                                        size="sm" 
+                                                        onClick={() => {
+                                                            setDeletingRole(role);
+                                                            setIsDeleteRoleOpen(true);
+                                                        }}
+                                                        className="h-8 w-8 p-0 shrink-0 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+                                                    >
+                                                        <Trash2 className="h-4 w-4 text-red-500" />
+                                                    </Button>
+                                                )}
+                                            </div>
                                         )}
                                     </div>
                                     <div className="flex flex-wrap gap-1 mt-2">
@@ -680,12 +746,16 @@ export default function UsersManagementPage() {
                         <DialogTitle>{editingRole?._id ? "แก้ไขบทบาท" : "สร้างบทบาทใหม่"}</DialogTitle>
                     </div>
                     <div className="p-6 overflow-y-auto flex-1 space-y-6">
-                        <div className="grid gap-4">
+                        <div className="grid gap-4 sm:grid-cols-2">
                             <div className="space-y-1.5">
                                 <Label>ชื่อบทบาท</Label>
                                 <Input value={editingRole?.name || ""} onChange={(e) => setEditingRole({ ...editingRole, name: e.target.value })} placeholder="เช่น Senior Admin" className="rounded-xl" />
                             </div>
                             <div className="space-y-1.5">
+                                <Label>Slug (ใช้อ้างอิงในระบบ)</Label>
+                                <Input value={editingRole?.slug || ""} onChange={(e) => setEditingRole({ ...editingRole, slug: e.target.value })} placeholder="เช่น senior-admin" className="rounded-xl" disabled={!!editingRole?._id} />
+                            </div>
+                            <div className="space-y-1.5 sm:col-span-2">
                                 <Label>คำอธิบาย</Label>
                                 <Input value={editingRole?.description || ""} onChange={(e) => setEditingRole({ ...editingRole, description: e.target.value })} placeholder="คำอธิบายสั้นๆ" className="rounded-xl" />
                             </div>
@@ -752,7 +822,7 @@ export default function UsersManagementPage() {
                             disabled={isSaving || !editingRole?.name}
                             className="rounded-xl h-10 min-w-[120px] bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white text-sm font-bold shadow-lg shadow-blue-500/20 dark:shadow-orange-500/20 border-0"
                         >
-                            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                             บันทึกบทบาท
                         </Button>
                     </DialogFooter>
@@ -778,8 +848,27 @@ export default function UsersManagementPage() {
                     <DialogFooter className="px-6 py-4 bg-slate-50 dark:bg-slate-900/50 border-t">
                         <Button variant="ghost" className="rounded-xl" onClick={() => setIsDeleteOpen(false)}>ยกเลิก</Button>
                         <Button variant="destructive" className="rounded-xl font-bold" onClick={handleConfirmDelete} disabled={isDeleting}>
-                            {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                             ลบผู้ใช้
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+            {/* Delete Role Modal */}
+            <Dialog open={isDeleteRoleOpen} onOpenChange={setIsDeleteRoleOpen}>
+                <DialogContent className="sm:max-w-[400px] rounded-2xl p-0 overflow-hidden bg-white dark:bg-slate-950">
+                    <div className="p-6">
+                        <DialogTitle className="text-red-600 flex items-center gap-2">
+                            <Trash2 className="h-5 w-5" />
+                            ยืนยันการลบบทบาท
+                        </DialogTitle>
+                        <DialogDescription className="mt-2">ต้องการลบบทบาท <span className="font-bold">{deletingRole?.name}</span> ใช่หรือไม่?<br/><span className="text-red-500 text-xs mt-1 block">ระวัง! หากมีผู้ใช้ในบทบาทนี้ จะทำให้เกิดข้อผิดพลาดในการแสดงผลผู้ใช้เหล่านั้น</span></DialogDescription>
+                    </div>
+                    <DialogFooter className="px-6 py-4 bg-slate-50 dark:bg-slate-900/50 border-t">
+                        <Button variant="ghost" className="rounded-xl" onClick={() => setIsDeleteRoleOpen(false)}>ยกเลิก</Button>
+                        <Button variant="destructive" className="rounded-xl font-bold bg-red-600 hover:bg-red-700 text-white" onClick={confirmDeleteRole} disabled={isDeletingRole}>
+                            {isDeletingRole ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            ลบบทบาท
                         </Button>
                     </DialogFooter>
                 </DialogContent>

@@ -359,7 +359,7 @@ export default function WithdrawalsPage() {
                                 <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">ประเภท</TableHead>
                                 <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">Order</TableHead>
                                 <TableHead className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-3 h-10">เบิกโดย</TableHead>
-                                {canManage && <TableHead className="w-10 py-3 h-10" />}
+                                {canManage ? <TableHead className="w-10 py-3 h-10" /> : null}
                             </TableRow>
                         </TableHeader>
                         <TableBody>

@@ -4,7 +4,7 @@ import { ApiResponse, Worker } from "./types";
 export const workersApi = {
     getAll: async (params?: { limit?: number }): Promise<ApiResponse<Worker[]>> => {
         const q = new URLSearchParams();
-        q.set("limit", String(params?.limit ?? 1000000));
+        q.set("limit", String(params?.limit ?? 1000));
         return fetchApi<ApiResponse<Worker[]>>(`/workers?${q.toString()}`, {
             method: "GET",
         });

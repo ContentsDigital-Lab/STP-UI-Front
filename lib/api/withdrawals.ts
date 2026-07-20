@@ -4,7 +4,7 @@ import { ApiResponse, Withdrawal } from "./types";
 export const withdrawalsApi = {
     getAll: async (params?: { limit?: number }): Promise<ApiResponse<Withdrawal[]>> => {
         const q = new URLSearchParams();
-        q.set("limit", String(params?.limit ?? 1000000));
+        q.set("limit", String(params?.limit ?? 1000));
         return fetchApi<ApiResponse<Withdrawal[]>>(`/withdrawals?${q.toString()}`, {
             method: "GET",
         });

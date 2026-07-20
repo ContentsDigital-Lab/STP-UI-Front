@@ -12,7 +12,7 @@ export const customersApi = {
     }): Promise<PaginatedResponse<Customer>> => {
         const q = new URLSearchParams();
         const page = params?.page ?? 1;
-        const limit = params?.limit ?? 1000000;
+        const limit = params?.limit ?? 1000;
         q.set("page", String(page));
         q.set("limit", String(limit));
         if (params?.sort) q.set("sort", params.sort);

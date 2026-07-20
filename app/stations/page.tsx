@@ -259,19 +259,22 @@ export default function StationsPage() {
 
     const { data: stations = [], isLoading: loading } = useQuery({
         queryKey: ["stations"],
-        queryFn: async () => {
-            const res = await stationsApi.getAll();
-            return res.success ? res.data : [];
-        }
+        queryFn: () => stationsApi.getAll()
     });
+
+    const rawStations = (stations && typeof stations === 'object' && "data" in stations) 
+        ? (stations as any).data 
+        : (Array.isArray(stations) ? stations : []);
+    const stationsArray = Array.isArray(rawStations) ? rawStations : [];
 
     const { data: templatesData, isLoading: loadingTmpl } = useQuery({
         queryKey: ["stationTemplates"],
         queryFn: async () => {
             const t = await getStationTemplates();
+            const templatesArray = Array.isArray(t) ? t : [];
             const names: Record<string, string> = {};
-            for (const tmpl of t) names[tmpl._id] = tmpl.name;
-            return { templates: t, tmplNames: names };
+            for (const tmpl of templatesArray) names[tmpl._id] = tmpl.name;
+            return { templates: templatesArray, tmplNames: names };
         }
     });
     
@@ -340,7 +343,7 @@ export default function StationsPage() {
     const handleUpdate = (data: any) => editing && updateMutation.mutate({ id: editing._id, data });
     const handleDelete = () => deleting && deleteMutation.mutate(deleting._id);
 
-    const filteredStations = stations.filter((station) => {
+    const filteredStations = stationsArray.filter((station) => {
         const slug = user?.role && typeof user.role === 'object' ? user.role.slug : user?.role;
         if (slug === "admin") return true;
         return hasPermission(user, "stations:manage") || hasPermission(user, `station:enter:${station._id}`);
@@ -383,15 +386,15 @@ export default function StationsPage() {
                     </div>
                     <div className="text-center px-4">
                         <p className="text-sm font-medium text-slate-500 dark:text-slate-400">
-                            {stations.length === 0 ? "ยังไม่มีสถานี" : "ไม่มีสิทธิ์เข้าถึงสถานี"}
+                            {stationsArray.length === 0 ? "ยังไม่มีสถานี" : "ไม่มีสิทธิ์เข้าถึงสถานี"}
                         </p>
                         <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-                            {stations.length === 0 
+                            {stationsArray.length === 0 
                                 ? (canManage ? 'กด "สร้างสถานี" เพื่อเพิ่มสถานีการทำงาน' : "ยังไม่มีสถานีในขณะนี้")
                                 : "คุณไม่มีสิทธิ์เข้าใช้งานสถานีใดๆ ในขณะนี้ กรุณาติดต่อผู้ดูแลระบบเพื่อขอสิทธิ์"}
                         </p>
                     </div>
-                    {stations.length === 0 && canManage && (
+                    {stationsArray.length === 0 && canManage && (
                         <Button onClick={() => setShowCreate(true)} className="gap-2 rounded-xl h-9 bg-blue-600 hover:bg-blue-700 text-white text-sm">
                             <Plus className="h-4 w-4" />
                             สร้างสถานีแรก

@@ -67,7 +67,7 @@ import { customersApi } from "@/lib/api/customers";
 import { workersApi } from "@/lib/api/workers";
 import { Customer, Worker, Material, OrderRequest } from "@/lib/api/types";
 import { materialsApi } from "@/lib/api/materials";
-import jsPDF from "jspdf";
+
 import { toast } from "sonner";
 import { getCachedPricingSettings, cachePricingSettings, DEFAULT_PRICING, type PricingSettings } from "@/lib/pricing-settings";
 import { pricingSettingsApi } from "@/lib/api/pricing-settings";
@@ -1066,7 +1066,8 @@ export default function CreateBillPage() {
     };
 
     // ── PDF export (active pane) ─────────────────────────────────────────────
-    const handleExportPDF = () => {
+    const handleExportPDF = async () => {
+        const { default: jsPDF } = await import("jspdf");
         const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
         const pageW = pdf.internal.pageSize.getWidth();
         const pageH = pdf.internal.pageSize.getHeight();

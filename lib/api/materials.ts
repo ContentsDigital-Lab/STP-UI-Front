@@ -4,7 +4,7 @@ import { ApiResponse, Material } from "./types";
 export const materialsApi = {
     getAll: async (params?: { limit?: number }): Promise<ApiResponse<Material[]>> => {
         const q = new URLSearchParams();
-        q.set("limit", String(params?.limit ?? 1000000));
+        q.set("limit", String(params?.limit ?? 1000));
         return fetchApi<ApiResponse<Material[]>>(`/materials?${q.toString()}`, {
             method: "GET",
         });

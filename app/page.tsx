@@ -44,6 +44,7 @@ import { OrderRequest, Order, Inventory, Material, MaterialLog } from "@/lib/api
 import { useAuth } from "@/lib/auth/auth-context";
 import { hasPermission } from "@/lib/auth/permissions";
 import { ProductionAnalytics } from "@/components/analytics/ProductionAnalytics";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
 
 function getDayLabel(date: Date) {
   return date.toLocaleDateString("th-TH", { weekday: "short" });
@@ -79,18 +80,11 @@ export default function DashboardPage() {
   }, [user, isLoading, router]);
 
   const slug = user?.role && typeof user.role === 'object' ? user.role.slug : user?.role;
-  const isAuthorized = slug === "admin" || (user && hasPermission(user, "dashboard:view"));
+  const isAuthorized = slug === "admin" || !!(user && hasPermission(user, "dashboard:view"));
 
-  const [allRequests, setAllRequests] = useState<OrderRequest[]>([]);
-  const [allOrders, setAllOrders] = useState<Order[]>([]);
-  const [allInventories, setAllInventories] = useState<Inventory[]>([]);
-  const [allMaterials, setAllMaterials] = useState<Material[]>([]);
-  const [allLogs, setAllLogs] = useState<MaterialLog[]>([]);
-  const [allWithdrawals, setAllWithdrawals] = useState<any[]>([]);
-  const [dataLoaded, setDataLoaded] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [chartRange, setChartRange] = useState<"1d" | "7d" | "30d">("7d");
-
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     // Slight delay ensures the CSS transition triggers smoothly
@@ -98,33 +92,24 @@ export default function DashboardPage() {
     return () => clearTimeout(timer);
   }, []);
 
-  const fetchLiveData = useCallback(async () => {
-    try {
-      const [rRes, oRes, iRes, mRes, lRes, wRes] = await Promise.all([
-        requestsApi.getAll(),
-        ordersApi.getAll(),
-        inventoriesApi.getAll(),
-        materialsApi.getAll(),
-        materialLogsApi.getAll(),
-        withdrawalsApi.getAll(),
-      ]);
-      if (rRes.success && rRes.data) setAllRequests(rRes.data);
-      if (oRes.success && oRes.data) setAllOrders(oRes.data);
-      if (iRes.success && iRes.data) setAllInventories(iRes.data);
-      if (mRes.success && mRes.data) setAllMaterials(mRes.data);
-      if (lRes.success && lRes.data) setAllLogs(lRes.data);
-      if (wRes.success && wRes.data) setAllWithdrawals(wRes.data);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setDataLoaded(true);
-    }
-  }, []);
-  useEffect(() => {
-    if (isAuthorized) {
-      fetchLiveData();
-    }
-  }, [fetchLiveData, isAuthorized]);
+  const results = useQueries({
+    queries: [
+      { queryKey: ["requests"], queryFn: () => requestsApi.getAll(), enabled: isAuthorized },
+      { queryKey: ["orders"], queryFn: () => ordersApi.getAll(), enabled: isAuthorized },
+      { queryKey: ["inventories"], queryFn: () => inventoriesApi.getAll(), enabled: isAuthorized },
+      { queryKey: ["materials"], queryFn: () => materialsApi.getAll(), enabled: isAuthorized },
+      { queryKey: ["material-logs"], queryFn: () => materialLogsApi.getAll(), enabled: isAuthorized },
+      { queryKey: ["withdrawals"], queryFn: () => withdrawalsApi.getAll(), enabled: isAuthorized },
+    ]
+  });
+
+  const dataLoaded = results.every(r => r.isSuccess);
+  const allRequests = results[0].data?.data || [];
+  const allOrders = results[1].data?.data || [];
+  const allInventories = results[2].data?.data || [];
+  const allMaterials = results[3].data?.data || [];
+  const allLogs = results[4].data?.data || [];
+  const allWithdrawals = results[5].data?.data || [];
 
   useWebSocket(
     "dashboard",
@@ -136,7 +121,14 @@ export default function DashboardPage() {
       "withdrawal:updated",
       "claim:updated",
     ],
-    () => fetchLiveData(),
+    () => {
+      queryClient.invalidateQueries({ queryKey: ["requests"] });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["inventories"] });
+      queryClient.invalidateQueries({ queryKey: ["materials"] });
+      queryClient.invalidateQueries({ queryKey: ["material-logs"] });
+      queryClient.invalidateQueries({ queryKey: ["withdrawals"] });
+    },
   );
 
   const analytics = useMemo(() => {

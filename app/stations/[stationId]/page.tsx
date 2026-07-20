@@ -433,8 +433,8 @@ export default function LiveStationPage() {
                 />
             </div>
             {checkinQrPopup}
-            {showWithdraw && <WithdrawModal stationId={stationId} onClose={() => setShowWithdraw(false)} />}
-            {showClaim    && <ClaimModal    stationId={stationId} onClose={() => setShowClaim(false)}    />}
+            {showWithdraw ? <WithdrawModal stationId={stationId} onClose={() => setShowWithdraw(false)} /> : null}
+            {showClaim    ? <ClaimModal    stationId={stationId} onClose={() => setShowClaim(false)}    /> : null}
         </div>
     );
 }
