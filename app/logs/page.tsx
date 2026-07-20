@@ -1123,7 +1123,7 @@ export default function MaterialLogsPage() {
                             if (paneLogs.length === 0) return null;
                             const byPane = new Map<string, typeof paneLogs[0]>();
                             for (const e of paneLogs) {
-                                const pid = typeof e.pane === "object" ? (e.pane as Pane)._id : String(e.pane);
+                                const pid = (e.pane && typeof e.pane === "object") ? (e.pane as Pane)._id : String(e.pane);
                                 if (!pid) continue;
                                 const existing = byPane.get(pid);
                                 if (!existing || new Date(e.createdAt) < new Date(existing.createdAt)) byPane.set(pid, e);
