@@ -496,7 +496,9 @@ export default function OrderRequestsPage() {
     const isApproachingDeadline = (deadline: string) => {
         if (!deadline) return false;
         const dl = new Date(deadline);
+        dl.setHours(0, 0, 0, 0);
         const now = new Date();
+        now.setHours(0, 0, 0, 0);
         const threeDays = new Date(now);
         threeDays.setDate(threeDays.getDate() + 3);
         return dl <= threeDays && dl >= now;
@@ -504,7 +506,11 @@ export default function OrderRequestsPage() {
 
     const isPastDeadline = (deadline: string) => {
         if (!deadline) return false;
-        return new Date(deadline) < new Date();
+        const dl = new Date(deadline);
+        dl.setHours(0, 0, 0, 0);
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+        return dl < now;
     };
 
     const TableSkeleton = () => (
@@ -900,6 +906,7 @@ export default function OrderRequestsPage() {
                         const cust = getCustomerInfo(selectedRequest.customer);
                         const worker = getWorkerInfo(selectedRequest.assignedTo);
                         const deadlinePast = isPastDeadline(selectedRequest.deadline);
+                        const deadlineWarning = isApproachingDeadline(selectedRequest.deadline);
 
                         return (
                             <div className="flex flex-col h-full">
@@ -908,11 +915,15 @@ export default function OrderRequestsPage() {
                                     <div className="flex items-center gap-2 mb-3">
                                         <span className="text-xs text-slate-400 font-mono">{selectedRequest.requestNumber || `#${selectedRequest._id.slice(-6).toUpperCase()}`}</span>
 
-                                        {deadlinePast && selectedRequest.status !== 'completed' && selectedRequest.status !== 'cancelled' && (
+                                        {deadlinePast && selectedRequest.status !== 'completed' && selectedRequest.status !== 'cancelled' ? (
                                             <Badge className="bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-[10px] font-medium rounded-md border-none">
                                                 {lang === 'th' ? 'เลยกำหนด' : 'Overdue'}
                                             </Badge>
-                                        )}
+                                        ) : deadlineWarning && selectedRequest.status !== 'completed' && selectedRequest.status !== 'cancelled' ? (
+                                            <Badge className="bg-amber-100 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[10px] font-medium rounded-md border-none">
+                                                {lang === 'th' ? 'ใกล้ถึงกำหนด' : 'Approaching'}
+                                            </Badge>
+                                        ) : null}
                                     </div>
                                     <h2 className="text-xl font-bold text-slate-900 dark:text-white">
                                         {cust?.name || (lang === 'th' ? 'ไม่ระบุลูกค้า' : 'Unknown Customer')}
@@ -922,7 +933,7 @@ export default function OrderRequestsPage() {
                                     )}
                                     {selectedRequest.referenceId && (
                                         <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-xs font-medium text-slate-600 dark:text-slate-300">
-                                            <span className="text-slate-400">Ref:</span> {selectedRequest.referenceId}
+                                            <span className="text-slate-400">PO:</span> {selectedRequest.referenceId}
                                         </div>
                                     )}
 
@@ -1001,13 +1012,13 @@ export default function OrderRequestsPage() {
                                     <div className="space-y-3">
                                         <h3 className="text-xs font-medium text-slate-400 uppercase tracking-wider">{it.detail.timeline}</h3>
                                         <div className="space-y-2.5">
-                                            <div className={`p-3 rounded-lg ${deadlinePast ? 'bg-red-50 dark:bg-red-500/10' : 'bg-slate-50 dark:bg-slate-900'}`}>
-                                                <p className={`text-[11px] mb-0.5 flex items-center gap-1 ${deadlinePast ? 'text-red-500' : 'text-slate-400'}`}>
+                                            <div className={`p-3 rounded-lg ${deadlinePast ? 'bg-red-50 dark:bg-red-500/10' : deadlineWarning ? 'bg-amber-50 dark:bg-amber-500/10' : 'bg-slate-50 dark:bg-slate-900'}`}>
+                                                <p className={`text-[11px] mb-0.5 flex items-center gap-1 ${deadlinePast ? 'text-red-500' : deadlineWarning ? 'text-amber-500' : 'text-slate-400'}`}>
                                                     <Clock className="h-3 w-3" />
                                                     {it.detail.deadlineLabel}
                                                 </p>
-                                                <p className={`text-sm font-medium ${deadlinePast ? 'text-red-600' : 'text-slate-900 dark:text-white'}`}>
-                                                    {formatDateTime(selectedRequest.deadline)}
+                                                <p className={`text-sm font-medium ${deadlinePast ? 'text-red-600' : deadlineWarning ? 'text-amber-600' : 'text-slate-900 dark:text-white'}`}>
+                                                    {formatDate(selectedRequest.deadline)}
                                                 </p>
                                             </div>
                                             <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-900">
@@ -1015,7 +1026,7 @@ export default function OrderRequestsPage() {
                                                     <Truck className="h-3 w-3" />
                                                     {it.detail.expectedDelivery}
                                                 </p>
-                                                <p className="text-sm font-medium text-slate-900 dark:text-white">{formatDateTime(selectedRequest.expectedDeliveryDate)}</p>
+                                                <p className="text-sm font-medium text-slate-900 dark:text-white">{formatDate(selectedRequest.expectedDeliveryDate)}</p>
                                             </div>
                                             <div className="grid grid-cols-2 gap-2.5">
                                                 <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-900">
@@ -1125,22 +1136,12 @@ export default function OrderRequestsPage() {
 
                                 {/* Panel Footer */}
                                 {canManage && (
-                                    <div className={`p-6 pt-0 grid ${selectedRequest.status !== 'completed' && selectedRequest.status !== 'cancelled' && selectedRequest.status !== 'draft' ? 'grid-cols-3' : 'grid-cols-2'} gap-2.5 mt-auto`}>
-                                        <Button
-                                            onClick={() => handleDelete(selectedRequest._id)}
-                                            variant="outline"
-                                            className="rounded-xl h-11 border-red-200 dark:border-red-900 text-red-600 hover:bg-red-50 dark:hover:bg-red-950 font-medium"
-                                            title={lang === 'th' ? 'ลบรายการ' : 'Delete Item'}
-                                        >
-                                            <Trash2 className="mr-2 h-4 w-4" />
-                                            {lang === 'th' ? 'ลบ' : 'Delete'}
-                                        </Button>
-
+                                    <div className={`p-6 pt-0 grid ${selectedRequest.status !== 'completed' && selectedRequest.status !== 'cancelled' && selectedRequest.status !== 'draft' ? 'grid-cols-2' : 'grid-cols-1'} gap-2.5 mt-auto`}>
                                         {selectedRequest.status !== 'completed' && selectedRequest.status !== 'cancelled' && selectedRequest.status !== 'draft' && (
                                             <Button
                                                 onClick={() => handleCancelClick(selectedRequest._id)}
                                                 variant="outline"
-                                                className="rounded-xl h-11 border-orange-200 dark:border-orange-900 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950 font-medium"
+                                                className="rounded-xl h-11 border-red-200 dark:border-red-900 text-red-600 hover:bg-red-50 dark:hover:bg-red-950 font-medium"
                                                 title={lang === 'th' ? 'ยกเลิกออเดอร์' : 'Cancel Request'}
                                             >
                                                 <Ban className="mr-2 h-4 w-4" />
@@ -1399,8 +1400,8 @@ export default function OrderRequestsPage() {
                 <DialogContent className="sm:max-w-[400px] rounded-xl p-6">
                     <DialogHeader>
                         <div className="flex items-center gap-3 mb-2">
-                            <div className="h-9 w-9 rounded-lg bg-orange-50 dark:bg-orange-500/10 flex items-center justify-center shrink-0">
-                                <Ban className="h-4 w-4 text-orange-500" />
+                            <div className="h-9 w-9 rounded-lg bg-red-50 dark:bg-red-500/10 flex items-center justify-center shrink-0">
+                                <Ban className="h-4 w-4 text-red-500" />
                             </div>
                             <DialogTitle className="text-base font-semibold text-slate-900 dark:text-white">
                                 {lang === 'th' ? 'ยืนยันการยกเลิกออเดอร์' : 'Confirm Cancellation'}
@@ -1430,7 +1431,7 @@ export default function OrderRequestsPage() {
                             {lang === 'th' ? 'กลับ' : 'Back'}
                         </Button>
                         <Button 
-                            className="flex-1 rounded-xl h-10 text-sm bg-orange-600 hover:bg-orange-700 text-white" 
+                            className="flex-1 rounded-xl h-10 text-sm bg-red-600 hover:bg-red-700 text-white" 
                             onClick={executeCancel}
                             disabled={isSubmitting || !cancelReason.trim()}
                         >

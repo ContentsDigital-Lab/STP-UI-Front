@@ -417,7 +417,7 @@ export default function DashboardPage() {
                       : "text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700"
                   }`}
                 >
-                  {range === "1d" ? (lang === "th" ? "วันนี้" : "Today") : range.toUpperCase()}
+                  {range === "1d" ? (lang === "th" ? "วันนี้" : "Today") : range === "7d" ? (lang === "th" ? "7 วัน" : "7 Days") : (lang === "th" ? "30 วัน" : "30 Days")}
                 </button>
               ))}
             </div>

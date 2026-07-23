@@ -57,6 +57,7 @@ export default function UsersManagementPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
     const [roleFilter, setRoleFilter] = useState("all");
+    const [positionFilter, setPositionFilter] = useState("all");
 
     // Modal & Loading state
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -323,13 +324,16 @@ export default function UsersManagementPage() {
         return workerRole as string;
     };
 
+    const uniquePositions = Array.from(new Set(workers.map(w => w.position).filter(Boolean))).sort();
+
     const filteredWorkers = workers.filter((worker) => {
         const matchesSearch =
             worker.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             worker.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
             (worker.position && worker.position.toLowerCase().includes(searchQuery.toLowerCase()));
         const matchesRole = roleFilter === "all" || resolveRoleSlug(worker.role) === roleFilter;
-        return matchesSearch && matchesRole;
+        const matchesPosition = positionFilter === "all" || worker.position === positionFilter;
+        return matchesSearch && matchesRole && matchesPosition;
     });
 
     const getRoleBadgeColor = (role: string) => {
@@ -406,6 +410,22 @@ export default function UsersManagementPage() {
                                 </div>
                             </div>
                             <div className="sm:w-44 space-y-1.5">
+                                <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">ตำแหน่ง</Label>
+                                <Select value={positionFilter} onValueChange={(val) => setPositionFilter(val || "all")}>
+                                    <SelectTrigger className="h-10 rounded-xl">
+                                        <SelectValue placeholder="ทุกตำแหน่ง">
+                                            {positionFilter === "all" ? "ทุกตำแหน่ง" : positionFilter}
+                                        </SelectValue>
+                                    </SelectTrigger>
+                                    <SelectContent alignItemWithTrigger={false}>
+                                        <SelectItem value="all">ทุกตำแหน่ง</SelectItem>
+                                        {uniquePositions.map(pos => (
+                                            <SelectItem key={pos as string} value={pos as string}>{pos as string}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="sm:w-44 space-y-1.5">
                                 <Label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">บทบาท</Label>
                                 <Select value={roleFilter} onValueChange={(val) => setRoleFilter(val || "all")}>
                                     <SelectTrigger className="h-10 rounded-xl">
@@ -421,11 +441,11 @@ export default function UsersManagementPage() {
                                     </SelectContent>
                                 </Select>
                             </div>
-                            {(searchQuery || roleFilter !== "all") && (
+                            {(searchQuery || roleFilter !== "all" || positionFilter !== "all") && (
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => { setSearchQuery(""); setRoleFilter("all"); }}
+                                    onClick={() => { setSearchQuery(""); setRoleFilter("all"); setPositionFilter("all"); }}
                                     className="h-10 rounded-xl text-slate-400 hover:text-slate-600 px-3 shrink-0"
                                 >
                                     <X className="h-3.5 w-3.5 mr-1" />
