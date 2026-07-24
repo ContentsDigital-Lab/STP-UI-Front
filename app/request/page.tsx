@@ -21,6 +21,7 @@ import {
     X,
     Truck,
     Ban,
+    User as UserIcon,
 } from "lucide-react";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { Button } from "@/components/ui/button";
@@ -905,6 +906,7 @@ export default function OrderRequestsPage() {
                     {selectedRequest && (() => {
                         const cust = getCustomerInfo(selectedRequest.customer);
                         const worker = getWorkerInfo(selectedRequest.assignedTo);
+                        const cancelledByWorker = selectedRequest.cancelledBy ? getWorkerInfo(selectedRequest.cancelledBy) : null;
                         const deadlinePast = isPastDeadline(selectedRequest.deadline);
                         const deadlineWarning = isApproachingDeadline(selectedRequest.deadline);
 
@@ -962,6 +964,12 @@ export default function OrderRequestsPage() {
                                             <p className="text-sm text-red-700 dark:text-red-300 ml-6">
                                                 {selectedRequest.cancelReason}
                                             </p>
+                                            {cancelledByWorker && (
+                                                <p className="text-[11px] text-red-500/80 dark:text-red-400/80 ml-6 mt-2 flex items-center gap-1.5">
+                                                    <UserIcon className="h-3 w-3" />
+                                                    {lang === 'th' ? 'ยกเลิกโดย:' : 'Cancelled by:'} <span className="font-medium text-red-600 dark:text-red-400">{cancelledByWorker.name}</span>
+                                                </p>
+                                            )}
                                         </div>
                                     )}
 

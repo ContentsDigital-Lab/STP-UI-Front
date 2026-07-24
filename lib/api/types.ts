@@ -131,6 +131,7 @@ export interface OrderRequest {
   expectedDeliveryDate: string;
   status?: "draft" | "pending" | "in_progress" | "completed" | "cancelled";
   cancelReason?: string;
+  cancelledBy?: string | Worker;
   deadlineChangeReason?: string;
   createdAt: string;
   updatedAt: string;
