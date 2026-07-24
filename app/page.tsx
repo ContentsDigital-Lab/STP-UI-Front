@@ -34,17 +34,12 @@ import {
   Cell,
 } from "recharts";
 import { useWebSocket } from "@/lib/hooks/use-socket";
-import { requestsApi } from "@/lib/api/requests";
-import { ordersApi } from "@/lib/api/orders";
-import { inventoriesApi } from "@/lib/api/inventories";
-import { materialsApi } from "@/lib/api/materials";
-import { materialLogsApi } from "@/lib/api/material-logs";
-import { withdrawalsApi } from "@/lib/api/withdrawals";
+import { dashboardApi } from "@/lib/api/dashboard";
 import { OrderRequest, Order, Inventory, Material, MaterialLog } from "@/lib/api/types";
 import { useAuth } from "@/lib/auth/auth-context";
 import { hasPermission } from "@/lib/auth/permissions";
 import { ProductionAnalytics } from "@/components/analytics/ProductionAnalytics";
-import { useQueries, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 function getDayLabel(date: Date) {
   return date.toLocaleDateString("th-TH", { weekday: "short" });
@@ -92,24 +87,18 @@ export default function DashboardPage() {
     return () => clearTimeout(timer);
   }, []);
 
-  const results = useQueries({
-    queries: [
-      { queryKey: ["requests"], queryFn: () => requestsApi.getAll(), enabled: isAuthorized },
-      { queryKey: ["orders"], queryFn: () => ordersApi.getAll(), enabled: isAuthorized },
-      { queryKey: ["inventories"], queryFn: () => inventoriesApi.getAll(), enabled: isAuthorized },
-      { queryKey: ["materials"], queryFn: () => materialsApi.getAll(), enabled: isAuthorized },
-      { queryKey: ["material-logs"], queryFn: () => materialLogsApi.getAll(), enabled: isAuthorized },
-      { queryKey: ["withdrawals"], queryFn: () => withdrawalsApi.getAll(), enabled: isAuthorized },
-    ]
+  const { data, isSuccess: dataLoaded } = useQuery({
+    queryKey: ["dashboard-stats", chartRange],
+    queryFn: () => dashboardApi.getStats(chartRange),
+    enabled: isAuthorized,
   });
 
-  const dataLoaded = results.every(r => r.isSuccess);
-  const allRequests = results[0].data?.data || [];
-  const allOrders = results[1].data?.data || [];
-  const allInventories = results[2].data?.data || [];
-  const allMaterials = results[3].data?.data || [];
-  const allLogs = results[4].data?.data || [];
-  const allWithdrawals = results[5].data?.data || [];
+  const stats = data?.data || {
+    requests: { totalThisWeek: 0, totalLastWeek: 0, pending: 0, approaching: 0, chart: [] },
+    orders: { total: 0, completed: 0, inProgress: 0, pending: 0 },
+    inventory: { totalStock: 0, lowStockAlerts: 0 },
+    materialLogs: { chart: [], recentActivity: [] }
+  };
 
   useWebSocket(
     "dashboard",
@@ -122,139 +111,22 @@ export default function DashboardPage() {
       "claim:updated",
     ],
     () => {
-      queryClient.invalidateQueries({ queryKey: ["requests"] });
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
-      queryClient.invalidateQueries({ queryKey: ["inventories"] });
-      queryClient.invalidateQueries({ queryKey: ["materials"] });
-      queryClient.invalidateQueries({ queryKey: ["material-logs"] });
-      queryClient.invalidateQueries({ queryKey: ["withdrawals"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
     },
   );
 
   const analytics = useMemo(() => {
-    const now = new Date();
-
-    const isToday = chartRange === "1d";
-    const dayCount = chartRange === "30d" ? 30 : 7;
-
-    type Bucket = { label: string; count: number; date: Date; hourStart?: number };
-    const days: Bucket[] = [];
-
-    if (isToday) {
-      for (let h = 0; h < 24; h++) {
-        const d = new Date(now);
-        d.setHours(h, 0, 0, 0);
-        days.push({ label: `${String(h).padStart(2, "0")}:00`, count: 0, date: d, hourStart: h });
-      }
-    } else {
-      for (let i = dayCount - 1; i >= 0; i--) {
-        const d = new Date(now);
-        d.setDate(d.getDate() - i);
-        const label = dayCount <= 7
-          ? getDayLabel(d)
-          : d.toLocaleDateString("th-TH", { day: "numeric", month: "short" });
-        days.push({ label, count: 0, date: d });
-      }
-    }
-
-    const matchBucket = (ts: Date) => {
-      if (isToday) {
-        if (!isSameDay(ts, now)) return undefined;
-        return days.find((d) => d.hourStart === ts.getHours());
-      }
-      return days.find((d) => isSameDay(d.date, ts));
-    };
-
-    allRequests.forEach((r) => {
-      const slot = matchBucket(new Date(r.createdAt));
-      if (slot) slot.count++;
-    });
-
-    const pending = allRequests.filter((r) => !r.assignedTo).length;
-    const threeDays = new Date(now);
-    threeDays.setDate(threeDays.getDate() + 3);
-    const approaching = allRequests.filter((r) => {
-      if (!r.deadline) return false;
-      const dl = new Date(r.deadline);
-      return dl >= now && dl <= threeDays;
-    }).length;
-
-    const totalOrders = allOrders.length;
-    const completedOrders = allOrders.filter(
-      (o) => o.status === "completed",
-    ).length;
-    const completionRate =
-      totalOrders > 0
-        ? Math.round((completedOrders / totalOrders) * 100)
+    const trendPct = stats.requests.totalLastWeek > 0
+        ? Math.round(((stats.requests.totalThisWeek - stats.requests.totalLastWeek) / stats.requests.totalLastWeek) * 100)
+        : stats.requests.totalThisWeek > 0 ? 100 : 0;
+    const completionRate = stats.orders.total > 0
+        ? Math.round((stats.orders.completed / stats.orders.total) * 100)
         : 0;
 
-    const weekAgo = new Date(now);
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    const twoWeeksAgo = new Date(now);
-    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
-    const thisWeek = allRequests.filter(
-      (r) => new Date(r.createdAt) >= weekAgo,
-    ).length;
-    const lastWeek = allRequests.filter((r) => {
-      const d = new Date(r.createdAt);
-      return d >= twoWeeksAgo && d < weekAgo;
-    }).length;
-    const trendPct =
-      lastWeek > 0
-        ? Math.round(((thisWeek - lastWeek) / lastWeek) * 100)
-        : thisWeek > 0
-          ? 100
-          : 0;
-
-    const inProgress = allOrders.filter(
-      (o) => o.status === "in_progress",
-    ).length;
-    const pendingOrders = allOrders.filter(
-      (o) => o.status === "pending",
-    ).length;
-
-    const totalStock = allInventories.reduce((sum, inv) => sum + inv.quantity, 0);
-
-    let lowStockAlerts = 0;
-    allInventories.forEach((inv) => {
-      const matId = typeof inv.material === "string" ? inv.material : inv.material?._id;
-      const m = allMaterials.find(mat => mat._id === matId);
-      if (m && inv.quantity <= m.reorderPoint) {
-        lowStockAlerts++;
-      }
-    });
-
-    const chartDataMap: Record<string, { stock: number; out: number }> = {};
-    days.forEach(d => {
-      chartDataMap[d.label] = { stock: 0, out: 0 };
-    });
-
-    allLogs.forEach((log) => {
-      const slot = matchBucket(new Date(log.createdAt));
-      if (slot) {
-        if (log.actionType === "import") {
-          chartDataMap[slot.label].stock += Math.abs(log.quantityChanged);
-        } else {
-          chartDataMap[slot.label].out += Math.abs(log.quantityChanged);
-        }
-      }
-    });
-
-    const chartData = days.map((d) => ({
-      name: d.label,
-      stock: chartDataMap[d.label].stock,
-      out: chartDataMap[d.label].out,
-    }));
-
-    const sortedLogs = [...allLogs].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    const recentActivity = sortedLogs.slice(0, 5).map(log => {
+    const recentActivity = stats.materialLogs.recentActivity.map((log: any) => {
       let materialName = "Unknown";
       if (typeof log.material === "object" && log.material !== null) materialName = log.material.name;
-      else {
-         const m = allMaterials.find(mat => mat._id === log.material);
-         if (m) materialName = m.name;
-      }
-
+      
       let userName = "System";
       if (log.worker && typeof log.worker === "object") userName = log.worker.name || log.worker.username;
       
@@ -272,28 +144,24 @@ export default function DashboardPage() {
       };
     });
 
-    const withdrawalsToday = allWithdrawals.filter(
-      (w) => isSameDay(new Date(w.createdAt), now)
-    ).length;
-
     return {
-      days,
-      pending,
-      approaching,
+      pending: stats.requests.pending,
+      approaching: stats.requests.approaching,
+      totalOrders: stats.orders.total,
+      completedOrders: stats.orders.completed,
       completionRate,
-      thisWeek,
+      thisWeek: stats.requests.totalThisWeek,
       trendPct,
-      inProgress,
-      pendingOrders,
-      totalOrders,
-      completedOrders,
-      totalStock,
-      lowStockAlerts,
-      withdrawalsToday,
-      chartData,
-      recentActivity
+      inProgress: stats.orders.inProgress,
+      pendingOrders: stats.orders.pending,
+      totalStock: stats.inventory.totalStock,
+      lowStockAlerts: stats.inventory.lowStockAlerts,
+      withdrawalsToday: 0,
+      chartData: stats.materialLogs.chart,
+      recentActivity,
+      days: stats.requests.chart
     };
-  }, [allRequests, allOrders, allInventories, allMaterials, allLogs, lang, chartRange]);
+  }, [stats, lang]);
 
   // The chart data and recent activities are now computed dynamically inside `analytics`
 

@@ -961,8 +961,12 @@ export default function InventoryPage() {
                                     return (
                                         <TableRow
                                             key={inv._id}
-                                            className={`group border-slate-100 dark:border-slate-800 transition-colors cursor-pointer ${rowBg} ${inv.isActive === false ? 'opacity-50 grayscale' : ''}`}
-                                            onClick={() => openDetails(inv)}
+                                            className={`group border-slate-100 dark:border-slate-800 transition-colors ${inv.isActive === false ? 'opacity-50 grayscale cursor-default' : `cursor-pointer ${rowBg}`}`}
+                                            onClick={() => {
+                                                if (inv.isActive !== false) {
+                                                    openDetails(inv);
+                                                }
+                                            }}
                                         >
                                             <TableCell className="py-3.5 px-4">
                                                 <span className="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase">
@@ -1116,14 +1120,7 @@ export default function InventoryPage() {
                                             </span>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            {canManage && (
-                                                <Switch 
-                                                    checked={selectedInventory.isActive !== false}
-                                                    onCheckedChange={(checked) => handleToggleInventoryActive(selectedInventory, !checked)}
-                                                    className="scale-75"
-                                                    title={lang === 'th' ? 'เปิด/ปิด สต็อกนี้' : 'Toggle active status'}
-                                                />
-                                            )}
+
                                             <button
                                                 onClick={() => setIsDetailOpen(false)}
                                                 className="h-7 w-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"

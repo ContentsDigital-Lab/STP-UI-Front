@@ -19,6 +19,30 @@ export interface HoleData {
   groupId?: string;
 }
 
+export interface DashboardStats {
+  requests: {
+    totalThisWeek: number;
+    totalLastWeek: number;
+    pending: number;
+    approaching: number;
+    chart: { name: string; count: number }[];
+  };
+  orders: {
+    total: number;
+    completed: number;
+    inProgress: number;
+    pending: number;
+  };
+  inventory: {
+    totalStock: number;
+    lowStockAlerts: number;
+  };
+  materialLogs: {
+    chart: { name: string; stock: number; out: number }[];
+    recentActivity: MaterialLog[];
+  };
+}
+
 // ── API types ─────────────────────────────────────────────────────────────────
 export interface Role {
   _id: string;

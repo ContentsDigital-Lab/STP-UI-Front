@@ -52,6 +52,7 @@ export async function fetchApi<T>(
 
         const headers = {
             "Content-Type": "application/json",
+            "bypass-tunnel-reminder": "true",
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
             ...options.headers,
         };
