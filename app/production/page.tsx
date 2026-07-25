@@ -17,7 +17,7 @@ import { stationsApi } from "@/lib/api/stations";
 import { getColorOption } from "@/lib/stations/stations-store";
 import { toast } from "sonner";
 import { useWebSocket } from "@/lib/hooks/use-socket";
-import { useQueries, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueries, useQueryClient } from "@tanstack/react-query";
 import { Order, OrderRequest, Station, Pane } from "@/lib/api/types";
 import { getStationId, getStationName } from "@/lib/utils/station-helpers";
 import { isPaneRetiredByMerge } from "@/lib/utils/pane-laminate";
@@ -177,7 +177,6 @@ export default function ProductionPage() {
             { queryKey: ["orders"], queryFn: () => ordersApi.getAll() },
             { queryKey: ["requests"], queryFn: () => requestsApi.getAll() },
             { queryKey: ["stations"], queryFn: () => stationsApi.getAll() },
-            { queryKey: ["panes", { limit: 5000 }], queryFn: () => panesApi.getAll({ limit: 5000 }) },
         ]
     });
 
@@ -185,21 +184,6 @@ export default function ProductionPage() {
     const orders = results[0].data?.data ?? [];
     const requests = results[1].data?.data ?? [];
     const stations = results[2].data?.data ?? [];
-    const panesList = results[3].data?.data ?? [];
-
-    const paneMap = useMemo(() => {
-        const map = new Map<string, Pane[]>();
-        for (const p of panesList) {
-            if (isPaneRetiredByMerge(p)) continue;
-            if (p.currentStatus === "claimed") continue;
-            if (p.laminateRole === "sheet") continue;
-            const oid = typeof p.order === "string" ? p.order : (p.order as Order)?._id;
-            if (!oid) continue;
-            if (!map.has(oid)) map.set(oid, []);
-            map.get(oid)!.push(p);
-        }
-        return map;
-    }, [panesList]);
 
     const { status: wsStatus } = useWebSocket("production", [...SOCKET_EVENTS, "pane:updated", "pane:laminated"], () => {
         queryClient.invalidateQueries({ queryKey: ["orders"] });
@@ -310,20 +294,13 @@ export default function ProductionPage() {
                         })
                     ) return true;
 
-                    const panes = paneMap.get(o._id) ?? [];
-                    return panes.some(p =>
-                        p.paneNumber?.toLowerCase().includes(q) ||
-                        p._id.toLowerCase().includes(q) ||
-                        p._id.slice(-6).toLowerCase().includes(q) ||
-                        (p.glassType ?? "").toLowerCase().includes(q) ||
-                        (p.glassTypeLabel ?? "").toLowerCase().includes(q)
-                    );
+                    return false;
                 });
             });
         }
 
         return result;
-    }, [bills, search, stationMap, paneMap, filterStatus, filterStation, dateFilter]);
+    }, [bills, search, stationMap, filterStatus, filterStation, dateFilter]);
 
     // Reset to page 1 when search, filters or dateFilter change
     useEffect(() => { setPage(1); }, [search, filterStatus, filterStation, dateFilter]);
@@ -334,6 +311,32 @@ export default function ProductionPage() {
         () => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
         [filtered, page]
     );
+
+    const paginatedOrderIds = useMemo(
+        () => paginated.flatMap(b => b.orders.map(o => o._id)).filter(Boolean).join(","),
+        [paginated]
+    );
+
+    const { data: panesRes } = useQuery({
+        queryKey: ["panes", "by-orders", paginatedOrderIds],
+        queryFn: () => paginatedOrderIds ? panesApi.getAll({ order: paginatedOrderIds, limit: 1000 }) : Promise.resolve({ success: true, data: [], message: "", pagination: { total: 0, page: 1, limit: 1000, totalPages: 1 } }),
+        enabled: !!paginatedOrderIds,
+    });
+    const panesList = panesRes?.data ?? [];
+
+    const paneMap = useMemo(() => {
+        const map = new Map<string, Pane[]>();
+        for (const p of panesList) {
+            if (isPaneRetiredByMerge(p)) continue;
+            if (p.currentStatus === "claimed") continue;
+            if (p.laminateRole === "sheet") continue;
+            const oid = typeof p.order === "string" ? p.order : (p.order as Order)?._id;
+            if (!oid) continue;
+            if (!map.has(oid)) map.set(oid, []);
+            map.get(oid)!.push(p);
+        }
+        return map;
+    }, [panesList]);
 
     const toggle = (id: string) => setExpanded(prev => {
         const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n;

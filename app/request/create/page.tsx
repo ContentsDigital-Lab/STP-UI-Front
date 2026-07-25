@@ -596,6 +596,7 @@ export default function CreateBillPage() {
     const [glassTypes, setGlassTypes] = useState(['Clear', 'Tinted', 'Tempered', 'Laminated', 'Low-E', 'Reflective', 'Frosted', 'Patterned']);
     const [jobTypeOptions, setJobTypeOptions] = useState<JobType[]>([]);
     const [rawGlassTypeOptions, setRawGlassTypeOptions] = useState<string[]>([]);
+    const [rawGlassColorOptions, setRawGlassColorOptions] = useState<string[]>([]);
     const [thicknessOpen, setThicknessOpen] = useState(false);
     const [thicknessSearch, setThicknessSearch] = useState("");
     const [thicknesses, setThicknesses] = useState(['3mm', '5mm', '6mm', '8mm', '10mm', '12mm', '15mm', '19mm']);
@@ -742,11 +743,14 @@ export default function CreateBillPage() {
 
                 if (matRes?.success && matRes.data) {
                     const rawTypes = new Set<string>();
+                    const rawColors = new Set<string>();
                     const extraThicknesses = new Set<string>();
                     for (const mat of matRes.data) {
                         const gt = mat.specDetails?.glassType?.trim();
+                        const cl = mat.specDetails?.color?.trim();
                         const th = mat.specDetails?.thickness?.toString()?.trim();
                         if (gt) rawTypes.add(gt);
+                        if (cl) rawColors.add(cl);
                         if (th) {
                             const num = parseInt(th);
                             extraThicknesses.add(isNaN(num) ? th : `${num}mm`);
@@ -754,6 +758,7 @@ export default function CreateBillPage() {
                     }
                     // rawGlassTypeOptions = ชนิดกระจกดิบจากคลัง (Clear, Tinted, ...)
                     if (rawTypes.size > 0) setRawGlassTypeOptions([...rawTypes]);
+                    if (rawColors.size > 0) setRawGlassColorOptions([...rawColors]);
                     setThicknesses(prev => {
                         const merged = new Set(prev);
                         for (const t of extraThicknesses) merged.add(t);
@@ -1954,6 +1959,7 @@ export default function CreateBillPage() {
                     glassTypes={glassTypes}
                     thicknesses={thicknesses}
                     rawGlassTypeOptions={rawGlassTypeOptions}
+                    rawGlassColorOptions={rawGlassColorOptions}
                     calcPanePrice={calcPanePrice}
                 />
             </div>            {/* New Customer Dialog */}

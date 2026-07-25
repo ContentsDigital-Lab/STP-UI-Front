@@ -22,6 +22,7 @@ interface GlassSpecsTableProps {
     glassTypes: string[];
     thicknesses: string[];
     rawGlassTypeOptions: string[];
+    rawGlassColorOptions?: string[];
     calcPanePrice: (p: PaneSpec, ps: PricingSettings) => any;
 }
 
@@ -39,9 +40,48 @@ export function GlassSpecsTable({
     glassTypes,
     thicknesses,
     rawGlassTypeOptions,
+    rawGlassColorOptions,
     calcPanePrice,
 }: GlassSpecsTableProps) {
     const { unit, toMm, formatCurrentUnit } = useUnit();
+
+    const rawColorList = React.useMemo(() => {
+        const defaultMap: Record<string, string> = {
+            "ใส": "ใส (Clear)",
+            "เขียว": "เขียว (Green)",
+            "ชา": "ชา (Tea)",
+            "เทา": "เทา (Grey)",
+            "บรอนซ์": "บรอนซ์ (Bronze)",
+            "ดำ": "ดำ (Black)",
+            "ดำด้าน": "ดำด้าน (Matte Black)",
+            "น้ำเงิน": "น้ำเงิน (Blue)",
+            "ฟ้า": "ฟ้า (Sky Blue)",
+            "ทอง": "ทอง (Gold)",
+            "เงิน": "เงิน (Silver)",
+            "น้ำตาล": "น้ำตาล (Brown)",
+            "ขาว": "ขาว (White)",
+            "ม่วง": "ม่วง (Purple)",
+            "ชมพู": "ชมพู (Pink)",
+        };
+        const defaultColors = ["ใส", "เขียว", "ชา", "เทา", "บรอนซ์"];
+        const set = new Set<string>();
+        const list: { value: string; label: string }[] = [];
+        if (rawGlassColorOptions) {
+            for (const c of rawGlassColorOptions) {
+                if (!set.has(c)) {
+                    set.add(c);
+                    list.push({ value: c, label: defaultMap[c] || c });
+                }
+            }
+        }
+        for (const c of defaultColors) {
+            if (!set.has(c)) {
+                set.add(c);
+                list.push({ value: c, label: defaultMap[c] || c });
+            }
+        }
+        return list;
+    }, [rawGlassColorOptions]);
 
     return (
         <div className="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col h-[350px] shrink-0 w-full z-10">
@@ -257,22 +297,17 @@ export function GlassSpecsTable({
 
                                     {/* Raw Glass Color Column */}
                                     <td className="p-1 border-r border-slate-200 dark:border-slate-800">
-                                        <select
+                                        <input
                                             id={`pane-rawcolor-${idx}`}
+                                            list="raw-colors-list"
                                             value={pane.rawGlassColor}
                                             onChange={(e) => updatePaneAt(idx, { rawGlassColor: e.target.value })}
                                             onFocus={() => {
                                                 if (activeTab !== idx) setActiveTab(idx);
                                             }}
-                                            className={selectClass}
-                                        >
-                                            <option value="">{lang === 'th' ? 'ไม่มี' : 'None'}</option>
-                                            <option value="ใส">ใส (Clear)</option>
-                                            <option value="เขียว">เขียว (Green)</option>
-                                            <option value="ชา">ชา (Tea)</option>
-                                            <option value="เทา">เทา (Grey)</option>
-                                            <option value="บรอนซ์">บรอนซ์ (Bronze)</option>
-                                        </select>
+                                            placeholder={lang === 'th' ? 'ไม่มี' : 'None'}
+                                            className={cellInputClass}
+                                        />
                                     </td>
 
                                     {/* Edge Profiles */}
@@ -384,6 +419,12 @@ export function GlassSpecsTable({
                     : ['Clear', 'Tinted', 'Reflective', 'Frosted', 'Patterned']
                 ).map(t => (
                     <option key={t} value={t} />
+                ))}
+            </datalist>
+
+            <datalist id="raw-colors-list">
+                {rawColorList.map(c => (
+                    <option key={c.value} value={c.value}>{c.label !== c.value ? c.label : undefined}</option>
                 ))}
             </datalist>
         </div>
