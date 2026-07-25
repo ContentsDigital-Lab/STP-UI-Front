@@ -31,6 +31,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 try {
                     setToken(storedToken);
                     setUser(JSON.parse(storedUser));
+                    // Unblock rendering immediately since we have cached data
+                    setIsLoading(false);
                 } catch (error) {
                     console.error("Failed to parse stored user", error);
                     localStorage.removeItem("auth_token");
@@ -39,6 +41,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     return;
                 }
 
+                // Refresh profile in the background (Stale-While-Revalidate)
                 try {
                     const profileRes = await authApi.getProfile();
                     if (profileRes.success && profileRes.data) {
@@ -50,9 +53,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     // If 401, fetchApi already cleared auth and triggered redirect.
                     // For other errors (network, 500), stay logged in optimistically.
                 }
+            } else {
+                // No stored session, stop loading so it can redirect to login
+                setIsLoading(false);
             }
-
-            setIsLoading(false);
         };
 
         initAuth();

@@ -65,10 +65,7 @@ export function AppLayout({ children, title }: { children: React.ReactNode; titl
     }
 
     return (
-        <div
-            className="flex h-screen overflow-hidden bg-background"
-            style={{ visibility: mounted ? "visible" : "hidden" }}
-        >
+        <div className="flex h-screen overflow-hidden bg-background">
             {/* Desktop sidebar */}
             <div className="no-print hidden lg:flex lg:flex-shrink-0">
                 <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} />

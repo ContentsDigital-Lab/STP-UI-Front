@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
     ChevronLeft,
@@ -55,7 +56,19 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { GlassDesigner, HoleData, VertexData } from "@/components/glass-designer";
+import type { HoleData, VertexData } from "@/components/glass-designer";
+
+const GlassDesigner = dynamic(
+    () => import("@/components/glass-designer").then((mod) => mod.GlassDesigner),
+    { 
+        ssr: false, 
+        loading: () => (
+            <div className="flex h-[400px] w-full items-center justify-center rounded-md bg-muted/50">
+                <span className="text-sm text-muted-foreground animate-pulse">Loading 3D Designer...</span>
+            </div>
+        )
+    }
+);
 import { GlassSpecsTable } from "@/components/glass-specs-table";
 import { panesApi } from "@/lib/api/panes";
 import { requestsApi } from "@/lib/api/requests";
