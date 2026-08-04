@@ -263,7 +263,9 @@ export interface PaneLog {
   material?: string | Material;
   worker?: string | Worker;
   station: string | { _id: string; name: string };
-  action: "scan_in" | "start" | "complete" | "scan_out";
+  action: "scan_in" | "start" | "complete" | "scan_out" | "laminate_start" | "laminate_complete" | "qc_pass" | "qc_fail" | string;
+  reason?: string;
+  description?: string;
   completedAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -272,9 +274,22 @@ export interface PaneLog {
   orderId?: string | Order;
 }
 
+export interface ActivityLog {
+  _id: string;
+  worker?: string | Worker;
+  request?: string | any; // Request type is not exported or fully defined here
+  order?: string | Order;
+  claim?: string | Claim;
+  action: "deadline_postponed" | "claim_entered" | "order_created" | "request_created" | "system_event" | string;
+  details?: Record<string, any>;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type TimelineEvent =
   | (MaterialLog & { logType: "material_log" })
-  | (PaneLog & { logType: "pane_log" });
+  | (PaneLog & { logType: "pane_log" })
+  | (ActivityLog & { logType: "activity_log" });
 
 export interface PaginatedResponse<T> {
   success: boolean;

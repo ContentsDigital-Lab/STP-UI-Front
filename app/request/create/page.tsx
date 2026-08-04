@@ -456,7 +456,9 @@ export default function CreateBillPage() {
         deliveryLocation: "",
         assignedTo: "",
         expectedDeliveryDate: "",
+        deadlineChangeReason: "",
     });
+    const [originalDeadline, setOriginalDeadline] = useState("");
 
     // ── New customer dialog ──────────────────────────────────────────────────
     const [isNewCustomerOpen, setIsNewCustomerOpen] = useState(false);
@@ -504,8 +506,10 @@ export default function CreateBillPage() {
                         deliveryLocation: data.deliveryLocation || "",
                         assignedTo: (typeof data.assignedTo === 'string' ? data.assignedTo : data.assignedTo?._id) || "",
                         expectedDeliveryDate: data.expectedDeliveryDate ? data.expectedDeliveryDate.split('T')[0] : "",
+                        deadlineChangeReason: "",
                     };
                     setOrderData(initOrderData);
+                    setOriginalDeadline(data.deadline ? data.deadline.split('T')[0] : "");
                 }
 
                 let initPanes = panes;
@@ -952,12 +956,17 @@ export default function CreateBillPage() {
             return;
         }
 
+        if (editId && orderData.deadline !== originalDeadline && !orderData.deadlineChangeReason?.trim()) {
+            toast.error(lang === 'th' ? 'กรุณาระบุเหตุผลในการเปลี่ยนกำหนดส่ง' : 'Please provide a reason for changing the deadline');
+            return;
+        }
+
         setIsSubmitting(true);
         const totalQty = validPanes.reduce((sum, p) => sum + p.quantity, 0);
         const totalPrice = validPanes.reduce((sum, p) => sum + calcPanePrice(p, pricingSettings).total, 0);
         const typeDesc = validPanes.map(p => `${p.glassType} ${p.thickness} (${formatCurrentUnit(p.glassWidth)}×${formatCurrentUnit(p.glassHeight)}${unit})`).join(' + ');
 
-        const payload: Partial<OrderRequest> = {
+        const payload: any = {
             details: {
                 type: typeDesc,
                 quantity: totalQty,
@@ -971,6 +980,10 @@ export default function CreateBillPage() {
             expectedDeliveryDate: orderData.expectedDeliveryDate ? new Date(orderData.expectedDeliveryDate).toISOString() : undefined,
             status: isDraft ? 'draft' : 'pending',
         };
+
+        if (editId && orderData.deadline !== originalDeadline) {
+            payload.deadlineChangeReason = orderData.deadlineChangeReason;
+        }
 
         try {
             let requestId = editId;
@@ -1825,6 +1838,21 @@ export default function CreateBillPage() {
                                         />
                                     </div>
                                 </div>
+
+                                {editId && orderData.deadline !== originalDeadline && (
+                                    <div className="space-y-1.5 mt-3">
+                                        <Label className="text-[10px] font-semibold text-slate-400 uppercase flex items-center gap-1">
+                                            {lang === 'th' ? 'เหตุผลที่เปลี่ยนกำหนดส่ง' : 'Deadline Change Reason'}
+                                            <span className="text-red-500">*</span>
+                                        </Label>
+                                        <Input
+                                            placeholder={lang === 'th' ? 'ระบุเหตุผล...' : 'Enter reason...'}
+                                            value={orderData.deadlineChangeReason || ""}
+                                            onChange={(e) => setOrderData(prev => ({ ...prev, deadlineChangeReason: e.target.value }))}
+                                            className="h-11 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 rounded-2xl text-sm px-4 focus:ring-[#E8601C]"
+                                        />
+                                    </div>
+                                )}
 
                                 {/* ── Production Estimation ── */}
                                 {estimatedCompletion && (

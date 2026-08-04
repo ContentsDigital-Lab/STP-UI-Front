@@ -71,7 +71,10 @@ import {
     Play,
     Factory,
     Maximize2,
+    ClipboardList,
+    Package,
 } from "lucide-react";
+import Link from "next/link";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -82,6 +85,8 @@ const ACTION_LABELS: Record<string, { th: string; en: string; color: string }> =
     withdraw_move: { th: "ย้ายออก", en: "Move Out", color: "violet" },
     claim: { th: "เคลม", en: "Claim", color: "red" },
     cut: { th: "ตัด/แปรรูป", en: "Cut", color: "blue" },
+    remake: { th: "ตัดใหม่ (Remake)", en: "Remake", color: "amber" },
+    cut_claim_remake: { th: "ตัด/เคลม/รีเมค", en: "Cut/Claim/Remake", color: "red" },
 };
 
 // Build a set of withdraw log IDs that are parentLogs → these are "move out" sources
@@ -700,16 +705,38 @@ export default function MaterialLogsPage() {
     return (
         <PermissionGuard permission="settings:view">
             <div className="space-y-6 max-w-[1440px] mx-auto w-full">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">{t.logs}</h1>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-                        {lang === "th"
-                            ? "ติดตามความเคลื่อนไหวของวัสดุ ตั้งแต่นำเข้าคลัง ตัด เบิก ไปจนถึงส่งงานลูกค้า"
-                            : "Track all material movements — from import, cut, withdraw to customer delivery"}
-                    </p>
+                {/* View Mode Toggle Bar */}
+                <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
+                    <div className="flex items-center gap-2">
+                        <Link href="/logs">
+                            <Button variant="secondary" size="sm" className="gap-2 bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 font-semibold shadow-sm">
+                                <Package className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                {lang === "th" ? "ประวัติคลังวัสดุ (Material Logs)" : "Material Logs"}
+                            </Button>
+                        </Link>
+                        <div className="h-4 w-px bg-slate-300 dark:bg-slate-700" />
+                        <Link href="/logs/orders">
+                            <Button variant="ghost" size="sm" className="gap-2 text-slate-500 hover:text-slate-900 dark:hover:text-white font-medium">
+                                <ClipboardList className="h-4 w-4 text-slate-400" />
+                                {lang === "th" ? "ประวัติคำขอและออเดอร์ (Request & Order Logs)" : "Request & Order Logs"}
+                            </Button>
+                        </Link>
+                    </div>
                 </div>
+
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2.5">
+                            <Package className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                            {t.logs}
+                        </h1>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+                            {lang === "th"
+                                ? "ติดตามความเคลื่อนไหวของวัสดุ ตั้งแต่นำเข้าคลัง ตัด เบิก ไปจนถึงส่งงานลูกค้า"
+                                : "Track all material movements — from import, cut, withdraw to customer delivery"}
+                        </p>
+                    </div>
 
                 <div className="flex items-center gap-2">
                     <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${wsStatus === "open"
@@ -785,7 +812,11 @@ export default function MaterialLogsPage() {
                             <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">{lang === "th" ? "การกระทำ" : "Action"}</Label>
                             <Select value={actionFilter} onValueChange={(v) => { setActionFilter(v || ""); setCurrentPage(1); }}>
                                 <SelectTrigger className="h-10 w-full rounded-xl text-sm border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-                                    <SelectValue placeholder={lang === "th" ? "ทั้งหมด" : "All"} />
+                                    <SelectValue placeholder={lang === "th" ? "ทั้งหมด" : "All"}>
+                                        {!actionFilter || actionFilter === "all"
+                                            ? (lang === "th" ? "ทุกการกระทำ" : "All Actions")
+                                            : (ACTION_LABELS[actionFilter]?.[lang === "th" ? "th" : "en"] || actionFilter)}
+                                    </SelectValue>
                                 </SelectTrigger>
                                 <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
                                     <SelectItem value="all">{lang === "th" ? "ทุกการกระทำ" : "All Actions"}</SelectItem>
@@ -804,7 +835,15 @@ export default function MaterialLogsPage() {
                             <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">{lang === "th" ? "ประเภท" : "Type"}</Label>
                             <Select value={stockTypeFilter === "all" ? "" : stockTypeFilter} onValueChange={(v) => { setStockTypeFilter(v || "all"); setCurrentPage(1); }}>
                                 <SelectTrigger className="h-10 w-full rounded-xl text-sm border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-                                    <SelectValue placeholder={lang === "th" ? "ทั้งหมด" : "All"} />
+                                    <SelectValue placeholder={lang === "th" ? "ทั้งหมด" : "All"}>
+                                        {!stockTypeFilter || stockTypeFilter === "all"
+                                            ? (lang === "th" ? "ทุกประเภท" : "All Types")
+                                            : stockTypeFilter === "Raw"
+                                                ? (lang === "th" ? "วัตถุดิบ (Raw)" : "Raw")
+                                                : stockTypeFilter === "Reuse"
+                                                    ? (lang === "th" ? "นำกลับมาใช้ (Reuse)" : "Reuse")
+                                                    : stockTypeFilter}
+                                    </SelectValue>
                                 </SelectTrigger>
                                 <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
                                     <SelectItem value="all">{lang === "th" ? "ทุกประเภท" : "All Types"}</SelectItem>
@@ -817,7 +856,17 @@ export default function MaterialLogsPage() {
                             <Label className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">{lang === "th" ? "ช่วงเวลา" : "Period"}</Label>
                             <Select value={dateFilter === "all" ? "" : dateFilter} onValueChange={(v) => { setDateFilter(v || "all"); setCurrentPage(1); }}>
                                 <SelectTrigger className="h-10 w-full rounded-xl text-sm border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-                                    <SelectValue placeholder={lang === "th" ? "ทั้งหมด" : "All"} />
+                                    <SelectValue placeholder={lang === "th" ? "ทั้งหมด" : "All"}>
+                                        {!dateFilter || dateFilter === "all"
+                                            ? (lang === "th" ? "ทุกช่วงเวลา" : "All Time")
+                                            : dateFilter === "today"
+                                                ? (lang === "th" ? "วันนี้" : "Today")
+                                                : dateFilter === "7days"
+                                                    ? (lang === "th" ? "7 วันที่ผ่านมา" : "Last 7 Days")
+                                                    : dateFilter === "30days"
+                                                        ? (lang === "th" ? "30 วันที่ผ่านมา" : "Last 30 Days")
+                                                        : dateFilter}
+                                    </SelectValue>
                                 </SelectTrigger>
                                 <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
                                     <SelectItem value="all">{lang === "th" ? "ทุกช่วงเวลา" : "All Time"}</SelectItem>
@@ -995,26 +1044,31 @@ export default function MaterialLogsPage() {
                     <div className="px-4 py-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
                         <span className="text-xs text-slate-400">{currentPage} / {totalPages}</span>
                         <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-lg" disabled={currentPage === 1} onClick={() => setCurrentPage(p => Math.max(1, p - 1))}>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" disabled={currentPage === 1} onClick={() => setCurrentPage(p => Math.max(1, p - 1))}>
                                 <ChevronRight className="h-4 w-4 rotate-180" />
                             </Button>
-                            {Array.from({ length: totalPages }, (_, i) => i + 1)
-                                .filter(p => p === 1 || p === totalPages || Math.abs(currentPage - p) <= 1)
-                                .map((page, i, arr) => {
-                                    if (i > 0 && arr[i - 1] !== page - 1) {
-                                        return <span key={`e-${page}`} className="px-1 text-xs text-slate-400">…</span>;
-                                    }
-                                    return (
-                                        <button
-                                            key={page}
-                                            onClick={() => setCurrentPage(page)}
-                                            className={`h-8 w-8 rounded-lg flex items-center justify-center text-xs font-medium transition-colors ${currentPage === page ? "bg-blue-600 dark:bg-[#E8601C] text-white" : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"}`}
-                                        >
-                                            {page}
-                                        </button>
-                                    );
-                                })}
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-lg" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}>
+                            {[...Array(Math.min(totalPages, 7))].map((_, i) => {
+                                let pageNum: number;
+                                if (totalPages <= 7) {
+                                    pageNum = i + 1;
+                                } else if (currentPage <= 4) {
+                                    pageNum = i + 1;
+                                } else if (currentPage >= totalPages - 3) {
+                                    pageNum = totalPages - 6 + i;
+                                } else {
+                                    pageNum = currentPage - 3 + i;
+                                }
+                                return (
+                                    <button
+                                        key={pageNum}
+                                        onClick={() => setCurrentPage(pageNum)}
+                                        className={`h-8 w-8 rounded-xl flex items-center justify-center text-xs font-semibold transition-colors ${currentPage === pageNum ? "bg-blue-600 dark:bg-[#E8601C] text-white shadow-sm" : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"}`}
+                                    >
+                                        {pageNum}
+                                    </button>
+                                );
+                            })}
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}>
                                 <ChevronRight className="h-4 w-4" />
                             </Button>
                         </div>

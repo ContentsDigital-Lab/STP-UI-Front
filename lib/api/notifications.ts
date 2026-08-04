@@ -16,6 +16,13 @@ export const notificationsApi = {
         });
     },
 
+    create: async (data: Partial<Notification>): Promise<ApiResponse<Notification>> => {
+        return fetchApi<ApiResponse<Notification>>("/notifications", {
+            method: "POST",
+            body: JSON.stringify(data),
+        });
+    },
+
     markAsRead: async (id: string): Promise<ApiResponse<Notification>> => {
         return fetchApi<ApiResponse<Notification>>(`/notifications/${id}`, {
             method: "PATCH",
@@ -34,10 +41,16 @@ export const notificationsApi = {
         );
         return { success: true, message: "All marked as read", data: null };
     },
-
-    delete: async (id: string): Promise<ApiResponse<unknown>> => {
-        return fetchApi<ApiResponse<unknown>>(`/notifications/${id}`, {
+    delete: async (id: string): Promise<ApiResponse<null>> => {
+        return fetchApi<ApiResponse<null>>(`/notifications/${id}`, {
             method: "DELETE",
+        });
+    },
+
+    deleteMany: async (ids: string[]): Promise<ApiResponse<{ deletedCount: number }>> => {
+        return fetchApi<ApiResponse<{ deletedCount: number }>>("/notifications", {
+            method: "DELETE",
+            body: JSON.stringify({ ids }),
         });
     },
 };

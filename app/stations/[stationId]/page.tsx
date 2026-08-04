@@ -22,6 +22,7 @@ import { effectiveShowWithdrawAction, effectiveShowClaimAction } from "@/lib/sta
 import { useWebSocket } from "@/lib/hooks/use-socket";
 import { useCheckinSocket } from "@/lib/hooks/use-checkin-socket";
 import { playNotificationSound } from "@/lib/notification-sounds";
+import { notificationsApi } from "@/lib/api/notifications";
 import { QRCodeSVG } from "qrcode.react";
 import { WithdrawModal } from "@/components/stations/WithdrawModal";
 import { ClaimModal } from "@/components/stations/ClaimModal";
@@ -66,7 +67,7 @@ function NewJobToast({ order, stationName, toastId }: {
                 <p className="text-xs font-semibold text-blue-500 uppercase tracking-wider">มีงานใหม่เข้าสถานี!</p>
                 <p className="font-bold text-sm text-foreground mt-0.5 flex items-center gap-1.5">
                     <Package className="h-3.5 w-3.5 shrink-0" />
-                    {order.code ? `#${order.code}` : `…${order._id.slice(-6)}`}
+                    {(order.orderNumber || order.code) ? `#${order.orderNumber || order.code}` : `…${order._id.slice(-6)}`}
                 </p>
                 <p className="text-xs text-muted-foreground truncate mt-0.5">{customerName}</p>
                 <p className="text-xs text-muted-foreground truncate">{materialName} × {order.quantity}</p>
@@ -149,6 +150,29 @@ export default function LiveStationPage() {
             (id) => <NewJobToast order={order} stationName={name} toastId={id} />,
             { id: toastId, duration: 12000, position: "top-right" },
         );
+
+        // Also save to the logged-in user's notification inventory
+        try {
+            const stored = localStorage.getItem("auth_user");
+            if (stored) {
+                const user = JSON.parse(stored);
+                if (user && user._id) {
+                        notificationsApi.create({
+                            recipient: user._id,
+                            type: "pane_arrived",
+                            title: "ออเดอร์ใหม่เข้าสถานี",
+                            message: `ออเดอร์ ${order.orderNumber || order.code || ""} เข้ามาที่สถานี ${name}`,
+                            referenceId: order._id,
+                            referenceType: "Order",
+                            priority: "high"
+                        }).catch((err) => {
+                            toast.error(`Failed to create notification: ${err.message || String(err)}`);
+                        });
+                    }
+                }
+            } catch (err) {
+                toast.error(`Failed to parse user: ${String(err)}`);
+            }
     }, []);
 
     const handleSocketEvent = useCallback(async (event: string, data: unknown) => {

@@ -20,4 +20,18 @@ export const paneLogsApi = {
         const query = qs.toString();
         return fetchApi<ApiResponse<PaneLog[]>>(`/pane-logs${query ? `?${query}` : ""}`);
     },
+
+    getTimeline: async (materialId: string): Promise<ApiResponse<any[]>> => {
+        return fetchApi<ApiResponse<any[]>>(
+            `/pane-logs/timeline?materialId=${encodeURIComponent(materialId)}`
+        );
+    },
+
+    getOrderTimeline: async (params: { orderId?: string; requestId?: string; limit?: number }): Promise<ApiResponse<any[]>> => {
+        const qs = new URLSearchParams();
+        if (params.orderId) qs.set("orderId", params.orderId);
+        if (params.requestId) qs.set("requestId", params.requestId);
+        if (params.limit) qs.set("limit", params.limit.toString());
+        return fetchApi<ApiResponse<any[]>>(`/pane-logs/order-timeline?${qs.toString()}`);
+    },
 };

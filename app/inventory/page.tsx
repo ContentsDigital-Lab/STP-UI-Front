@@ -1131,7 +1131,7 @@ export default function InventoryPage() {
                                     </div>
 
                                     {/* Material name */}
-                                    <h2 className="text-xl font-bold text-slate-900 dark:text-white leading-tight truncate" title={mat?.name}>
+                                    <h2 className="text-xl font-bold text-slate-900 dark:text-white leading-tight" title={mat?.name}>
                                         {mat?.name || "N/A"}
                                     </h2>
 

@@ -26,4 +26,10 @@ export const productionLogsApi = {
             `/pane-logs/timeline?materialId=${encodeURIComponent(materialId)}`
         );
     },
+
+    getOrderTimeline: async (orderId: string): Promise<ApiResponse<TimelineEvent[]>> => {
+        return fetchApi<ApiResponse<TimelineEvent[]>>(
+            `/pane-logs/order-timeline?orderId=${encodeURIComponent(orderId)}`
+        );
+    },
 };

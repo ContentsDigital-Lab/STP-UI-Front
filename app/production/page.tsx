@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
     ClipboardList, Search, RefreshCw, ChevronDown, ChevronRight, ChevronLeft,
     AlertCircle, Package, ArrowRight, MapPin,
-    CalendarDays, Printer, X, Check, Wifi, WifiOff, Trash2,
+    CalendarDays, Printer, X, Check, Wifi, WifiOff, Trash2, HardHat,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -239,6 +239,32 @@ export default function ProductionPage() {
         return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
     }, [orders, stations]);
 
+    const allOrderIds = useMemo(
+        () => orders.map(o => o._id).filter(Boolean).join(","),
+        [orders]
+    );
+
+    const { data: panesRes } = useQuery({
+        queryKey: ["panes", "by-orders", allOrderIds],
+        queryFn: () => allOrderIds ? panesApi.getAll({ order: allOrderIds, limit: 5000 }) : Promise.resolve({ success: true, data: [], message: "", pagination: { total: 0, page: 1, limit: 5000, totalPages: 1 } }),
+        enabled: !!allOrderIds,
+    });
+    const panesList = panesRes?.data ?? [];
+
+    const paneMap = useMemo(() => {
+        const map = new Map<string, Pane[]>();
+        for (const p of panesList) {
+            if (isPaneRetiredByMerge(p)) continue;
+            if (p.currentStatus === "claimed") continue;
+            if (p.laminateRole === "sheet") continue;
+            const oid = typeof p.order === "string" ? p.order : (p.order as Order)?._id;
+            if (!oid) continue;
+            if (!map.has(oid)) map.set(oid, []);
+            map.get(oid)!.push(p);
+        }
+        return map;
+    }, [panesList]);
+
     // Apply filters: status, station (if any), then date, then search
     const filtered = useMemo(() => {
         let result = bills.filter(b => b.request?.status !== 'draft');
@@ -291,7 +317,8 @@ export default function ProductionPage() {
                             const st = stId ? stationMap.get(stId) : undefined;
                             const nm = (st?.name ?? getStationName(s)).toLowerCase();
                             return nm.includes(q);
-                        })
+                        }) ||
+                        (paneMap.get(o._id) ?? []).some(p => p.paneNumber?.toLowerCase().includes(q) || p.qrCode?.toLowerCase().includes(q))
                     ) return true;
 
                     return false;
@@ -300,7 +327,7 @@ export default function ProductionPage() {
         }
 
         return result;
-    }, [bills, search, stationMap, filterStatus, filterStation, dateFilter]);
+    }, [bills, search, stationMap, filterStatus, filterStation, dateFilter, paneMap]);
 
     // Reset to page 1 when search, filters or dateFilter change
     useEffect(() => { setPage(1); }, [search, filterStatus, filterStation, dateFilter]);
@@ -311,32 +338,6 @@ export default function ProductionPage() {
         () => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
         [filtered, page]
     );
-
-    const paginatedOrderIds = useMemo(
-        () => paginated.flatMap(b => b.orders.map(o => o._id)).filter(Boolean).join(","),
-        [paginated]
-    );
-
-    const { data: panesRes } = useQuery({
-        queryKey: ["panes", "by-orders", paginatedOrderIds],
-        queryFn: () => paginatedOrderIds ? panesApi.getAll({ order: paginatedOrderIds, limit: 1000 }) : Promise.resolve({ success: true, data: [], message: "", pagination: { total: 0, page: 1, limit: 1000, totalPages: 1 } }),
-        enabled: !!paginatedOrderIds,
-    });
-    const panesList = panesRes?.data ?? [];
-
-    const paneMap = useMemo(() => {
-        const map = new Map<string, Pane[]>();
-        for (const p of panesList) {
-            if (isPaneRetiredByMerge(p)) continue;
-            if (p.currentStatus === "claimed") continue;
-            if (p.laminateRole === "sheet") continue;
-            const oid = typeof p.order === "string" ? p.order : (p.order as Order)?._id;
-            if (!oid) continue;
-            if (!map.has(oid)) map.set(oid, []);
-            map.get(oid)!.push(p);
-        }
-        return map;
-    }, [panesList]);
 
     const toggle = (id: string) => setExpanded(prev => {
         const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n;
@@ -397,7 +398,7 @@ export default function ProductionPage() {
                 {[
                     { filterValue: "all", label: "ออเดอร์ทั้งหมด", count: orders.length,     icon: Package, accent: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10" },
                     { filterValue: "pending", label: "รอดำเนินการ",  count: pendingOrdersCount,   icon: AlertCircle,   accent: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10" },
-                    { filterValue: "in_progress", label: "กำลังผลิต",  count: activeOrdersCount,    icon: RefreshCw,     accent: "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10" },
+                    { filterValue: "in_progress", label: "กำลังผลิต",  count: activeOrdersCount,    icon: RefreshCw,       accent: "text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10" },
                     { filterValue: "completed", label: "เสร็จแล้ว",  count: completedOrdersCount, icon: Check,    accent: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10" },
                 ].map(({ filterValue, label, count, icon: Icon, accent }) => {
                     const isHighlighted = filterStatus === filterValue;

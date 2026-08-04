@@ -346,7 +346,7 @@ export default function StationsPage() {
     const filteredStations = stationsArray.filter((station) => {
         const slug = user?.role && typeof user.role === 'object' ? user.role.slug : user?.role;
         if (slug === "admin") return true;
-        return hasPermission(user, "stations:manage") || hasPermission(user, `station:enter:${station._id}`);
+        return hasPermission(user, `station:enter:${station._id}`);
     });
 
     if (loading) {
@@ -410,6 +410,10 @@ export default function StationsPage() {
                         const color        = getColorOption(station.colorId);
                         const tmplId       = resolveTemplateId(station.templateId);
                         const templateName = tmplId ? tmplNames[tmplId] : undefined;
+                        
+                        // We still use this for the button rendering, but since it's filtered, it will always be true for non-admins anyway
+                        const currentSlug = user?.role && typeof user.role === 'object' ? user.role.slug : user?.role;
+                        const canEnter = currentSlug === "admin" || hasPermission(user, `station:enter:${station._id}`);
 
                         return (
                             <div key={station._id} className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all p-5 sm:p-6 flex flex-col gap-4 group">
@@ -467,15 +471,15 @@ export default function StationsPage() {
                                 {/* Enter station button */}
                                 <Button
                                     size="sm"
-                                    className="w-full h-10 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white shadow-md shadow-blue-500/15 dark:shadow-orange-500/15 border-0 transition-all justify-between px-4 sm:px-5"
-                                    disabled={!tmplId}
+                                    className={`w-full h-10 text-xs font-bold rounded-xl border-0 transition-all justify-between px-4 sm:px-5 disabled:opacity-50 disabled:cursor-not-allowed ${canEnter ? "bg-blue-600 hover:bg-blue-700 dark:bg-[#E8601C] dark:hover:bg-orange-600 text-white shadow-md shadow-blue-500/15 dark:shadow-orange-500/15" : "bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-500 shadow-none hover:bg-slate-200 dark:hover:bg-slate-800"}`}
+                                    disabled={!tmplId || !canEnter}
                                     onClick={() => router.push(`/stations/${station._id}`)}
                                 >
                                     <div className="flex items-center gap-2">
                                         <Play className="h-3.5 w-3.5" />
-                                        <span>เข้าสถานี</span>
+                                        <span>{!canEnter ? "ไม่มีสิทธิ์เข้า" : "เข้าสถานี"}</span>
                                     </div>
-                                    {tmplId && <ChevronRight className="h-3.5 w-3.5 opacity-60" />}
+                                    {tmplId && canEnter && <ChevronRight className="h-3.5 w-3.5 opacity-60" />}
                                 </Button>
                             </div>
                         );

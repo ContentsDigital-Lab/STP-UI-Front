@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Bell, Check, CheckCheck } from "lucide-react";
+import { Bell, Check, CheckCheck, Trash2, X } from "lucide-react";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -69,6 +69,22 @@ export function NotificationBell() {
         notificationsApi.markAllRead(unreadIds).catch(() => {});
     };
 
+    const handleDelete = (id: string, e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setNotifications((prev) => prev.filter((n) => n._id !== id));
+        notificationsApi.delete(id).catch(() => {});
+    };
+
+    const handleClearAll = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const ids = notifications.map((n) => n._id);
+        if (ids.length === 0) return;
+        setNotifications([]);
+        notificationsApi.deleteMany(ids).catch(() => {});
+    };
+
     const formatTime = (dateStr: string) => {
         const date = new Date(dateStr);
         const now = new Date();
@@ -96,15 +112,26 @@ export function NotificationBell() {
                 <DropdownMenuGroup>
                 <DropdownMenuLabel className="flex items-center justify-between">
                     <span>Notifications</span>
-                    {unreadCount > 0 && (
-                        <button
-                            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
-                            onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleMarkAllRead(); }}
-                        >
-                            <CheckCheck className="h-3 w-3" />
-                            Mark all read
-                        </button>
-                    )}
+                    <div className="flex items-center gap-3">
+                        {unreadCount > 0 && (
+                            <button
+                                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                                onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleMarkAllRead(); }}
+                            >
+                                <CheckCheck className="h-3 w-3" />
+                                Mark all read
+                            </button>
+                        )}
+                        {notifications.length > 0 && (
+                            <button
+                                className="text-xs text-red-500 hover:text-red-600 flex items-center gap-1"
+                                onMouseDown={handleClearAll}
+                            >
+                                <Trash2 className="h-3 w-3" />
+                                Clear all
+                            </button>
+                        )}
+                    </div>
                 </DropdownMenuLabel>
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
@@ -138,11 +165,20 @@ export function NotificationBell() {
                                         {formatTime(notif.createdAt)}
                                     </p>
                                 </div>
-                                {!notif.readStatus && (
-                                    <Badge variant="secondary" className="flex-shrink-0 text-[10px] px-1 py-0">
-                                        New
-                                    </Badge>
-                                )}
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                    {!notif.readStatus && (
+                                        <Badge variant="secondary" className="text-[10px] px-1 py-0">
+                                            New
+                                        </Badge>
+                                    )}
+                                    <button
+                                        onClick={(e) => handleDelete(notif._id, e)}
+                                        className="p-1 rounded-md text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                        title="ลบการแจ้งเตือน"
+                                    >
+                                        <X className="h-4 w-4" />
+                                    </button>
+                                </div>
                             </DropdownMenuItem>
                         ))}
                     </div>

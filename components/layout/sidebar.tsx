@@ -70,7 +70,8 @@ export function Sidebar({ collapsed, setCollapsed, onNavigate }: SidebarProps) {
         {
             label: lang === "th" ? "ระบบ" : "System",
             items: [
-                { name: t.logs, href: "/logs", icon: History, permission: "settings:view" },
+                { name: lang === "th" ? "ประวัติคลังวัสดุ" : "Material Logs", href: "/logs", icon: History, permission: "settings:view" },
+                { name: lang === "th" ? "ประวัติคำขอและผลิต" : "Order Logs", href: "/logs/orders", icon: ClipboardCheck, permission: "settings:view" },
                 // Settings menu is visible to all; individual items inside are guarded
                 { name: t.settings, href: "/settings", icon: Settings },
             ],
@@ -149,7 +150,9 @@ export function Sidebar({ collapsed, setCollapsed, onNavigate }: SidebarProps) {
                                     const isActive =
                                         item.href === "/"
                                             ? pathname === "/"
-                                            : pathname.startsWith(item.href);
+                                            : item.href === "/logs"
+                                                ? pathname === "/logs"
+                                                : pathname.startsWith(item.href);
                                     return (
                                         <Link
                                             key={item.href}
