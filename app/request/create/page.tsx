@@ -1037,7 +1037,7 @@ export default function CreateBillPage() {
                             holes: holeList.length > 0 ? holeList : undefined,
                             notches: notchList.length > 0 ? notchList : undefined,
                             ...(pane.vertices && pane.vertices.length > 0 ? { vertices: pane.vertices } : {}),
-                            ...(pane.rawGlassType || pane.sheetsPerPane > 1 ? {
+                            ...(pane.rawGlassType || pane.rawGlassColor || pane.sheetsPerPane > 1 ? {
                                 rawGlass: {
                                     ...(pane.rawGlassType ? { glassType: pane.rawGlassType } : {}),
                                     ...(pane.rawGlassColor ? { color: pane.rawGlassColor } : {}),

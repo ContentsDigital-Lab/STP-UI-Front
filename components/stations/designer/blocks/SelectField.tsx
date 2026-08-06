@@ -104,6 +104,9 @@ const AUTO_FIELD_KEY: Record<string, string> = {
     "/requests":    "request",
     "/orders":      "order",
     "/inventories": "inventory",
+    "/panes":       "pane",
+    "/claims":      "claim",
+    "/withdrawals": "withdrawal",
 };
 
 export function SelectField({

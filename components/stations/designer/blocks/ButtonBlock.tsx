@@ -250,15 +250,15 @@ export function ButtonBlock({
                     const cid = extractId(src.customer);
                     if (cid) autoFields.customer = cid;
                 }
-                if (!normalized.material) {
-                    const mid = extractId(src.material);
+                if (!normalized.material && !normalized.inventory) {
+                    const mid = extractId(src.material) || extractId(src.inventory);
                     if (mid) autoFields.material = mid;
                 }
                 if (normalized.quantity == null) {
                     const qty = src.quantity ?? details?.quantity;
                     if (qty != null) autoFields.quantity = qty;
                 }
-                if (!requestId && !orderId && src._id && details && !autoFields.material) {
+                if (!requestId && !orderId && src._id && details && !autoFields.material && !autoFields.inventory) {
                     autoFields.request = src._id;
                 }
             }
@@ -295,11 +295,11 @@ export function ButtonBlock({
                         : srcCustomer;
                     mismatches.push(`ลูกค้า (บิลระบุ "${name}")`);
                 }
-                if (formMaterial && srcMaterial && formMaterial !== srcMaterial) {
+                if ((formMaterial || normalized.inventory) && (srcMaterial || src.inventory) && (formMaterial || normalized.inventory) !== (srcMaterial || extractId(src.inventory))) {
                     const name = typeof src.material === "object"
                         ? ((src.material as Record<string, unknown>).name as string) ?? srcMaterial
-                        : srcMaterial;
-                    mismatches.push(`วัสดุ (บิลระบุ "${name}")`);
+                        : (typeof src.inventory === "object" ? ((src.inventory as Record<string, unknown>).inventoryNumber as string) ?? src.inventory : (srcMaterial ?? src.inventory));
+                    mismatches.push(`วัสดุ/สต็อก (บิลระบุ "${name}")`);
                 }
                 if (mismatches.length > 0) {
                     setErrorMsg(`ข้อมูลไม่ตรงกับบิลที่เลือก — ${mismatches.join(" | ")}`);
@@ -313,7 +313,7 @@ export function ButtonBlock({
             // over whatever the form dropdowns have — prevents mismatched orders
             if (src) {
                 const srcCustomer = extractId(src.customer);
-                const srcMaterial = extractId(src.material);
+                const srcMaterial = extractId(src.material) || extractId(src.inventory);
                 if (srcCustomer) body.customer = srcCustomer;
                 if (srcMaterial) body.material = srcMaterial;
             }
@@ -322,7 +322,7 @@ export function ButtonBlock({
             if (isOrderEndpoint) {
                 const orderErrors: string[] = [];
                 if (!body.customer) orderErrors.push("ลูกค้า");
-                if (!body.material) orderErrors.push("วัสดุ/กระจก");
+                if (!body.material && !body.inventory) orderErrors.push("วัสดุ/กระจก/สต็อก");
                 const qty = Number(body.quantity);
                 if (!body.quantity || isNaN(qty) || qty < 1) orderErrors.push("จำนวน (ต้องมากกว่า 0)");
                 const srcDetails = src?.details as Record<string, unknown> | undefined;
@@ -359,7 +359,7 @@ export function ButtonBlock({
 
                 setConfirmSummary({
                     customerName: resolveName(cs, "customer", body.customer),
-                    materialName: resolveName(cs, "material", body.material),
+                    materialName: resolveName(cs, "material", body.material) !== "—" ? resolveName(cs, "material", body.material) : resolveName(cs, "inventory", body.inventory),
                     quantity: String(body.quantity ?? "—"),
                     stationCount: Array.isArray(body.stations) ? (body.stations as string[]).length : 0,
                 });
