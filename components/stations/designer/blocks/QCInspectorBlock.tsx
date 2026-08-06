@@ -147,7 +147,10 @@ export function QCInspectorBlock({
         if (paneData && stationId) {
             const currentStatus = (paneData as any).currentStatus;
             const paneNum = (paneData as any).paneNumber;
-            if (currentStatus === "pending" && paneNum) {
+            const currentStation = (paneData as any).currentStation?._id || (paneData as any).currentStation;
+            
+            // Only auto-start if the pane is actually pending AT THIS station
+            if (currentStatus === "pending" && paneNum && currentStation === stationId) {
                 panesApi.scan(paneNum, {
                     station: stationId,
                     action: "start",

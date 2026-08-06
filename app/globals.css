@@ -60,19 +60,19 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: #2563eb;           /* blue-600 */
+  --primary: #2196f3;           /* 2196F3 */
   --primary-foreground: #ffffff;
   --secondary: #f1f5f9;         /* slate-100 */
   --secondary-foreground: #0f172a;
   --muted: #f8fafc;             /* slate-50 */
   --muted-foreground: #64748b;  /* slate-500 */
-  --accent: #2563eb;            /* blue-600 (replaces orange) */
+  --accent: #2196f3;            /* 2196F3 */
   --accent-foreground: #ffffff;
   --destructive: oklch(0.58 0.22 27);
   --border: #e2e8f0;            /* slate-200 */
   --input: #e2e8f0;             /* slate-200 */
-  --ring: #93c5fd;              /* blue-300 */
-  --chart-1: #2563eb;           /* blue-600 */
+  --ring: #90caf9;              /* 90CAF9 */
+  --chart-1: #2196f3;           /* 2196F3 */
   --chart-2: #10b981;           /* emerald-500 */
   --chart-3: #f59e0b;           /* amber-500 */
   --chart-4: #8b5cf6;           /* violet-500 */
@@ -80,12 +80,12 @@
   --radius: 0.75rem;            /* 12px — matches std-plus rounded-xl feel */
   --sidebar: #ffffff;
   --sidebar-foreground: #0f172a;
-  --sidebar-primary: #2563eb;
+  --sidebar-primary: #2196f3;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #dbeafe;    /* blue-100 — active/hover background */
-  --sidebar-accent-foreground: #1d4ed8; /* blue-700 — active/hover text */
+  --sidebar-accent: #e3f2fd;    /* E3F2FD */
+  --sidebar-accent-foreground: #0d47a1; /* 0D47A1 */
   --sidebar-border: #e2e8f0;    /* slate-200 */
-  --sidebar-ring: #93c5fd;
+  --sidebar-ring: #90caf9;
 }
 
 .dark {
@@ -95,31 +95,31 @@
   --card-foreground: #f8fafc;
   --popover: #1e293b;           /* slate-800 */
   --popover-foreground: #f8fafc;
-  --primary: #60a5fa;           /* blue-400 */
-  --primary-foreground: #0f172a;
+  --primary: #90caf9;           /* 90CAF9 */
+  --primary-foreground: #0d47a1; /* 0D47A1 */
   --secondary: #1e293b;         /* slate-800 */
   --secondary-foreground: #f8fafc;
   --muted: #1e293b;             /* slate-800 */
   --muted-foreground: #94a3b8;  /* slate-400 */
-  --accent: #60a5fa;            /* blue-400 */
-  --accent-foreground: #0f172a;
+  --accent: #90caf9;            /* 90CAF9 */
+  --accent-foreground: #0d47a1; /* 0D47A1 */
   --destructive: oklch(0.704 0.191 22.216);
   --border: #334155;            /* slate-700 */
   --input: #334155;             /* slate-700 */
-  --ring: #60a5fa;              /* blue-400 */
-  --chart-1: #60a5fa;           /* blue-400 */
+  --ring: #90caf9;              /* 90CAF9 */
+  --chart-1: #90caf9;           /* 90CAF9 */
   --chart-2: #34d399;           /* emerald-400 */
   --chart-3: #fbbf24;           /* amber-400 */
   --chart-4: #a78bfa;           /* violet-400 */
   --chart-5: #f472b6;           /* pink-400 */
   --sidebar: #1e293b;           /* slate-800 — slightly lighter than main bg */
   --sidebar-foreground: #f8fafc;
-  --sidebar-primary: #60a5fa;
-  --sidebar-primary-foreground: #0f172a;
+  --sidebar-primary: #90caf9;
+  --sidebar-primary-foreground: #0d47a1;
   --sidebar-accent: #334155;    /* slate-700 — active/hover background */
-  --sidebar-accent-foreground: #f8fafc; /* slate-50 — active/hover text */
+  --sidebar-accent-foreground: #e3f2fd; /* E3F2FD */
   --sidebar-border: #334155;    /* slate-700 */
-  --sidebar-ring: #60a5fa;
+  --sidebar-ring: #90caf9;
 }
 
 @layer base {
