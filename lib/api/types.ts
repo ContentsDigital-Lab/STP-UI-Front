@@ -221,7 +221,7 @@ export interface Pane {
     | "claimed";
   routing: (string | { _id: string; name: string })[];
   customRouting: boolean;
-  dimensions: { width: number; height: number; thickness: number; area?: number };
+  dimensions: { width: number; height: number; thickness: number; depth3?: number; area?: number };
   glassType: string;
   glassTypeLabel: string;
   processes: string[];
@@ -238,6 +238,20 @@ export interface Pane {
   /** Backend returns arrays for new orders. Older orders return integer counts. */
   holes?: HoleData[] | number;
   notches?: HoleData[] | number;
+  holesCount?: number;
+  notchesCount?: number;
+  customerRemarks?: string;
+  internalRemarks?: string;
+  customDimensionsText?: string;
+  isCutByPattern?: boolean;
+  glassDepth3?: number;
+  productType?: "laminated" | "insulated" | "";
+  layerCount?: number;
+  compositeLayers?: Array<{
+    filmAirType: string;
+    rawGlassColor: string;
+    thickness: string;
+  }>;
   vertices?: VertexData[];
   withdrawal?: string | Withdrawal;
   remakeOf?: string;

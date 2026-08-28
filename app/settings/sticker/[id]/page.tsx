@@ -43,25 +43,48 @@ const STORAGE_KEY = "sticker_template";
 const MAX_HISTORY = 50;
 
 const DYNAMIC_VARIABLES = [
-    // ── ออเดอร์ ───────────────────────────────────────────────────────
-    { value: "{{orderCode}}",    label: "รหัสออเดอร์",      group: "ออเดอร์" },
-    { value: "{{customerName}}", label: "ชื่อลูกค้า",        group: "ออเดอร์" },
-    { value: "{{materialName}}", label: "ชื่อวัสดุ",          group: "ออเดอร์" },
-    { value: "{{quantity}}",     label: "จำนวน",              group: "ออเดอร์" },
-    { value: "{{status}}",       label: "สถานะ",              group: "ออเดอร์" },
-    { value: "{{assignedTo}}",   label: "ผู้รับผิดชอบ",      group: "ออเดอร์" },
-    // ── กระจก ────────────────────────────────────────────────────────
-    { value: "{{paneNumber}}",   label: "เลขกระจก",          group: "กระจก" },
-    { value: "{{paneId}}",       label: "ID กระจก",           group: "กระจก" },
-    { value: "{{glassType}}",    label: "ประเภทกระจก",        group: "กระจก" },
-    { value: "{{dimensions}}",   label: "ขนาดกระจก (กxสxห)", group: "กระจก" },
-    { value: "{{width}}",        label: "กว้าง (mm)",         group: "กระจก" },
-    { value: "{{height}}",       label: "สูง (mm)",           group: "กระจก" },
-    { value: "{{thickness}}",    label: "หนา (mm)",           group: "กระจก" },
-    { value: "{{qrCode}}",       label: "QR Code ของกระจก",  group: "กระจก" },
+    // ── ออเดอร์ & เอกสาร ───────────────────────────────────────────────
+    { value: "{{po}}",                     label: "หมายเลข PO",                   group: "ออเดอร์" },
+    { value: "{{customerName}}",           label: "ชื่อลูกค้า",                    group: "ออเดอร์" },
+    { value: "{{orderCode}}",              label: "รหัสออเดอร์",                   group: "ออเดอร์" },
+    { value: "{{deliveryDate}}",           label: "วันที่กำหนดส่ง",                group: "ออเดอร์" },
+    { value: "{{sequentialNo}}",           label: "ลำดับชิ้น (NO.)",               group: "ออเดอร์" },
+    { value: "{{quantity}}",               label: "จำนวน",                        group: "ออเดอร์" },
+    { value: "{{status}}",                 label: "สถานะ",                        group: "ออเดอร์" },
+    { value: "{{assignedTo}}",             label: "ผู้รับผิดชอบ",                  group: "ออเดอร์" },
+
+    // ── สเปกกระจก & กระจกประกอบ ─────────────────────────────────────────
+    { value: "{{compositeFormula}}",       label: "ชนิดฟิล์ม/อากาศที่บรรจุ",         group: "กระจก" },
+    { value: "{{jobType}}",                label: "ลักษณะงาน",                    group: "กระจก" },
+    { value: "{{rawGlassColor}}",          label: "สีกระจกดิบ",                   group: "กระจก" },
+    { value: "{{thickness}}",              label: "ความหนา",                      group: "กระจก" },
+    { value: "{{glassType}}",              label: "ประเภทกระจก",                  group: "กระจก" },
+    { value: "{{productType}}",            label: "ประเภทงาน (ลามิเนต/อินซูเลท)",    group: "กระจก" },
+    { value: "{{paneNumber}}",             label: "เลขกระจก",                     group: "กระจก" },
+    { value: "{{paneId}}",                 label: "ID กระจก",                     group: "กระจก" },
+    { value: "{{qrCode}}",                 label: "QR Code ของกระจก",             group: "กระจก" },
+
+    // ── ขนาดและการเจียร ───────────────────────────────────────────────
+    { value: "{{dimensions}}",             label: "ขนาด กว้าง X สูง",              group: "ขนาดและขอบ" },
+    { value: "{{width}}",                  label: "กว้าง (mm)",                   group: "ขนาดและขอบ" },
+    { value: "{{height}}",                 label: "สูง (mm)",                     group: "ขนาดและขอบ" },
+    { value: "{{grindingSummary}}",        label: "สรุปการเจียร 4 ด้าน",            group: "ขนาดและขอบ" },
+
+    // ── รูเจาะ / บาก / หมายเหตุ ────────────────────────────────────────
+    { value: "{{holes}}",                  label: "จำนวนรู",                      group: "รูและหมายเหตุ" },
+    { value: "{{notches}}",                label: "จำนวนบาก",                     group: "รูและหมายเหตุ" },
+    { value: "{{holesAndNotchesSummary}}", label: "สรุปจำนวนรูและบาก",            group: "รูและหมายเหตุ" },
+    { value: "{{customerRemarks}}",        label: "หมายเหตุลูกค้า",                 group: "รูและหมายเหตุ" },
+    { value: "{{internalRemarks}}",        label: "หมายเหตุ",                     group: "รูและหมายเหตุ" },
+
+    // ── สูตรคำนวณทางเทคนิค ──────────────────────────────────────────────
+    { value: "{{weight}}",                 label: "น้ำหนัก (กก.)",                 group: "คำนวณ" },
+    { value: "{{perimeterMeters}}",        label: "ความยาวรอบรูป (ม.)",            group: "คำนวณ" },
+    { value: "{{areaSqFt}}",               label: "พื้นที่ (ตร.ฟุต)",                group: "คำนวณ" },
+
     // ── วันที่ / เวลา ─────────────────────────────────────────────────
-    { value: "{{date}}",         label: "วันที่",              group: "วันที่" },
-    { value: "{{time}}",         label: "เวลา",               group: "วันที่" },
+    { value: "{{date}}",                   label: "วันที่พิมพ์",                    group: "วันที่" },
+    { value: "{{time}}",                   label: "เวลาพิมพ์",                     group: "วันที่" },
 ];
 
 function genId() { return Math.random().toString(36).slice(2, 9); }
@@ -1376,7 +1399,14 @@ export default function StickerDesignerPage() {
                 </div>
 
                 {/* Canvas Area */}
-                <div className="flex-1 bg-muted/40 rounded-xl border overflow-auto flex items-center justify-center p-8 relative">
+                <div
+                    className="flex-1 bg-muted/40 rounded-xl border overflow-auto flex items-center justify-center p-8 relative"
+                    onMouseDown={(e) => {
+                        if (e.target === e.currentTarget) {
+                            handleSelect(null);
+                        }
+                    }}
+                >
                     {multiSelected.length >= 2 && (
                         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 bg-violet-600 text-white text-[11px] font-bold px-3 py-1 rounded-full shadow-lg flex items-center gap-1.5 pointer-events-none">
                             <Layers2 className="h-3.5 w-3.5" />

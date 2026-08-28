@@ -10,30 +10,57 @@ const MM_TO_PX = 3.7795275591;
 
 interface SampleData {
     // ออเดอร์
-    orderCode: string; customerName: string; materialName: string;
-    quantity: string; status: string; assignedTo: string;
-    // กระจก
-    paneNumber: string; paneId: string; glassType: string;
-    dimensions: string; width: string; height: string; thickness: string; qrCode: string;
+    po: string; customerName: string; orderCode: string; deliveryDate: string;
+    sequentialNo: string; totalSheetsSummary: string;
+    quantity: string; status: string; assignedTo: string; materialName: string;
+    // กระจก & ประกอบ
+    compositeFormula: string; jobType: string; tp: string; rawGlassColor: string;
+    thickness: string; glassType: string; productType: string;
+    paneNumber: string; paneId: string; qrCode: string;
+    // ขนาด & เจียร
+    dimensions: string; width: string; height: string; grindingSummary: string;
+    // รู & บาก & หมายเหตุ
+    holes: string; notches: string; holesAndNotchesSummary: string;
+    customerRemarks: string; internalRemarks: string;
+    // คำนวณ
+    weight: string; perimeterMeters: string; areaSqFt: string;
     // วันที่
     date: string; time: string;
 }
 
 const DEFAULT_DATA: SampleData = {
-    orderCode: "ORD-001",
-    customerName: "บริษัท กระจกไทย จำกัด",
-    materialName: "กระจก Clear 10mm",
-    quantity: "50",
+    po: "CJ0020249",
+    customerName: "บุญโฮม",
+    orderCode: "CJ0020249",
+    deliveryDate: "21/08/2569",
+    sequentialNo: "No. 15",
+    totalSheetsSummary: "2 รายการ จำนวนทั้งหมด 5 แผ่น",
+    quantity: "1 แผ่น",
     status: "กำลังดำเนินการ",
     assignedTo: "สมชาย ใจดี",
-    paneNumber: "P-0001",
+    materialName: "กระจก Clear 12mm",
+    compositeFormula: "TP ใส 6 + PVB0.38ใส + ใส 5",
+    jobType: "เทมเปอร์ (TP)",
+    tp: "TP",
+    rawGlassColor: "ใส",
+    thickness: "12 มม.",
+    glassType: "TPใส",
+    productType: "ลามิเนต",
+    paneNumber: "P-0015",
     paneId: "abc123def456",
-    glassType: "กระจกใส",
-    dimensions: "600×900×10mm",
-    width: "600",
-    height: "900",
-    thickness: "10",
-    qrCode: "STDPLUS:P-0001",
+    qrCode: "STDPLUS:P-0015",
+    dimensions: "1291 X 3020 mm.",
+    width: "1291",
+    height: "3020",
+    grindingSummary: "เจียรริม 2 ด้านยาว เจียรหยาบ 2 ด้านสั้น",
+    holes: "2",
+    notches: "1",
+    holesAndNotchesSummary: "จำนวน 2 รู จำนวนบาก 1 บาก",
+    customerRemarks: "#20",
+    internalRemarks: "CNC,ผ่ารูไฟ",
+    weight: "17.95 กก.",
+    perimeterMeters: "8.62 ม.",
+    areaSqFt: "41.97 ตร.ฟุต",
     date: new Date().toLocaleDateString("th-TH"),
     time: new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }),
 };
@@ -46,21 +73,42 @@ const STATUS_LABEL: Record<string, string> = {
 function resolveText(text: string, d: SampleData): string {
     return text
         // ออเดอร์
-        .replace(/\{\{orderCode\}\}/g, d.orderCode)
+        .replace(/\{\{po\}\}/g, d.po)
         .replace(/\{\{customerName\}\}/g, d.customerName)
-        .replace(/\{\{materialName\}\}/g, d.materialName)
+        .replace(/\{\{orderCode\}\}/g, d.orderCode)
+        .replace(/\{\{deliveryDate\}\}/g, d.deliveryDate)
+        .replace(/\{\{sequentialNo\}\}/g, d.sequentialNo)
+        .replace(/\{\{totalSheetsSummary\}\}/g, d.totalSheetsSummary)
         .replace(/\{\{quantity\}\}/g, d.quantity)
         .replace(/\{\{status\}\}/g, d.status)
         .replace(/\{\{assignedTo\}\}/g, d.assignedTo)
-        // กระจก
+        .replace(/\{\{materialName\}\}/g, d.materialName)
+        // สเปกกระจก & ประกอบ
+        .replace(/\{\{compositeFormula\}\}/g, d.compositeFormula)
+        .replace(/\{\{jobType\}\}/g, d.jobType)
+        .replace(/\{\{tp\}\}/g, d.tp)
+        .replace(/\{\{rawGlassColor\}\}/g, d.rawGlassColor)
+        .replace(/\{\{thickness\}\}/g, d.thickness)
+        .replace(/\{\{glassType\}\}/g, d.glassType)
+        .replace(/\{\{productType\}\}/g, d.productType)
         .replace(/\{\{paneNumber\}\}/g, d.paneNumber)
         .replace(/\{\{paneId\}\}/g, d.paneId)
-        .replace(/\{\{glassType\}\}/g, d.glassType)
+        .replace(/\{\{qrCode\}\}/g, d.qrCode)
+        // ขนาด & ขอบ
         .replace(/\{\{dimensions\}\}/g, d.dimensions)
         .replace(/\{\{width\}\}/g, d.width)
         .replace(/\{\{height\}\}/g, d.height)
-        .replace(/\{\{thickness\}\}/g, d.thickness)
-        .replace(/\{\{qrCode\}\}/g, d.qrCode)
+        .replace(/\{\{grindingSummary\}\}/g, d.grindingSummary)
+        // รู & บาก & หมายเหตุ
+        .replace(/\{\{holes\}\}/g, d.holes)
+        .replace(/\{\{notches\}\}/g, d.notches)
+        .replace(/\{\{holesAndNotchesSummary\}\}/g, d.holesAndNotchesSummary)
+        .replace(/\{\{customerRemarks\}\}/g, d.customerRemarks)
+        .replace(/\{\{internalRemarks\}\}/g, d.internalRemarks)
+        // คำนวณ
+        .replace(/\{\{weight\}\}/g, d.weight)
+        .replace(/\{\{perimeterMeters\}\}/g, d.perimeterMeters)
+        .replace(/\{\{areaSqFt\}\}/g, d.areaSqFt)
         // วันที่
         .replace(/\{\{date\}\}/g, d.date)
         .replace(/\{\{time\}\}/g, d.time);

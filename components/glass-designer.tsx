@@ -2622,19 +2622,6 @@ export function GlassDesigner({ width, height, holes, onHolesChange, vertices: e
                 )}
             </div>
 
-            {/* Status bar */}
-            <div className="flex items-center justify-between px-3 py-1.5 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 text-[10px] font-bold text-slate-400 tracking-wider shrink-0">
-                <span>{holes.length} cutout{holes.length !== 1 ? 's' : ''}</span>
-                <span className="flex items-center gap-4">
-                    <span>Ctrl/⌘+Z undo</span>
-                    <span>Ctrl/⌘+D duplicate</span>
-                    <span>Ctrl/⌘+C copy · V paste</span>
-                    <span>Ctrl/⌘+G group</span>
-                    <span>F fit view</span>
-                    <span>Right-click menu</span>
-                </span>
-            </div>
-
             {/* Context menu */}
             {contextMenu && (() => {
                 const effIds = selectedHoleIds.size > 0 ? selectedHoleIds : (selectedHoleId ? new Set([selectedHoleId]) : new Set<string>());

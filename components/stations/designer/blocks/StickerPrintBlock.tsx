@@ -13,41 +13,126 @@ import { Pane, PaginatedResponse } from "@/lib/api/types";
 import StickerThumbnail from "@/app/settings/sticker/StickerThumbnail";
 import type { StickerElement } from "@/app/settings/sticker/types";
 import { formatPaneDimWithUnit } from "@/lib/utils/station-helpers";
+import {
+    formatCompositeFormula,
+    formatGrindingSummary,
+    formatHolesAndNotches,
+    calcGlassWeight,
+    calcGlassPerimeterMeters,
+    calcGlassAreaSqFt,
+    formatDimensionsDisplay,
+    normalizeThickness,
+} from "@/lib/utils/glass-calc";
 
 const MM_TO_PX = 3.7795275591;
 const LS_KEY   = "std_sticker_template";
 
 // ── Variable substitution ─────────────────────────────────────────────────────
-function sub(text: string, pane: Pane, order: Record<string, unknown> | null): string {
+function sub(text: string, pane: Pane, order: Record<string, unknown> | null, paneIndex: number = 0): string {
     const customer   = order?.customer   as Record<string, unknown> | undefined;
     const material   = order?.material   as Record<string, unknown> | undefined;
     const assignedTo = order?.assignedTo as Record<string, unknown> | undefined;
     const now        = new Date();
-    const qrCode = pane.qrCode || `STDPLUS:${pane.paneNumber}`;
+    const qrCode     = pane.qrCode || `STDPLUS:${pane.paneNumber || paneIndex + 1}`;
+
+    const seqNo = `No. ${paneIndex + 1}`;
+    const rawColor = (pane as any).rawGlass?.color || (pane as any).rawGlassColor || "ใส";
+    const thkStr = normalizeThickness(pane.dimensions?.thickness || (pane as any).thickness || "6");
+
+    const edgeTop = pane.edgeTasks?.find(e => e.side === 'top')?.edgeProfile;
+    const edgeBottom = pane.edgeTasks?.find(e => e.side === 'bottom')?.edgeProfile;
+    const edgeLeft = pane.edgeTasks?.find(e => e.side === 'left')?.edgeProfile;
+    const edgeRight = pane.edgeTasks?.find(e => e.side === 'right')?.edgeProfile;
+    const grindingSummary = formatGrindingSummary(edgeTop, edgeBottom, edgeLeft, edgeRight);
+
+    const compositeFormula = formatCompositeFormula(
+        pane.jobType || pane.glassType,
+        rawColor,
+        thkStr,
+        (pane as any).productType,
+        (pane as any).compositeLayers
+    );
+
+    const depth3Val = (pane.dimensions as any)?.depth3 ?? (pane as any).glassDepth3;
+    const isPattern = (pane as any).isCutByPattern || (pane as any).customDimensionsText === "**ตัดตามแบบ**";
+    const dimDisplay = formatDimensionsDisplay(
+        pane.dimensions?.width,
+        pane.dimensions?.height,
+        (pane as any).customDimensionsText,
+        depth3Val,
+        isPattern
+    );
+
+    const holesCount = pane.holesCount ?? (Array.isArray(pane.holes) ? pane.holes.length : (typeof pane.holes === 'number' ? pane.holes : 0));
+    const notchesCount = pane.notchesCount ?? (Array.isArray(pane.notches) ? pane.notches.length : (typeof pane.notches === 'number' ? pane.notches : 0));
+    const holesAndNotchesSummary = formatHolesAndNotches(holesCount, notchesCount);
+
+    const isLam = (pane as any).productType === "laminated";
+    const weightVal = calcGlassWeight(pane.dimensions?.width ?? 0, pane.dimensions?.height ?? 0, pane.dimensions?.thickness ?? 6, 1, isLam);
+    const perimVal = calcGlassPerimeterMeters(pane.dimensions?.width ?? 0, pane.dimensions?.height ?? 0, 1);
+    const areaVal = calcGlassAreaSqFt(pane.dimensions?.width ?? 0, pane.dimensions?.height ?? 0, 1);
+
+    const isTP = (pane.jobType || pane.glassType || "")?.toUpperCase().includes("TP");
+    const tpText = isTP ? "TP" : "";
+
+    const poCode = (order?.referenceId || order?.poNumber || order?.code || order?.orderNumber || (order as any)?.requestNumber || "") as string;
+    const custName = (customer?.name || (order as any)?.customerName || "") as string;
+
+    const deliveryRaw = (order as any)?.expectedDeliveryDate || (order as any)?.deadline;
+    const deliveryDateStr = deliveryRaw
+        ? new Date(deliveryRaw).toLocaleDateString("th-TH", { day: "2-digit", month: "2-digit", year: "numeric" })
+        : now.toLocaleDateString("th-TH", { day: "2-digit", month: "2-digit", year: "numeric" });
+
+    const custRemarks = (pane as any).customerRemarks || (order as any)?.customerRemarks || (order as any)?.notes || "";
+    const intRemarks = (pane as any).remarks || (pane as any).internalRemarks || (order as any)?.internalRemarks || "";
+
     const vars: Record<string, string> = {
-        // ── กระจก ─────────────────────────────────────────────────────────
-        "{{paneNumber}}":   pane.paneNumber ?? "",
-        "{{paneId}}":       pane._id ?? "",
-        "{{glassType}}":    pane.jobType ?? pane.glassType ?? pane.glassTypeLabel ?? "",
-        "{{dimensions}}":   (() => {
-            const pd = formatPaneDimWithUnit(pane);
-            return pd.dimStr ? `${pd.dimStr}${pd.thicknessStr ? ` ${pd.thicknessStr}` : ""}` : "";
-        })(),
-        "{{width}}":        pane.dimensions ? String(pane.dimensions.width) : "",
-        "{{height}}":       pane.dimensions ? String(pane.dimensions.height) : "",
-        "{{thickness}}":    pane.dimensions ? String(pane.dimensions.thickness) : "",
-        "{{qrCode}}":       qrCode,
-        // ── ออเดอร์ ───────────────────────────────────────────────────────
-        "{{orderCode}}":    (order?.orderNumber ?? order?.code ?? order?.requestNumber ?? order?.number ?? "") as string,
-        "{{customerName}}": (customer?.name ?? "") as string,
-        "{{materialName}}": (material?.name ?? pane.glassTypeLabel ?? "") as string,
-        "{{quantity}}":     String(order?.quantity ?? ""),
-        "{{status}}":       (order?.status ?? "") as string,
-        "{{assignedTo}}":   (assignedTo?.name ?? assignedTo?.username ?? "") as string,
+        // ── ออเดอร์ & เอกสาร ───────────────────────────────────────────────
+        "{{po}}":                     poCode,
+        "{{customerName}}":           custName,
+        "{{orderCode}}":              (order?.orderNumber ?? order?.code ?? poCode) as string,
+        "{{deliveryDate}}":           deliveryDateStr,
+        "{{sequentialNo}}":           seqNo,
+        "{{quantity}}":               "1 แผ่น",
+        "{{status}}":                 (order?.status ?? "") as string,
+        "{{assignedTo}}":             (assignedTo?.name ?? assignedTo?.username ?? "") as string,
+        "{{materialName}}":           (material?.name ?? pane.glassTypeLabel ?? "") as string,
+
+        // ── สเปกกระจก & กระจกประกอบ ─────────────────────────────────────────
+        "{{compositeFormula}}":       compositeFormula,
+        "{{jobType}}":                (pane.jobType ?? pane.glassType ?? pane.glassTypeLabel ?? "") as string,
+        "{{tp}}":                     tpText,
+        "{{rawGlassColor}}":          rawColor,
+        "{{thickness}}":              thkStr ? `${thkStr} มม.` : "",
+        "{{glassType}}":              (pane.jobType ?? pane.glassType ?? pane.glassTypeLabel ?? "") as string,
+        "{{productType}}":            (pane as any).productType === "laminated" ? "ลามิเนต" : (pane as any).productType === "insulated" ? "อินซูเลท" : "",
+        "{{paneNumber}}":             pane.paneNumber ?? "",
+        "{{paneId}}":                 pane._id ?? "",
+        "{{qrCode}}":                 qrCode,
+
+        // ── ขนาดและการเจียร ───────────────────────────────────────────────
+        "{{dimensions}}":             dimDisplay,
+        "{{width}}":                  pane.dimensions?.width ? `${Math.round(pane.dimensions.width)}` : "",
+        "{{height}}":                 pane.dimensions?.height ? `${Math.round(pane.dimensions.height)}` : "",
+        "{{grindingSummary}}":        grindingSummary,
+
+        // ── รูเจาะ / บาก / หมายเหตุ ────────────────────────────────────────
+        "{{holes}}":                  holesCount ? `จำนวนรู ${holesCount} รู` : "",
+        "{{notches}}":                notchesCount ? `จำนวนบาก ${notchesCount} บาก` : "",
+        "{{holesAndNotchesSummary}}": holesAndNotchesSummary,
+        "{{customerRemarks}}":        custRemarks,
+        "{{internalRemarks}}":        intRemarks,
+
+        // ── สูตรคำนวณทางเทคนิค ──────────────────────────────────────────────
+        "{{weight}}":                 weightVal ? `${weightVal} กก.` : "",
+        "{{perimeterMeters}}":        perimVal ? `${perimVal} ม.` : "",
+        "{{areaSqFt}}":               areaVal ? `${areaVal} ตร.ฟุต` : "",
+
         // ── วันที่ / เวลา ─────────────────────────────────────────────────
-        "{{date}}":         now.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" }),
-        "{{time}}":         now.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }),
+        "{{date}}":                   now.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" }),
+        "{{time}}":                   now.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }),
     };
+
     let result = text;
     for (const [k, v] of Object.entries(vars)) result = result.replaceAll(k, v);
     return result;
@@ -55,8 +140,8 @@ function sub(text: string, pane: Pane, order: Record<string, unknown> | null): s
 
 // ── Full-size sticker renderer (used for printing, not scaled) ─────────────────
 function StickerPrintRenderer({
-    template, pane, order,
-}: { template: StickerTemplateRecord; pane: Pane; order: Record<string, unknown> | null }) {
+    template, pane, order, paneIndex = 0,
+}: { template: StickerTemplateRecord; pane: Pane; order: Record<string, unknown> | null; paneIndex?: number }) {
     const { width: wMm, height: hMm, elements } = template;
     const sc      = 1 / MM_TO_PX;
     const qrValue = pane.qrCode || `STDPLUS:${pane.paneNumber}`;
@@ -70,7 +155,7 @@ function StickerPrintRenderer({
         switch (el.type) {
             case "text":
             case "dynamic": {
-                const content = sub(el.text, pane, order);
+                const content = sub(el.text, pane, order, paneIndex);
                 return (
                     <div key={key} style={{
                         ...base,
@@ -90,12 +175,12 @@ function StickerPrintRenderer({
             case "qr": {
                 // el.value is a variable template (e.g. "{{qrCode}}", "{{orderCode}}") — always run through sub()
                 // fallback: use pane's actual QR code if el.value is empty
-                const qrVal  = sub(el.value || "{{qrCode}}", pane, order);
+                const qrVal  = sub(el.value || "{{qrCode}}", pane, order, paneIndex);
                 const sizeMm = Math.min(el.width, el.height) * sc;
                 return <div key={key} style={{ ...base, width: `${el.width * sc}mm`, height: `${el.height * sc}mm` }}><QRCodeSVG value={qrVal} size={sizeMm * MM_TO_PX * 2} style={{ width: `${sizeMm}mm`, height: `${sizeMm}mm` }} bgColor="#ffffff" fgColor="#000000" level="M" /></div>;
             }
             case "rect":
-                return <div key={key} style={{ ...base, width: `${el.width * sc}mm`, height: `${el.height * sc}mm`, backgroundColor: el.fill === "transparent" ? "transparent" : el.fill, border: el.strokeWidth > 0 ? `${el.strokeWidth * sc}mm solid ${el.stroke}` : "none", boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center" }}>{el.label && <span style={{ fontSize: `${(el.labelFontSize ?? 12) * sc}mm`, color: el.labelColor ?? "#000", fontFamily: "Prompt, sans-serif" }}>{sub(el.label, pane, order)}</span>}</div>;
+                return <div key={key} style={{ ...base, width: `${el.width * sc}mm`, height: `${el.height * sc}mm`, backgroundColor: el.fill === "transparent" ? "transparent" : el.fill, border: el.strokeWidth > 0 ? `${el.strokeWidth * sc}mm solid ${el.stroke}` : "none", boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center" }}>{el.label && <span style={{ fontSize: `${(el.labelFontSize ?? 12) * sc}mm`, color: el.labelColor ?? "#000", fontFamily: "Prompt, sans-serif" }}>{sub(el.label, pane, order, paneIndex)}</span>}</div>;
             case "line":
                 return <svg key={key} style={{ ...base, overflow: "visible" }} width={`${Math.max(...el.points.filter((_, i) => i % 2 === 0)) * sc}mm`} height={`${Math.max(...el.points.filter((_, i) => i % 2 !== 0)) * sc}mm`}><polyline points={el.points.map(v => `${v * sc}mm`).join(" ")} stroke={el.stroke} strokeWidth={`${el.strokeWidth * sc}mm`} fill="none" /></svg>;
             // eslint-disable-next-line @next/next/no-img-element
@@ -195,7 +280,14 @@ export function StickerPrintBlock({ label = "พิมพ์สติ๊กเ�
         Promise.all(queries)
             .then((results) => {
                 const winner = results.find(r => r.success && r.data.length > 0);
-                setPanes(winner?.data ?? []);
+                const rawList = winner?.data ?? [];
+                const sorted = rawList.slice().sort((a, b) => {
+                    if (a.paneNumber && b.paneNumber) {
+                        return a.paneNumber.localeCompare(b.paneNumber, undefined, { numeric: true, sensitivity: 'base' });
+                    }
+                    return 0;
+                });
+                setPanes(sorted);
             })
             .catch(() => setPanes([]))
             .finally(() => setLoadingPanes(false));
@@ -287,12 +379,13 @@ export function StickerPrintBlock({ label = "พิมพ์สติ๊กเ�
                         }
                     `}</style>
                     <div id="stk-print-portal">
-                        {panes.map((pane) => (
-                            <div key={pane._id} className="stk-page">
+                        {panes.map((pane, idx) => (
+                            <div key={pane._id || `pane_${idx}`} className="stk-page">
                                 <StickerPrintRenderer
                                     template={template!}
                                     pane={pane}
                                     order={contextRecord as Record<string, unknown> | null}
+                                    paneIndex={idx}
                                 />
                             </div>
                         ))}

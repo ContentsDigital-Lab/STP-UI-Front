@@ -11,6 +11,17 @@ import { getStickerTemplate, StickerTemplateRecord } from "@/lib/api/sticker-tem
 import { formatPaneDimWithUnit } from "@/lib/utils/station-helpers";
 import type { StickerElement } from "@/app/settings/sticker/types";
 
+import {
+    calcGlassWeight,
+    calcGlassPerimeterMeters,
+    calcGlassAreaSqFt,
+    formatGrindingSummary,
+    formatDimensionsDisplay,
+    formatCompositeFormula,
+    formatHolesAndNotches,
+    normalizeThickness,
+} from "@/lib/utils/glass-calc";
+
 const MM_TO_PX = 3.7795275591;
 
 function fmtDate(d?: string) {
@@ -19,28 +30,112 @@ function fmtDate(d?: string) {
 }
 
 // ── Variable substitution ──────────────────────────────────────────────────────
-function substituteVars(text: string, pane: Pane, order: Record<string, unknown> | null): string {
+function substituteVars(
+    text: string,
+    pane: Pane,
+    order: Record<string, unknown> | null,
+    sequentialIndex?: number,
+    totalPanesCount?: number
+): string {
     const customer = order?.customer as Record<string, unknown> | undefined;
     const material = order?.material as Record<string, unknown> | undefined;
     const assignedTo = order?.assignedTo as Record<string, unknown> | undefined;
     const now = new Date();
 
+    const deliveryDateRaw = (order?.expectedDeliveryDate || order?.deadline) as string | undefined;
+    const deliveryDateStr = deliveryDateRaw
+        ? new Date(deliveryDateRaw).toLocaleDateString("th-TH", { day: "2-digit", month: "2-digit", year: "numeric" })
+        : now.toLocaleDateString("th-TH", { day: "2-digit", month: "2-digit", year: "numeric" });
+
+    const seqNo = sequentialIndex ? `No. ${sequentialIndex}` : (pane.paneNumber || "No. 1");
+    const rawColor = pane.rawGlass?.color || (pane as any).rawGlassColor || "ใส";
+    const thkStr = normalizeThickness(pane.dimensions?.thickness || (pane as any).thickness || "6");
+
+    const edgeTop = pane.edgeTasks?.find(e => e.side === 'top')?.edgeProfile;
+    const edgeBottom = pane.edgeTasks?.find(e => e.side === 'bottom')?.edgeProfile;
+    const edgeLeft = pane.edgeTasks?.find(e => e.side === 'left')?.edgeProfile;
+    const edgeRight = pane.edgeTasks?.find(e => e.side === 'right')?.edgeProfile;
+    const grindingSummary = formatGrindingSummary(edgeTop, edgeBottom, edgeLeft, edgeRight);
+
+    const compositeFormula = formatCompositeFormula(
+        pane.jobType || pane.glassType,
+        rawColor,
+        thkStr,
+        pane.productType,
+        pane.compositeLayers
+    );
+
+    const depth3Val = (pane.dimensions as any)?.depth3 ?? (pane as any).glassDepth3;
+    const isPattern = (pane as any).isCutByPattern || pane.customDimensionsText === "**ตัดตามแบบ**";
+    const dimDisplay = formatDimensionsDisplay(
+        pane.dimensions?.width,
+        pane.dimensions?.height,
+        pane.customDimensionsText,
+        depth3Val,
+        isPattern
+    );
+
+    const holesCount = pane.holesCount ?? (Array.isArray(pane.holes) ? pane.holes.length : (typeof pane.holes === 'number' ? pane.holes : 0));
+    const notchesCount = pane.notchesCount ?? (Array.isArray(pane.notches) ? pane.notches.length : (typeof pane.notches === 'number' ? pane.notches : 0));
+    const holesAndNotchesSummary = formatHolesAndNotches(holesCount, notchesCount);
+
+    const isLam = pane.productType === "laminated";
+    const weightVal = calcGlassWeight(pane.dimensions?.width, pane.dimensions?.height, pane.dimensions?.thickness, 1, isLam);
+    const perimVal = calcGlassPerimeterMeters(pane.dimensions?.width, pane.dimensions?.height, 1);
+    const areaVal = calcGlassAreaSqFt(pane.dimensions?.width, pane.dimensions?.height, 1);
+
+    const isTP = pane.jobType?.toUpperCase().includes("TP") || pane.glassType?.toUpperCase().includes("TP");
+    const tpText = isTP ? "TP" : "";
+
+    const poCode = (order?.referenceId || order?.poNumber || order?.code || order?.orderNumber || "") as string;
+    const custName = (customer?.name || (order as any)?.customerName || "") as string;
+
     const vars: Record<string, string> = {
-        "{{paneNumber}}":   pane.paneNumber ?? "",
-        "{{glassType}}":    pane.jobType ?? pane.glassType ?? pane.glassTypeLabel ?? "",
-        "{{dimensions}}":   (() => {
-            const pd = formatPaneDimWithUnit(pane, order);
-            return pd.dimStr ? `${pd.dimStr}${pd.thicknessStr ? ` ${pd.thicknessStr}` : ""}` : "";
-        })(),
-        "{{qrCode}}":       pane.qrCode || `STDPLUS:${pane.paneNumber}`,
-        "{{orderCode}}":    (order?.orderNumber ?? order?.code ?? "") as string,
-        "{{customerName}}": (customer?.name ?? "") as string,
-        "{{materialName}}": (material?.name ?? "") as string,
-        "{{quantity}}":     String(order?.quantity ?? ""),
-        "{{status}}":       (order?.status ?? "") as string,
-        "{{assignedTo}}":   (assignedTo?.name ?? assignedTo?.username ?? "") as string,
-        "{{date}}":         now.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" }),
-        "{{time}}":         now.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }),
+        // ออเดอร์ & เอกสาร
+        "{{po}}":                     poCode,
+        "{{customerName}}":           custName,
+        "{{orderCode}}":              (order?.orderNumber ?? order?.code ?? poCode) as string,
+        "{{deliveryDate}}":           deliveryDateStr,
+        "{{sequentialNo}}":           seqNo,
+        "{{totalSheetsSummary}}":      totalPanesCount ? `จำนวนทั้งหมด ${totalPanesCount} แผ่น` : "",
+        "{{quantity}}":               "1 แผ่น",
+        "{{status}}":                 (order?.status ?? "") as string,
+        "{{assignedTo}}":             (assignedTo?.name ?? assignedTo?.username ?? "") as string,
+        "{{materialName}}":           (material?.name ?? "") as string,
+
+        // สเปกกระจก & ประกอบ
+        "{{compositeFormula}}":       compositeFormula,
+        "{{jobType}}":                (pane.jobType ?? pane.glassType ?? pane.glassTypeLabel ?? "") as string,
+        "{{tp}}":                     tpText,
+        "{{rawGlassColor}}":          rawColor,
+        "{{thickness}}":              thkStr ? `${thkStr} มม.` : "",
+        "{{glassType}}":              (pane.jobType ?? pane.glassType ?? pane.glassTypeLabel ?? "") as string,
+        "{{productType}}":            pane.productType === "laminated" ? "ลามิเนต" : pane.productType === "insulated" ? "อินซูเลท" : "",
+        "{{paneNumber}}":             pane.paneNumber ?? "",
+        "{{paneId}}":                 pane._id ?? "",
+        "{{qrCode}}":                 pane.qrCode || `STDPLUS:${pane.paneNumber}`,
+
+        // ขนาด & ขอบ
+        "{{dimensions}}":             dimDisplay,
+        "{{width}}":                  pane.dimensions?.width ? `${Math.round(pane.dimensions.width)}` : "",
+        "{{height}}":                 pane.dimensions?.height ? `${Math.round(pane.dimensions.height)}` : "",
+        "{{grindingSummary}}":        grindingSummary,
+
+        // รู & บาก & หมายเหตุ
+        "{{holes}}":                  holesCount > 0 ? String(holesCount) : "",
+        "{{notches}}":                notchesCount > 0 ? String(notchesCount) : "",
+        "{{holesAndNotchesSummary}}": holesAndNotchesSummary,
+        "{{customerRemarks}}":        pane.customerRemarks || "",
+        "{{internalRemarks}}":        pane.internalRemarks || "",
+
+        // คำนวณ
+        "{{weight}}":                 weightVal > 0 ? `${weightVal} กก.` : "",
+        "{{perimeterMeters}}":        perimVal > 0 ? `${perimVal} ม.` : "",
+        "{{areaSqFt}}":               areaVal > 0 ? `${areaVal} ตร.ฟุต` : "",
+
+        // วันที่
+        "{{date}}":                   now.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" }),
+        "{{time}}":                   now.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }),
     };
 
     let result = text;
@@ -50,14 +145,15 @@ function substituteVars(text: string, pane: Pane, order: Record<string, unknown>
 
 // ── Template sticker renderer (HTML-based, print-safe) ──────────────────────
 function TemplateStickerRenderer({
-    template, pane, order,
+    template, pane, order, sequentialIndex, totalPanesCount,
 }: {
     template: StickerTemplateRecord;
     pane: Pane;
     order: Record<string, unknown> | null;
+    sequentialIndex?: number;
+    totalPanesCount?: number;
 }) {
     const { width: wMm, height: hMm, elements } = template;
-    // Scale factor: canvas pixels → mm (so we can position elements with mm CSS units)
     const sc = 1 / MM_TO_PX;
     const qrValue = pane.qrCode || `STDPLUS:${pane.paneNumber}`;
 
@@ -71,7 +167,7 @@ function TemplateStickerRenderer({
         switch (el.type) {
             case "text":
             case "dynamic": {
-                const txt = substituteVars(el.text, pane, order);
+                const txt = substituteVars(el.text, pane, order, sequentialIndex, totalPanesCount);
                 return (
                     <span key={key} style={{
                         ...base,
@@ -86,7 +182,7 @@ function TemplateStickerRenderer({
                 );
             }
             case "qr": {
-                const qrVal = substituteVars(el.value || qrValue, pane, order);
+                const qrVal = substituteVars(el.value || qrValue, pane, order, sequentialIndex, totalPanesCount);
                 const sizeMm = Math.min(el.width, el.height) * sc;
                 return (
                     <div key={key} style={{ ...base, width: `${el.width * sc}mm`, height: `${el.height * sc}mm` }}>
@@ -116,7 +212,7 @@ function TemplateStickerRenderer({
                     }}>
                         {el.label && (
                             <span style={{ fontSize: `${(el.labelFontSize ?? 12) * sc}mm`, color: el.labelColor ?? "#000", fontFamily: "Prompt, sans-serif" }}>
-                                {substituteVars(el.label, pane, order)}
+                                {substituteVars(el.label, pane, order, sequentialIndex, totalPanesCount)}
                             </span>
                         )}
                     </div>
@@ -131,6 +227,7 @@ function TemplateStickerRenderer({
                             points={el.points.map((v, i) => `${v * sc}mm`).join(" ")}
                             stroke={el.stroke}
                             strokeWidth={`${el.strokeWidth * sc}mm`}
+                            strokeDasharray={el.dash ? el.dash.map((d: number) => `${d * sc}mm`).join(" ") : undefined}
                             fill="none"
                         />
                     </svg>
@@ -189,17 +286,24 @@ export default function PaneStickerPrintPage() {
     useEffect(() => {
         async function load() {
             try {
+                const sortPanes = (list: Pane[]) => list.slice().sort((a, b) => {
+                    if (a.paneNumber && b.paneNumber) {
+                        return a.paneNumber.localeCompare(b.paneNumber, undefined, { numeric: true, sensitivity: 'base' });
+                    }
+                    return 0;
+                });
+
                 // Load panes
                 if (paneIds && paneIds.length > 0) {
                     const results = await Promise.all(paneIds.map(id => panesApi.getById(id)));
-                    setPanes(results.filter(r => r.success && r.data).map(r => r.data));
+                    setPanes(sortPanes(results.filter(r => r.success && r.data).map(r => r.data)));
                 } else if (orderId) {
                     // Try fetching panes by order first
                     const res = await panesApi.getAll({ order: orderId, status_ne: "claimed", limit: 200 });
                     const byOrder = res.success ? (res.data ?? []) : [];
 
                     if (byOrder.length > 0) {
-                        setPanes(byOrder);
+                        setPanes(sortPanes(byOrder));
                         const firstOrder = byOrder[0]?.order;
                         if (firstOrder && typeof firstOrder === "object") setOrder(firstOrder as unknown as Record<string, unknown>);
                     } else {
@@ -213,17 +317,17 @@ export default function PaneStickerPrintPage() {
                                 const reqId  = req ? (typeof req === "object" ? (req as Record<string, unknown>)._id as string : req as string) : null;
                                 if (reqId) {
                                     const res2 = await panesApi.getAll({ request: reqId, limit: 200 });
-                                    if (res2.success) setPanes(res2.data ?? []);
+                                    if (res2.success) setPanes(sortPanes(res2.data ?? []));
                                 }
                             }
                         } catch { /* ignore */ }
                     }
                 } else if (requestId) {
                     const res = await panesApi.getAll({ request: requestId, limit: 200 });
-                    if (res.success) setPanes(res.data ?? []);
+                    if (res.success) setPanes(sortPanes(res.data ?? []));
                 } else {
                     const res = await panesApi.getAll({ limit: 200 });
-                    if (res.success) setPanes(res.data ?? []);
+                    if (res.success) setPanes(sortPanes(res.data ?? []));
                 }
 
                 // Load template if provided
@@ -316,9 +420,15 @@ export default function PaneStickerPrintPage() {
                 {template ? (
                     /* ── Template-based: one sticker per page, no margin ─── */
                     <>
-                        {panes.map((pane) => (
+                        {panes.map((pane, idx) => (
                             <div key={pane._id} className="sticker-page">
-                                <TemplateStickerRenderer template={template} pane={pane} order={order} />
+                                <TemplateStickerRenderer
+                                    template={template}
+                                    pane={pane}
+                                    order={order}
+                                    sequentialIndex={idx + 1}
+                                    totalPanesCount={panes.length}
+                                />
                             </div>
                         ))}
                     </>

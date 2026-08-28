@@ -653,6 +653,9 @@ export default function StickerCanvas({
                 const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
                 setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
             }}
+            onMouseDown={e => {
+                if (e.target === e.currentTarget) onSelect(null);
+            }}
         >
             <Stage
                 ref={stageRef}
@@ -660,16 +663,33 @@ export default function StickerCanvas({
                 height={Math.round((height + PAD * 2) * zoom)}
                 scaleX={zoom}
                 scaleY={zoom}
-                onMouseDown={e => { if (e.target === e.target.getStage()) onSelect(null); }}
-                onTouchStart={e => { if (e.target === e.target.getStage()) onSelect(null); }}
-                onContextMenu={e => { e.evt.preventDefault(); if (e.target === e.target.getStage()) onContextMenu?.(null, e.evt.clientX, e.evt.clientY); }}
+                onMouseDown={e => {
+                    const isBg = e.target === e.target.getStage() || e.target.name() === "bg-sticker-rect";
+                    if (isBg) onSelect(null);
+                }}
+                onTouchStart={e => {
+                    const isBg = e.target === e.target.getStage() || e.target.name() === "bg-sticker-rect";
+                    if (isBg) onSelect(null);
+                }}
+                onContextMenu={e => {
+                    e.evt.preventDefault();
+                    const isBg = e.target === e.target.getStage() || e.target.name() === "bg-sticker-rect";
+                    if (isBg) onContextMenu?.(null, e.evt.clientX, e.evt.clientY);
+                }}
                 onDragMove={handleStageDragMove}
                 onDragEnd={handleStageDragEnd}
             >
                 <Layer x={PAD} y={PAD}>
                     {/* White sticker area with shadow */}
-                    <Rect x={0} y={0} width={width} height={height} fill="white"
-                        shadowColor="rgba(0,0,0,0.18)" shadowBlur={24} shadowOffsetX={0} shadowOffsetY={4} />
+                    <Rect
+                        name="bg-sticker-rect"
+                        x={0} y={0}
+                        width={width} height={height}
+                        fill="white"
+                        shadowColor="rgba(0,0,0,0.18)" shadowBlur={24} shadowOffsetX={0} shadowOffsetY={4}
+                        onClick={() => onSelect(null)}
+                        onTap={() => onSelect(null)}
+                    />
                     {elements.map(el =>
                         el.type === "qr" ? (
                             <QrPlaceholderImage

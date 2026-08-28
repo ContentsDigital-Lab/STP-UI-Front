@@ -17,6 +17,7 @@ export interface RectElement extends BaseElement {
 }
 export interface LineElement extends BaseElement {
     type: "line"; points: number[]; stroke: string; strokeWidth: number;
+    dash?: number[];
 }
 export interface ImageElement extends BaseElement {
     type: "image"; width: number; height: number; src: string;

@@ -91,6 +91,12 @@ import { useUnit } from "@/lib/unit/unit-context";
 
 // ─── Multi-pane spec type ────────────────────────────────────────────────────
 
+export interface CompositeLayer {
+    filmAirType: string;
+    rawGlassColor: string;
+    thickness: string;
+}
+
 export interface PaneSpec {
     id: string;
     glassWidth: number;
@@ -119,6 +125,17 @@ export interface PaneSpec {
     cornerNone: boolean;
     cornerSize: string;
     dimensionTolerances: string[];
+    // Sticker & Calculations Fields (Requirements 1-15)
+    customDimensionsText?: string;
+    glassDepth3?: number;
+    isCutByPattern?: boolean;
+    holesCount?: number;
+    notchesCount?: number;
+    customerRemarks?: string;
+    internalRemarks?: string;
+    productType?: "laminated" | "insulated" | "";
+    layerCount?: 2 | 3;
+    compositeLayers?: CompositeLayer[];
 }
 
 let _paneIdSeq = 0;
@@ -129,7 +146,7 @@ const createDefaultPane = (ps: PricingSettings, initialTolerances: string[] = []
     holes: [],
     vertices: [{ x: 0, y: 0 }, { x: 609.6, y: 0 }, { x: 609.6, y: 762 }, { x: 0, y: 762 }],
     glassType: "",
-    thickness: "",
+    thickness: "6mm",
     quantity: 1,
     estimatedPrice: 1,
     pricePerSqFt: 0,
@@ -149,6 +166,18 @@ const createDefaultPane = (ps: PricingSettings, initialTolerances: string[] = []
     cornerNone: true,
     cornerSize: "",
     dimensionTolerances: initialTolerances,
+    customDimensionsText: "",
+    glassDepth3: undefined,
+    isCutByPattern: false,
+    holesCount: 0,
+    notchesCount: 0,
+    customerRemarks: "",
+    internalRemarks: "",
+    productType: "",
+    layerCount: 2,
+    compositeLayers: [
+        { filmAirType: "PVB 0.38 ใส", rawGlassColor: "ใส", thickness: "5" }
+    ],
 });
 // ── Phone Number Format Helper ──────────────────────────────────────────────
 const formatPhoneNumber = (val: string) => {
@@ -518,8 +547,23 @@ export default function CreateBillPage() {
                     if (backendPanes && backendPanes.length > 0) {
                         setOriginalPaneIds(backendPanes.map(p => p._id));
                         
+                        const sortedBackendPanes = backendPanes.slice().sort((a, b) => {
+                            if (a.paneNumber && b.paneNumber) {
+                                const cmp = a.paneNumber.localeCompare(b.paneNumber, undefined, { numeric: true, sensitivity: 'base' });
+                                if (cmp !== 0) return cmp;
+                            }
+                            if (a.createdAt && b.createdAt) {
+                                const diff = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+                                if (diff !== 0) return diff;
+                            }
+                            if (a._id && b._id) {
+                                return a._id.localeCompare(b._id);
+                            }
+                            return 0;
+                        });
+
                         const grouped = new Map();
-                        for (const bp of backendPanes) {
+                        for (const bp of sortedBackendPanes) {
                             if (bp.laminateRole === 'sheet') continue;
                             
                             const key = JSON.stringify({
@@ -567,6 +611,18 @@ export default function CreateBillPage() {
                                     notchQty: bp.notches?.length || 0,
                                     estimatedPrice: 0,
                                     priceAutoFilled: false,
+                                    customDimensionsText: bp.customDimensionsText || "",
+                                    glassDepth3: bp.dimensions?.depth3 ?? bp.glassDepth3,
+                                    isCutByPattern: bp.isCutByPattern || bp.customDimensionsText === "**ตัดตามแบบ**",
+                                    holesCount: bp.holesCount ?? (bp.holes?.length || 0),
+                                    notchesCount: bp.notchesCount ?? (bp.notches?.length || 0),
+                                    customerRemarks: bp.customerRemarks || "",
+                                    internalRemarks: bp.internalRemarks || "",
+                                    productType: bp.productType || "",
+                                    layerCount: bp.layerCount || 2,
+                                    compositeLayers: bp.compositeLayers && bp.compositeLayers.length > 0 ? bp.compositeLayers : [
+                                        { filmAirType: "PVB 0.38 ใส", rawGlassColor: "ใส", thickness: "5" }
+                                    ],
                                     vertices: [{ x: 0, y: 0 }, { x: bp.dimensions?.width || 800, y: 0 }, { x: bp.dimensions?.width || 800, y: bp.dimensions?.height || 600 }, { x: 0, y: bp.dimensions?.height || 600 }],
                                 });
                             }
@@ -1013,70 +1069,83 @@ export default function CreateBillPage() {
             } catch { /* use fallback */ }
 
             let panesCreated = 0;
-            const createPromises: Promise<any>[] = [];
             
             for (const pane of validPanes) {
+                const thicknessMm = parseFloat(pane.thickness) || 0;
+                const glassSpec = [
+                    pane.glassType,
+                    pane.thickness,
+                    pane.rawGlassType ? `(ดิบ: ${pane.rawGlassColor ? pane.rawGlassColor + ' ' : ''}${pane.rawGlassType} ${pane.thickness}mm×${pane.sheetsPerPane}แผ่น)` : null,
+                    `${formatCurrentUnit(pane.glassWidth)}×${formatCurrentUnit(pane.glassHeight)}${unit}`,
+                ].filter(Boolean).join(' ');
+                const { notchList, holeList } = splitHolesAndNotches(pane.holes, pane.glassWidth, pane.glassHeight);
+                const qty = Math.max(1, pane.quantity);
+                
+                for (let i = 0; i < qty; i++) {
+                    const dimText = pane.isCutByPattern
+                        ? "**ตัดตามแบบ**"
+                        : (pane.glassDepth3 && pane.glassDepth3 > 0
+                            ? `${Math.round(pane.glassWidth)} x ${Math.round(pane.glassHeight)} x ${Math.round(pane.glassDepth3)} mm`
+                            : (pane.customDimensionsText || ""));
 
-                    const thicknessMm = parseFloat(pane.thickness) || 0;
-                    const glassSpec = [
-                        pane.glassType,
-                        pane.thickness,
-                        pane.rawGlassType ? `(ดิบ: ${pane.rawGlassColor ? pane.rawGlassColor + ' ' : ''}${pane.rawGlassType} ${pane.thickness}mm×${pane.sheetsPerPane}แผ่น)` : null,
-                        `${formatCurrentUnit(pane.glassWidth)}×${formatCurrentUnit(pane.glassHeight)}${unit}`,
-                    ].filter(Boolean).join(' ');
-                    const { notchList, holeList } = splitHolesAndNotches(pane.holes, pane.glassWidth, pane.glassHeight);
-                    const qty = Math.max(1, pane.quantity);
+                    const payload = {
+                        request: requestId,
+                        dimensions: {
+                            width: pane.glassWidth,
+                            height: pane.glassHeight,
+                            thickness: thicknessMm,
+                            ...(pane.glassDepth3 && pane.glassDepth3 > 0 ? { depth3: pane.glassDepth3 } : {}),
+                        },
+                        glassType: pane.glassType,
+                        glassTypeLabel: glassSpec,
+                        jobType: pane.glassType,
+                        holes: holeList.length > 0 ? holeList : undefined,
+                        notches: notchList.length > 0 ? notchList : undefined,
+                        ...(pane.vertices && pane.vertices.length > 0 ? { vertices: pane.vertices } : {}),
+                        ...(pane.rawGlassType || pane.rawGlassColor || pane.sheetsPerPane > 1 ? {
+                            rawGlass: {
+                                ...(pane.rawGlassType ? { glassType: pane.rawGlassType } : {}),
+                                ...(pane.rawGlassColor ? { color: pane.rawGlassColor } : {}),
+                                thickness: thicknessMm,
+                                sheetsPerPane: pane.sheetsPerPane,
+                            },
+                        } : {}),
+                        ...(orderReleaseStationId && !isDraft ? { currentStation: orderReleaseStationId } : {}),
+                        edgeTasks: [
+                            { side: "top", edgeProfile: pane.edgeTop, status: "pending" },
+                            { side: "bottom", edgeProfile: pane.edgeBottom, status: "pending" },
+                            { side: "left", edgeProfile: pane.edgeLeft, status: "pending" },
+                            { side: "right", edgeProfile: pane.edgeRight, status: "pending" },
+                        ],
+                        cornerSpec: pane.cornerNone ? "ไม่มี" : (pane.cornerSize || "มีขนาด"),
+                        dimensionTolerance: pane.dimensionTolerances.join(', ') || "ตามมาตรฐาน มอก.",
+                        holesCount: pane.holesCount ?? holeList.length,
+                        notchesCount: pane.notchesCount ?? notchList.length,
+                        customerRemarks: pane.customerRemarks || "",
+                        internalRemarks: pane.internalRemarks || "",
+                        customDimensionsText: dimText,
+                        isCutByPattern: pane.isCutByPattern || false,
+                        glassDepth3: pane.glassDepth3,
+                        productType: pane.productType || "",
+                        layerCount: pane.layerCount || 1,
+                        compositeLayers: pane.compositeLayers || [],
+                    };
                     
-                    for (let i = 0; i < qty; i++) {
-                        const payload = {
-                            request: requestId,
-                            dimensions: { width: pane.glassWidth, height: pane.glassHeight, thickness: thicknessMm },
-                            glassType: pane.glassType,
-                            glassTypeLabel: glassSpec,
-                            jobType: pane.glassType,
-                            holes: holeList.length > 0 ? holeList : undefined,
-                            notches: notchList.length > 0 ? notchList : undefined,
-                            ...(pane.vertices && pane.vertices.length > 0 ? { vertices: pane.vertices } : {}),
-                            ...(pane.rawGlassType || pane.rawGlassColor || pane.sheetsPerPane > 1 ? {
-                                rawGlass: {
-                                    ...(pane.rawGlassType ? { glassType: pane.rawGlassType } : {}),
-                                    ...(pane.rawGlassColor ? { color: pane.rawGlassColor } : {}),
-                                    thickness: thicknessMm,
-                                    sheetsPerPane: pane.sheetsPerPane,
-                                },
-                            } : {}),
-                            ...(orderReleaseStationId && !isDraft ? { currentStation: orderReleaseStationId } : {}),
-                            edgeTasks: [
-                                { side: "top", edgeProfile: pane.edgeTop, status: "pending" },
-                                { side: "bottom", edgeProfile: pane.edgeBottom, status: "pending" },
-                                { side: "left", edgeProfile: pane.edgeLeft, status: "pending" },
-                                { side: "right", edgeProfile: pane.edgeRight, status: "pending" },
-                            ],
-                            cornerSpec: pane.cornerNone ? "ไม่มี" : (pane.cornerSize || "มีขนาด"),
-                            dimensionTolerance: pane.dimensionTolerances.join(', ') || "ตามมาตรฐาน มอก.",
-                        };
-                        
-                        const p = panesApi.create(payload as any)
-                            .catch(err => {
-                                console.error(`[CreateBill] Failed to create pane:`, err);
-                                return { success: false };
-                            });
-                        createPromises.push(p);
-                    }
-                }
-
-                // Execute all creation requests in parallel
-                const results = await Promise.all(createPromises);
-                for (const paneRes of results) {
-                    if (paneRes && paneRes.success) {
-                        const d = paneRes.data as any;
-                        if (d?.parent && Array.isArray(d?.sheets)) {
-                            panesCreated += 1 + d.sheets.length;
-                        } else {
-                            panesCreated++;
+                    try {
+                        const paneRes = await panesApi.create(payload as any);
+                        if (paneRes && paneRes.success) {
+                            const d = paneRes.data as any;
+                            if (d?.parent && Array.isArray(d?.sheets)) {
+                                panesCreated += 1 + d.sheets.length;
+                            } else {
+                                panesCreated++;
+                            }
                         }
+                    } catch (err) {
+                        console.error(`[CreateBill] Failed to create pane:`, err);
                     }
                 }
+            }
 
                 if (panesCreated > 0) {
                     toast.success(lang === 'th'
