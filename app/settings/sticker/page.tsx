@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { Plus, Tag, Clock, Pencil, Trash2, Search, ArrowLeft, Copy } from "lucide-react";
+import { Plus, Tag, Clock, Pencil, Trash2, Search, ArrowLeft, Copy, Loader2 } from "lucide-react";
 import type { StickerElement } from "./types";
 
 const StickerThumbnail = dynamic(() => import("./StickerThumbnail"), {
@@ -13,6 +13,13 @@ const StickerThumbnail = dynamic(() => import("./StickerThumbnail"), {
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import {
     Pagination, PaginationContent, PaginationEllipsis,
     PaginationItem, PaginationLink, PaginationNext, PaginationPrevious,
@@ -45,11 +52,11 @@ function SkeletonCard() {
 }
 
 // ── Template card ─────────────────────────────────────────────────────────────
-function TemplateCard({ tmpl, deleting, onEdit, onDelete, onDuplicate }: {
+function TemplateCard({ tmpl, isDeleting, onEdit, onDelete, onDuplicate }: {
     tmpl: StickerTemplateRecord;
-    deleting: string | null;
+    isDeleting: boolean;
     onEdit: (id: string) => void;
-    onDelete: (id: string) => void;
+    onDelete: (tmpl: StickerTemplateRecord) => void;
     onDuplicate: (id: string) => void;
 }) {
     const fmtDate = (d: string) =>
@@ -93,9 +100,10 @@ function TemplateCard({ tmpl, deleting, onEdit, onDelete, onDuplicate }: {
                     </Button>
                     <Button
                         size="sm" variant="outline"
-                        className="h-8 w-8 p-0 rounded-lg border-slate-200 dark:border-slate-700 hover:bg-red-50 dark:hover:bg-red-950"
-                        disabled={deleting === tmpl._id}
-                        onClick={() => onDelete(tmpl._id)}
+                        className="h-8 w-8 p-0 rounded-lg border-slate-200 dark:border-slate-700 hover:bg-red-50 dark:hover:bg-red-950 hover:border-red-200 dark:hover:border-red-900 transition-colors"
+                        disabled={isDeleting}
+                        onClick={() => onDelete(tmpl)}
+                        title="ลบ template"
                     >
                         <Trash2 className="h-3.5 w-3.5 text-red-500" />
                     </Button>
@@ -111,7 +119,8 @@ export default function StickerGalleryPage() {
 
     const [templates, setTemplates] = useState<StickerTemplateRecord[]>([]);
     const [loading,   setLoading]   = useState(true);
-    const [deleting,  setDeleting]  = useState<string | null>(null);
+    const [templateToDelete, setTemplateToDelete] = useState<StickerTemplateRecord | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
     const [creating,  setCreating]  = useState(false);
 
     const [search, setSearch] = useState("");
@@ -176,16 +185,18 @@ export default function StickerGalleryPage() {
         }
     };
 
-    const handleDelete = async (id: string) => {
-        setDeleting(id);
+    const handleConfirmDelete = async () => {
+        if (!templateToDelete) return;
+        setIsDeleting(true);
         try {
-            await deleteStickerTemplate(id);
-            setTemplates((prev) => prev.filter((t) => t._id !== id));
-            toast.success("ลบ template แล้ว");
+            await deleteStickerTemplate(templateToDelete._id);
+            setTemplates((prev) => prev.filter((t) => t._id !== templateToDelete._id));
+            toast.success("ลบ template สำเร็จ");
+            setTemplateToDelete(null);
         } catch {
             toast.error("ลบไม่สำเร็จ");
         } finally {
-            setDeleting(null);
+            setIsDeleting(false);
         }
     };
 
@@ -283,7 +294,14 @@ export default function StickerGalleryPage() {
             ) : (
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                     {paginated.map((tmpl) => (
-                        <TemplateCard key={tmpl._id} tmpl={tmpl} deleting={deleting} onEdit={handleEdit} onDelete={handleDelete} onDuplicate={handleDuplicate} />
+                        <TemplateCard
+                            key={tmpl._id}
+                            tmpl={tmpl}
+                            isDeleting={isDeleting && templateToDelete?._id === tmpl._id}
+                            onEdit={handleEdit}
+                            onDelete={(t) => setTemplateToDelete(t)}
+                            onDuplicate={handleDuplicate}
+                        />
                     ))}
                 </div>
             )}
@@ -317,6 +335,54 @@ export default function StickerGalleryPage() {
                     </Pagination>
                 </div>
             )}
+
+            {/* Delete Confirmation Dialog */}
+            <Dialog open={!!templateToDelete} onOpenChange={(open) => !open && !isDeleting && setTemplateToDelete(null)}>
+                <DialogContent className="sm:max-w-sm rounded-2xl border-slate-200 dark:border-slate-800 p-0 bg-white dark:bg-slate-950 overflow-hidden shadow-2xl">
+                    <div className="px-6 pt-6 pb-4">
+                        <DialogHeader className="items-center text-center">
+                            <div className="mx-auto mb-3 h-12 w-12 rounded-2xl bg-red-50 dark:bg-red-500/10 flex items-center justify-center text-red-500">
+                                <Trash2 className="h-6 w-6" />
+                            </div>
+                            <DialogTitle className="text-lg font-bold text-slate-900 dark:text-white">
+                                ยืนยันการลบ Template
+                            </DialogTitle>
+                            <DialogDescription className="text-sm text-slate-500 dark:text-slate-400 mt-1.5 text-center leading-relaxed">
+                                ต้องการลบ template <span className="font-semibold text-slate-800 dark:text-slate-200">"{templateToDelete?.name}"</span> ใช่หรือไม่?
+                                <span className="text-xs text-red-500/90 dark:text-red-400 mt-1 block">การกระทำนี้ไม่สามารถย้อนกลับได้</span>
+                            </DialogDescription>
+                        </DialogHeader>
+                    </div>
+                    <div className="px-6 py-4 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex items-center justify-center gap-3">
+                        <Button
+                            onClick={handleConfirmDelete}
+                            disabled={isDeleting}
+                            variant="destructive"
+                            className="gap-2 bg-red-600 hover:bg-red-700 text-white rounded-xl h-10 px-5 text-sm font-bold shadow-lg shadow-red-500/20"
+                        >
+                            {isDeleting ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    กำลังลบ...
+                                </>
+                            ) : (
+                                <>
+                                    <Trash2 className="h-4 w-4" />
+                                    ลบ Template
+                                </>
+                            )}
+                        </Button>
+                        <Button
+                            variant="outline"
+                            className="rounded-xl h-10 text-sm text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white border-slate-200 dark:border-slate-700 px-5 font-medium"
+                            onClick={() => setTemplateToDelete(null)}
+                            disabled={isDeleting}
+                        >
+                            ยกเลิก
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             {/* Create dialog */}
             {showCreate && (

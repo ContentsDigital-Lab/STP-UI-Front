@@ -303,9 +303,12 @@ export function RecordList({
                 if (!mainData.length && !fetching && !silent) { setError("โหลดข้อมูลไม่สำเร็จ"); }
                 let data = mainData;
                 
-                // Exclude drafts from showing in any designer station list
+                // Exclude drafts and cancelled from showing in any designer station list
                 if (dataSource === "/requests") {
-                    data = data.filter((r) => r.status !== "draft");
+                    data = data.filter((r) => r.status !== "draft" && r.status !== "cancelled");
+                }
+                if (dataSource === "/orders") {
+                    data = data.filter((o) => o.status !== "cancelled");
                 }
 
                 if (shouldHideProcessed && ordersData.length > 0) {
@@ -452,6 +455,8 @@ export function RecordList({
 
     const baseFiltered = useMemo(() => rows
         .filter((r) => {
+            if (dataSource === "/requests" && (r.status === "cancelled" || r.status === "draft")) return false;
+            if (dataSource === "/orders" && r.status === "cancelled") return false;
             if (shouldFilterStation && dataSource === "/orders") {
                 const stations = r.stations;
                 if (!Array.isArray(stations)) return false;

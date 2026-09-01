@@ -190,7 +190,7 @@ export function OrderReleasePanel({
       ]);
 
       let list: Order[] = ordRes.success ? ordRes.data : [];
-      list = list.filter((o) => o.status === "pending" && resolveReq(o.request)?.status !== "draft");
+      list = list.filter((o) => o.status === "pending" && resolveReq(o.request)?.status !== "draft" && resolveReq(o.request)?.status !== "cancelled");
       list = list
         .sort((a, b) => {
           const pr = (b.priority ?? 0) - (a.priority ?? 0);

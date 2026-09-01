@@ -174,6 +174,13 @@ export function SelectField({
                 if (!mainRes.success || !Array.isArray(mainRes.data)) return;
                 let data = mainRes.data;
 
+                if (dataSource === "/requests") {
+                    data = data.filter((r) => r.status !== "draft" && r.status !== "cancelled");
+                }
+                if (dataSource === "/orders") {
+                    data = data.filter((o) => o.status !== "cancelled");
+                }
+
                 // Filter processed requests from main source
                 if (shouldHideProcessed && ordersRes?.success) {
                     const processedIds = new Set<string>(
@@ -189,6 +196,13 @@ export function SelectField({
                 // Cross-filter: only keep items whose _id appears in linkedSource.linkedField
                 if (hasLinked && linkedRes?.success) {
                     let linkedItems = linkedRes.data ?? [];
+
+                    if (linkedSource === "/requests") {
+                        linkedItems = linkedItems.filter((r) => r.status !== "draft" && r.status !== "cancelled");
+                    }
+                    if (linkedSource === "/orders") {
+                        linkedItems = linkedItems.filter((o) => o.status !== "cancelled");
+                    }
 
                     // If linkedSource is /requests, also remove processed ones from the linked set
                     if (linkedSource === "/requests" && !showAllRequests && ordersForLinkedRes?.success) {
