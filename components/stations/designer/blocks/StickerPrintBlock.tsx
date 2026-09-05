@@ -3,11 +3,19 @@
 import { useNode } from "@craftjs/core";
 import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { Printer, Loader2, X, Sticker, RefreshCw, ChevronRight } from "lucide-react";
+import { Printer, Loader2, X, Sticker, RefreshCw, ChevronRight, Sparkles, Layers } from "lucide-react";
 import { usePreview } from "../PreviewContext";
 import { useStationContext } from "../StationContext";
 import { QRCodeSVG } from "qrcode.react";
 import { getStickerTemplates, getStickerTemplate, StickerTemplateRecord } from "@/lib/api/sticker-templates";
+import {
+    getStickerMapping,
+    fetchStickerMapping,
+    saveStickerMapping,
+    resolveStickerTemplates,
+    isPaneLaminateOrInsulate,
+    type StickerMappingSettings
+} from "@/lib/sticker-settings";
 import { panesApi } from "@/lib/api/panes";
 import { Pane, PaginatedResponse } from "@/lib/api/types";
 import StickerThumbnail from "@/app/settings/sticker/StickerThumbnail";
@@ -36,8 +44,8 @@ function sub(text: string, pane: Pane, order: Record<string, unknown> | null, pa
     const qrCode     = pane.qrCode || `STDPLUS:${pane.paneNumber || paneIndex + 1}`;
 
     const seqNo = `No. ${paneIndex + 1}`;
-    const rawColor = (pane as any).rawGlass?.color || (pane as any).rawGlassColor || "ใส";
-    const thkStr = normalizeThickness(pane.dimensions?.thickness || (pane as any).thickness || "6");
+    const rawColor = ((pane as any).rawGlass?.color || (pane as any).rawGlassColor || "").trim();
+    const thkStr = normalizeThickness(pane.dimensions?.thickness || (pane as any).thickness || "");
 
     const edgeTop = pane.edgeTasks?.find(e => e.side === 'top')?.edgeProfile;
     const edgeBottom = pane.edgeTasks?.find(e => e.side === 'bottom')?.edgeProfile;
@@ -67,13 +75,20 @@ function sub(text: string, pane: Pane, order: Record<string, unknown> | null, pa
     const notchesCount = pane.notchesCount ?? (Array.isArray(pane.notches) ? pane.notches.length : (typeof pane.notches === 'number' ? pane.notches : 0));
     const holesAndNotchesSummary = formatHolesAndNotches(holesCount, notchesCount);
 
-    const isLam = (pane as any).productType === "laminated";
+    const isLam = isPaneLaminateOrInsulate(pane);
     const weightVal = calcGlassWeight(pane.dimensions?.width ?? 0, pane.dimensions?.height ?? 0, pane.dimensions?.thickness ?? 6, 1, isLam);
     const perimVal = calcGlassPerimeterMeters(pane.dimensions?.width ?? 0, pane.dimensions?.height ?? 0, 1);
     const areaVal = calcGlassAreaSqFt(pane.dimensions?.width ?? 0, pane.dimensions?.height ?? 0, 1);
 
-    const isTP = (pane.jobType || pane.glassType || "")?.toUpperCase().includes("TP");
+    const isTP = (pane.jobType || pane.glassType || (pane as any).rawGlassType || "")?.toUpperCase().includes("TP");
     const tpText = isTP ? "TP" : "";
+
+    // Clean jobType/glassType: if it contains "ตัดธรรมดา" or "ธรรมดา" or is non-TP generic, keep it blank so "ตัดธรรมดา" is never printed
+    const rawJobType = (pane.jobType ?? pane.glassType ?? pane.glassTypeLabel ?? "") as string;
+    const cleanJobType = isTP ? "TP" : (/ตัดธรรมดา|ธรรมดา|float|raw/i.test(rawJobType) ? "" : rawJobType);
+
+    // Combined spec variable: [TP] [Color] [Thickness] (e.g. "TP ใส 6 มม." or "ใส 6 มม.")
+    const glassSpec = [tpText, rawColor, thkStr ? `${thkStr} มม.` : ""].filter(Boolean).join(" ");
 
     const poCode = (order?.referenceId || order?.poNumber || order?.code || order?.orderNumber || (order as any)?.requestNumber || "") as string;
     const custName = (customer?.name || (order as any)?.customerName || "") as string;
@@ -100,11 +115,13 @@ function sub(text: string, pane: Pane, order: Record<string, unknown> | null, pa
 
         // ── สเปกกระจก & กระจกประกอบ ─────────────────────────────────────────
         "{{compositeFormula}}":       compositeFormula,
-        "{{jobType}}":                (pane.jobType ?? pane.glassType ?? pane.glassTypeLabel ?? "") as string,
+        "{{jobType}}":                cleanJobType,
         "{{tp}}":                     tpText,
         "{{rawGlassColor}}":          rawColor,
         "{{thickness}}":              thkStr ? `${thkStr} มม.` : "",
-        "{{glassType}}":              (pane.jobType ?? pane.glassType ?? pane.glassTypeLabel ?? "") as string,
+        "{{glassType}}":              cleanJobType,
+        "{{glassSpec}}":              glassSpec,
+        "{{specGroup}}":              glassSpec,
         "{{productType}}":            (pane as any).productType === "laminated" ? "ลามิเนต" : (pane as any).productType === "insulated" ? "อินซูเลท" : "",
         "{{paneNumber}}":             pane.paneNumber ?? "",
         "{{paneId}}":                 pane._id ?? "",
@@ -117,8 +134,10 @@ function sub(text: string, pane: Pane, order: Record<string, unknown> | null, pa
         "{{grindingSummary}}":        grindingSummary,
 
         // ── รูเจาะ / บาก / หมายเหตุ ────────────────────────────────────────
-        "{{holes}}":                  holesCount ? `จำนวนรู ${holesCount} รู` : "",
-        "{{notches}}":                notchesCount ? `จำนวนบาก ${notchesCount} บาก` : "",
+        "{{holes}}":                  holesCount > 0 ? String(holesCount) : "",
+        "{{notches}}":                notchesCount > 0 ? String(notchesCount) : "",
+        "{{holesSummary}}":           holesCount > 0 ? `จำนวน ${holesCount} รู` : "",
+        "{{notchesSummary}}":         notchesCount > 0 ? `จำนวนบาก ${notchesCount} บาก` : "",
         "{{holesAndNotchesSummary}}": holesAndNotchesSummary,
         "{{customerRemarks}}":        custRemarks,
         "{{internalRemarks}}":        intRemarks,
@@ -211,31 +230,72 @@ export function StickerPrintBlock({ label = "พิมพ์สติ๊กเ�
     const [mounted, setMounted] = useState(false);
     useEffect(() => setMounted(true), []);
 
-    // ── Persisted template selection ──────────────────────────────────────────
-    const [saved,      setSaved]      = useState<SavedTemplate | null>(null);
-    const [template,   setTemplate]   = useState<StickerTemplateRecord | null>(null);
-    const [loadingTpl, setLoadingTpl] = useState(false);
+    // ── Persisted template selection & Auto Mapping ──────────────────────────
+    const [mapping,          setMapping]          = useState<StickerMappingSettings>({});
+    const [laminateTemplate, setLaminateTemplate] = useState<StickerTemplateRecord | null>(null);
+    const [standardTemplate, setStandardTemplate] = useState<StickerTemplateRecord | null>(null);
+
+    // Persisted manual override selection (if null -> Auto-assign mode is ON)
+    const [saved,            setSaved]            = useState<SavedTemplate | null>(null);
+    const [template,         setTemplate]         = useState<StickerTemplateRecord | null>(null);
+    const [loadingTpl,       setLoadingTpl]       = useState(false);
 
     // ── Pane list ─────────────────────────────────────────────────────────────
-    const [panes,        setPanes]        = useState<Pane[]>([]);
-    const [loadingPanes, setLoadingPanes] = useState(false);
+    const [panes,            setPanes]            = useState<Pane[]>([]);
+    const [loadingPanes,     setLoadingPanes]     = useState(false);
 
     // ── Template picker modal ─────────────────────────────────────────────────
-    const [showPicker,   setShowPicker]   = useState(false);
-    const [allTemplates, setAllTemplates] = useState<StickerTemplateRecord[]>([]);
-    const [loadingAll,   setLoadingAll]   = useState(false);
+    const [showPicker,       setShowPicker]       = useState(false);
+    const [allTemplates,     setAllTemplates]     = useState<StickerTemplateRecord[]>([]);
+    const [loadingAll,       setLoadingAll]       = useState(false);
 
     // Load saved template from localStorage on mount
     useEffect(() => {
         try {
             const raw = localStorage.getItem(LS_KEY);
-            if (raw) setSaved(JSON.parse(raw) as SavedTemplate);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (parsed && parsed.id && parsed.id !== "__auto__") {
+                    setSaved(parsed as SavedTemplate);
+                }
+            }
         } catch { /* ignore */ }
     }, []);
 
-    // Fetch full template (elements) when saved ID changes
+    // Load sticker mapping & all templates immediately on preview mount
+    const loadMappingAndTemplates = useCallback(async () => {
+        try {
+            setLoadingAll(true);
+            const [tpls, m] = await Promise.all([
+                getStickerTemplates(1, 100),
+                fetchStickerMapping(),
+            ]);
+            setAllTemplates(tpls);
+            setMapping(m);
+
+            const resolved = resolveStickerTemplates(tpls, m);
+            setLaminateTemplate(resolved.laminateTemplate);
+            setStandardTemplate(resolved.standardTemplate);
+        } catch {
+            // ignore
+        } finally {
+            setLoadingAll(false);
+        }
+    }, []);
+
     useEffect(() => {
-        if (!saved?.id || !isPreview) return;
+        if (!isPreview) return;
+        loadMappingAndTemplates();
+    }, [loadMappingAndTemplates, isPreview]);
+
+    const isAutoMode = !saved || saved.id === "__auto__";
+
+    // Fetch full template (elements) when manual saved ID changes
+    useEffect(() => {
+        if (!saved?.id || saved.id === "__auto__" || !isPreview) {
+            setTemplate(null);
+            return;
+        }
         setLoadingTpl(true);
         getStickerTemplate(saved.id)
             .then(setTemplate)
@@ -244,8 +304,6 @@ export function StickerPrintBlock({ label = "พิมพ์สติ๊กเ�
     }, [saved?.id, isPreview]);
 
     // Fetch panes when order changes.
-    // selectedRecord is whatever the user last clicked in RecordList (order OR request).
-    // orderData / requestData are pre-loaded from URL params.
     const contextRecord = selectedRecord ?? orderData;
     const contextId     = (contextRecord?._id ?? requestData?._id) as string | undefined;
 
@@ -266,12 +324,9 @@ export function StickerPrintBlock({ label = "พิมพ์สติ๊กเ�
         if (!contextId || !isPreview) { setPanes([]); return; }
         setLoadingPanes(true);
 
-        // Try every plausible combination in parallel — take first non-empty result.
-        // Needed because selectedRecord might be an order OR a request depending on
-        // which RecordList the user clicked, and requestData may be pre-loaded from URL.
         const queries: Promise<PaginatedResponse<Pane>>[] = [
-            panesApi.getAll({ order:   contextId, status_ne: "claimed", limit: 200 }),   // contextId is an order ID
-            panesApi.getAll({ request: contextId, limit: 200 }),   // contextId is a request ID
+            panesApi.getAll({ order:   contextId, status_ne: "claimed", limit: 200 }),
+            panesApi.getAll({ request: contextId, limit: 200 }),
         ];
         if (orderRequestId) queries.push(panesApi.getAll({ request: orderRequestId, limit: 200 }));
         if (fallbackRequestId && fallbackRequestId !== contextId)
@@ -296,26 +351,73 @@ export function StickerPrintBlock({ label = "พิมพ์สติ๊กเ�
     const openPicker = async () => {
         setShowPicker(true);
         if (allTemplates.length > 0) return;
-        setLoadingAll(true);
-        getStickerTemplates(1, 50)
-            .then(setAllTemplates)
-            .finally(() => setLoadingAll(false));
+        loadMappingAndTemplates();
     };
 
-    const handleSelect = useCallback((t: StickerTemplateRecord) => {
+    const handleSelectAuto = useCallback(() => {
+        setSaved(null);
+        setTemplate(null);
+        localStorage.removeItem(LS_KEY);
+        setShowPicker(false);
+    }, []);
+
+    const handleSelectManual = useCallback((t: StickerTemplateRecord) => {
         const s: SavedTemplate = { id: t._id, name: t.name, widthMm: t.width, heightMm: t.height };
         setSaved(s);
-        setTemplate(t);  // use immediately — no need to re-fetch
+        setTemplate(t);
         localStorage.setItem(LS_KEY, JSON.stringify(s));
         setShowPicker(false);
     }, []);
 
+    // Change mapping from modal
+    const handleUpdateMappingField = useCallback(async (field: keyof StickerMappingSettings, tmplId: string) => {
+        const cleanVal = tmplId === "__none__" || !tmplId ? "" : tmplId;
+        const next = { ...mapping, [field]: cleanVal };
+        setMapping(next);
+        await saveStickerMapping(next);
+        const resolved = resolveStickerTemplates(allTemplates, next);
+        setLaminateTemplate(resolved.laminateTemplate);
+        setStandardTemplate(resolved.standardTemplate);
+    }, [mapping, allTemplates]);
+
+    const getPaneTemplate = useCallback((pane: Pane): StickerTemplateRecord | null => {
+        if (!isAutoMode && template) return template;
+        const isMulti = isPaneLaminateOrInsulate(pane);
+        if (isMulti) {
+            return laminateTemplate || standardTemplate || template || (allTemplates.length > 0 ? allTemplates[0] : null);
+        }
+        return standardTemplate || laminateTemplate || template || (allTemplates.length > 0 ? allTemplates[0] : null);
+    }, [isAutoMode, template, laminateTemplate, standardTemplate, allTemplates]);
+
+    const activePrimaryTemplate = (!isAutoMode && template)
+        ? template
+        : (standardTemplate || laminateTemplate || template || (allTemplates.length > 0 ? allTemplates[0] : null));
+
+    const readyToPrint = panes.length > 0 && (
+        isAutoMode ? (!!laminateTemplate || !!standardTemplate || !!template || allTemplates.length > 0) : !!template
+    );
+
     const handlePrint = () => {
-        if (!template || panes.length === 0) return;
+        if (!readyToPrint) return;
         window.print();
     };
 
     const orderLabel = (contextRecord?.orderNumber ?? contextRecord?.code ?? (contextRecord as Record<string, unknown>)?.requestNumber ?? "") as string;
+
+    // Close modal on Escape key
+    useEffect(() => {
+        if (!showPicker) return;
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape") setShowPicker(false);
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [showPicker]);
+
+    // Breakdown of panes
+    const lamCount = panes.filter(isPaneLaminateOrInsulate).length;
+    const stdCount = panes.length - lamCount;
+    const hasMixedTypes = lamCount > 0 && stdCount > 0;
 
     // ── Design mode ───────────────────────────────────────────────────────────
     if (!isPreview) {
@@ -329,15 +431,14 @@ export function StickerPrintBlock({ label = "พิมพ์สติ๊กเ�
                     {label}
                 </button>
                 <p className="text-[10px] text-purple-600 dark:text-purple-400 text-center mt-1">
-                    <Sticker className="inline h-3 w-3 mr-0.5" />
-                    เลือก template → แสดงตัวอย่าง → พิมพ์
+                    <Sparkles className="inline h-3 w-3 mr-0.5" />
+                    อัตโนมัติ (เทมเพลต 1 & 2) → พิมพ์สติกเกอร์
                 </p>
             </div>
         );
     }
 
     // ── Preview mode ──────────────────────────────────────────────────────────
-    const readyToPrint = !!template && panes.length > 0;
 
     // Pane status line
     const paneStatus = !orderId
@@ -346,56 +447,96 @@ export function StickerPrintBlock({ label = "พิมพ์สติ๊กเ�
         ? { text: "กำลังโหลดข้อมูล…", color: "text-gray-400" }
         : panes.length === 0
         ? { text: "ไม่พบกระจกในออเดอร์นี้", color: "text-red-400" }
-        : { text: `พร้อมพิมพ์ ${panes.length} ชิ้น${orderLabel ? ` · ${orderLabel}` : ""}`, color: "text-emerald-600" };
+        : {
+            text: `พร้อมพิมพ์ ${panes.length} ชิ้น${orderLabel ? ` · ${orderLabel}` : ""}`,
+            color: "text-emerald-600 dark:text-emerald-400 font-semibold",
+        };
 
     return (
         <div className="w-full space-y-3">
 
             {/* ── Print portal: stickers rendered as direct child of <body> ── */}
-            {mounted && readyToPrint && createPortal(
-                <>
-                    <style>{`
-                        @media screen { #stk-print-portal { display: none; } }
-                        @media print {
-                            @page { size: ${template!.width}mm ${template!.height}mm; margin: 0; }
-                            html, body { margin: 0 !important; padding: 0 !important; width: ${template!.width}mm !important; }
-                            body > * { display: none !important; }
-                            body > #stk-print-portal { display: block !important; margin: 0 !important; padding: 0 !important; }
-                            #stk-print-portal .stk-page {
-                                break-after: page; page-break-after: always;
-                                width: ${template!.width}mm; height: ${template!.height}mm;
-                                overflow: hidden; margin: 0; padding: 0;
+            {mounted && readyToPrint && (() => {
+                const firstPaneTemplate = panes.length > 0 ? (getPaneTemplate(panes[0]) || activePrimaryTemplate) : activePrimaryTemplate;
+                const printW = firstPaneTemplate?.width ?? 86;
+                const printH = firstPaneTemplate?.height ?? 56;
+
+                return createPortal(
+                    <>
+                        <style>{`
+                            @media screen { #stk-print-portal { display: none; } }
+                            @media print {
+                                @page { size: ${printW}mm ${printH}mm; margin: 0; }
+                                html, body { margin: 0 !important; padding: 0 !important; width: ${printW}mm !important; height: ${printH}mm !important; }
+                                body > * { display: none !important; }
+                                body > #stk-print-portal { display: block !important; margin: 0 !important; padding: 0 !important; }
+                                #stk-print-portal .stk-page {
+                                    break-after: page; page-break-after: always;
+                                    break-inside: avoid; page-break-inside: avoid;
+                                    overflow: hidden; margin: 0; padding: 0;
+                                }
+                                #stk-print-portal .stk-page:last-child { break-after: auto; page-break-after: auto; }
+                                #stk-print-portal * {
+                                    -webkit-print-color-adjust: exact !important;
+                                    print-color-adjust: exact !important;
+                                    color-adjust: exact !important;
+                                }
+                                #stk-print-portal div, #stk-print-portal span {
+                                    visibility: visible !important;
+                                    opacity: 1 !important;
+                                }
                             }
-                            #stk-print-portal .stk-page:last-child { break-after: auto; page-break-after: auto; }
-                            #stk-print-portal * {
-                                -webkit-print-color-adjust: exact !important;
-                                print-color-adjust: exact !important;
-                                color-adjust: exact !important;
-                            }
-                            #stk-print-portal div, #stk-print-portal span {
-                                visibility: visible !important;
-                                opacity: 1 !important;
-                            }
-                        }
-                    `}</style>
-                    <div id="stk-print-portal">
-                        {panes.map((pane, idx) => (
-                            <div key={pane._id || `pane_${idx}`} className="stk-page">
-                                <StickerPrintRenderer
-                                    template={template!}
-                                    pane={pane}
-                                    order={contextRecord as Record<string, unknown> | null}
-                                    paneIndex={idx}
-                                />
-                            </div>
-                        ))}
-                    </div>
-                </>,
-                document.body
-            )}
+                        `}</style>
+                        <div id="stk-print-portal">
+                            {panes.map((pane, idx) => {
+                                const paneTmpl = getPaneTemplate(pane) || activePrimaryTemplate;
+                                if (!paneTmpl) return null;
+                                return (
+                                    <div
+                                        key={pane._id || `pane_${idx}`}
+                                        className="stk-page"
+                                        style={{ width: `${paneTmpl.width}mm`, height: `${paneTmpl.height}mm` }}
+                                    >
+                                        <StickerPrintRenderer
+                                            template={paneTmpl}
+                                            pane={pane}
+                                            order={contextRecord as Record<string, unknown> | null}
+                                            paneIndex={idx}
+                                        />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </>,
+                    document.body
+                );
+            })()}
 
             {/* ── Template selector bar ─────────────────────────────────── */}
-            {saved ? (
+            {isAutoMode ? (
+                <div className="flex items-center gap-2.5 rounded-xl border-2 border-purple-600 dark:border-purple-500 bg-gradient-to-r from-purple-50 via-purple-50/70 to-indigo-50/60 dark:from-purple-950/40 dark:via-purple-900/20 dark:to-indigo-950/30 px-3.5 py-2.5 shadow-xs">
+                    <div className="h-8 w-8 rounded-lg bg-purple-600 dark:bg-purple-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                        <Sparkles className="h-4 w-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-purple-950 dark:text-purple-100 truncate">
+                            อัตโนมัติ (เทมเพลต 1 & 2)
+                        </p>
+                        <div className="flex items-center flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-purple-700/90 dark:text-purple-300/90 mt-0.5">
+                            <span className="truncate">1. ลามิเนต/อินซูเลท: <strong>{laminateTemplate?.name ?? "เทมเพลต 1"}</strong></span>
+                            <span className="text-purple-300 dark:text-purple-600">•</span>
+                            <span className="truncate">2. เทมเปอร์/ตัดธรรมดา: <strong>{standardTemplate?.name ?? "เทมเพลต 2"}</strong></span>
+                        </div>
+                    </div>
+                    <button
+                        onClick={openPicker}
+                        className="flex items-center gap-1 text-[11px] font-semibold text-purple-700 dark:text-purple-300 bg-white dark:bg-purple-900/50 border border-purple-300 dark:border-purple-700 rounded-lg px-2.5 py-1.5 hover:bg-purple-100 dark:hover:bg-purple-800/40 active:bg-purple-200 shrink-0 shadow-xs"
+                    >
+                        <RefreshCw className="h-3 w-3" />
+                        ตั้งค่า
+                    </button>
+                </div>
+            ) : saved ? (
                 <div className="flex items-center gap-2 rounded-xl border-2 border-purple-700 dark:border-purple-500 bg-purple-50 dark:bg-purple-900/20 px-3 py-2.5">
                     <Sticker className="h-4 w-4 text-purple-700 dark:text-purple-300 shrink-0" />
                     <div className="flex-1 min-w-0">
@@ -426,14 +567,14 @@ export function StickerPrintBlock({ label = "พิมพ์สติ๊กเ�
                     ? <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-400 shrink-0" />
                     : <span className={`h-2 w-2 rounded-full shrink-0 ${panes.length > 0 ? "bg-emerald-500" : "bg-gray-300"}`} />
                 }
-                <p className={`text-xs font-medium ${paneStatus.color}`}>{paneStatus.text}</p>
+                <p className={`text-xs ${paneStatus.color}`}>{paneStatus.text}</p>
             </div>
 
             {/* ── Print button ───────────────────────────────────────────── */}
             <button
                 onClick={handlePrint}
                 disabled={!readyToPrint}
-                className="w-full rounded-xl border-2 border-purple-800 bg-purple-700 text-white font-bold px-6 py-3 text-base min-h-[52px] flex items-center justify-center gap-2 active:bg-purple-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                className="w-full rounded-xl border-2 border-purple-800 bg-purple-700 text-white font-bold px-6 py-3 text-base min-h-[52px] flex items-center justify-center gap-2 active:bg-purple-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md shadow-purple-700/20"
             >
                 <Printer className="h-5 w-5" />
                 {panes.length > 0
@@ -444,24 +585,115 @@ export function StickerPrintBlock({ label = "พิมพ์สติ๊กเ�
 
             {/* ── Template picker modal ──────────────────────────────────── */}
             {showPicker && (
-                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl">
-                        <div className="flex items-center gap-3 px-5 py-4 border-b-2 border-gray-100 dark:border-slate-800 shrink-0">
+                <div
+                    className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150"
+                    onClick={() => setShowPicker(false)}
+                >
+                    <div
+                        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-2xl max-h-[88vh] flex flex-col shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100 dark:border-slate-800 shrink-0">
                             <Sticker className="h-5 w-5 text-purple-700 dark:text-purple-400 shrink-0" />
-                            <p className="font-bold text-gray-900 dark:text-slate-100 flex-1 text-base">เลือก template สติ๊กเกอร์</p>
+                            <p className="font-bold text-gray-900 dark:text-slate-100 flex-1 text-base">ตั้งค่าแม่แบบสติ๊กเกอร์</p>
                             <button onClick={() => setShowPicker(false)} className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800 active:bg-gray-200 dark:active:bg-slate-700">
                                 <X className="h-5 w-5 text-gray-600 dark:text-slate-400" />
                             </button>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-4">
+                        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                            {/* Auto Option Banner & Mapping Customizer */}
+                            <div className={`p-4 rounded-xl border-2 transition-all ${
+                                isAutoMode
+                                    ? "border-purple-600 dark:border-purple-500 bg-purple-50/70 dark:bg-purple-950/40 ring-2 ring-purple-300 dark:ring-purple-900/50"
+                                    : "border-purple-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50"
+                            }`}>
+                                <div className="flex items-center justify-between gap-2 mb-3">
+                                    <div className="flex items-center gap-2">
+                                        <div className="h-8 w-8 rounded-lg bg-purple-600 text-white flex items-center justify-center shrink-0">
+                                            <Sparkles className="h-4 w-4" />
+                                        </div>
+                                        <div>
+                                            <div className="flex items-center gap-2">
+                                                <p className="text-sm font-bold text-purple-950 dark:text-purple-100">
+                                                    โหมดอัตโนมัติตามกลุ่มงาน (เทมเพลต 1 & 2)
+                                                </p>
+                                                <span className="text-[10px] bg-purple-600 text-white px-2 py-0.5 rounded-full font-bold">
+                                                    แนะนำ
+                                                </span>
+                                            </div>
+                                            <p className="text-xs text-purple-700/80 dark:text-purple-300/80">
+                                                ระบบจะสลับแม่แบบให้ตามประเภทงานของแต่ละแผ่นกระจกในออเดอร์โดยอัตโนมัติ
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={handleSelectAuto}
+                                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 ${
+                                            isAutoMode
+                                                ? "bg-emerald-600 text-white shadow-xs"
+                                                : "bg-purple-600 text-white hover:bg-purple-700 active:bg-purple-800"
+                                        }`}
+                                    >
+                                        {isAutoMode ? "✓ ใช้งานโหมดนี้อยู่" : "เลือกใช้โหมดอัตโนมัติ"}
+                                    </button>
+                                </div>
+
+                                {/* Direct Mapping Selectors */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-purple-200/60 dark:border-purple-800/60">
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                            <span>เทมเพลต 1</span>
+                                            <span className="text-[11px] font-normal text-slate-500 dark:text-slate-400">(1. ลามิเนต/อินซูเลท)</span>
+                                        </label>
+                                        <select
+                                            value={laminateTemplate?._id || ""}
+                                            onChange={(e) => handleUpdateMappingField("laminateTemplateId", e.target.value)}
+                                            className="w-full text-xs font-medium bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg p-2 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                        >
+                                            {allTemplates
+                                                .filter(t => t._id !== (standardTemplate?._id || mapping.standardTemplateId))
+                                                .map(t => (
+                                                    <option key={t._id} value={t._id}>
+                                                        {t.name} ({t.width}×{t.height}mm)
+                                                    </option>
+                                                ))}
+                                        </select>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                            <span>เทมเพลต 2</span>
+                                            <span className="text-[11px] font-normal text-slate-500 dark:text-slate-400">(2. เทมเปอร์/ตัดธรรมดา)</span>
+                                        </label>
+                                        <select
+                                            value={standardTemplate?._id || ""}
+                                            onChange={(e) => handleUpdateMappingField("standardTemplateId", e.target.value)}
+                                            className="w-full text-xs font-medium bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg p-2 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                        >
+                                            {allTemplates
+                                                .filter(t => t._id !== (laminateTemplate?._id || mapping.laminateTemplateId))
+                                                .map(t => (
+                                                    <option key={t._id} value={t._id}>
+                                                        {t.name} ({t.width}×{t.height}mm)
+                                                    </option>
+                                                ))}
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="border-t border-slate-100 dark:border-slate-800 pt-2">
+                                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-2">หรือเลือกแม่แบบแบบเจาะจง (บังคับใช้แม่แบบเดียวสำหรับทุกแผ่น)</p>
+                            </div>
+
                             {loadingAll ? (
-                                <div className="flex flex-col items-center justify-center gap-3 py-16">
+                                <div className="flex flex-col items-center justify-center gap-3 py-12">
                                     <Loader2 className="h-7 w-7 animate-spin text-purple-600" />
                                     <p className="text-sm text-gray-500">กำลังโหลด template...</p>
                                 </div>
                             ) : allTemplates.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
+                                <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
                                     <Sticker className="h-10 w-10 text-gray-300" />
                                     <p className="text-sm font-semibold text-gray-500">ยังไม่มี template</p>
                                     <p className="text-xs text-gray-400">ไปสร้างที่ <span className="font-medium">ตั้งค่า → ออกแบบสติ๊กเกอร์</span></p>
@@ -471,9 +703,9 @@ export function StickerPrintBlock({ label = "พิมพ์สติ๊กเ�
                                     {allTemplates.map((t) => (
                                         <button
                                             key={t._id}
-                                            onClick={() => handleSelect(t)}
+                                            onClick={() => handleSelectManual(t)}
                                             className={`flex flex-col items-center gap-2.5 p-3 rounded-xl border-2 transition-all group text-left
-                                                ${saved?.id === t._id
+                                                ${!isAutoMode && saved?.id === t._id
                                                     ? "border-purple-600 dark:border-purple-500 bg-purple-50 dark:bg-purple-900/30 ring-2 ring-purple-300 dark:ring-purple-900/50"
                                                     : "border-gray-200 dark:border-slate-800 hover:border-purple-500 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20"
                                                 }`}
@@ -488,9 +720,9 @@ export function StickerPrintBlock({ label = "พิมพ์สติ๊กเ�
                                                 />
                                             </div>
                                             <div className="w-full text-center">
-                                                <p className={`text-sm font-semibold leading-tight ${saved?.id === t._id ? "text-purple-700 dark:text-purple-300" : "text-gray-900 dark:text-slate-200 group-hover:text-purple-700 dark:group-hover:text-purple-300"}`}>
+                                                <p className={`text-sm font-semibold leading-tight ${!isAutoMode && saved?.id === t._id ? "text-purple-700 dark:text-purple-300" : "text-gray-900 dark:text-slate-200 group-hover:text-purple-700 dark:group-hover:text-purple-300"}`}>
                                                     {t.name}
-                                                    {saved?.id === t._id && <span className="ml-1 text-[10px] bg-purple-600 text-white px-1.5 py-0.5 rounded">ใช้อยู่</span>}
+                                                    {!isAutoMode && saved?.id === t._id && <span className="ml-1 text-[10px] bg-purple-600 text-white px-1.5 py-0.5 rounded">ใช้อยู่</span>}
                                                 </p>
                                                 <p className="text-[11px] text-gray-400 dark:text-slate-500 mt-0.5">{t.width} × {t.height} mm</p>
                                             </div>
@@ -500,8 +732,14 @@ export function StickerPrintBlock({ label = "พิมพ์สติ๊กเ�
                             )}
                         </div>
 
-                        <div className="px-5 py-3 border-t border-gray-100 dark:border-slate-800 shrink-0">
-                            <p className="text-xs text-gray-400 dark:text-slate-500 text-center">การเลือกจะถูกจำไว้สำหรับครั้งถัดไป</p>
+                        <div className="px-5 py-3 border-t border-gray-100 dark:border-slate-800 shrink-0 flex items-center justify-between">
+                            <p className="text-xs text-gray-400 dark:text-slate-500">การเลือกจะถูกจำไว้สำหรับครั้งถัดไป</p>
+                            <button
+                                onClick={() => setShowPicker(false)}
+                                className="px-4 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-300 transition-colors"
+                            >
+                                ปิด
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -514,3 +752,4 @@ StickerPrintBlock.craft = {
     displayName: "Sticker Print",
     props: { label: "พิมพ์สติ๊กเกอร์" } as StickerPrintBlockProps,
 };
+

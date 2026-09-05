@@ -54,8 +54,9 @@ const DYNAMIC_VARIABLES = [
     { value: "{{assignedTo}}",             label: "ผู้รับผิดชอบ",                  group: "ออเดอร์" },
 
     // ── สเปกกระจก & กระจกประกอบ ─────────────────────────────────────────
-    { value: "{{compositeFormula}}",       label: "ชนิดฟิล์ม/อากาศที่บรรจุ",         group: "กระจก" },
-    { value: "{{jobType}}",                label: "ลักษณะงาน",                    group: "กระจก" },
+    { value: "{{glassSpec}}",              label: "ลักษณะงาน + สีกระจก + ความหนา (เช่น TP ใส 6 มม.)", group: "กระจก" },
+    { value: "{{compositeFormula}}",       label: "ชนิดฟิล์ม/อากาศที่บรรจุ (สูตรประกบ)", group: "กระจก" },
+    { value: "{{jobType}}",                label: "ลักษณะงาน",                      group: "กระจก" },
     { value: "{{rawGlassColor}}",          label: "สีกระจกดิบ",                   group: "กระจก" },
     { value: "{{thickness}}",              label: "ความหนา",                      group: "กระจก" },
     { value: "{{glassType}}",              label: "ประเภทกระจก",                  group: "กระจก" },
@@ -71,9 +72,11 @@ const DYNAMIC_VARIABLES = [
     { value: "{{grindingSummary}}",        label: "สรุปการเจียร 4 ด้าน",            group: "ขนาดและขอบ" },
 
     // ── รูเจาะ / บาก / หมายเหตุ ────────────────────────────────────────
-    { value: "{{holes}}",                  label: "จำนวนรู",                      group: "รูและหมายเหตุ" },
-    { value: "{{notches}}",                label: "จำนวนบาก",                     group: "รูและหมายเหตุ" },
-    { value: "{{holesAndNotchesSummary}}", label: "สรุปจำนวนรูและบาก",            group: "รูและหมายเหตุ" },
+    { value: "{{holes}}",                  label: "จำนวนรู (เฉพาะตัวเลข)",          group: "รูและหมายเหตุ" },
+    { value: "{{holesSummary}}",           label: "จำนวนรู (เช่น จำนวน 2 รู)",      group: "รูและหมายเหตุ" },
+    { value: "{{notches}}",                label: "จำนวนบาก (เฉพาะตัวเลข)",         group: "รูและหมายเหตุ" },
+    { value: "{{notchesSummary}}",         label: "จำนวนบาก (เช่น จำนวนบาก 1 บาก)", group: "รูและหมายเหตุ" },
+    { value: "{{holesAndNotchesSummary}}", label: "สรุปจำนวนรูและบาก (ข้อความรวม)", group: "รูและหมายเหตุ" },
     { value: "{{customerRemarks}}",        label: "หมายเหตุลูกค้า",                 group: "รูและหมายเหตุ" },
     { value: "{{internalRemarks}}",        label: "หมายเหตุ",                     group: "รูและหมายเหตุ" },
 

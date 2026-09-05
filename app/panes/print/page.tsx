@@ -48,8 +48,8 @@ function substituteVars(
         : now.toLocaleDateString("th-TH", { day: "2-digit", month: "2-digit", year: "numeric" });
 
     const seqNo = sequentialIndex ? `No. ${sequentialIndex}` : (pane.paneNumber || "No. 1");
-    const rawColor = pane.rawGlass?.color || (pane as any).rawGlassColor || "ใส";
-    const thkStr = normalizeThickness(pane.dimensions?.thickness || (pane as any).thickness || "6");
+    const rawColor = (pane.rawGlass?.color || (pane as any).rawGlassColor || "").trim();
+    const thkStr = normalizeThickness(pane.dimensions?.thickness || (pane as any).thickness || "");
 
     const edgeTop = pane.edgeTasks?.find(e => e.side === 'top')?.edgeProfile;
     const edgeBottom = pane.edgeTasks?.find(e => e.side === 'bottom')?.edgeProfile;
@@ -79,13 +79,20 @@ function substituteVars(
     const notchesCount = pane.notchesCount ?? (Array.isArray(pane.notches) ? pane.notches.length : (typeof pane.notches === 'number' ? pane.notches : 0));
     const holesAndNotchesSummary = formatHolesAndNotches(holesCount, notchesCount);
 
-    const isLam = pane.productType === "laminated";
+    const isLam = isPaneLaminateOrInsulate(pane);
     const weightVal = calcGlassWeight(pane.dimensions?.width, pane.dimensions?.height, pane.dimensions?.thickness, 1, isLam);
     const perimVal = calcGlassPerimeterMeters(pane.dimensions?.width, pane.dimensions?.height, 1);
     const areaVal = calcGlassAreaSqFt(pane.dimensions?.width, pane.dimensions?.height, 1);
 
-    const isTP = pane.jobType?.toUpperCase().includes("TP") || pane.glassType?.toUpperCase().includes("TP");
+    const isTP = pane.jobType?.toUpperCase().includes("TP") || pane.glassType?.toUpperCase().includes("TP") || (pane as any).rawGlassType?.toUpperCase().includes("TP");
     const tpText = isTP ? "TP" : "";
+
+    // Clean jobType/glassType: if it contains "ตัดธรรมดา" or "ธรรมดา" or is non-TP generic, keep it blank so "ตัดธรรมดา" is never printed
+    const rawJobType = (pane.jobType ?? pane.glassType ?? pane.glassTypeLabel ?? "") as string;
+    const cleanJobType = isTP ? "TP" : (/ตัดธรรมดา|ธรรมดา|float|raw/i.test(rawJobType) ? "" : rawJobType);
+
+    // Combined spec variable: [TP] [Color] [Thickness] (e.g. "TP ใส 6 มม." or "ใส 6 มม.")
+    const glassSpec = [tpText, rawColor, thkStr ? `${thkStr} มม.` : ""].filter(Boolean).join(" ");
 
     const poCode = (order?.referenceId || order?.poNumber || order?.code || order?.orderNumber || "") as string;
     const custName = (customer?.name || (order as any)?.customerName || "") as string;
@@ -105,12 +112,14 @@ function substituteVars(
 
         // สเปกกระจก & ประกอบ
         "{{compositeFormula}}":       compositeFormula,
-        "{{jobType}}":                (pane.jobType ?? pane.glassType ?? pane.glassTypeLabel ?? "") as string,
+        "{{jobType}}":                cleanJobType,
         "{{tp}}":                     tpText,
         "{{rawGlassColor}}":          rawColor,
         "{{thickness}}":              thkStr ? `${thkStr} มม.` : "",
-        "{{glassType}}":              (pane.jobType ?? pane.glassType ?? pane.glassTypeLabel ?? "") as string,
-        "{{productType}}":            pane.productType === "laminated" ? "ลามิเนต" : pane.productType === "insulated" ? "อินซูเลท" : "",
+        "{{glassType}}":              cleanJobType,
+        "{{glassSpec}}":              glassSpec,
+        "{{specGroup}}":              glassSpec,
+        "{{productType}}":            isPaneLaminateOrInsulate(pane) ? "ลามิเนต" : "",
         "{{paneNumber}}":             pane.paneNumber ?? "",
         "{{paneId}}":                 pane._id ?? "",
         "{{qrCode}}":                 pane.qrCode || `STDPLUS:${pane.paneNumber}`,
@@ -124,6 +133,8 @@ function substituteVars(
         // รู & บาก & หมายเหตุ
         "{{holes}}":                  holesCount > 0 ? String(holesCount) : "",
         "{{notches}}":                notchesCount > 0 ? String(notchesCount) : "",
+        "{{holesSummary}}":           holesCount > 0 ? `จำนวน ${holesCount} รู` : "",
+        "{{notchesSummary}}":         notchesCount > 0 ? `จำนวนบาก ${notchesCount} บาก` : "",
         "{{holesAndNotchesSummary}}": holesAndNotchesSummary,
         "{{customerRemarks}}":        pane.customerRemarks || "",
         "{{internalRemarks}}":        pane.internalRemarks || "",
@@ -267,6 +278,13 @@ function TemplateStickerRenderer({
     );
 }
 
+import {
+    fetchStickerMapping,
+    resolveStickerTemplates,
+    isPaneLaminateOrInsulate,
+} from "@/lib/sticker-settings";
+import { getStickerTemplates } from "@/lib/api/sticker-templates";
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 export default function PaneStickerPrintPage() {
     const searchParams = useSearchParams();
@@ -278,10 +296,12 @@ export default function PaneStickerPrintPage() {
     const paneIds    = searchParams.get("ids")?.split(",").filter(Boolean);
     const autoprint  = searchParams.get("autoprint") === "1";
 
-    const [panes,    setPanes]    = useState<Pane[]>([]);
-    const [order,    setOrder]    = useState<Record<string, unknown> | null>(null);
-    const [template, setTemplate] = useState<StickerTemplateRecord | null>(null);
-    const [loading,  setLoading]  = useState(true);
+    const [panes,            setPanes]            = useState<Pane[]>([]);
+    const [order,            setOrder]            = useState<Record<string, unknown> | null>(null);
+    const [template,         setTemplate]         = useState<StickerTemplateRecord | null>(null);
+    const [laminateTemplate, setLaminateTemplate] = useState<StickerTemplateRecord | null>(null);
+    const [standardTemplate, setStandardTemplate] = useState<StickerTemplateRecord | null>(null);
+    const [loading,          setLoading]          = useState(true);
 
     useEffect(() => {
         async function load() {
@@ -292,6 +312,21 @@ export default function PaneStickerPrintPage() {
                     }
                     return 0;
                 });
+
+                // Load all templates & default mapping from backend DB
+                const [allTpls, mapping] = await Promise.all([
+                    getStickerTemplates(1, 100),
+                    fetchStickerMapping(),
+                ]);
+
+                const resolved = resolveStickerTemplates(allTpls, mapping);
+                setLaminateTemplate(resolved.laminateTemplate);
+                setStandardTemplate(resolved.standardTemplate);
+
+                const promises: Promise<any>[] = [];
+                if (templateId) {
+                    promises.push(getStickerTemplate(templateId).then(t => setTemplate(t)));
+                }
 
                 // Load panes
                 if (paneIds && paneIds.length > 0) {
@@ -330,17 +365,23 @@ export default function PaneStickerPrintPage() {
                     if (res.success) setPanes(sortPanes(res.data ?? []));
                 }
 
-                // Load template if provided
-                if (templateId) {
-                    const t = await getStickerTemplate(templateId);
-                    setTemplate(t);
-                }
+                await Promise.allSettled(promises);
             } catch { /* ignore */ }
             setLoading(false);
         }
         load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    const getPaneTemplate = (pane: Pane): StickerTemplateRecord | null => {
+        if (template) return template; // Explicit override if passed in URL
+        const isMulti = isPaneLaminateOrInsulate(pane);
+        if (isMulti) {
+            return laminateTemplate || standardTemplate;
+        }
+        return standardTemplate || laminateTemplate;
+    };
+
 
     // Auto-trigger print dialog when ?autoprint=1 (opened from station block)
     useEffect(() => {
@@ -369,10 +410,12 @@ export default function PaneStickerPrintPage() {
         : "";
     const orderLabel   = (order?.orderNumber ?? order?.code ?? "") as string;
 
+    const activeTemplate = template || standardTemplate || laminateTemplate;
+
     // When using a template, @page size = sticker size so there's no wasted paper.
     // Each pane prints on its own page (break-after: page on every item except the last).
-    const pageStyle = template
-        ? `@page { size: ${template.width}mm ${template.height}mm; margin: 0; }`
+    const pageStyle = activeTemplate
+        ? `@page { size: ${activeTemplate.width}mm ${activeTemplate.height}mm; margin: 0; }`
         : `@page { size: A4; margin: 8mm; }`;
 
     return (
@@ -380,13 +423,13 @@ export default function PaneStickerPrintPage() {
             <style>{`
                 @media print {
                     ${pageStyle}
-                    html, body { margin: 0 !important; padding: 0 !important; visibility: hidden; ${template ? `width: ${template.width}mm !important;` : ""} }
+                    html, body { margin: 0 !important; padding: 0 !important; visibility: hidden; ${activeTemplate ? `width: ${activeTemplate.width}mm !important;` : ""} }
                     #pane-sticker-print, #pane-sticker-print * { visibility: visible; }
                     #pane-sticker-print { position: absolute; top: 0; left: 0; background: #fff; margin: 0; padding: 0; }
                     .no-print { display: none !important; }
                     .sticker-page {
                         break-after: page; page-break-after: always;
-                        ${template ? `width: ${template.width}mm; height: ${template.height}mm; overflow: hidden;` : ""}
+                        ${activeTemplate ? `width: ${activeTemplate.width}mm; height: ${activeTemplate.height}mm; overflow: hidden;` : ""}
                         margin: 0; padding: 0;
                     }
                     .sticker-page:last-child { break-after: auto; page-break-after: auto; }
@@ -402,7 +445,7 @@ export default function PaneStickerPrintPage() {
                 </Button>
                 <div className="flex-1">
                     <p className="text-sm text-muted-foreground">
-                        {template ? `Template: ${template.name} (${template.width}×${template.height}mm)` : "QR สติกเกอร์กระจก"}
+                        {activeTemplate ? `Template: ${activeTemplate.name} (${activeTemplate.width}×${activeTemplate.height}mm)` : "QR สติกเกอร์กระจก"}
                         {" — "}{panes.length} ชิ้น
                         {(orderLabel || requestLabel) && <span className="ml-2 font-medium text-foreground">{orderLabel || requestLabel}</span>}
                         {requestType && <span className="ml-1 text-muted-foreground">({requestType})</span>}
@@ -417,20 +460,23 @@ export default function PaneStickerPrintPage() {
             {/* Print content */}
             <div id="pane-sticker-print" className="bg-white text-black font-sans">
 
-                {template ? (
+                {activeTemplate ? (
                     /* ── Template-based: one sticker per page, no margin ─── */
                     <>
-                        {panes.map((pane, idx) => (
-                            <div key={pane._id} className="sticker-page">
-                                <TemplateStickerRenderer
-                                    template={template}
-                                    pane={pane}
-                                    order={order}
-                                    sequentialIndex={idx + 1}
-                                    totalPanesCount={panes.length}
-                                />
-                            </div>
-                        ))}
+                        {panes.map((pane, idx) => {
+                            const paneTmpl = getPaneTemplate(pane) || activeTemplate;
+                            return (
+                                <div key={pane._id} className="sticker-page" style={{ width: `${paneTmpl.width}mm`, height: `${paneTmpl.height}mm` }}>
+                                    <TemplateStickerRenderer
+                                        template={paneTmpl}
+                                        pane={pane}
+                                        order={order}
+                                        sequentialIndex={idx + 1}
+                                        totalPanesCount={panes.length}
+                                    />
+                                </div>
+                            );
+                        })}
                     </>
                 ) : (
                     /* ── Default QR grid ──────────────────────────────────── */

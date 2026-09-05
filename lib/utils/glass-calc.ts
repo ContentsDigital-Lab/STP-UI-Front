@@ -213,10 +213,10 @@ export function formatCompositeFormula(
     layers: CompositeLayerSpec[] = []
 ): string {
     const isTP = jobType?.toUpperCase().includes("TP") || jobType?.toLowerCase().includes("tempered");
-    const firstLayerPrefix = isTP ? "TP " : "";
-    const color1 = rawColor || "ใส";
-    const thk1 = normalizeThickness(thickness) || "6";
-    const layer1 = `${firstLayerPrefix}${color1} ${thk1}`.trim();
+    const firstLayerPrefix = isTP ? "TP" : "";
+    const color1 = rawColor ? rawColor.trim() : "";
+    const thk1 = normalizeThickness(thickness);
+    const layer1 = [firstLayerPrefix, color1, thk1].filter(Boolean).join(" ").trim();
 
     if (!productType || !layers || layers.length === 0) {
         return layer1;
@@ -224,11 +224,12 @@ export function formatCompositeFormula(
 
     const parts = [layer1];
     for (const lyr of layers) {
-        const film = lyr.filmAirType ? lyr.filmAirType.trim() : "PVB 0.38 ใส";
-        const color = lyr.rawGlassColor ? lyr.rawGlassColor.trim() : "ใส";
-        const thk = normalizeThickness(lyr.thickness) || "5";
-        parts.push(film);
-        parts.push(`${color} ${thk}`.trim());
+        const film = lyr.filmAirType ? lyr.filmAirType.trim() : "";
+        const color = lyr.rawGlassColor ? lyr.rawGlassColor.trim() : "";
+        const thk = normalizeThickness(lyr.thickness);
+        if (film) parts.push(film);
+        const layerNext = [color, thk].filter(Boolean).join(" ").trim();
+        if (layerNext) parts.push(layerNext);
     }
 
     return parts.join(" + ");

@@ -28,6 +28,7 @@ import {
     Layers,
     Copy,
     Maximize2,
+    AlertCircle,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useLanguage } from "@/lib/i18n/language-context";
@@ -570,17 +571,29 @@ export default function CreateBillPage() {
                                 w: bp.dimensions?.width,
                                 h: bp.dimensions?.height,
                                 t: bp.dimensions?.thickness,
-                                g: bp.glassType,
+                                d3: bp.dimensions?.depth3 ?? bp.glassDepth3,
+                                g: bp.glassType || bp.jobType,
                                 rg: bp.rawGlass?.glassType,
                                 rc: bp.rawGlass?.color,
                                 sp: bp.rawGlass?.sheetsPerPane,
-                                holes: bp.holes?.length,
-                                notches: bp.notches?.length,
+                                pt: bp.productType || "",
+                                lc: bp.layerCount,
+                                cl: bp.compositeLayers,
+                                holes: bp.holes,
+                                notches: bp.notches,
+                                hc: bp.holesCount ?? (bp.holes?.length || 0),
+                                nc: bp.notchesCount ?? (bp.notches?.length || 0),
                                 et: bp.edgeTasks?.find((e: any) => e.side === 'top')?.edgeProfile,
                                 eb: bp.edgeTasks?.find((e: any) => e.side === 'bottom')?.edgeProfile,
                                 el: bp.edgeTasks?.find((e: any) => e.side === 'left')?.edgeProfile,
                                 er: bp.edgeTasks?.find((e: any) => e.side === 'right')?.edgeProfile,
                                 c: bp.cornerSpec,
+                                dt: bp.dimensionTolerance,
+                                cr: bp.customerRemarks || "",
+                                ir: bp.internalRemarks || "",
+                                cdt: bp.customDimensionsText || "",
+                                pat: bp.isCutByPattern || false,
+                                v: bp.vertices,
                             });
 
                             if (grouped.has(key)) {
@@ -588,7 +601,7 @@ export default function CreateBillPage() {
                             } else {
                                 grouped.set(key, {
                                     id: bp._id,
-                                    glassType: bp.glassType || "",
+                                    glassType: bp.glassType || bp.jobType || "",
                                     thickness: String(bp.dimensions?.thickness || 0) + 'mm',
                                     rawGlassType: bp.rawGlass?.glassType || "",
                                     rawGlassColor: bp.rawGlass?.color || "",
@@ -619,11 +632,11 @@ export default function CreateBillPage() {
                                     customerRemarks: bp.customerRemarks || "",
                                     internalRemarks: bp.internalRemarks || "",
                                     productType: bp.productType || "",
-                                    layerCount: bp.layerCount || 2,
+                                    layerCount: bp.layerCount || (bp.productType === 'laminated' || bp.productType === 'laminate' ? (bp.compositeLayers?.length ? bp.compositeLayers.length + 1 : 2) : 1),
                                     compositeLayers: bp.compositeLayers && bp.compositeLayers.length > 0 ? bp.compositeLayers : [
                                         { filmAirType: "PVB 0.38 ใส", rawGlassColor: "ใส", thickness: "5" }
                                     ],
-                                    vertices: [{ x: 0, y: 0 }, { x: bp.dimensions?.width || 800, y: 0 }, { x: bp.dimensions?.width || 800, y: bp.dimensions?.height || 600 }, { x: 0, y: bp.dimensions?.height || 600 }],
+                                    vertices: bp.vertices && bp.vertices.length > 0 ? bp.vertices : [{ x: 0, y: 0 }, { x: bp.dimensions?.width || 800, y: 0 }, { x: bp.dimensions?.width || 800, y: bp.dimensions?.height || 600 }, { x: 0, y: bp.dimensions?.height || 600 }],
                                 });
                             }
                         }
@@ -1008,12 +1021,28 @@ export default function CreateBillPage() {
             return;
         }
         if (!orderData.customer) {
-            toast.error(lang === 'th' ? 'กรุณาเลือกลูกค้า' : 'Please select a customer');
+            toast.error(lang === 'th' ? 'โปรดเลือกลูกค้า' : 'Please select a customer');
+            return;
+        }
+
+        const missingJobTypeIndex = panes.findIndex(p => !p.glassType || !p.glassType.trim());
+        if (missingJobTypeIndex !== -1) {
+            toast.error(lang === 'th'
+                ? `โปรดระบุลักษณะงานในรายการที่ ${missingJobTypeIndex + 1}`
+                : `Please specify job type for item ${missingJobTypeIndex + 1}`);
+            return;
+        }
+
+        const missingThicknessIndex = panes.findIndex(p => !p.thickness || !p.thickness.trim());
+        if (missingThicknessIndex !== -1) {
+            toast.error(lang === 'th'
+                ? `โปรดระบุความหนากระจกในรายการที่ ${missingThicknessIndex + 1}`
+                : `Please specify glass thickness for item ${missingThicknessIndex + 1}`);
             return;
         }
 
         if (editId && orderData.deadline !== originalDeadline && !orderData.deadlineChangeReason?.trim()) {
-            toast.error(lang === 'th' ? 'กรุณาระบุเหตุผลในการเปลี่ยนกำหนดส่ง' : 'Please provide a reason for changing the deadline');
+            toast.error(lang === 'th' ? 'โปรดระบุเหตุผลในการเปลี่ยนกำหนดส่ง' : 'Please provide a reason for changing the deadline');
             return;
         }
 
@@ -1482,6 +1511,22 @@ export default function CreateBillPage() {
 
     const selectedCustomer = customers.find(c => c._id === orderData.customer);
     const grandTotal = useMemo(() => panes.reduce((sum, p) => sum + calcPanePrice(p, pricingSettings).total, 0), [panes, pricingSettings]);
+    const hasMissingJobType = useMemo(() => panes.some(p => !p.glassType?.trim()), [panes]);
+    const hasMissingThickness = useMemo(() => panes.some(p => !p.thickness?.trim()), [panes]);
+    const hasRequiredErrors = hasMissingJobType || hasMissingThickness;
+
+    const requiredWarningText = useMemo(() => {
+        if (hasMissingJobType && hasMissingThickness) {
+            return lang === 'th' ? 'โปรดระบุลักษณะงานและความหนา' : 'Job type & thickness required';
+        }
+        if (hasMissingJobType) {
+            return lang === 'th' ? 'โปรดระบุลักษณะงาน' : 'Job type required';
+        }
+        if (hasMissingThickness) {
+            return lang === 'th' ? 'โปรดระบุความหนากระจก' : 'Thickness required';
+        }
+        return null;
+    }, [hasMissingJobType, hasMissingThickness, lang]);
 
     return (
         <div className="flex flex-col lg:h-full lg:overflow-hidden">
@@ -1503,6 +1548,12 @@ export default function CreateBillPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap">
+                    {requiredWarningText && (
+                        <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-500 dark:text-rose-400 select-none animate-in fade-in duration-200 mr-1 sm:mr-2">
+                            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                            <span>{requiredWarningText}</span>
+                        </div>
+                    )}
                     <Button
                         onClick={handleImportDXF}
                         variant="outline"
@@ -1547,7 +1598,7 @@ export default function CreateBillPage() {
                             id="__bill-draft-btn"
                             variant="outline"
                             onClick={() => handleSubmit(true)}
-                            disabled={isSubmitting || !orderData.customer || !panes.some(p => p.glassType) || !hasChanges}
+                            disabled={isSubmitting || !orderData.customer || hasRequiredErrors || !hasChanges}
                             className="gap-1.5 rounded-xl font-bold text-xs h-9 dark:border-slate-700 dark:hover:bg-slate-800 hidden sm:flex"
                             title={lang === 'th' ? "บันทึกเป็นแบบร่าง" : "Save as Draft"}
                         >
@@ -1561,7 +1612,7 @@ export default function CreateBillPage() {
                     <Button
                         id="__bill-submit-btn"
                         onClick={() => handleSubmit(false)}
-                        disabled={isSubmitting || !orderData.customer || !panes.some(p => p.glassType) || (!hasChanges && requestStatus !== 'draft')}
+                        disabled={isSubmitting || !orderData.customer || hasRequiredErrors || (!hasChanges && requestStatus !== 'draft')}
                         className="gap-1.5 rounded-xl font-bold text-xs h-9 bg-primary hover:bg-primary/90 dark:bg-[#E8601C] dark:hover:bg-[#E8601C]/90 text-white shadow-lg shadow-primary/20 dark:shadow-orange-500/20 px-4 sm:px-6 ml-auto sm:ml-0"
                         title="บันทึก (Ctrl/⌘+S)"
                     >

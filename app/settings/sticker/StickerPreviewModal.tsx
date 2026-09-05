@@ -14,7 +14,7 @@ interface SampleData {
     sequentialNo: string; totalSheetsSummary: string;
     quantity: string; status: string; assignedTo: string; materialName: string;
     // กระจก & ประกอบ
-    compositeFormula: string; jobType: string; tp: string; rawGlassColor: string;
+    compositeFormula: string; glassSpec: string; jobType: string; tp: string; rawGlassColor: string;
     thickness: string; glassType: string; productType: string;
     paneNumber: string; paneId: string; qrCode: string;
     // ขนาด & เจียร
@@ -40,11 +40,12 @@ const DEFAULT_DATA: SampleData = {
     assignedTo: "สมชาย ใจดี",
     materialName: "กระจก Clear 12mm",
     compositeFormula: "TP ใส 6 + PVB0.38ใส + ใส 5",
-    jobType: "เทมเปอร์ (TP)",
+    glassSpec: "TP ใส 12 มม.",
+    jobType: "TP",
     tp: "TP",
     rawGlassColor: "ใส",
     thickness: "12 มม.",
-    glassType: "TPใส",
+    glassType: "TP",
     productType: "ลามิเนต",
     paneNumber: "P-0015",
     paneId: "abc123def456",
@@ -84,6 +85,8 @@ function resolveText(text: string, d: SampleData): string {
         .replace(/\{\{assignedTo\}\}/g, d.assignedTo)
         .replace(/\{\{materialName\}\}/g, d.materialName)
         // สเปกกระจก & ประกอบ
+        .replace(/\{\{glassSpec\}\}/g, d.glassSpec)
+        .replace(/\{\{specGroup\}\}/g, d.glassSpec)
         .replace(/\{\{compositeFormula\}\}/g, d.compositeFormula)
         .replace(/\{\{jobType\}\}/g, d.jobType)
         .replace(/\{\{tp\}\}/g, d.tp)

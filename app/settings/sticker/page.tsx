@@ -52,8 +52,9 @@ function SkeletonCard() {
 }
 
 // ── Template card ─────────────────────────────────────────────────────────────
-function TemplateCard({ tmpl, isDeleting, onEdit, onDelete, onDuplicate }: {
+function TemplateCard({ tmpl, assignedGroup, isDeleting, onEdit, onDelete, onDuplicate }: {
     tmpl: StickerTemplateRecord;
+    assignedGroup?: "laminate" | "standard" | null;
     isDeleting: boolean;
     onEdit: (id: string) => void;
     onDelete: (tmpl: StickerTemplateRecord) => void;
@@ -63,9 +64,27 @@ function TemplateCard({ tmpl, isDeleting, onEdit, onDelete, onDuplicate }: {
         new Date(d).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
 
     return (
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden hover:shadow-md transition-shadow group cursor-pointer" onClick={() => onEdit(tmpl._id)}>
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden hover:shadow-md transition-shadow group cursor-pointer relative" onClick={() => onEdit(tmpl._id)}>
+            {/* Status Badges */}
+            {assignedGroup && (
+                <div className="absolute top-2 left-2 z-10 flex items-center gap-1.5">
+                    {assignedGroup === "laminate" && (
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500 text-white shadow-sm flex items-center gap-1">
+                            <Layers className="h-3 w-3" />
+                            เทมเพลต 1 (ลามิเนต / อินซูเลท)
+                        </span>
+                    )}
+                    {assignedGroup === "standard" && (
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-600 text-white shadow-sm flex items-center gap-1">
+                            <Tag className="h-3 w-3" />
+                            เทมเพลต 2 (เทมเปอร์ / ตัดธรรมดา)
+                        </span>
+                    )}
+                </div>
+            )}
+
             {/* Thumbnail preview */}
-            <div className="p-3 pb-2">
+            <div className={`p-3 pb-2 ${assignedGroup ? 'pt-8' : ''}`}>
                 <StickerThumbnail
                     widthMm={tmpl.width}
                     heightMm={tmpl.height}
@@ -78,7 +97,9 @@ function TemplateCard({ tmpl, isDeleting, onEdit, onDelete, onDuplicate }: {
             {/* Info + actions */}
             <div className="px-4 pb-4 space-y-2">
                 <div className="space-y-0.5">
-                    <h3 className="font-semibold text-slate-900 dark:text-white truncate text-sm">{tmpl.name}</h3>
+                    <h3 className="font-semibold text-slate-900 dark:text-white truncate text-sm">
+                        {tmpl.name}
+                    </h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400">{tmpl.width} × {tmpl.height} mm</p>
                 </div>
                 <div className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500">
@@ -113,6 +134,21 @@ function TemplateCard({ tmpl, isDeleting, onEdit, onDelete, onDuplicate }: {
     );
 }
 
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { Layers, Settings2, Sparkles, CheckCircle2 } from "lucide-react";
+import {
+    getStickerMapping,
+    fetchStickerMapping,
+    saveStickerMapping,
+    type StickerMappingSettings,
+} from "@/lib/sticker-settings";
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function StickerGalleryPage() {
     const router = useRouter();
@@ -126,6 +162,29 @@ export default function StickerGalleryPage() {
     const [search, setSearch] = useState("");
     const [page,   setPage]   = useState(1);
 
+    // Default template mapping
+    const [mapping, setMapping] = useState<StickerMappingSettings>(() => getStickerMapping());
+
+    useEffect(() => {
+        fetchStickerMapping().then((m) => {
+            if (m) setMapping(m);
+        });
+    }, []);
+
+    const handleUpdateMapping = async (field: keyof StickerMappingSettings, val: string | null) => {
+        const cleanVal = val === "__none__" || !val ? "" : val;
+        const next = { ...mapping, [field]: cleanVal };
+        setMapping(next);
+        await saveStickerMapping(next);
+        const label = field === "laminateTemplateId" ? "กลุ่มงานลามิเนต/อินซูเลท (เทมเพลต 1)" : "กลุ่มงานเทมเปอร์/ตัดธรรมดา (เทมเพลต 2)";
+        if (!cleanVal) {
+            toast.info(`ยกเลิกการผูกแม่แบบสำหรับ ${label} แล้ว (ใช้แบบเริ่มต้นปกติ)`);
+        } else {
+            const tmplName = templates.find(t => t._id === cleanVal)?.name || "แม่แบบที่เลือก";
+            toast.success(`บันทึกแม่แบบเริ่มต้นสำหรับ ${label} เป็น "${tmplName}" แล้ว`);
+        }
+    };
+
     // Create dialog
     const [showCreate, setShowCreate] = useState(false);
     const [newName,    setNewName]    = useState("");
@@ -138,13 +197,20 @@ export default function StickerGalleryPage() {
             .catch(() => setLoading(false));
     };
 
+    const fetchAllData = () => {
+        fetchTemplates();
+        fetchStickerMapping().then((m) => {
+            if (m) setMapping(m);
+        });
+    };
+
     useEffect(() => { fetchTemplates(); }, []);
 
     // Real-time updates via WebSocket
     useWebSocket(
         "sticker-template",
-        ["sticker-template:created", "sticker-template:updated", "sticker-template:deleted"],
-        () => { fetchTemplates(); },
+        ["sticker-template:created", "sticker-template:updated", "sticker-template:deleted", "sticker-settings:updated"],
+        () => { fetchAllData(); },
     );
 
     useEffect(() => { setPage(1); }, [search]);
@@ -219,6 +285,32 @@ export default function StickerGalleryPage() {
 
     const handleEdit = (id: string) => router.push(`/settings/sticker/${id}`);
 
+    const getLaminateDisplayText = () => {
+        if (!mapping.laminateTemplateId || mapping.laminateTemplateId === "__none__") {
+            return <span className="text-slate-400 italic">-- ไม่เลือก (ใช้แบบเริ่มต้นปกติ) --</span>;
+        }
+        const tmpl = templates.find(t => t._id === mapping.laminateTemplateId);
+        if (!tmpl) return <span className="text-slate-400 italic">-- ไม่เลือก (ใช้แบบเริ่มต้นปกติ) --</span>;
+        return (
+            <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
+                {tmpl.name} ({tmpl.width}×{tmpl.height}mm)
+            </span>
+        );
+    };
+
+    const getStandardDisplayText = () => {
+        if (!mapping.standardTemplateId || mapping.standardTemplateId === "__none__") {
+            return <span className="text-slate-400 italic">-- ไม่เลือก (ใช้แบบเริ่มต้นปกติ) --</span>;
+        }
+        const tmpl = templates.find(t => t._id === mapping.standardTemplateId);
+        if (!tmpl) return <span className="text-slate-400 italic">-- ไม่เลือก (ใช้แบบเริ่มต้นปกติ) --</span>;
+        return (
+            <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
+                {tmpl.name} ({tmpl.width}×{tmpl.height}mm)
+            </span>
+        );
+    };
+
     return (
         <PermissionGuard permission="stickers:manage">
             <div className="space-y-6 max-w-[1440px] mx-auto w-full">
@@ -261,6 +353,122 @@ export default function StickerGalleryPage() {
                 </div>
             </div>
 
+            {/* Default Template Mapping Settings (กลุ่มงานลามิเนต vs เทมเปอร์/ตัดธรรมดา) */}
+            <div className="bg-gradient-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-900/60 p-5 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                <div className="flex items-center gap-2.5 pb-2 border-b border-slate-100 dark:border-slate-800">
+                    <div className="h-8 w-8 rounded-lg bg-blue-50 dark:bg-blue-950/60 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                        <Settings2 className="h-4 w-4" />
+                    </div>
+                    <div>
+                        <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            ตั้งค่าแม่แบบเริ่มต้นประจำกลุ่มงาน
+                            <span className="text-[11px] font-normal px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300">
+                                Auto-assign Template
+                            </span>
+                        </h2>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                            ระบบจะเลือกแม่แบบสติกเกอร์ที่ผูกไว้ให้โดยอัตโนมัติตามประเภทงานของแผ่นกระจก
+                        </p>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                    {/* กล่อง 1: กลุ่มงานลามิเนต / อินซูเลท */}
+                    <div className="p-4 rounded-xl bg-white dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                                <div className="h-7 w-7 rounded-lg bg-amber-50 dark:bg-amber-950/60 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                                    <Layers className="h-4 w-4" />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                        เทมเพลตของกลุ่มงานลามิเนต / อินซูเลท
+                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                                            เทมเพลตที่ 1
+                                        </span>
+                                    </h3>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                        มีสูตรชั้นฟิล์ม PVB/AIR และแถบด้านข้าง
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <Select
+                                value={mapping.laminateTemplateId || "__none__"}
+                                onValueChange={(val) => handleUpdateMapping("laminateTemplateId", val)}
+                            >
+                                <SelectTrigger className="w-full h-9 text-xs bg-slate-50/70 dark:bg-slate-900/70 border-slate-200 dark:border-slate-700 justify-between">
+                                    {getLaminateDisplayText()}
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="__none__" className="text-xs text-slate-500 italic">
+                                        -- ไม่เลือก (ใช้แบบเริ่มต้นปกติ) --
+                                    </SelectItem>
+                                    {templates
+                                        .filter((t) => t._id !== mapping.standardTemplateId)
+                                        .map((t) => (
+                                            <SelectItem key={t._id} value={t._id} className="text-xs">
+                                                <span>
+                                                    {t.name} ({t.width}×{t.height}mm)
+                                                </span>
+                                            </SelectItem>
+                                        ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+
+                    {/* กล่อง 2: กลุ่มงานเทมเปอร์ / ตัดธรรมดา */}
+                    <div className="p-4 rounded-xl bg-white dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                                <div className="h-7 w-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                                    <Tag className="h-4 w-4" />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                        เทมเพลตของกลุ่มงานเทมเปอร์ / ตัดธรรมดา
+                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                                            เทมเพลตที่ 2
+                                        </span>
+                                    </h3>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                        งานกระจกเดี่ยวทั่วไป
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <Select
+                                value={mapping.standardTemplateId || "__none__"}
+                                onValueChange={(val) => handleUpdateMapping("standardTemplateId", val)}
+                            >
+                                <SelectTrigger className="w-full h-9 text-xs bg-slate-50/70 dark:bg-slate-900/70 border-slate-200 dark:border-slate-700 justify-between">
+                                    {getStandardDisplayText()}
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="__none__" className="text-xs text-slate-500 italic">
+                                        -- ไม่เลือก (ใช้แบบเริ่มต้นปกติ) --
+                                    </SelectItem>
+                                    {templates
+                                        .filter((t) => t._id !== mapping.laminateTemplateId)
+                                        .map((t) => (
+                                            <SelectItem key={t._id} value={t._id} className="text-xs">
+                                                <span>
+                                                    {t.name} ({t.width}×{t.height}mm)
+                                                </span>
+                                            </SelectItem>
+                                        ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {/* Content */}
             {loading ? (
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
@@ -293,16 +501,21 @@ export default function StickerGalleryPage() {
                 </div>
             ) : (
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-                    {paginated.map((tmpl) => (
-                        <TemplateCard
-                            key={tmpl._id}
-                            tmpl={tmpl}
-                            isDeleting={isDeleting && templateToDelete?._id === tmpl._id}
-                            onEdit={handleEdit}
-                            onDelete={(t) => setTemplateToDelete(t)}
-                            onDuplicate={handleDuplicate}
-                        />
-                    ))}
+                    {paginated.map((tmpl) => {
+                        const isLam = mapping.laminateTemplateId === tmpl._id;
+                        const isStd = mapping.standardTemplateId === tmpl._id;
+                        return (
+                            <TemplateCard
+                                key={tmpl._id}
+                                tmpl={tmpl}
+                                assignedGroup={isLam ? "laminate" : isStd ? "standard" : null}
+                                isDeleting={isDeleting && templateToDelete?._id === tmpl._id}
+                                onEdit={handleEdit}
+                                onDelete={(t) => setTemplateToDelete(t)}
+                                onDuplicate={handleDuplicate}
+                            />
+                        );
+                    })}
                 </div>
             )}
 

@@ -235,8 +235,8 @@ export function GlassSpecsTable({
                         <Layers className="h-4 w-4 text-[#E8601C]" />
                         <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
                             {lang === 'th'
-                                ? `รายการแผ่นกระจก (${panes.length} แผ่น)`
-                                : `Glass Specs (${panes.length} Sheets)`}
+                                ? `รายการแผ่นกระจก (${panes.length} รายการ, จำนวนทั้งหมด ${totalQuantity} แผ่น)`
+                                : `Glass Specs (${panes.length} Items, Total ${totalQuantity} Sheets)`}
                         </span>
                     </div>
 
@@ -410,7 +410,7 @@ export function GlassSpecsTable({
                                 style={{ width: `${colWidths.jobType || DEFAULT_COL_WIDTHS.jobType}px`, minWidth: `${colWidths.jobType || DEFAULT_COL_WIDTHS.jobType}px`, maxWidth: `${colWidths.jobType || DEFAULT_COL_WIDTHS.jobType}px` }}
                                 className="relative py-2 px-2.5 border-b border-r border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 whitespace-nowrap overflow-hidden box-border"
                             >
-                                <span className="truncate">{lang === 'th' ? 'ลักษณะงาน' : 'Job Type'}</span>
+                                <span className="truncate">{lang === 'th' ? 'ลักษณะงาน' : 'Job Type'}<span className="text-red-500 ml-0.5 font-bold">*</span></span>
                                 <div
                                     onMouseDown={(e) => handleResizeMouseDown("jobType", e)}
                                     onDoubleClick={() => handleDoubleClickResize("jobType")}
@@ -424,7 +424,7 @@ export function GlassSpecsTable({
                                 style={{ width: `${colWidths.thickness || DEFAULT_COL_WIDTHS.thickness}px`, minWidth: `${colWidths.thickness || DEFAULT_COL_WIDTHS.thickness}px`, maxWidth: `${colWidths.thickness || DEFAULT_COL_WIDTHS.thickness}px` }}
                                 className="relative py-2 px-2.5 border-b border-r border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 whitespace-nowrap overflow-hidden box-border"
                             >
-                                <span className="truncate">{lang === 'th' ? 'ความหนา' : 'Thickness'}</span>
+                                <span className="truncate">{lang === 'th' ? 'ความหนา' : 'Thickness'}<span className="text-red-500 ml-0.5 font-bold">*</span></span>
                                 <div
                                     onMouseDown={(e) => handleResizeMouseDown("thickness", e)}
                                     onDoubleClick={() => handleDoubleClickResize("thickness")}
@@ -847,7 +847,7 @@ export function GlassSpecsTable({
                                             onFocus={() => {
                                                 if (activeTab !== idx) setActiveTab(idx);
                                             }}
-                                            placeholder="6mm"
+                                            placeholder={lang === 'th' ? 'ระบุความหนา' : 'Specify mm'}
                                             className={cellInputClass}
                                         />
                                     </td>
